@@ -1,11 +1,10 @@
 
-import { Github } from "lucide-react";
+import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
-  const handleGitHubClick = () => {
-    // Replace with your actual GitHub repository URL
-    window.open("https://github.com/yourusername/my23-ai", "_blank");
+  const handleEmailClick = () => {
+    window.location.href = "mailto:mihir@my23.ai";
   };
 
   return (
@@ -43,14 +42,14 @@ const Index = () => {
           </p>
         </div>
         
-        {/* GitHub button */}
+        {/* Contact button */}
         <div className="animate-slide-up delay-500">
           <Button 
-            onClick={handleGitHubClick}
+            onClick={handleEmailClick}
             className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
-            <Github className="mr-3 h-5 w-5" />
-            View on GitHub
+            <Mail className="mr-3 h-5 w-5" />
+            mihir@my23.ai
           </Button>
         </div>
         
