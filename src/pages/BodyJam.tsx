@@ -26,106 +26,106 @@ const BodyJam = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   
-  // Sample blood marker data
+  // Blood marker data with empty values
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarker[]>([
     {
       id: "rbc",
       name: "RBC",
-      value: 5.2,
+      value: null,
       unit: "million cells/mcL",
       normalRange: "4.5-5.9 million cells/mcL (men); 4.1-5.1 (women)",
       explanation: "Carries oxygen from lungs to tissues and carbon dioxide back to lungs",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "wbc",
       name: "WBC",
-      value: 7500,
+      value: null,
       unit: "cells/mcL",
       normalRange: "4,500-11,000 cells/mcL",
       explanation: "Part of immune system, helps fight infections",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "hemoglobin",
       name: "Hemoglobin",
-      value: 14.5,
+      value: null,
       unit: "g/dL",
       normalRange: "13.5-17.5 g/dL (men); 12.0-15.5 (women)",
       explanation: "Protein in red blood cells that carries oxygen",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "platelets",
       name: "Platelet Count",
-      value: 250000,
+      value: null,
       unit: "platelets/mcL",
       normalRange: "150,000-450,000 platelets/mcL",
       explanation: "Helps blood clot, prevents excessive bleeding",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "total_cholesterol",
       name: "Total Cholesterol",
-      value: 210,
+      value: null,
       unit: "mg/dL",
       normalRange: "Less than 200 mg/dL",
       explanation: "Fatty substance in blood, needed for cell building",
-      status: "high"
+      status: "unknown"
     },
     {
       id: "hdl",
       name: "HDL Cholesterol",
-      value: 45,
+      value: null,
       unit: "mg/dL",
       normalRange: "40 mg/dL or higher (men); 50 or higher (women)",
       explanation: "'Good' cholesterol that helps remove other forms of cholesterol",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "ldl",
       name: "LDL Cholesterol",
-      value: 130,
+      value: null,
       unit: "mg/dL",
       normalRange: "Less than 100 mg/dL",
       explanation: "'Bad' cholesterol that can build up in arteries",
-      status: "high"
+      status: "unknown"
     },
     {
       id: "triglycerides",
       name: "Triglycerides",
-      value: 120,
+      value: null,
       unit: "mg/dL",
       normalRange: "Less than 150 mg/dL",
       explanation: "Type of fat in blood that stores excess energy",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "vitamin_d",
       name: "Vitamin D",
-      value: 18,
+      value: null,
       unit: "ng/mL",
       normalRange: "20-50 ng/mL",
       explanation: "Helps body absorb calcium, important for bone health",
-      status: "low"
+      status: "unknown"
     },
     {
       id: "vitamin_b12",
       name: "Vitamin B12",
-      value: 550,
+      value: null,
       unit: "pg/mL",
       normalRange: "200-900 pg/mL",
       explanation: "Helps make DNA and red blood cells, supports nerve function",
-      status: "good"
+      status: "unknown"
     },
     {
       id: "fasting_glucose",
       name: "Fasting Glucose",
-      value: 95,
+      value: null,
       unit: "mg/dL",
       normalRange: "70-99 mg/dL",
       explanation: "Blood sugar level after not eating for at least 8 hours",
-      status: "good"
+      status: "unknown"
     }
   ]);
 
@@ -145,7 +145,7 @@ const BodyJam = () => {
 
   // Format value for display
   const formatValue = (value: number | null, unit: string) => {
-    if (value === null) return 'N/A';
+    if (value === null) return '—';
     
     // Format large numbers with commas
     if (value >= 1000) {
@@ -233,12 +233,6 @@ const BodyJam = () => {
                         <div className="text-xs">
                           <span className="font-medium">Normal Range:</span> {marker.normalRange}
                         </div>
-                        <div className="text-xs">
-                          <span className="font-medium">Status:</span> 
-                          <span className={`ml-1 ${getStatusColor(marker.status)}`}>
-                            {marker.status.charAt(0).toUpperCase() + marker.status.slice(1)}
-                          </span>
-                        </div>
                       </div>
                     </TooltipContent>
                   </Tooltip>
@@ -255,9 +249,6 @@ const BodyJam = () => {
             <p className="text-gray-600 mb-4">
               Blood markers are important indicators of your overall health. Regular monitoring can help identify potential health issues before they become serious.
             </p>
-            <p className="text-gray-600 mb-4">
-              The color indicators show whether your values are within normal range (green), below normal range (amber), or above normal range (red).
-            </p>
             <p className="text-gray-600">
               Click on any marker card to see more details about that specific marker, including the normal range and a brief explanation.
             </p>
@@ -268,7 +259,7 @@ const BodyJam = () => {
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
-          <div>Sample data for demonstration purposes</div>
+          <div>Enter your blood test values to track your health</div>
           <div>Last updated: {new Date().toLocaleDateString()}</div>
         </div>
       </footer>
