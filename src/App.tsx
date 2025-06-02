@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import CurrentJam from "./pages/CurrentJam";
+import NutritionJam from "./pages/NutritionJam";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,6 +19,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/current-jam" element={<CurrentJam />} />
+          <Route path="/nutrition-jam" element={<NutritionJam />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
