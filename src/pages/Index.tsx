@@ -22,7 +22,7 @@ const Index = () => {
         <div className="space-y-6 mb-12">
           <h1 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in leading-tight">
             🧬 MY HEALTH.<br />
-            📊 MY DATA.<br />
+            🗄️ MY DATA.<br />
             🧪 MY 23.
           </h1>
           
