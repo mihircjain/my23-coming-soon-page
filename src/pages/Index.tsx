@@ -39,8 +39,8 @@ const Index = () => {
         {/* Description */}
         <div className="mb-12 animate-slide-up delay-300">
           <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Revolutionizing personal health data management with AI-powered insights. 
-            Take control of your health journey with intelligent, personalized analytics.
+            Your complete genetic blueprint lives in 23 pairs of chromosomes. 
+            Take control of your health journey with AI-powered insights from your personal genomic data.
           </p>
         </div>
         
