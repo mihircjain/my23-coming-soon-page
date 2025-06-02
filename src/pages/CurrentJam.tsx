@@ -43,32 +43,66 @@ const CurrentJam = () => {
 
   // Function to fetch Strava data
   const fetchStravaData = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch data from our backend API
-      const response = await fetch('/api/strava-direct/chart-data');
-      const data = await response.json();
-      
-      if (data.success) {
-        // Process the activities
-        const processedActivities = processActivities(data);
-        setActivities(processedActivities);
-        
-        // Generate chart data
-        generateChartData(processedActivities);
-        
-        // Calculate summary stats
-        calculateSummaryStats(processedActivities);
-      } else {
-        console.error('Failed to fetch Strava data:', data.error);
+  try {
+    setLoading(true);
+    
+    // Hardcoded tokens and athlete ID from your Strava setup
+    const clientId = '162438';
+    const clientSecret = 'c749fe341837025381598173baae43e5baae9201';
+    const refreshToken = '6ecba6a50038cd87e9bb054c8e9860a420bd97f5'; // Replace with your actual refresh token
+    
+    // First, get a new access token using the refresh token
+    const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+      } )
+    });
+    
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+    
+    // Now use the access token to fetch activities
+    const activitiesResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
       }
-    } catch (error) {
-      console.error('Error fetching Strava data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    } );
+    
+    const activitiesData = await activitiesResponse.json();
+    
+    // Process the activities into the format your charts expect
+    const processedActivities = activitiesData.map(activity => ({
+      date: new Date(activity.start_date).toLocaleDateString(),
+      type: activity.type,
+      distance: activity.distance / 1000, // Convert meters to kilometers
+      duration: Math.round(activity.moving_time / 60), // Convert seconds to minutes
+      heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
+      name: activity.name,
+      elevation_gain: activity.total_elevation_gain
+    }));
+    
+    setActivities(processedActivities);
+    
+    // Generate chart data
+    generateChartData(processedActivities);
+    
+    // Calculate summary stats
+    calculateSummaryStats(processedActivities);
+    
+  } catch (error) {
+    console.error('Error fetching Strava data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Process the raw activities data
   const processActivities = (data: any): StravaActivity[] => {
