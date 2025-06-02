@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Utensils, Beef, Grain, Oil } from "lucide-react";
+import { ArrowLeft, Utensils, Beef, Apple, Oil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -269,7 +269,7 @@ const NutritionJam = () => {
             <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
-                  <Grain className="mr-2 h-4 w-4 text-purple-500" />
+                  <Apple className="mr-2 h-4 w-4 text-purple-500" />
                   Total Carbs
                 </CardTitle>
               </CardHeader>
