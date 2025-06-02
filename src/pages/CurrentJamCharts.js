@@ -141,7 +141,7 @@ function renderDistanceChart(data) {
   }
   
   // Simplify the data for a cleaner look
-  const simplifiedData = simplifyChartData(data, 10);
+  const simplifiedData = simplifyChartData(data, 50);
   
   // Create gradient for bars
   const ctx = canvas.getContext('2d');
