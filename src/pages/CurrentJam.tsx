@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { initializeCharts } from './CurrentJamCharts';
 
 // Define types for our Strava data
 interface StravaActivity {
@@ -216,10 +217,12 @@ const CurrentJam = () => {
   }, [loading, heartRateData, distanceData, activityTypeData]);
 
   // Placeholder function for chart rendering
-  const renderCharts = () => {
-    // This will be implemented with Chart.js in the integration phase
-    console.log('Charts would be rendered here');
-  };
+const renderCharts = ( ) => {
+  if (heartRateData && distanceData && activityTypeData) {
+    // Make sure to call the function with all three data sets
+    initializeCharts(heartRateData, distanceData, activityTypeData);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
