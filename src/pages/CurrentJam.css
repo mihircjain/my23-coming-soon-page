@@ -1,0 +1,56 @@
+/* CurrentJam.css */
+.chart-container {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.timeline-dot {
+  transition: transform 0.2s ease;
+}
+
+.timeline-dot:hover {
+  transform: scale(1.5) translateY(-50%);
+}
+
+.activity-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.activity-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Minimal chart styling */
+.minimal-chart {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.minimal-chart .chart-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.minimal-chart .chart-axis {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+/* Gradient backgrounds for cards */
+.stat-card-distance {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.stat-card-duration {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.stat-card-heart {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.stat-card-activity {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
