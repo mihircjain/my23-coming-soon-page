@@ -1,4 +1,5 @@
 
+import { Mail, Activity } from "lucide-react";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -52,6 +53,17 @@ const Index = () => {
             mihir@my23.ai
           </Button>
         </div>
+        {/* Current Jam button */}
+<div className="mt-4 animate-slide-up delay-600">
+  <Button 
+    onClick={() => window.location.href = '/current-jam'} 
+    className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-8 py-4 text-lg font-medium rounded-full shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+  >
+    <Activity className="mr-3 h-5 w-5" />
+    Mihir's Current Jam
+  </Button>
+</div>
+
         
         {/* Coming soon indicator */}
         <div className="mt-16 animate-slide-up delay-700">
