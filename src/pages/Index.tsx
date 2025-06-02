@@ -21,15 +21,15 @@ const Index = () => {
         {/* Main heading with gradient text */}
         <div className="space-y-6 mb-12">
           <h1 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in leading-tight">
-            MY HEALTH.<br />
-            MY DATA.<br />
-            MY 23.
+            🧬 MY HEALTH.<br />
+            📊 MY DATA.<br />
+            🧪 MY 23.
           </h1>
           
           {/* Tagline */}
           <div className="space-y-4">
             <p className="text-xl md:text-2xl font-medium text-blue-600 animate-slide-up delay-200">
-              Coming Soon
+              🚀 Coming Soon
             </p>
           </div>
         </div>
@@ -38,7 +38,7 @@ const Index = () => {
         <div className="mb-12 animate-slide-up delay-300">
           <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
             Your complete genetic blueprint lives in 23 pairs of chromosomes. 
-            Take control of your health journey with AI-powered insights from your personal genomic data.
+            Take control of your health journey with AI-powered insights from your personal genomic data. 🔬✨
           </p>
         </div>
         
@@ -49,7 +49,7 @@ const Index = () => {
             className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             <Mail className="mr-3 h-5 w-5" />
-            mihir@my23.ai
+            📧 mihir@my23.ai
           </Button>
         </div>
         
@@ -57,7 +57,7 @@ const Index = () => {
         <div className="mt-16 animate-slide-up delay-700">
           <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600 font-medium">Stay tuned for updates</span>
+            <span className="text-sm text-gray-600 font-medium">📬 Stay tuned for updates</span>
           </div>
         </div>
       </div>
