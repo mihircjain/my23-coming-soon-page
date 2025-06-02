@@ -49,7 +49,7 @@ const Index = () => {
             className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             <Mail className="mr-3 h-5 w-5" />
-            📧 mihir@my23.ai
+            mihir@my23.ai
           </Button>
         </div>
         
