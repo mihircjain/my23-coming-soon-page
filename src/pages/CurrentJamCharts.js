@@ -51,7 +51,7 @@ function renderHeartRateChart(data) {
   }
   
   // Simplify the data for a cleaner look
-  const simplifiedData = simplifyChartData(data);
+  const simplifiedData = simplifyChartData(data,50);
   
   // Create the chart with minimal styling
   new Chart(canvas, {
