@@ -1,4 +1,4 @@
-import { Mail, Activity, Utensils } from "lucide-react";
+import { Mail, Activity, Utensils, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -74,8 +74,19 @@ const Index = () => {
           </Button>
         </div>
         
+        {/* Body Jam button */}
+        <div className="mt-4 animate-slide-up delay-800">
+          <Button 
+            onClick={() => window.location.href = '/body-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-8 py-4 text-lg font-medium rounded-full shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Heart className="mr-3 h-5 w-5" />
+            Mihir's Body Jam
+          </Button>
+        </div>
+        
         {/* Coming soon indicator */}
-        <div className="mt-16 animate-slide-up delay-800">
+        <div className="mt-16 animate-slide-up delay-900">
           <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm text-gray-600 font-medium">📬 Stay tuned for updates</span>
