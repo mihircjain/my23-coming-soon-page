@@ -123,7 +123,7 @@ const CurrentJam = () => {
       heart_rate: heartRates[index],
       name: `Activity on ${date}`,
       elevation_gain: 0, // Default value if not available
-    })).slice(0, 50); // Limit to last 50 days
+    })).slice(0, 30); // Limit to last 30 days
   };
 
   // Generate chart data for our visualizations
@@ -247,7 +247,7 @@ const renderCharts = ( ) => {
             Mihir's Current Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            My workout activity over the last 50 days
+            My workout activity over the last 30 days
           </p>
         </div>
       </header>
