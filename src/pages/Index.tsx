@@ -21,15 +21,14 @@ const Index = () => {
       <div className="text-center z-10 max-w-4xl mx-auto px-6">
         {/* Main heading with gradient text */}
         <div className="space-y-6 mb-12">
-          <h1 className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in">
-            My23.ai
+          <h1 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in leading-tight">
+            MY HEALTH.<br />
+            MY DATA.<br />
+            MY 23.
           </h1>
           
           {/* Tagline */}
           <div className="space-y-4">
-            <p className="text-2xl md:text-4xl font-light text-gray-700 leading-relaxed animate-slide-up">
-              My Health. My Data. My 23.
-            </p>
             <p className="text-xl md:text-2xl font-medium text-blue-600 animate-slide-up delay-200">
               Coming Soon
             </p>
