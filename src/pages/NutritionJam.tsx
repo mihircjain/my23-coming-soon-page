@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FoodSelector } from "@/components/nutrition/FoodSelector";
 import { FoodList } from "@/components/nutrition/FoodList";
 import { MealPresets } from "@/components/nutrition/MealPresets";
+import { MacroAveragesSummary } from "@/components/nutrition/MacroAveragesSummary";
 import { DailyLog, FoodEntry } from "@/types/nutrition";
 import { 
   getTodayDateString, 
@@ -334,6 +335,12 @@ const NutritionJam = () => {
                 </Button>
               </div>
             </div>
+            
+            {/* Average Daily Macros Summary */}
+            <MacroAveragesSummary 
+              chartTimeframe={chartTimeframe} 
+              loading={loading} 
+            />
             
             {/* Charts Section */}
             {[ "Calories", "Macro Distribution", "Protein (g)", "Carbs (g)", "Fat (g)", "Fiber (g)"].map((title) => {
