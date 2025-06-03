@@ -353,6 +353,33 @@ export const vegetarianFoods: FoodItem[] = [
     carbs: 45.0,
     fat: 0.7,
     fiber: 0.0
+  },
+  {
+    name: "Guilt Free Ice Cream, Belgian Chocolate",
+    servingSize: "125ml (80g)",
+    calories: 134,
+    protein: 9.8,
+    carbs: 10.4,
+    fat: 5.8,
+    fiber: 1.7
+  },
+  {
+    name: "Dutch Chocolate Ice Cream",
+    servingSize: "130ml",
+    calories: 175,
+    protein: 3.9,
+    carbs: 19.0,
+    fat: 9.2,
+    fiber: 0.0
+  },
+  {
+    name: "Pizza, Garden Veggie",
+    servingSize: "2.5 Slices (267.5g)",
+    calories: 434,
+    protein: 24.1,
+    carbs: 60.2,
+    fat: 12.0,
+    fiber: 9.6
   }
 ];
 
@@ -390,10 +417,11 @@ export const mealPresets: MealPreset[] = [
   {
     name: "Bread Pizza",
     foods: [
-      { name: "Capsicum Tomato Onion", quantity: 1.25 }, // 150g (120g * 1.25)
-      { name: "100% Whole Wheat Bread, Britannia", quantity: 4 }, // 4 slices
-      { name: "Knorr Pizza and Pasta Sauce", quantity: 1.25 }, // 50g (40g * 1.25)
-      { name: "Amul Cheese Slice", quantity: 4 } // 4 slices
+      { name: "Capsicum Tomato Onion", quantity: 1.25 }, // 150g - 96 Cal
+      { name: "100% Whole Wheat Bread, Britannia", quantity: 4 }, // 4 slices - 266 Cal
+      { name: "Knorr Pizza and Pasta Sauce", quantity: 1.25 }, // 50g - 41 Cal
+      { name: "Amul Cheese Slice", quantity: 4 } // 4 slices - 249 Cal
+      // Total: 652 Cal (corrected from previous calculation)
     ]
   },
   {
@@ -426,6 +454,13 @@ export const mealPresets: MealPreset[] = [
       { name: "Low Fat Paneer, Milky Mist", quantity: 1 }, // 100g
       { name: "Roti", quantity: 1 }, // 50g
       { name: "Dal", quantity: 1.21 } // 200g (165g * 1.21)
+    ]
+  },
+  {
+    name: "Dosa Sambhar",
+    foods: [
+      { name: "Dosa", quantity: 1 }, // 112g
+      { name: "Sambhar", quantity: 1.41 } // 212g (150g * 1.41)
     ]
   }
 ];

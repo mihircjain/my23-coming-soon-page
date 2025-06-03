@@ -76,20 +76,31 @@ export function FoodList({ entries, onRemoveFood, onUpdateQuantity }: FoodListPr
                       <td className="py-3 px-4">
                         <div className="relative group">
                           <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             value={entry.quantity}
                             onChange={(e) => {
+                              // Allow direct text input but convert to number
+                              const inputValue = e.target.value.replace(/[^\d.]/g, '');
+                              const value = parseFloat(inputValue);
+                              
+                              // Only update if it's a valid positive number
+                              if (!isNaN(value) && value > 0) {
+                                onUpdateQuantity(index, value);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // On blur, ensure we have a valid value (minimum 0.01)
                               const value = parseFloat(e.target.value);
-                              // Allow any positive decimal, default to 0.01 if invalid or zero
-                              onUpdateQuantity(index, value > 0 ? value : 0.01);
+                              if (isNaN(value) || value <= 0) {
+                                onUpdateQuantity(index, 0.01);
+                              }
                             }}
                             className="w-16 h-8 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                            title="Enter any positive value (minimum 0.01)"
+                            title="Enter any quantity above 0"
                           />
                           <div className="absolute left-0 -bottom-8 hidden group-hover:block bg-black text-white text-xs rounded p-1 z-10 whitespace-nowrap">
-                            Enter any positive value
+                            Enter any quantity above 0
                           </div>
                         </div>
                       </td>
