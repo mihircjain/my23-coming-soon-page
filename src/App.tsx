@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
-import CurrentJam from "./pages/CurrentJam";
+import CurrentJam from "./pages/ActivityJam";
 import NutritionJam from "./pages/NutritionJam";
 import BodyJam from "./pages/BodyJam";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -19,7 +19,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/current-jam" element={<CurrentJam />} />
+          <Route path="/activity-jam" element={<CurrentJam />} />
           <Route path="/nutrition-jam" element={<NutritionJam />} />
           <Route path="/body-jam" element={<BodyJam />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

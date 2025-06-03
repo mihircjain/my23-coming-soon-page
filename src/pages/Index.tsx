@@ -52,14 +52,14 @@ const Index = () => {
           </Button>
         </div>
         
-        {/* Current Jam button */}
+        {/* Activity Jam button */}
         <div className="mt-4 animate-slide-up delay-600">
           <Button 
-            onClick={() => window.location.href = '/current-jam'} 
+            onClick={() => window.location.href = '/activity-jam'} 
             className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-8 py-4 text-lg font-medium rounded-full shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
             <Activity className="mr-3 h-5 w-5" />
-            Mihir's Current Jam
+            Mihir's Activity Jam
           </Button>
         </div>
         

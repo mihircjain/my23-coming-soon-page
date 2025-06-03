@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import { initializeCharts } from './CurrentJamCharts';
+import { initializeCharts } from './ActivityJamCharts';
 
 // Define types for our Strava data
 interface StravaActivity {
@@ -42,39 +42,18 @@ const CurrentJam = () => {
     activityCount: 0,
   });
 
-  // Function to fetch Strava data
+  // Function to fetch Strava data using our secure backend API
   const fetchStravaData = async () => {
   try {
     setLoading(true);
     
-    // Hardcoded tokens and athlete ID from your Strava setup
-    const clientId = '162438';
-    const clientSecret = 'c749fe341837025381598173baae43e5baae9201';
-    const refreshToken = '6ecba6a50038cd87e9bb054c8e9860a420bd97f5'; // Replace with your actual refresh token
+    // Use our secure backend API endpoint instead of direct Strava API calls
+    // This keeps all credentials secure on the server side
+    const activitiesResponse = await fetch('/api/strava');
     
-    // First, get a new access token using the refresh token
-    const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token'
-      } )
-    });
-    
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-    
-    // Now use the access token to fetch activities
-    const activitiesResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    } );
+    if (!activitiesResponse.ok) {
+      throw new Error(`Failed to fetch Strava data: ${activitiesResponse.status} ${activitiesResponse.statusText}`);
+    }
     
     const activitiesData = await activitiesResponse.json();
     
@@ -244,7 +223,7 @@ const renderCharts = ( ) => {
         
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
-            Mihir's Current Jam
+            Mihir's Activity Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
             My workout activity over the last 30 days
