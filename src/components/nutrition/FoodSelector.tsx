@@ -47,15 +47,17 @@ export function FoodSelector({ onAddFood }: FoodSelectorProps) {
         />
       </div>
 
-      <div className="w-24">
+      <div className="w-24 relative">
         <Input
           type="number"
-          min="0.1"
-          step="0.1"
+          min="0.01"
+          step="0.01"
           value={quantity}
-          onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
+          onChange={(e) => setQuantity(parseFloat(e.target.value) || 0.01)}
           className="h-10"
+          title="Enter any quantity above 0"
         />
+        <div className="absolute text-xs text-gray-500 mt-1">Any value > 0</div>
       </div>
 
       <Button onClick={handleAddFood} disabled={!value}>
