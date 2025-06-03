@@ -74,18 +74,24 @@ export function FoodList({ entries, onRemoveFood, onUpdateQuantity }: FoodListPr
                         <div className="text-xs text-muted-foreground">{food.servingSize}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={entry.quantity}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value);
-                            // Allow any positive decimal, default to 0.01 if invalid or zero
-                            onUpdateQuantity(index, value > 0 ? value : 0.01);
-                          }}
-                          className="w-16 h-8 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                        />
+                        <div className="relative group">
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={entry.quantity}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              // Allow any positive decimal, default to 0.01 if invalid or zero
+                              onUpdateQuantity(index, value > 0 ? value : 0.01);
+                            }}
+                            className="w-16 h-8 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                            title="Enter any positive value (minimum 0.01)"
+                          />
+                          <div className="absolute left-0 -bottom-8 hidden group-hover:block bg-black text-white text-xs rounded p-1 z-10 whitespace-nowrap">
+                            Enter any positive value
+                          </div>
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-sm">{calories}</td>
                       <td className="py-3 px-4 text-sm">{protein}g</td>

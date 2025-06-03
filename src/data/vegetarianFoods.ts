@@ -1,4 +1,4 @@
-// Vegetarian Food Database with macros
+// Customized Food Database with macros
 // Each food item includes: calories, protein, carbs, fat, fiber, and default serving size
 
 export interface FoodItem {
@@ -12,6 +12,114 @@ export interface FoodItem {
 }
 
 export const vegetarianFoods: FoodItem[] = [
+  {
+    name: "Mixed Vegetable Sabzi",
+    servingSize: "50g",
+    calories: 28,
+    protein: 0.7,
+    carbs: 3.6,
+    fat: 1.2,
+    fiber: 1.4
+  },
+  {
+    name: "Knorr Pizza and Pasta Sauce",
+    servingSize: "40g",
+    calories: 33,
+    protein: 0.5,
+    carbs: 5.6,
+    fat: 1.0,
+    fiber: 0.4
+  },
+  {
+    name: "71% Dark Chocolate",
+    servingSize: "52g",
+    calories: 310,
+    protein: 4.2,
+    carbs: 20.8,
+    fat: 23.4,
+    fiber: 4.2
+  },
+  {
+    name: "Caramel and Salted Popcorn",
+    servingSize: "120g",
+    calories: 461,
+    protein: 9.0,
+    carbs: 100.8,
+    fat: 3.6,
+    fiber: 10.2
+  },
+  {
+    name: "Pyaaz ka Paratha",
+    servingSize: "150g",
+    calories: 287,
+    protein: 5.9,
+    carbs: 34.9,
+    fat: 14.1,
+    fiber: 6.2
+  },
+  {
+    name: "Capsicum Tomato Onion",
+    servingSize: "120g",
+    calories: 77,
+    protein: 1.3,
+    carbs: 7.0,
+    fat: 5.2,
+    fiber: 2.5
+  },
+  {
+    name: "13g Protein Bar, Double Cocoa",
+    servingSize: "52g",
+    calories: 256,
+    protein: 13.3,
+    carbs: 19.6,
+    fat: 13.8,
+    fiber: 5.4
+  },
+  {
+    name: "Zucchini Bell Pepper Salad",
+    servingSize: "50g",
+    calories: 48,
+    protein: 1.0,
+    carbs: 1.7,
+    fat: 4.4,
+    fiber: 0.6
+  },
+  {
+    name: "Durum Wheat Pasta",
+    servingSize: "60g",
+    calories: 209,
+    protein: 7.5,
+    carbs: 43.1,
+    fat: 0.8,
+    fiber: 1.5
+  },
+  {
+    name: "Pani Puri",
+    servingSize: "197g",
+    calories: 265,
+    protein: 5.0,
+    carbs: 36.7,
+    fat: 11.0,
+    fiber: 3.2
+  },
+  {
+    name: "Rajma Tikki Burger",
+    servingSize: "100g",
+    calories: 250,
+    protein: 8.0,
+    carbs: 30.0,
+    fat: 10.0,
+    fiber: 5.0
+  },
+  {
+    name: "Salted Caramel Popcorn (PVR/INOX)",
+    servingSize: "95g",
+    calories: 461,
+    protein: 5.0,
+    carbs: 80.0,
+    fat: 15.0,
+    fiber: 8.0
+  },
   {
     name: "Omani Dates, Happilo",
     servingSize: "24g",
@@ -277,6 +385,47 @@ export const mealPresets: MealPreset[] = [
     foods: [
       { name: "Cocoa Whey Protein, The Whole Truth", quantity: 1 }, // 48g
       { name: "Slim n Trim Skimmed Milk, Amul", quantity: 1 } // 100ml
+    ]
+  },
+  {
+    name: "Bread Pizza",
+    foods: [
+      { name: "Capsicum Tomato Onion", quantity: 1.25 }, // 150g (120g * 1.25)
+      { name: "100% Whole Wheat Bread, Britannia", quantity: 4 }, // 4 slices
+      { name: "Knorr Pizza and Pasta Sauce", quantity: 1.25 }, // 50g (40g * 1.25)
+      { name: "Amul Cheese Slice", quantity: 4 } // 4 slices
+    ]
+  },
+  {
+    name: "Aloo Beans Dal Roti",
+    foods: [
+      { name: "Roti", quantity: 1.1 }, // 55g (50g * 1.1)
+      { name: "Aloo Beans", quantity: 1 }, // 100g
+      { name: "Dal", quantity: 0.91 } // 150g (165g * 0.91)
+    ]
+  },
+  {
+    name: "Paneer Chilla",
+    foods: [
+      { name: "Green Moong Dal Cheela", quantity: 1.18 }, // 200g (170g * 1.18)
+      { name: "Low Fat Paneer, Milky Mist", quantity: 0.5 } // 50g (100g * 0.5)
+    ]
+  },
+  {
+    name: "Bhindi Dal Roti",
+    foods: [
+      { name: "Bhindi Fry", quantity: 1.11 }, // 100g (90g * 1.11)
+      { name: "Dal", quantity: 0.91 }, // 150g (165g * 0.91)
+      { name: "Roti", quantity: 1 } // 50g
+    ]
+  },
+  {
+    name: "Matar Paneer + Dal",
+    foods: [
+      { name: "Mixed Vegetable Sabzi", quantity: 2 }, // 100g (50g * 2) - using as substitute for Matar Sabzi
+      { name: "Low Fat Paneer, Milky Mist", quantity: 1 }, // 100g
+      { name: "Roti", quantity: 1 }, // 50g
+      { name: "Dal", quantity: 1.21 } // 200g (165g * 1.21)
     ]
   }
 ];
