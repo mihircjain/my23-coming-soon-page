@@ -49,9 +49,8 @@ export function FoodSelector({ onAddFood }: FoodSelectorProps) {
 
       <div className="w-24 relative">
         <Input
-          type="number"
-          min="0.01"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
           value={quantity}
           onChange={(e) => {
             const value = e.target.value;
