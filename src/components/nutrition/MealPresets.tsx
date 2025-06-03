@@ -27,8 +27,8 @@ export function MealPresets({ onAddMeal }: MealPresetsProps) {
       <h3 className="text-lg font-medium">Combined Meals (Presets)</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {mealPresets.map((preset, index) => {
-          // Calculate total calories for this preset
-          const totalCalories = preset.foods.reduce((total, food) => {
+          // Use explicit totalCalories if available, otherwise calculate
+          const totalCalories = preset.totalCalories || preset.foods.reduce((total, food) => {
             const foodItem = findFoodByName(food.name);
             return total + (foodItem ? foodItem.calories * food.quantity : 0);
           }, 0);

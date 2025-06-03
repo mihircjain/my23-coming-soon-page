@@ -390,6 +390,7 @@ export interface MealPreset {
     name: string;
     quantity: number;
   }[];
+  totalCalories?: number;
 }
 
 export const mealPresets: MealPreset[] = [
@@ -421,8 +422,8 @@ export const mealPresets: MealPreset[] = [
       { name: "100% Whole Wheat Bread, Britannia", quantity: 4 }, // 4 slices - 266 Cal
       { name: "Knorr Pizza and Pasta Sauce", quantity: 1.25 }, // 50g - 41 Cal
       { name: "Amul Cheese Slice", quantity: 4 } // 4 slices - 249 Cal
-      // Total: 652 Cal (corrected from previous calculation)
-    ]
+    ],
+    totalCalories: 652 // Explicitly set total calories
   },
   {
     name: "Aloo Beans Dal Roti",

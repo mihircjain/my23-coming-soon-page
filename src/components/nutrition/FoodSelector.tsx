@@ -53,7 +53,17 @@ export function FoodSelector({ onAddFood }: FoodSelectorProps) {
           min="0.01"
           step="0.01"
           value={quantity}
-          onChange={(e) => setQuantity(parseFloat(e.target.value) || 0.01)}
+          onChange={(e) => {
+            const value = e.target.value;
+            // Only update if value is not empty
+            if (value !== '') {
+              const parsedValue = parseFloat(value);
+              // Only set if it's a valid number and greater than 0
+              if (!isNaN(parsedValue) && parsedValue > 0) {
+                setQuantity(parsedValue);
+              }
+            }
+          }}
           className="h-10"
           title="Enter any quantity above 0"
         />
