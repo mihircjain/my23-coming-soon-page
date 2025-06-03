@@ -227,7 +227,7 @@ const NutritionJam = () => {
             Mihir Nutrition Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Track your daily nutrition intake with the vegetarian food database
+            Track your daily nutrition intake with the customized food database
           </p>
         </div>
       </header>
@@ -336,18 +336,29 @@ const NutritionJam = () => {
             </div>
             
             {/* Charts Section */}
-            {[ "Calories", "Macro Distribution", "Protein (g)", "Carbs (g)", "Fat (g)", "Fiber (g)"].map((title) => (
-              <Card key={title} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                <CardHeader>
-                  <CardTitle>{title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64" id={`${title.toLowerCase().replace(/ /g, "-").replace(/\(g\)/g, "").trim()}-chart`}>
-                    {loading && <Skeleton className="h-full w-full" />}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {[ "Calories", "Macro Distribution", "Protein (g)", "Carbs (g)", "Fat (g)", "Fiber (g)"].map((title) => {
+              // Create chart ID that matches the expected format in NutritionJamCharts.js
+              let chartId = "";
+              if (title === "Calories") chartId = "calories-chart";
+              else if (title === "Macro Distribution") chartId = "macro-distribution-chart";
+              else if (title === "Protein (g)") chartId = "protein-chart";
+              else if (title === "Carbs (g)") chartId = "carbs-chart";
+              else if (title === "Fat (g)") chartId = "fat-chart";
+              else if (title === "Fiber (g)") chartId = "fiber-chart";
+              
+              return (
+                <Card key={title} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader>
+                    <CardTitle>{title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64" id={chartId}>
+                      {loading && <Skeleton className="h-full w-full" />}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </TabsContent>
         </Tabs>
       </main>

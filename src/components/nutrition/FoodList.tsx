@@ -76,10 +76,14 @@ export function FoodList({ entries, onRemoveFood, onUpdateQuantity }: FoodListPr
                       <td className="py-3 px-4">
                         <input
                           type="number"
-                          min="0.1"
-                          step="0.1"
+                          min="0.01"
+                          step="0.01"
                           value={entry.quantity}
-                          onChange={(e) => onUpdateQuantity(index, parseFloat(e.target.value) || 1)}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            // Allow any positive decimal, default to 0.01 if invalid or zero
+                            onUpdateQuantity(index, value > 0 ? value : 0.01);
+                          }}
                           className="w-16 h-8 rounded-md border border-input bg-background px-3 py-1 text-sm"
                         />
                       </td>
