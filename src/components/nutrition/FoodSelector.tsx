@@ -57,7 +57,7 @@ export function FoodSelector({ onAddFood }: FoodSelectorProps) {
           className="h-10"
           title="Enter any quantity above 0"
         />
-        <div className="absolute text-xs text-gray-500 mt-1">Any value > 0</div>
+        <div className="absolute text-xs text-gray-500 mt-1">Any value &gt; 0</div>
       </div>
 
       <Button onClick={handleAddFood} disabled={!value}>
