@@ -22,12 +22,21 @@ export function FoodList({ entries, onRemoveFood, onUpdateQuantity }: FoodListPr
   });
 
   useEffect(() => {
-    setTotals(calculateTotals(entries));
+    // Ensure entries is an array before calculating totals
+    if (Array.isArray(entries)) {
+      setTotals(calculateTotals(entries));
+    } else {
+      // Reset totals if entries is not an array (e.g., undefined)
+      setTotals({ calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+    }
   }, [entries]);
+
+  // Ensure entries is an array before rendering the list
+  const safeEntries = Array.isArray(entries) ? entries : [];
 
   return (
     <div className="space-y-4">
-      {entries.length === 0 ? (
+      {safeEntries.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           No foods added yet. Use the selector above to add foods.
         </div>
@@ -48,7 +57,7 @@ export function FoodList({ entries, onRemoveFood, onUpdateQuantity }: FoodListPr
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, index) => {
+                {safeEntries.map((entry, index) => {
                   const food = vegetarianFoods.find(f => f.name === entry.foodId);
                   if (!food) return null;
                   
@@ -139,3 +148,4 @@ export function FoodList({ entries, onRemoveFood, onUpdateQuantity }: FoodListPr
     </div>
   );
 }
+
