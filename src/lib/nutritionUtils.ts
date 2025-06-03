@@ -50,12 +50,15 @@ export function calculateTotals(entries: FoodEntry[]): DailyLog["totals"] {
 
 // Get today's date in YYYY-MM-DD format
 export function getTodayDateString(): string {
-  return new Date().toISOString().split("T")[0];
+  const now = new Date();
+  // Use local date methods to ensure consistency with user's timezone
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 // Format Date object to YYYY-MM-DD string
 export function formatDateToYYYYMMDD(date: Date): string {
-  return date.toISOString().split("T")[0];
+  // Use local date methods to ensure consistency with user's timezone
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 // Get date from X days ago in YYYY-MM-DD format
@@ -67,7 +70,9 @@ export function getDateXDaysAgo(daysAgo: number): string {
 
 // Format date string (YYYY-MM-DD) for display (e.g., "Jun 3")
 export function formatDateForDisplay(dateString: string): string {
-  const date = new Date(`${dateString}T00:00:00`); 
+  // Use consistent date parsing to match the local timezone approach
+  const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+  const date = new Date(year, month - 1, day);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
@@ -221,25 +226,27 @@ export async function autoFillFromYesterdayFirestore(todayDate: string): Promise
 }
 
 // Get data for the last X days (Needs adaptation for Firestore)
-export async function getLastXDaysDataFirestore(days: number): Promise<DailyLog[]> {
+export async function getLastXDaysDataFirestore(days: number): Promise<Record<string, DailyLog>> {
   console.log(`Firestore: Getting data for last ${days} days`);
-  const result: DailyLog[] = [];
+  const result: Record<string, DailyLog> = {};
   const datePromises: Promise<DailyLog | null>[] = [];
+  const dates: string[] = [];
 
   for (let i = 0; i < days; i++) {
     const date = getDateXDaysAgo(i);
+    dates.push(date);
     datePromises.push(loadDailyLogFromFirestore(date));
   }
 
   try {
     const dailyLogs = await Promise.all(datePromises);
     dailyLogs.forEach((log, index) => {
-      const date = getDateXDaysAgo(index);
+      const date = dates[index];
       if (log && Array.isArray(log.entries)) {
-        result.push(log);
+        result[date] = log;
       } else {
         // Add empty log for missing dates or invalid entries
-        result.push({
+        result[date] = {
           date,
           entries: [],
           totals: {
@@ -249,24 +256,22 @@ export async function getLastXDaysDataFirestore(days: number): Promise<DailyLog[
             fat: 0,
             fiber: 0
           }
-        });
+        };
       }
     });
 
-    // Sort by date (oldest to newest)
-    return result.sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+    return result;
   } catch (error) {
     console.error(`Firestore: Error getting last ${days} days data:`, error);
-    return []; // Return empty array on error
+    return {}; // Return empty object on error
   }
 }
 
 // Get weekly average macros (Needs adaptation for Firestore)
 export async function getWeeklyAveragesFirestore(): Promise<DailyLog["totals"]> {
   console.log("Firestore: Calculating weekly averages...");
-  const lastSevenDays = await getLastXDaysDataFirestore(7);
+  const lastSevenDaysData = await getLastXDaysDataFirestore(7);
+  const lastSevenDays = Object.values(lastSevenDaysData);
   const daysWithData = lastSevenDays.filter(day => Array.isArray(day.entries) && day.entries.length > 0).length;
   
   if (daysWithData === 0) {
@@ -301,4 +306,3 @@ export async function getWeeklyAveragesFirestore(): Promise<DailyLog["totals"]> 
     fiber: Math.round((totals.fiber / daysWithData) * 10) / 10
   };
 }
-
