@@ -1,4 +1,4 @@
-import { Mail, Activity, Utensils, Heart } from "lucide-react";
+import { Mail, Activity, Utensils, Heart, BarChart2, Flask, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -83,6 +83,31 @@ const Index = () => {
             <Heart className="mr-3 h-5 w-5" />
             Mihir's Body Jam
           </Button>
+        </div>
+        
+        {/* Overall Jam button */}
+        <div className="mt-4 animate-slide-up delay-900">
+          <Button 
+            onClick={() => window.location.href = '/overall-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-blue-300 hover:bg-white text-blue-700 px-8 py-4 text-lg font-medium rounded-full shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <BarChart2 className="mr-3 h-5 w-5" />
+            Overall Jam
+          </Button>
+        </div>
+        
+        {/* Let's Jam button */}
+        <div className="mt-4 animate-slide-up delay-1000">
+          <Button 
+            onClick={() => window.location.href = '/lets-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-8 py-4 text-lg font-medium rounded-full shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <MessageSquare className="mr-3 h-5 w-5" />
+            Let's Jam
+          </Button>
+          <p className="mt-2 text-sm text-gray-600 font-medium">
+            Talk to AI and get personalized health insights
+          </p>
         </div>
         
         {/* Coming soon indicator */}
