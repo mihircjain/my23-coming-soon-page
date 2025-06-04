@@ -4,7 +4,7 @@
 import Chart from 'chart.js/auto';
 
 // Initialize charts when data is available
-export function initializeCharts(heartRateData, distanceData, activityTypeData) {
+export function initializeCharts(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData) {
   // Destroy existing charts if they exist
   destroyCharts();
   
@@ -22,11 +22,21 @@ export function initializeCharts(heartRateData, distanceData, activityTypeData) 
   if (activityTypeData && document.getElementById('activity-type-chart')) {
     renderActivityTypeChart(activityTypeData);
   }
+  
+  // Render weight training time chart
+  if (weightTrainingData && document.getElementById('weight-training-chart')) {
+    renderWeightTrainingChart(weightTrainingData);
+  }
+  
+  // Render calories burned chart
+  if (caloriesData && document.getElementById('calories-burned-chart')) {
+    renderCaloriesBurnedChart(caloriesData);
+  }
 }
 
 // Destroy existing charts to prevent memory leaks
 function destroyCharts() {
-  const chartIds = ['heart-rate-chart', 'distance-chart', 'activity-type-chart'];
+  const chartIds = ['heart-rate-chart', 'distance-chart', 'activity-type-chart', 'weight-training-chart', 'calories-burned-chart'];
   
   chartIds.forEach(id => {
     const canvas = document.getElementById(id)?.querySelector('canvas');
@@ -298,4 +308,202 @@ function simplifyChartData(data, maxPoints) {
     labels: simplifiedLabels,
     datasets: simplifiedDatasets
   };
+}
+
+// Render weight training time chart
+function renderWeightTrainingChart(data) {
+  const container = document.getElementById('weight-training-chart');
+  
+  // Create canvas if it doesn't exist
+  let canvas = container.querySelector('canvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+  }
+  
+  // Simplify the data for a cleaner look
+  const simplifiedData = simplifyChartData(data, 30);
+  
+  // Create the chart with minimal styling
+  new Chart(canvas, {
+    type: 'line',
+    data: simplifiedData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          titleColor: '#334155',
+          bodyColor: '#334155',
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 6,
+          displayColors: false,
+          callbacks: {
+            title: function(tooltipItems) {
+              return new Date(tooltipItems[0].label).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              });
+            },
+            label: function(context) {
+              const value = context.parsed.y || 0;
+              return `Weight Training: ${value} minutes`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 5,
+            callback: function(value, index, values) {
+              const date = new Date(this.getLabelForValue(value));
+              return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              });
+            }
+          }
+        },
+        y: {
+          grid: {
+            color: 'rgba(226, 232, 240, 0.5)'
+          },
+          ticks: {
+            padding: 10
+          },
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Minutes'
+          }
+        }
+      },
+      elements: {
+        line: {
+          tension: 0.3,
+          borderWidth: 2,
+          borderColor: 'rgba(139, 92, 246, 0.8)', // Purple
+          fill: true,
+          backgroundColor: 'rgba(139, 92, 246, 0.1)'
+        },
+        point: {
+          radius: 3,
+          hitRadius: 10,
+          hoverRadius: 5,
+          backgroundColor: 'rgba(139, 92, 246, 1)'
+        }
+      }
+    }
+  });
+}
+
+// Render calories burned chart
+function renderCaloriesBurnedChart(data) {
+  const container = document.getElementById('calories-burned-chart');
+  
+  // Create canvas if it doesn't exist
+  let canvas = container.querySelector('canvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+  }
+  
+  // Simplify the data for a cleaner look
+  const simplifiedData = simplifyChartData(data, 30);
+  
+  // Create the chart with minimal styling
+  new Chart(canvas, {
+    type: 'line',
+    data: simplifiedData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          titleColor: '#334155',
+          bodyColor: '#334155',
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 6,
+          displayColors: false,
+          callbacks: {
+            title: function(tooltipItems) {
+              return new Date(tooltipItems[0].label).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              });
+            },
+            label: function(context) {
+              const value = context.parsed.y || 0;
+              return `Calories Burned: ${value}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 5,
+            callback: function(value, index, values) {
+              const date = new Date(this.getLabelForValue(value));
+              return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              });
+            }
+          }
+        },
+        y: {
+          grid: {
+            color: 'rgba(226, 232, 240, 0.5)'
+          },
+          ticks: {
+            padding: 10
+          },
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Calories'
+          }
+        }
+      },
+      elements: {
+        line: {
+          tension: 0.3,
+          borderWidth: 2,
+          borderColor: 'rgba(245, 158, 11, 0.8)', // Amber
+          fill: true,
+          backgroundColor: 'rgba(245, 158, 11, 0.1)'
+        },
+        point: {
+          radius: 3,
+          hitRadius: 10,
+          hoverRadius: 5,
+          backgroundColor: 'rgba(245, 158, 11, 1)'
+        }
+      }
+    }
+  });
 }

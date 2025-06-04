@@ -15,6 +15,7 @@ interface StravaActivity {
   heart_rate: number | null;
   name: string;
   elevation_gain: number;
+  calories: number;
 }
 
 interface ChartData {
@@ -35,6 +36,8 @@ const CurrentJam = () => {
   const [heartRateData, setHeartRateData] = useState<ChartData | null>(null);
   const [distanceData, setDistanceData] = useState<ChartData | null>(null);
   const [activityTypeData, setActivityTypeData] = useState<ChartData | null>(null);
+  const [weightTrainingData, setWeightTrainingData] = useState<ChartData | null>(null);
+  const [caloriesData, setCaloriesData] = useState<ChartData | null>(null);
   const [summaryStats, setSummaryStats] = useState({
     totalDistance: 0,
     totalDuration: 0,
@@ -49,7 +52,8 @@ const CurrentJam = () => {
     
     // Use our secure backend API endpoint instead of direct Strava API calls
     // This keeps all credentials secure on the server side
-    const activitiesResponse = await fetch('/api/strava');
+    // Updated to fetch data from the last 30 calendar days
+    const activitiesResponse = await fetch('/api/strava?days=30');
     
     if (!activitiesResponse.ok) {
       throw new Error(`Failed to fetch Strava data: ${activitiesResponse.status} ${activitiesResponse.statusText}`);
@@ -65,16 +69,26 @@ const CurrentJam = () => {
       duration: Math.round(activity.moving_time / 60), // Convert seconds to minutes
       heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
       name: activity.name,
-      elevation_gain: activity.total_elevation_gain
+      elevation_gain: activity.total_elevation_gain,
+      calories: activity.calories || Math.round(activity.moving_time / 60 * 7) // Include calories, estimate if not available
     }));
     
-    setActivities(processedActivities);
+    // Filter to ensure we only have activities from the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const filteredActivities = processedActivities.filter(activity => {
+      const activityDate = new Date(activity.date);
+      return activityDate >= thirtyDaysAgo;
+    });
+    
+    setActivities(filteredActivities);
     
     // Generate chart data
-    generateChartData(processedActivities);
+    generateChartData(filteredActivities);
     
     // Calculate summary stats
-    calculateSummaryStats(processedActivities);
+    calculateSummaryStats(filteredActivities);
     
   } catch (error) {
     console.error('Error fetching Strava data:', error);
@@ -161,6 +175,91 @@ const CurrentJam = () => {
         backgroundColor: typeColors,
       }]
     });
+    
+    // Generate Weight Training Time Graph data
+    // Filter for weight training activities
+    const weightTrainingActivities = sortedActivities.filter(a => 
+      a.type.toLowerCase() === 'weighttraining'
+    );
+    
+    // Group by date and sum durations
+    const weightTrainingByDate = new Map<string, number>();
+    
+    // Initialize all dates in the last 30 days with zero minutes
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      const dateString = date.toLocaleDateString();
+      weightTrainingByDate.set(dateString, 0);
+    }
+    
+    // Add actual weight training durations
+    weightTrainingActivities.forEach(activity => {
+      const currentDuration = weightTrainingByDate.get(activity.date) || 0;
+      weightTrainingByDate.set(activity.date, currentDuration + activity.duration);
+    });
+    
+    // Convert to arrays for chart
+    const weightTrainingDates = Array.from(weightTrainingByDate.keys()).sort((a, b) => 
+      new Date(a).getTime() - new Date(b).getTime()
+    );
+    
+    const weightTrainingDurations = weightTrainingDates.map(date => 
+      weightTrainingByDate.get(date) || 0
+    );
+    
+    // Set weight training chart data
+    setWeightTrainingData({
+      labels: weightTrainingDates,
+      datasets: [{
+        label: 'Weight Training (minutes)',
+        data: weightTrainingDurations,
+        borderColor: 'rgba(139, 92, 246, 0.8)', // Purple
+        backgroundColor: 'rgba(139, 92, 246, 0.2)',
+        fill: true,
+        tension: 0.3
+      }]
+    });
+    
+    // Generate Calories Burned Chart data
+    const caloriesByDate = new Map<string, number>();
+    
+    // Initialize all dates in the last 30 days with zero calories
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      const dateString = date.toLocaleDateString();
+      caloriesByDate.set(dateString, 0);
+    }
+    
+    // Add actual calories burned
+    sortedActivities.forEach(activity => {
+      const currentCalories = caloriesByDate.get(activity.date) || 0;
+      caloriesByDate.set(activity.date, currentCalories + activity.calories);
+    });
+    
+    // Convert to arrays for chart
+    const calorieDates = Array.from(caloriesByDate.keys()).sort((a, b) => 
+      new Date(a).getTime() - new Date(b).getTime()
+    );
+    
+    const calorieValues = calorieDates.map(date => 
+      caloriesByDate.get(date) || 0
+    );
+    
+    // Set calories chart data
+    setCaloriesData({
+      labels: calorieDates,
+      datasets: [{
+        label: 'Calories Burned',
+        data: calorieValues,
+        borderColor: 'rgba(245, 158, 11, 0.8)', // Amber
+        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+        fill: true,
+        tension: 0.3
+      }]
+    });
   };
 
   // Calculate summary statistics
@@ -188,22 +287,17 @@ const CurrentJam = () => {
 
   // Function to render charts after they're loaded
   useEffect(() => {
-    if (!loading && heartRateData && distanceData && activityTypeData) {
+    if (!loading && heartRateData && distanceData && activityTypeData && weightTrainingData && caloriesData) {
       // We'll use this effect to render charts with Chart.js
-      // This will be implemented in the integration phase
       renderCharts();
     }
-  }, [loading, heartRateData, distanceData, activityTypeData]);
-
-  // Placeholder function for chart rendering
+  }, [loading, heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData]);// Function to render charts after they're loaded
 const renderCharts = ( ) => {
-  if (heartRateData && distanceData && activityTypeData) {
-    // Make sure to call the function with all three data sets
-    initializeCharts(heartRateData, distanceData, activityTypeData);
+  if (heartRateData && distanceData && activityTypeData && weightTrainingData && caloriesData) {
+    // Make sure to call the function with all data sets
+    initializeCharts(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData);
   }
-};
-
-  return (
+};  return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
       {/* Background decoration - similar to landing page */}
       <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
@@ -331,6 +425,34 @@ const renderCharts = ( ) => {
               </div>
             ) : (
               <div className="h-64" id="distance-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Weight Training Time Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Weight Training Duration per Day</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading weight training data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="weight-training-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Calories Burned Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Calories Burned per Day</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading calories data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="calories-burned-chart">
                 {/* Chart will be rendered here */}
               </div>
             )}
