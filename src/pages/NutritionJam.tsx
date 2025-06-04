@@ -343,15 +343,12 @@ const NutritionJam = () => {
             />
             
             {/* Charts Section */}
-            {[ "Calories", "Macro Distribution", "Protein (g)", "Carbs (g)", "Fat (g)", "Fiber (g)"].map((title) => {
+            {[ "Calories", "Macro Distribution", "Macros (g)"].map((title) => {
               // Create chart ID that matches the expected format in NutritionJamCharts.js
               let chartId = "";
               if (title === "Calories") chartId = "calories-chart";
               else if (title === "Macro Distribution") chartId = "macro-distribution-chart";
-              else if (title === "Protein (g)") chartId = "protein-chart";
-              else if (title === "Carbs (g)") chartId = "carbs-chart";
-              else if (title === "Fat (g)") chartId = "fat-chart";
-              else if (title === "Fiber (g)") chartId = "fiber-chart";
+              else if (title === "Macros (g)") chartId = "combined-macros-chart";
               
               return (
                 <Card key={title} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">

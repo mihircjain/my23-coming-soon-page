@@ -15,10 +15,7 @@ export function initializeCharts(nutritionData, timeframe = '7day') {
 function destroyCharts() {
   const chartIds = [
     'calories-chart', 
-    'protein-chart', 
-    'carbs-chart', 
-    'fat-chart', 
-    'fiber-chart',
+    'combined-macros-chart',
     'macro-distribution-chart'
   ];
   
@@ -53,12 +50,11 @@ function renderMacroCharts(nutritionData, timeframe) {
   const fatData = sortedData.map(d => d.totals.fat);
   const fiberData = sortedData.map(d => d.totals.fiber);
   
-  // Render individual charts
+  // Render calories chart
   renderCaloriesChart(dateLabels, caloriesData);
-  renderMacroChart('protein-chart', dateLabels, proteinData, 'Protein (g)', 'rgba(59, 130, 246, 0.8)', 'rgba(59, 130, 246, 0.2)');
-  renderMacroChart('carbs-chart', dateLabels, carbsData, 'Carbs (g)', 'rgba(139, 92, 246, 0.8)', 'rgba(139, 92, 246, 0.2)');
-  renderMacroChart('fat-chart', dateLabels, fatData, 'Fat (g)', 'rgba(16, 185, 129, 0.8)', 'rgba(16, 185, 129, 0.2)');
-  renderMacroChart('fiber-chart', dateLabels, fiberData, 'Fiber (g)', 'rgba(245, 158, 11, 0.8)', 'rgba(245, 158, 11, 0.2)');
+  
+  // Render combined macros chart
+  renderCombinedMacrosChart(dateLabels, proteinData, carbsData, fatData, fiberData);
   
   // Render macro distribution chart (average of the period)
   renderMacroDistributionChart(sortedData);
@@ -129,9 +125,9 @@ function renderCaloriesChart(labels, data) {
   });
 }
 
-// Render individual macro chart
-function renderMacroChart(containerId, labels, data, label, borderColor, backgroundColor) {
-  const container = document.getElementById(containerId);
+// Render combined macros chart with all nutrients in one graph
+function renderCombinedMacrosChart(labels, proteinData, carbsData, fatData, fiberData) {
+  const container = document.getElementById('combined-macros-chart');
   if (!container) return;
   
   // Create canvas if it doesn't exist
@@ -141,38 +137,95 @@ function renderMacroChart(containerId, labels, data, label, borderColor, backgro
     container.appendChild(canvas);
   }
   
-  // Create the chart
+  // Create the chart with multiple datasets
   new Chart(canvas, {
     type: 'line',
     data: {
       labels: labels,
-      datasets: [{
-        label: label,
-        data: data,
-        borderColor: borderColor,
-        backgroundColor: backgroundColor,
-        borderWidth: 2,
-        tension: 0.3,
-        fill: false,
-        pointRadius: 3,
-        pointHoverRadius: 5
-      }]
+      datasets: [
+        {
+          label: 'Protein',
+          data: proteinData,
+          borderColor: 'rgba(59, 130, 246, 1)', // Blue
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        },
+        {
+          label: 'Carbs',
+          data: carbsData,
+          borderColor: 'rgba(139, 92, 246, 1)', // Purple
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        },
+        {
+          label: 'Fat',
+          data: fatData,
+          borderColor: 'rgba(16, 185, 129, 1)', // Green
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        },
+        {
+          label: 'Fiber',
+          data: fiberData,
+          borderColor: 'rgba(245, 158, 11, 1)', // Amber
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
       plugins: {
         legend: {
-          display: false
+          position: 'top',
+          labels: {
+            usePointStyle: true,
+            padding: 15,
+            font: {
+              size: 11
+            }
+          }
         },
         tooltip: {
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
           titleColor: '#334155',
           bodyColor: '#334155',
           borderColor: '#e2e8f0',
           borderWidth: 1,
           padding: 10,
-          cornerRadius: 6
+          cornerRadius: 6,
+          usePointStyle: true,
+          callbacks: {
+            title: function(context) {
+              return context[0].label || '';
+            },
+            label: function(context) {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y || 0;
+              return `${label}: ${value.toFixed(1)}g`;
+            }
+          }
         }
       },
       scales: {
