@@ -101,7 +101,7 @@ const OverallJam = () => {
         const stravaQuery = query(
           stravaDataRef,
           where("userId", "==", "mihir_jain"), // Hardcoded userId
-          where("start_date", ">=", `${dateString}T00:00:00Z`)
+          where("start_date", ">=", `${dateString}T00:00:00Z`),
          orderBy("date", "desc")
         );
 
