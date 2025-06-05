@@ -14,6 +14,15 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+const fetchActivityDetail = async (id) => {
+  const resp = await fetch(`https://www.strava.com/api/v3/activities/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!resp.ok) return null;
+  return await resp.json();        // contains .calories if Strava calculated it
+};
+
+
 export default async function handler(req, res) {
   try {
     // Only allow GET requests
@@ -76,9 +85,12 @@ activitiesData.forEach((activity) => {
   const docId = activity.id.toString(); // unique Strava activity ID
   const docRef = db.collection('strava_data').doc(`${userId}_${docId}`);
 const minutes  = Math.round(activity.moving_time / 60);
-const calories = (activity.calories != null && activity.calories > 0)
-  ? activity.calories
-  : Math.round(minutes * 7); // fallback ≈7 kcal/min
+let calories = activity.calories;
+  if (calories == null) {
+    const detail = await fetchActivityDetail(activity.id);
+    if (detail && detail.calories != null) calories = detail.calories;
+  }
+if (calories == null) calories = Math.round(minutes * 7);
 
 const summary = {
   userId,

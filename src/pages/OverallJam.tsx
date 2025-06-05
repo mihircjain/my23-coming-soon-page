@@ -12,7 +12,7 @@ import { DailyLog } from "@/types/nutrition"; // Import DailyLog type
 
 // Define types for our data
 interface StravaData {
-  start_date: string;            // ISO
+  date: string;            // ISO
   type: string;                  // Run / Ride / …
   heart_rate: number | null;     // bpm
   caloriesBurned: number;
@@ -101,7 +101,7 @@ const OverallJam = () => {
         const stravaQuery = query(
           stravaDataRef,
           where("userId", "==", "mihir_jain"), // Hardcoded userId
-          where("start_date", ">=", `${dateString}T00:00:00Z`),
+          where("date", ">=", `${dateString}T00:00:00Z`),
          orderBy("date", "desc")
         );
 
@@ -110,7 +110,7 @@ stravaSnapshot.forEach(doc => {
   const data = doc.data() as StravaData;
 
   // derive yyyy-mm-dd from start_date
-  const activityDate = data.start_date.split('T')[0];
+  const activityDate = data.date.split('T')[0];
 
   if (tempData[activityDate]) {
     /* ───── heart-rate (avg across multiple activities) ───── */
