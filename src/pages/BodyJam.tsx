@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple, Kidney, Droplet } from "lucide-react";
+import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple, Droplet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -373,7 +373,7 @@ const BodyJam = () => {
     {
       id: "kidney",
       name: "Kidney",
-      icon: <Kidney className="h-5 w-5 text-blue-500" />,
+      icon: <Activity className="h-5 w-5 text-blue-500" />,
       description: "Kidney function markers including creatinine and uric acid",
       markers: bloodMarkers.filter(marker => marker.category === "kidney")
     },
