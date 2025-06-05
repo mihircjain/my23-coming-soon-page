@@ -51,7 +51,7 @@ const OverallJam = () => {
       const nutritionLogsRef = collection(db, "nutrition_logs");
       const nutritionQuery = query(
         nutritionLogsRef,
-        where("userId", "==", "mihir_jain"),
+        where("userId", "==", "mihir_jain"), // Hardcoded userId for consistency
         where("date", ">=", dateString),
         orderBy("date", "desc")
       );
@@ -68,7 +68,7 @@ const OverallJam = () => {
       const stravaDataRef = collection(db, "strava_data");
       const stravaQuery = query(
         stravaDataRef,
-        where("userId", "==", "mihir_jain"),
+        where("userId", "==", "mihir_jain"), // Hardcoded userId for consistency
         where("date", ">=", dateString),
         orderBy("date", "desc")
       );
@@ -76,19 +76,19 @@ const OverallJam = () => {
       const stravaSnapshot = await getDocs(stravaQuery);
       stravaSnapshot.forEach(doc => {
         const data = doc.data();
-        const activityDate = new Date(data.date).toISOString().split('T')[0];
+        const activityDate = data.date; // Use the date directly from Firestore
         
         if (tempData[activityDate]) {
           // Aggregate heart rate (take average if multiple activities)
-          if (data.heart_rate) {
+          if (data.avgHR) {
             const currentHeartRate = tempData[activityDate].heartRate || 0;
             const currentCount = currentHeartRate > 0 ? 1 : 0;
             const newCount = currentCount + 1;
-            tempData[activityDate].heartRate = (currentHeartRate * currentCount + data.heart_rate) / newCount;
+            tempData[activityDate].heartRate = (currentHeartRate * currentCount + data.avgHR) / newCount;
           }
           
           // Sum calories burned
-          tempData[activityDate].caloriesBurned += data.calories || Math.round(data.duration / 60 * 7); // Estimate if not available
+          tempData[activityDate].caloriesBurned += data.caloriesBurned || 0;
           
           // Sum workout duration
           tempData[activityDate].workoutDuration += data.duration || 0;
@@ -109,6 +109,8 @@ const OverallJam = () => {
       
     } catch (error) {
       console.error("Error fetching combined data:", error);
+      // Set empty data to prevent UI from breaking
+      setCombinedData([]);
     } finally {
       setLoading(false);
     }
@@ -299,6 +301,42 @@ const OverallJam = () => {
     });
   };
   
+  // Calculate average heart rate from valid data points
+  const calculateAvgHeartRate = () => {
+    const validHeartRates = combinedData.filter(d => d.heartRate !== null && d.heartRate > 0);
+    if (validHeartRates.length === 0) return 0;
+    
+    const sum = validHeartRates.reduce((total, d) => total + (d.heartRate || 0), 0);
+    return Math.round(sum / validHeartRates.length);
+  };
+  
+  // Calculate average calories burned per day with activity
+  const calculateAvgCaloriesBurned = () => {
+    const daysWithActivity = combinedData.filter(d => d.caloriesBurned > 0);
+    if (daysWithActivity.length === 0) return 0;
+    
+    const sum = daysWithActivity.reduce((total, d) => total + d.caloriesBurned, 0);
+    return Math.round(sum / daysWithActivity.length);
+  };
+  
+  // Calculate average calories consumed per day with nutrition data
+  const calculateAvgCaloriesConsumed = () => {
+    const daysWithNutrition = combinedData.filter(d => d.caloriesConsumed > 0);
+    if (daysWithNutrition.length === 0) return 0;
+    
+    const sum = daysWithNutrition.reduce((total, d) => total + d.caloriesConsumed, 0);
+    return Math.round(sum / daysWithNutrition.length);
+  };
+  
+  // Calculate average workout duration per workout
+  const calculateAvgWorkoutDuration = () => {
+    const daysWithWorkout = combinedData.filter(d => d.workoutDuration > 0);
+    if (daysWithWorkout.length === 0) return 0;
+    
+    const sum = daysWithWorkout.reduce((total, d) => total + d.workoutDuration, 0);
+    return Math.round(sum / daysWithWorkout.length);
+  };
+  
   // Fetch data on component mount
   useEffect(() => {
     fetchCombinedData();
@@ -350,12 +388,7 @@ const OverallJam = () => {
                   <Skeleton className="h-8 w-24" />
                 ) : (
                   <div className="text-2xl font-bold">
-                    {Math.round(
-                      combinedData
-                        .filter(d => d.heartRate !== null)
-                        .reduce((sum, d) => sum + (d.heartRate || 0), 0) / 
-                      combinedData.filter(d => d.heartRate !== null).length || 1
-                    )} bpm
+                    {calculateAvgHeartRate()} bpm
                   </div>
                 )}
               </CardContent>
@@ -374,10 +407,7 @@ const OverallJam = () => {
                   <Skeleton className="h-8 w-24" />
                 ) : (
                   <div className="text-2xl font-bold">
-                    {Math.round(
-                      combinedData.reduce((sum, d) => sum + d.caloriesBurned, 0) / 
-                      combinedData.filter(d => d.caloriesBurned > 0).length || 1
-                    )}/day
+                    {calculateAvgCaloriesBurned()}/day
                   </div>
                 )}
               </CardContent>
@@ -396,10 +426,7 @@ const OverallJam = () => {
                   <Skeleton className="h-8 w-24" />
                 ) : (
                   <div className="text-2xl font-bold">
-                    {Math.round(
-                      combinedData.reduce((sum, d) => sum + d.caloriesConsumed, 0) / 
-                      combinedData.filter(d => d.caloriesConsumed > 0).length || 1
-                    )}/day
+                    {calculateAvgCaloriesConsumed()}/day
                   </div>
                 )}
               </CardContent>
@@ -418,10 +445,7 @@ const OverallJam = () => {
                   <Skeleton className="h-8 w-24" />
                 ) : (
                   <div className="text-2xl font-bold">
-                    {Math.round(
-                      combinedData.reduce((sum, d) => sum + d.workoutDuration, 0) / 
-                      combinedData.filter(d => d.workoutDuration > 0).length || 1
-                    )} min
+                    {calculateAvgWorkoutDuration()} min
                   </div>
                 )}
               </CardContent>
@@ -453,23 +477,17 @@ const OverallJam = () => {
         <section className="mb-12 text-center">
           <Button 
             onClick={() => navigate('/lets-jam')} 
-            size="lg"
-            className="bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 text-white hover:opacity-90 transition-opacity"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-6 rounded-lg shadow-lg hover:shadow-xl transition-all"
           >
-            Let's Jam – Ask your health assistant
+            <Activity className="mr-2 h-5 w-5" />
+            Chat with Your Health Assistant
           </Button>
-          <p className="mt-2 text-sm text-gray-500">
-            Get personalized insights based on your health data
-          </p>
         </section>
       </main>
       
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div>Data from your health logs</div>
-          <div>Last updated: {new Date().toLocaleDateString()}</div>
-        </div>
+        <p>Data from your health logs over the last 30 days</p>
       </footer>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple } from "lucide-react";
+import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple, Kidney, Droplet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -21,6 +21,7 @@ interface BloodMarker {
   normalRange: string;
   explanation: string;
   status: 'good' | 'low' | 'high' | 'unknown';
+  category: 'heart' | 'kidney' | 'metabolic' | 'vitamins' | 'electrolytes' | 'blood';
 }
 
 // Define types for body composition data
@@ -43,6 +44,15 @@ interface Macro {
   icon: React.ReactNode;
 }
 
+// Define category type for grouping
+interface MarkerCategory {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  description: string;
+  markers: BloodMarker[];
+}
+
 const BodyJam = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -56,7 +66,8 @@ const BodyJam = () => {
       unit: "mill/mm³",
       normalRange: "4.5-5.9 million cells/mcL (men); 4.1-5.1 (women)",
       explanation: "Carries oxygen from lungs to tissues and carbon dioxide back to lungs",
-      status: "good"
+      status: "good",
+      category: "blood"
     },
     {
       id: "hemoglobin",
@@ -65,7 +76,8 @@ const BodyJam = () => {
       unit: "g/dL",
       normalRange: "13.5-17.5 g/dL (men); 12.0-15.5 (women)",
       explanation: "Protein in red blood cells that carries oxygen",
-      status: "good"
+      status: "good",
+      category: "blood"
     },
     {
       id: "wbc",
@@ -74,7 +86,8 @@ const BodyJam = () => {
       unit: "cells/mm³",
       normalRange: "4,500-11,000 cells/mcL",
       explanation: "Part of immune system, helps fight infections",
-      status: "good"
+      status: "good",
+      category: "blood"
     },
     {
       id: "platelets",
@@ -83,7 +96,8 @@ const BodyJam = () => {
       unit: "10³/µL",
       normalRange: "150,000-450,000 platelets/mcL",
       explanation: "Helps blood clot, prevents excessive bleeding",
-      status: "good"
+      status: "good",
+      category: "blood"
     },
     {
       id: "hdl",
@@ -92,7 +106,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "40 mg/dL or higher (men); 50 or higher (women)",
       explanation: "'Good' cholesterol that helps remove other forms of cholesterol",
-      status: "low"
+      status: "low",
+      category: "heart"
     },
     {
       id: "ldl",
@@ -101,7 +116,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "Less than 100 mg/dL",
       explanation: "'Bad' cholesterol that can build up in arteries",
-      status: "good"
+      status: "good",
+      category: "heart"
     },
     {
       id: "total_cholesterol",
@@ -110,7 +126,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "Less than 200 mg/dL",
       explanation: "Fatty substance in blood, needed for cell building",
-      status: "good"
+      status: "good",
+      category: "heart"
     },
     {
       id: "triglycerides",
@@ -119,7 +136,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "Less than 150 mg/dL",
       explanation: "Type of fat in blood that stores excess energy",
-      status: "good"
+      status: "good",
+      category: "heart"
     },
     {
       id: "vitamin_b12",
@@ -128,7 +146,8 @@ const BodyJam = () => {
       unit: "pg/mL",
       normalRange: "200-900 pg/mL",
       explanation: "Helps make DNA and red blood cells, supports nerve function",
-      status: "good"
+      status: "good",
+      category: "vitamins"
     },
     {
       id: "vitamin_d",
@@ -137,7 +156,8 @@ const BodyJam = () => {
       unit: "ng/mL",
       normalRange: "20-50 ng/mL",
       explanation: "Helps body absorb calcium, important for bone health",
-      status: "good"
+      status: "good",
+      category: "vitamins"
     },
     {
       id: "hba1c",
@@ -146,7 +166,8 @@ const BodyJam = () => {
       unit: "%",
       normalRange: "Below 5.7%",
       explanation: "Average blood glucose levels over the past 2-3 months",
-      status: "good"
+      status: "good",
+      category: "metabolic"
     },
     {
       id: "glucose",
@@ -155,7 +176,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "70-140 mg/dL (random); 70-99 mg/dL (fasting)",
       explanation: "Blood sugar level",
-      status: "good"
+      status: "good",
+      category: "metabolic"
     },
     {
       id: "tsh",
@@ -164,7 +186,8 @@ const BodyJam = () => {
       unit: "µIU/mL",
       normalRange: "0.4-4.0 µIU/mL",
       explanation: "Thyroid stimulating hormone, controls thyroid gland function",
-      status: "good"
+      status: "good",
+      category: "metabolic"
     },
     {
       id: "creatinine",
@@ -173,7 +196,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "0.7-1.3 mg/dL (men); 0.6-1.1 mg/dL (women)",
       explanation: "Waste product filtered by kidneys, indicator of kidney function",
-      status: "good"
+      status: "good",
+      category: "kidney"
     },
     {
       id: "uric_acid",
@@ -182,7 +206,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "3.5-7.2 mg/dL (men); 2.5-6.0 mg/dL (women)",
       explanation: "Waste product from breakdown of purines in food",
-      status: "good"
+      status: "good",
+      category: "kidney"
     },
     {
       id: "calcium",
@@ -191,7 +216,8 @@ const BodyJam = () => {
       unit: "mg/dL",
       normalRange: "8.5-10.5 mg/dL",
       explanation: "Essential for bone health, muscle function, and nerve signaling",
-      status: "good"
+      status: "good",
+      category: "electrolytes"
     },
     {
       id: "sodium",
@@ -200,7 +226,8 @@ const BodyJam = () => {
       unit: "mmol/L",
       normalRange: "135-145 mmol/L",
       explanation: "Electrolyte that helps maintain fluid balance and nerve/muscle function",
-      status: "low"
+      status: "low",
+      category: "electrolytes"
     },
     {
       id: "potassium",
@@ -209,7 +236,8 @@ const BodyJam = () => {
       unit: "mmol/L",
       normalRange: "3.5-5.0 mmol/L",
       explanation: "Electrolyte essential for heart, muscle, and nerve function",
-      status: "good"
+      status: "good",
+      category: "electrolytes"
     }
   ]);
 
@@ -333,6 +361,52 @@ const BodyJam = () => {
     }
   ]);
 
+  // Group blood markers by category
+  const markerCategories: MarkerCategory[] = [
+    {
+      id: "heart",
+      name: "Heart",
+      icon: <Heart className="h-5 w-5 text-red-500" />,
+      description: "Cardiovascular health markers including cholesterol and triglycerides",
+      markers: bloodMarkers.filter(marker => marker.category === "heart")
+    },
+    {
+      id: "kidney",
+      name: "Kidney",
+      icon: <Kidney className="h-5 w-5 text-blue-500" />,
+      description: "Kidney function markers including creatinine and uric acid",
+      markers: bloodMarkers.filter(marker => marker.category === "kidney")
+    },
+    {
+      id: "metabolic",
+      name: "Metabolic",
+      icon: <Activity className="h-5 w-5 text-green-500" />,
+      description: "Metabolic health markers including glucose and thyroid function",
+      markers: bloodMarkers.filter(marker => marker.category === "metabolic")
+    },
+    {
+      id: "blood",
+      name: "Blood",
+      icon: <Droplet className="h-5 w-5 text-red-500" />,
+      description: "Blood cell counts and related markers",
+      markers: bloodMarkers.filter(marker => marker.category === "blood")
+    },
+    {
+      id: "vitamins",
+      name: "Vitamins",
+      icon: <Apple className="h-5 w-5 text-orange-500" />,
+      description: "Vitamin levels and nutritional markers",
+      markers: bloodMarkers.filter(marker => marker.category === "vitamins")
+    },
+    {
+      id: "electrolytes",
+      name: "Electrolytes",
+      icon: <Flame className="h-5 w-5 text-blue-500" />,
+      description: "Electrolyte balance markers including sodium and potassium",
+      markers: bloodMarkers.filter(marker => marker.category === "electrolytes")
+    }
+  ];
+
   // Get status color based on marker status
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -401,10 +475,10 @@ const BodyJam = () => {
           
           {/* Blood Markers Tab */}
           <TabsContent value="blood">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {loading ? (
-                // Loading skeletons
-                Array(8).fill(0).map((_, i) => (
+            {loading ? (
+              // Loading skeletons
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Array(8).fill(0).map((_, i) => (
                   <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
@@ -416,44 +490,60 @@ const BodyJam = () => {
                       <Skeleton className="h-8 w-24" />
                     </CardContent>
                   </Card>
-                ))
-              ) : (
-                // Actual blood marker cards
-                bloodMarkers.map((marker) => (
-                  <TooltipProvider key={marker.id}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
-                              <span className="flex items-center">
-                                <Activity className="mr-2 h-4 w-4 text-blue-500" />
-                                {marker.name}
-                              </span>
-                              <Info className={`h-4 w-4 ${getStatusColor(marker.status)}`} />
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className={`text-2xl font-bold ${getStatusColor(marker.status)}`}>
-                              {formatValue(marker.value, marker.unit)}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs p-4">
-                        <div className="space-y-2">
-                          <h4 className="font-semibold">{marker.name}</h4>
-                          <p className="text-sm text-gray-500">{marker.explanation}</p>
-                          <div className="text-xs">
-                            <span className="font-medium">Normal Range:</span> {marker.normalRange}
-                          </div>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              // Categorized blood markers
+              <div className="space-y-10">
+                {markerCategories.map(category => (
+                  <div key={category.id} className="space-y-4">
+                    {/* Category Header */}
+                    <div className="flex items-center space-x-2 border-b pb-2">
+                      {category.icon}
+                      <h2 className="text-xl font-semibold text-gray-800">{category.name}</h2>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">{category.description}</p>
+                    
+                    {/* Category Markers */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {category.markers.map((marker) => (
+                        <TooltipProvider key={marker.id}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                                <CardHeader className="pb-2">
+                                  <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
+                                    <span className="flex items-center">
+                                      <Activity className="mr-2 h-4 w-4 text-blue-500" />
+                                      {marker.name}
+                                    </span>
+                                    <Info className={`h-4 w-4 ${getStatusColor(marker.status)}`} />
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className={`text-2xl font-bold ${getStatusColor(marker.status)}`}>
+                                    {formatValue(marker.value, marker.unit)}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs p-4">
+                              <div className="space-y-2">
+                                <h4 className="font-semibold">{marker.name}</h4>
+                                <p className="text-sm text-gray-500">{marker.explanation}</p>
+                                <div className="text-xs">
+                                  <span className="font-medium">Normal Range:</span> {marker.normalRange}
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
           
           {/* Body Composition Tab */}
@@ -494,75 +584,43 @@ const BodyJam = () => {
           {/* Maintenance Macros Tab */}
           <TabsContent value="macros">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {macros.map((macro) => (
-                <TooltipProvider key={macro.id}>
+              {macros.map((item) => (
+                <TooltipProvider key={item.id}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
                             <span className="flex items-center">
-                              {macro.icon}
-                              <span className="ml-2">{macro.name}</span>
+                              {item.icon}
+                              <span className="ml-2">{item.name}</span>
                             </span>
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="text-2xl font-bold text-gray-800">
-                            {formatValue(macro.value, macro.unit)}
-                          </div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            Daily maintenance
+                            {formatValue(item.value, item.unit)}
                           </div>
                         </CardContent>
                       </Card>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs p-4">
                       <div className="space-y-2">
-                        <h4 className="font-semibold">{macro.name}</h4>
-                        <p className="text-sm text-gray-500">{macro.explanation}</p>
+                        <h4 className="font-semibold">{item.name}</h4>
+                        <p className="text-sm text-gray-500">{item.explanation}</p>
                       </div>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ))}
             </div>
-            
-            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6 mt-6">
-              <h3 className="text-lg font-medium mb-4 flex items-center">
-                <Flame className="mr-2 h-5 w-5 text-orange-500" />
-                Resting Metabolic Rate (RMR)
-              </h3>
-              <p className="text-gray-600 mb-2">
-                Your body burns approximately <span className="font-semibold">1479 kcal/day</span> at rest.
-              </p>
-              <p className="text-gray-600">
-                The maintenance macros shown above are calculated based on your RMR and activity level.
-              </p>
-            </Card>
           </TabsContent>
         </Tabs>
-        
-        {/* Information Section */}
-        <section className="mt-12">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">About Your Health Data</h3>
-            <p className="text-gray-600 mb-4">
-              This dashboard displays your key health metrics from your latest blood report and DEXA scan, both from April 7, 2025.
-            </p>
-            <p className="text-gray-600">
-              Click on any card to see more details about that specific marker, including explanations and normal ranges where applicable.
-            </p>
-          </Card>
-        </section>
       </main>
       
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div>Data from April 7, 2025 blood report and DEXA scan</div>
-          <div>Last updated: {new Date().toLocaleDateString()}</div>
-        </div>
+        <p>Data from your latest health assessment</p>
       </footer>
     </div>
   );

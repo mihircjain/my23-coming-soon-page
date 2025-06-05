@@ -45,6 +45,9 @@ const CurrentJam = () => {
     activityCount: 0,
   });
 
+  // Hardcoded userId for consistency across the application
+  const userId = "mihir_jain";
+
   // Function to fetch Strava data using our secure backend API
   const fetchStravaData = async () => {
   try {
@@ -53,7 +56,7 @@ const CurrentJam = () => {
     // Use our secure backend API endpoint instead of direct Strava API calls
     // This keeps all credentials secure on the server side
     // Updated to fetch data from the last 30 calendar days
-    const activitiesResponse = await fetch('/api/strava?days=30');
+    const activitiesResponse = await fetch('/api/strava?days=30&userId=' + userId);
     
     if (!activitiesResponse.ok) {
       throw new Error(`Failed to fetch Strava data: ${activitiesResponse.status} ${activitiesResponse.statusText}`);
@@ -291,13 +294,17 @@ const CurrentJam = () => {
       // We'll use this effect to render charts with Chart.js
       renderCharts();
     }
-  }, [loading, heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData]);// Function to render charts after they're loaded
-const renderCharts = ( ) => {
-  if (heartRateData && distanceData && activityTypeData && weightTrainingData && caloriesData) {
-    // Make sure to call the function with all data sets
-    initializeCharts(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData);
-  }
-};  return (
+  }, [loading, heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData]);
+  
+  // Function to render charts after they're loaded
+  const renderCharts = () => {
+    if (heartRateData && distanceData && activityTypeData && weightTrainingData && caloriesData) {
+      // Make sure to call the function with all data sets
+      initializeCharts(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData);
+    }
+  };
+  
+  return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
       {/* Background decoration - similar to landing page */}
       <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
@@ -418,7 +425,7 @@ const renderCharts = ( ) => {
           
           {/* Distance Chart */}
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">Distance by Day</h3>
+            <h3 className="text-lg font-medium mb-4">Distance by Activity</h3>
             {loading ? (
               <div className="h-64 flex items-center justify-center">
                 <div className="text-gray-400">Loading distance data...</div>
@@ -430,9 +437,23 @@ const renderCharts = ( ) => {
             )}
           </Card>
           
-          {/* Weight Training Time Chart */}
+          {/* Activity Type Chart */}
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">Weight Training Duration per Day</h3>
+            <h3 className="text-lg font-medium mb-4">Activity Type Distribution</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading activity type data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="activity-type-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Weight Training Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Weight Training Time</h3>
             {loading ? (
               <div className="h-64 flex items-center justify-center">
                 <div className="text-gray-400">Loading weight training data...</div>
@@ -444,64 +465,65 @@ const renderCharts = ( ) => {
             )}
           </Card>
           
-          {/* Calories Burned Chart */}
+          {/* Calories Chart */}
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">Calories Burned per Day</h3>
+            <h3 className="text-lg font-medium mb-4">Calories Burned</h3>
             {loading ? (
               <div className="h-64 flex items-center justify-center">
                 <div className="text-gray-400">Loading calories data...</div>
               </div>
             ) : (
-              <div className="h-64" id="calories-burned-chart">
-                {/* Chart will be rendered here */}
-              </div>
-            )}
-          </Card>
-          
-          {/* Activity Type Chart */}
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">Activity Types</h3>
-            {loading ? (
-              <div className="h-64 flex items-center justify-center">
-                <div className="text-gray-400">Loading activity type data...</div>
-              </div>
-            ) : (
-              <div className="h-64" id="activity-type-chart">
+              <div className="h-64" id="calories-chart">
                 {/* Chart will be rendered here */}
               </div>
             )}
           </Card>
         </section>
         
-        {/* Activity Timeline */}
+        {/* Recent Activities Table */}
         <section className="mb-12">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">Activity Timeline</h3>
+            <h3 className="text-lg font-medium mb-4">Recent Activities</h3>
             {loading ? (
-              <div className="h-24 flex items-center justify-center">
-                <div className="text-gray-400">Loading timeline data...</div>
-              </div>
-            ) : (
-              <div className="h-24 relative">
-                {/* Simple timeline visualization will be implemented here */}
-                <div className="absolute inset-0 flex items-center">
-                  <div className="h-0.5 w-full bg-gray-200"></div>
-                </div>
-                {activities.map((activity, index) => (
-                  <div 
-                    key={index}
-                    className="absolute top-1/2 transform -translate-y-1/2"
-                    style={{ 
-                      left: `${(index / (activities.length - 1)) * 100}%`,
-                      zIndex: 10
-                    }}
-                  >
-                    <div 
-                      className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-600 to-green-600"
-                      title={`${activity.name} - ${activity.distance}km - ${activity.duration} min`}
-                    ></div>
+              <div className="space-y-4">
+                {Array(5).fill(0).map((_, i) => (
+                  <div key={i} className="flex items-center space-x-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4">Date</th>
+                      <th className="text-left py-3 px-4">Activity</th>
+                      <th className="text-left py-3 px-4">Type</th>
+                      <th className="text-right py-3 px-4">Distance</th>
+                      <th className="text-right py-3 px-4">Duration</th>
+                      <th className="text-right py-3 px-4">Heart Rate</th>
+                      <th className="text-right py-3 px-4">Elevation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activities.slice(0, 10).map((activity, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">{activity.date}</td>
+                        <td className="py-3 px-4">{activity.name}</td>
+                        <td className="py-3 px-4">{activity.type}</td>
+                        <td className="py-3 px-4 text-right">{activity.distance.toFixed(2)} km</td>
+                        <td className="py-3 px-4 text-right">{Math.floor(activity.duration / 60)}:{(activity.duration % 60).toString().padStart(2, '0')}</td>
+                        <td className="py-3 px-4 text-right">{activity.heart_rate ? `${Math.round(activity.heart_rate)} bpm` : '—'}</td>
+                        <td className="py-3 px-4 text-right">{activity.elevation_gain} m</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </Card>
@@ -510,10 +532,7 @@ const renderCharts = ( ) => {
       
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div>Powered by Strava</div>
-          <div>Last updated: {new Date().toLocaleDateString()}</div>
-        </div>
+        <p>Data from Strava API</p>
       </footer>
     </div>
   );
