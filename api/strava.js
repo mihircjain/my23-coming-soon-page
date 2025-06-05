@@ -1,124 +1,117 @@
-// Serverless function to handle Strava API calls securely
-// This will be deployed as a Vercel serverless function
+// api/strava.js
+// Vercel serverless function – fetch Strava activities and cache to Firestore
+
 import admin from 'firebase-admin';
 
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Firebase Admin init                                               */
+/* ──────────────────────────────────────────────────────────────────── */
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      projectId:   process.env.VITE_FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     }),
   });
 }
-
 const db = admin.firestore();
 
-const fetchActivityDetail = async (id) => {
-  const resp = await fetch(`https://www.strava.com/api/v3/activities/${id}`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Helper – fetch detail activity (may contain calories)             */
+/* ──────────────────────────────────────────────────────────────────── */
+const fetchActivityDetail = async (id, token) => {
+  const r = await fetch(`https://www.strava.com/api/v3/activities/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
-  if (!resp.ok) return null;
-  return await resp.json();        // contains .calories if Strava calculated it
+  if (!r.ok) return null;
+  return await r.json();
 };
 
-
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Main handler                                                      */
+/* ──────────────────────────────────────────────────────────────────── */
 export default async function handler(req, res) {
   try {
-    // Only allow GET requests
-    if (req.method !== 'GET') {
+    if (req.method !== 'GET')
       return res.status(405).json({ error: 'Method not allowed' });
-    }
 
-    // Get Strava credentials from environment variables
-    const clientId = process.env.VITE_STRAVA_CLIENT_ID;
-    const clientSecret = process.env.VITE_STRAVA_CLIENT_SECRET;
-    const refreshToken = process.env.VITE_STRAVA_REFRESH_TOKEN;
-
-    if (!clientId || !clientSecret || !refreshToken) {
+    /* ––– Strava creds ––– */
+    const { VITE_STRAVA_CLIENT_ID:     clientId,
+            VITE_STRAVA_CLIENT_SECRET: clientSecret,
+            VITE_STRAVA_REFRESH_TOKEN: refreshToken } = process.env;
+    if (!clientId || !clientSecret || !refreshToken)
       return res.status(500).json({ error: 'Missing Strava credentials' });
-    }
 
-    // First, get a new access token using the refresh token
-    const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: clientId,
+    /* ––– Refresh access-token ––– */
+    const tokenResp = await fetch('https://www.strava.com/oauth/token', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({
+        client_id    : clientId,
         client_secret: clientSecret,
         refresh_token: refreshToken,
-        grant_type: 'refresh_token'
-      })
+        grant_type   : 'refresh_token',
+      }),
     });
-    
-    if (!tokenResponse.ok) {
-      const tokenError = await tokenResponse.text();
-      console.error('Error refreshing Strava token:', tokenError);
-      return res.status(tokenResponse.status).json({ error: 'Failed to refresh Strava token' });
+    if (!tokenResp.ok) {
+      const txt = await tokenResp.text();
+      console.error('Strava token error:', txt);
+      return res.status(tokenResp.status).json({ error: txt });
     }
+    const { access_token: accessToken } = await tokenResp.json();
 
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-    
-    // Now use the access token to fetch activities
-    const activitiesResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    if (!activitiesResponse.ok) {
-      const activitiesError = await activitiesResponse.text();
-      console.error('Error fetching Strava activities:', activitiesError);
-      return res.status(activitiesResponse.status).json({ error: 'Failed to fetch Strava activities' });
+    /* ––– List last 50 activities ––– */
+    const listResp = await fetch(
+      'https://www.strava.com/api/v3/athlete/activities?per_page=50',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!listResp.ok) {
+      const txt = await listResp.text();
+      console.error('Strava list error:', txt);
+      return res.status(listResp.status).json({ error: txt });
     }
-    
-    const activitiesData = await activitiesResponse.json();
+    const activitiesData = await listResp.json();
     const userId = req.query.userId || 'mihir_jain';
 
-// Write each activity to Firestore under 'strava_data' collection
-const batch = db.batch();
+    /* ––– Write / update each activity ––– */
+    const batch = db.batch();
 
-activitiesData.forEach((activity) => {
-  const docId = activity.id.toString(); // unique Strava activity ID
-  const docRef = db.collection('strava_data').doc(`${userId}_${docId}`);
-const minutes  = Math.round(activity.moving_time / 60);
-let calories = activity.calories;
-  if (calories == null) {
-    const detail = await fetchActivityDetail(activity.id);
-    if (detail && detail.calories != null) calories = detail.calories;
-  }
-if (calories == null) calories = Math.round(minutes * 7);
+    for (const a of activitiesData) {
+      const minutes  = Math.round(a.moving_time / 60);
+      /* calories: list value → detail value → fallback */
+      let calories = a.calories;
+      if (calories == null) {
+        const detail = await fetchActivityDetail(a.id, accessToken);
+        if (detail && detail.calories != null) calories = detail.calories;
+      }
+      if (calories == null) calories = Math.round(minutes * 7);
 
-const summary = {
-  userId,
-  name:           activity.name,
-  type:           activity.type,
-  distance:       activity.distance / 1000,   // km
-  duration:       minutes,                    // minutes
-  heart_rate:     activity.has_heartrate ? activity.average_heartrate : null,
-  elevation_gain: activity.total_elevation_gain,
-  caloriesBurned: calories,
-  start_date:     activity.start_date,
-  fetched_at:     new Date().toISOString(),
-};
+      const summary = {
+        userId,
+        start_date    : a.start_date,
+        date          : a.start_date.split('T')[0],        // yyyy-mm-dd
+        type          : a.type,
+        heart_rate    : a.has_heartrate ? a.average_heartrate : null,
+        distance      : a.distance / 1000,                 // km
+        duration      : minutes,                           // minutes
+        caloriesBurned: calories,
+        elevation_gain: a.total_elevation_gain,
+        name          : a.name,
+        fetched_at    : new Date().toISOString(),
+      };
 
-batch.set(db.collection('strava_data')
-            .doc(`${userId}_${activity.id}`),
-          summary, { merge: true });  // merge lets you overwrite safely
+      const docRef = db.collection('strava_data')
+                       .doc(`${userId}_${a.id}`);          // unique ID
+      batch.set(docRef, summary, { merge: true });
+    }
 
-});
+    await batch.commit();
+    console.log(`Saved ${activitiesData.length} activities to Firestore`);
 
-await batch.commit();
-console.log(`Saved ${activitiesData.length} Strava activities to Firestore`);
-
- 
-    // Return the activities data
-    return res.status(200).json(activitiesData);
-  } catch (error) {
-    console.error('Error in Strava API handler:', error);
+    return res.status(200).json(activitiesData);           // frontend uses this
+  } catch (err) {
+    console.error('Strava handler error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
