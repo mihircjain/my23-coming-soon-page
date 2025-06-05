@@ -12,12 +12,13 @@ import { DailyLog } from "@/types/nutrition"; // Import DailyLog type
 
 // Define types for our data
 interface StravaData {
-  date: string;
-  activityType: string;
-  avgHR: number | null;
+  start_date: string;            // ISO
+  type: string;                  // Run / Ride / …
+  heart_rate: number | null;     // bpm
   caloriesBurned: number;
-  duration: number; // in minutes
+  duration: number;              // minutes
 }
+
 
 interface BloodMarkerData {
   date: string;
@@ -74,7 +75,7 @@ const OverallJam = () => {
       }
 
       // Fetch nutrition data
-      const nutritionLogsRef = collection(db, "nutrition_logs");
+      const nutritionLogsRef = collection(db, "nutritionLogs");
       const nutritionQuery = query(
         nutritionLogsRef,
         where("userId", "==", "mihir_jain"), // Hardcoded userId
@@ -100,37 +101,37 @@ const OverallJam = () => {
         const stravaQuery = query(
           stravaDataRef,
           where("userId", "==", "mihir_jain"), // Hardcoded userId
-          where("date", ">=", dateString),
-          orderBy("date", "desc")
+          where("start_date", ">=", `${dateString}T00:00:00Z`)
+orderBy("date", "desc")
         );
 
         const stravaSnapshot = await getDocs(stravaQuery);
-        stravaSnapshot.forEach(doc => {
-          const data = doc.data() as StravaData;
-          const activityDate = data.date;
+stravaSnapshot.forEach(doc => {
+  const data = doc.data() as StravaData;
 
-          if (tempData[activityDate]) {
-            // Aggregate heart rate (take average if multiple activities)
-            if (data.avgHR) {
-              const currentHeartRate = tempData[activityDate].heartRate || 0;
-              const currentCount = tempData[activityDate].activityTypes.length; // Count existing activities for averaging HR
-              const newCount = currentCount + 1;
-              // Weighted average if HR already exists
-              tempData[activityDate].heartRate = ((currentHeartRate * currentCount) + data.avgHR) / newCount;
-            }
+  // derive yyyy-mm-dd from start_date
+  const activityDate = data.start_date.split('T')[0];
 
-            // Sum calories burned
-            tempData[activityDate].caloriesBurned += data.caloriesBurned || 0;
+  if (tempData[activityDate]) {
+    /* ───── heart-rate (avg across multiple activities) ───── */
+    if (data.heart_rate != null) {
+      const curHR = tempData[activityDate].heartRate || 0;
+      const cnt   = tempData[activityDate].activityTypes.length;
+      tempData[activityDate].heartRate =
+        ((curHR * cnt) + data.heart_rate) / (cnt + 1);
+    }
 
-            // Sum workout duration
-            tempData[activityDate].workoutDuration += data.duration || 0;
+    /* ───── calories & duration ───── */
+    tempData[activityDate].caloriesBurned  += data.caloriesBurned || 0;
+    tempData[activityDate].workoutDuration += data.duration       || 0;
 
-            // Add activity type (avoid duplicates)
-            if (data.activityType && !tempData[activityDate].activityTypes.includes(data.activityType)) {
-              tempData[activityDate].activityTypes.push(data.activityType);
-            }
-          }
-        });
+    /* ───── activity type list ───── */
+    if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
+      tempData[activityDate].activityTypes.push(data.type);
+    }
+  }
+});
+
       } catch (stravaError) {
         console.warn("Could not fetch Strava data (collection might be missing):", stravaError);
         // Proceed without Strava data, values will remain 0

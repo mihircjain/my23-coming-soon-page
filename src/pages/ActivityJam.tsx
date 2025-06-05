@@ -65,17 +65,18 @@ const CurrentJam = () => {
     const activitiesData = await activitiesResponse.json();
     
     // Process the activities into the format your charts expect
-    const processedActivities = activitiesData.map(activity => ({
-      date: new Date(activity.start_date).toLocaleDateString(),
-      type: activity.type,
-      distance: activity.distance / 1000, // Convert meters to kilometers
-      duration: Math.round(activity.moving_time / 60), // Convert seconds to minutes
-      heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
-      name: activity.name,
-      elevation_gain: activity.total_elevation_gain,
-      calories: activity.calories || Math.round(activity.moving_time / 60 * 7) // Include calories, estimate if not available
-    }));
-    
+   const processedActivities = activitiesData.map(a => ({
+  date:        new Date(a.start_date).toLocaleDateString(),
+  type:        a.type,
+  distance:    a.distance / 1000,
+  duration:    Math.round(a.moving_time / 60),
+  heart_rate:  a.has_heartrate ? a.average_heartrate : null,
+  name:        a.name,
+  elevation_gain: a.total_elevation_gain,
+  // NEW – prefer caloriesBurned if present, else a.calories, else fallback
+  calories:    a.caloriesBurned ?? a.calories ?? Math.round(a.moving_time / 60 * 7)
+}));
+ 
     // Filter to ensure we only have activities from the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

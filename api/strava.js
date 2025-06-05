@@ -75,19 +75,28 @@ const batch = db.batch();
 activitiesData.forEach((activity) => {
   const docId = activity.id.toString(); // unique Strava activity ID
   const docRef = db.collection('strava_data').doc(`${userId}_${docId}`);
+const minutes  = Math.round(activity.moving_time / 60);
+const calories = (activity.calories != null && activity.calories > 0)
+  ? activity.calories
+  : Math.round(minutes * 7); // fallback ≈7 kcal/min
 
-  batch.set(docRef, {
-    userId,
-    name: activity.name,
-    type: activity.type,
-    distance: activity.distance,
-    duration: activity.moving_time,
-    heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
-    elevation_gain: activity.total_elevation_gain,
-    calories: activity.calories || null,
-    start_date: activity.start_date,
-    fetched_at: new Date().toISOString(),
-  });
+const summary = {
+  userId,
+  name:           activity.name,
+  type:           activity.type,
+  distance:       activity.distance / 1000,   // km
+  duration:       minutes,                    // minutes
+  heart_rate:     activity.has_heartrate ? activity.average_heartrate : null,
+  elevation_gain: activity.total_elevation_gain,
+  caloriesBurned: calories,
+  start_date:     activity.start_date,
+  fetched_at:     new Date().toISOString(),
+};
+
+batch.set(db.collection('strava_data')
+            .doc(`${userId}_${activity.id}`),
+          summary, { merge: true });  // merge lets you overwrite safely
+
 });
 
 await batch.commit();
