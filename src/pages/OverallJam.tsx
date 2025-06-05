@@ -1,37 +1,58 @@
+
 import { useState, useEffect } from "react";
-import { ArrowLeft, Activity, Heart, Flame, Utensils } from "lucide-react";
+import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Drumstick, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import Chart from 'chart.js/auto';
 import { db } from "@/lib/firebaseConfig";
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
+import { DailyLog } from "@/types/nutrition"; // Import DailyLog type
 
 // Define types for our data
+interface StravaData {
+  date: string;
+  activityType: string;
+  avgHR: number | null;
+  caloriesBurned: number;
+  duration: number; // in minutes
+}
+
+interface BloodMarkerData {
+  date: string;
+  markers: Record<string, number | string>; // e.g., { HDL: 50, LDL: 100, VitaminD: '30 ng/mL' }
+}
+
 interface CombinedData {
   date: string;
   heartRate: number | null;
   caloriesBurned: number;
   caloriesConsumed: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
   workoutDuration: number;
+  activityTypes: string[]; // Store multiple activity types per day
 }
 
 const OverallJam = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [combinedData, setCombinedData] = useState<CombinedData[]>([]);
-  
+  const [latestBloodMarkers, setLatestBloodMarkers] = useState<BloodMarkerData | null>(null);
+
   // Fetch combined data from Firebase
   const fetchCombinedData = async () => {
     try {
       setLoading(true);
-      
+
       // Get the last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const dateString = thirtyDaysAgo.toISOString().split('T')[0];
-      
+
       // Initialize data structure for 30 days
       const tempData: Record<string, CombinedData> = {};
       for (let i = 0; i < 30; i++) {
@@ -43,110 +64,146 @@ const OverallJam = () => {
           heartRate: null,
           caloriesBurned: 0,
           caloriesConsumed: 0,
-          workoutDuration: 0
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+          workoutDuration: 0,
+          activityTypes: []
         };
       }
-      
+
       // Fetch nutrition data
       const nutritionLogsRef = collection(db, "nutrition_logs");
       const nutritionQuery = query(
         nutritionLogsRef,
-        where("userId", "==", "mihir_jain"), // Hardcoded userId for consistency
+        where("userId", "==", "mihir_jain"), // Hardcoded userId
         where("date", ">=", dateString),
         orderBy("date", "desc")
       );
-      
+
       const nutritionSnapshot = await getDocs(nutritionQuery);
       nutritionSnapshot.forEach(doc => {
-        const data = doc.data();
+        const data = doc.data() as DailyLog; // Use DailyLog type
         if (tempData[data.date]) {
           tempData[data.date].caloriesConsumed = data.totals?.calories || 0;
+          tempData[data.date].protein = data.totals?.protein || 0;
+          tempData[data.date].carbs = data.totals?.carbs || 0;
+          tempData[data.date].fat = data.totals?.fat || 0;
+          tempData[data.date].fiber = data.totals?.fiber || 0;
         }
       });
-      
-      // Fetch activity data
-      const stravaDataRef = collection(db, "strava_data");
-      const stravaQuery = query(
-        stravaDataRef,
-        where("userId", "==", "mihir_jain"), // Hardcoded userId for consistency
-        where("date", ">=", dateString),
-        orderBy("date", "desc")
-      );
-      
-      const stravaSnapshot = await getDocs(stravaQuery);
-      stravaSnapshot.forEach(doc => {
-        const data = doc.data();
-        const activityDate = data.date; // Use the date directly from Firestore
-        
-        if (tempData[activityDate]) {
-          // Aggregate heart rate (take average if multiple activities)
-          if (data.avgHR) {
-            const currentHeartRate = tempData[activityDate].heartRate || 0;
-            const currentCount = currentHeartRate > 0 ? 1 : 0;
-            const newCount = currentCount + 1;
-            tempData[activityDate].heartRate = (currentHeartRate * currentCount + data.avgHR) / newCount;
+
+      // Fetch activity data (handle potential absence)
+      try {
+        const stravaDataRef = collection(db, "strava_data");
+        const stravaQuery = query(
+          stravaDataRef,
+          where("userId", "==", "mihir_jain"), // Hardcoded userId
+          where("date", ">=", dateString),
+          orderBy("date", "desc")
+        );
+
+        const stravaSnapshot = await getDocs(stravaQuery);
+        stravaSnapshot.forEach(doc => {
+          const data = doc.data() as StravaData;
+          const activityDate = data.date;
+
+          if (tempData[activityDate]) {
+            // Aggregate heart rate (take average if multiple activities)
+            if (data.avgHR) {
+              const currentHeartRate = tempData[activityDate].heartRate || 0;
+              const currentCount = tempData[activityDate].activityTypes.length; // Count existing activities for averaging HR
+              const newCount = currentCount + 1;
+              // Weighted average if HR already exists
+              tempData[activityDate].heartRate = ((currentHeartRate * currentCount) + data.avgHR) / newCount;
+            }
+
+            // Sum calories burned
+            tempData[activityDate].caloriesBurned += data.caloriesBurned || 0;
+
+            // Sum workout duration
+            tempData[activityDate].workoutDuration += data.duration || 0;
+
+            // Add activity type (avoid duplicates)
+            if (data.activityType && !tempData[activityDate].activityTypes.includes(data.activityType)) {
+              tempData[activityDate].activityTypes.push(data.activityType);
+            }
           }
-          
-          // Sum calories burned
-          tempData[activityDate].caloriesBurned += data.caloriesBurned || 0;
-          
-          // Sum workout duration
-          tempData[activityDate].workoutDuration += data.duration || 0;
+        });
+      } catch (stravaError) {
+        console.warn("Could not fetch Strava data (collection might be missing):", stravaError);
+        // Proceed without Strava data, values will remain 0
+      }
+
+      // Fetch latest blood markers
+      try {
+        const bloodMarkersRef = collection(db, "blood_markers");
+        const bloodMarkersQuery = query(
+          bloodMarkersRef,
+          where("userId", "==", "mihir_jain"), // Hardcoded userId
+          orderBy("date", "desc"),
+          limit(1)
+        );
+        const bloodMarkersSnapshot = await getDocs(bloodMarkersQuery);
+        if (!bloodMarkersSnapshot.empty) {
+          const latestDoc = bloodMarkersSnapshot.docs[0];
+          setLatestBloodMarkers(latestDoc.data() as BloodMarkerData);
         }
-      });
-      
+      } catch (bloodMarkerError) {
+        console.error("Error fetching blood markers:", bloodMarkerError);
+      }
+
       // Convert to array and sort by date
-      const sortedData = Object.values(tempData).sort((a, b) => 
+      const sortedData = Object.values(tempData).sort((a, b) =>
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
-      
+
       setCombinedData(sortedData);
-      
+
       // Render chart after data is loaded
       setTimeout(() => {
         renderCombinedChart(sortedData);
       }, 100);
-      
+
     } catch (error) {
       console.error("Error fetching combined data:", error);
-      // Set empty data to prevent UI from breaking
-      setCombinedData([]);
+      setCombinedData([]); // Set empty data on error
     } finally {
       setLoading(false);
     }
   };
-  
+
   // Render combined chart
   const renderCombinedChart = (data: CombinedData[]) => {
     const container = document.getElementById('combined-chart');
     if (!container) return;
-    
-    // Create canvas if it doesn't exist
+
     let canvas = container.querySelector('canvas');
     if (!canvas) {
       canvas = document.createElement('canvas');
       container.appendChild(canvas);
     } else {
-      // Destroy existing chart if it exists
       const chartInstance = Chart.getChart(canvas);
       if (chartInstance) {
         chartInstance.destroy();
       }
     }
-    
-    // Format dates for display
+
     const dateLabels = data.map(d => {
       const date = new Date(d.date);
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
-    
-    // Extract data for each metric
+
     const heartRateData = data.map(d => d.heartRate);
     const caloriesBurnedData = data.map(d => d.caloriesBurned);
     const caloriesConsumedData = data.map(d => d.caloriesConsumed);
-    const workoutDurationData = data.map(d => d.workoutDuration);
-    
-    // Create the chart
+    const proteinData = data.map(d => d.protein);
+    const carbsData = data.map(d => d.carbs);
+    const fatData = data.map(d => d.fat);
+    const fiberData = data.map(d => d.fiber);
+    // Activity type is harder to plot directly on a line chart, maybe use tooltips or annotations later
+
     new Chart(canvas, {
       type: 'line',
       data: {
@@ -189,17 +246,56 @@ const OverallJam = () => {
             pointHoverRadius: 5
           },
           {
-            label: 'Workout Duration (min)',
-            data: workoutDurationData,
-            borderColor: 'rgba(59, 130, 246, 0.8)', // Blue
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            yAxisID: 'y-duration',
+            label: 'Protein (g)',
+            data: proteinData,
+            borderColor: 'rgba(139, 92, 246, 0.8)', // Violet
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            yAxisID: 'y-macros',
             fill: false,
             tension: 0.3,
             borderWidth: 2,
             pointRadius: 3,
             pointHoverRadius: 5,
-            hidden: true // Hidden by default, can be toggled
+            hidden: true // Hidden by default
+          },
+          {
+            label: 'Carbs (g)',
+            data: carbsData,
+            borderColor: 'rgba(217, 119, 6, 0.8)', // Orange
+            backgroundColor: 'rgba(217, 119, 6, 0.1)',
+            yAxisID: 'y-macros',
+            fill: false,
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            hidden: true // Hidden by default
+          },
+          {
+            label: 'Fat (g)',
+            data: fatData,
+            borderColor: 'rgba(244, 114, 182, 0.8)', // Pink
+            backgroundColor: 'rgba(244, 114, 182, 0.1)',
+            yAxisID: 'y-macros',
+            fill: false,
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            hidden: true // Hidden by default
+          },
+          {
+            label: 'Fiber (g)',
+            data: fiberData,
+            borderColor: 'rgba(101, 163, 13, 0.8)', // Lime
+            backgroundColor: 'rgba(101, 163, 13, 0.1)',
+            yAxisID: 'y-macros',
+            fill: false,
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            hidden: true // Hidden by default
           }
         ]
       },
@@ -232,18 +328,31 @@ const OverallJam = () => {
             usePointStyle: true,
             callbacks: {
               title: function(context) {
-                return context[0].label || '';
+                const dateIndex = context[0]?.dataIndex;
+                if (dateIndex !== undefined && data[dateIndex]) {
+                  const dateStr = data[dateIndex].date;
+                  const activityTypes = data[dateIndex].activityTypes;
+                  let title = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                  if (activityTypes.length > 0) {
+                    title += ` (${activityTypes.join(', ')})`;
+                  }
+                  return title;
+                }
+                return context[0]?.label || '';
               },
               label: function(context) {
                 const label = context.dataset.label || '';
-                const value = context.parsed.y || 0;
-                
+                const value = context.parsed.y;
+                if (value === null || value === undefined) return null; // Don't show label if value is null/undefined
+
                 if (label.includes('Heart Rate')) {
                   return `${label}: ${value.toFixed(0)} bpm`;
                 } else if (label.includes('Calories')) {
                   return `${label}: ${value.toFixed(0)}`;
+                } else if (label.includes('(g)')) {
+                  return `${label}: ${value.toFixed(1)} g`;
                 } else {
-                  return `${label}: ${value.toFixed(0)} min`;
+                  return `${label}: ${value.toFixed(0)}`;
                 }
               }
             }
@@ -270,8 +379,9 @@ const OverallJam = () => {
             grid: {
               color: 'rgba(226, 232, 240, 0.5)'
             },
-            min: 50,
-            suggestedMax: 180
+            // min: 50,
+            // suggestedMax: 180,
+            beginAtZero: false
           },
           'y-calories': {
             type: 'linear',
@@ -282,84 +392,69 @@ const OverallJam = () => {
             },
             grid: {
               display: false
-            }
+            },
+            beginAtZero: true
           },
-          'y-duration': {
+          'y-macros': {
             type: 'linear',
             position: 'right',
             title: {
               display: true,
-              text: 'Duration (min)'
+              text: 'Macronutrients (g)'
             },
             grid: {
               display: false
             },
-            display: false // Hidden by default
+            display: false, // Hidden by default, shown when dataset is toggled
+            beginAtZero: true
           }
+          // Removed y-duration axis as it's less critical and can clutter
         }
       }
     });
   };
-  
-  // Calculate average heart rate from valid data points
-  const calculateAvgHeartRate = () => {
-    const validHeartRates = combinedData.filter(d => d.heartRate !== null && d.heartRate > 0);
-    if (validHeartRates.length === 0) return 0;
-    
-    const sum = validHeartRates.reduce((total, d) => total + (d.heartRate || 0), 0);
-    return Math.round(sum / validHeartRates.length);
+
+  // --- Calculation Functions for Summary Cards ---
+
+  const calculateAvgMetric = (metric: keyof CombinedData) => {
+    const validData = combinedData.filter(d => d[metric] !== null && (d[metric] as number) > 0);
+    if (validData.length === 0) return 0;
+    const sum = validData.reduce((total, d) => total + (d[metric] as number || 0), 0);
+    return Math.round(sum / validData.length);
   };
-  
-  // Calculate average calories burned per day with activity
-  const calculateAvgCaloriesBurned = () => {
-    const daysWithActivity = combinedData.filter(d => d.caloriesBurned > 0);
-    if (daysWithActivity.length === 0) return 0;
-    
-    const sum = daysWithActivity.reduce((total, d) => total + d.caloriesBurned, 0);
-    return Math.round(sum / daysWithActivity.length);
-  };
-  
-  // Calculate average calories consumed per day with nutrition data
-  const calculateAvgCaloriesConsumed = () => {
-    const daysWithNutrition = combinedData.filter(d => d.caloriesConsumed > 0);
-    if (daysWithNutrition.length === 0) return 0;
-    
-    const sum = daysWithNutrition.reduce((total, d) => total + d.caloriesConsumed, 0);
-    return Math.round(sum / daysWithNutrition.length);
-  };
-  
-  // Calculate average workout duration per workout
-  const calculateAvgWorkoutDuration = () => {
-    const daysWithWorkout = combinedData.filter(d => d.workoutDuration > 0);
-    if (daysWithWorkout.length === 0) return 0;
-    
-    const sum = daysWithWorkout.reduce((total, d) => total + d.workoutDuration, 0);
-    return Math.round(sum / daysWithWorkout.length);
-  };
-  
+
+  const calculateAvgHeartRate = () => calculateAvgMetric('heartRate');
+  const calculateAvgCaloriesBurned = () => calculateAvgMetric('caloriesBurned');
+  const calculateAvgCaloriesConsumed = () => calculateAvgMetric('caloriesConsumed');
+  const calculateAvgProtein = () => calculateAvgMetric('protein');
+  const calculateAvgCarbs = () => calculateAvgMetric('carbs');
+  const calculateAvgFat = () => calculateAvgMetric('fat');
+  const calculateAvgFiber = () => calculateAvgMetric('fiber');
+  const calculateAvgWorkoutDuration = () => calculateAvgMetric('workoutDuration');
+
   // Fetch data on component mount
   useEffect(() => {
     fetchCombinedData();
   }, []);
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
       {/* Background decoration */}
       <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
       <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/30 rounded-full blur-xl animate-bounce"></div>
       <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-      
+
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
-        <Button 
-          onClick={() => navigate('/')} 
-          variant="ghost" 
+        <Button
+          onClick={() => navigate('/')}
+          variant="ghost"
           className="mb-6 hover:bg-white/20"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Home
         </Button>
-        
+
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
             Overall Jam
@@ -369,50 +464,13 @@ const OverallJam = () => {
           </p>
         </div>
       </header>
-      
+
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
-        {/* Summary Stats Section */}
+        {/* Summary Stats Section - Updated to 2x4 grid */}
         <section className="mb-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Heart Rate Card */}
-            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
-                  <Heart className="mr-2 h-4 w-4 text-red-500" />
-                  Avg Heart Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold">
-                    {calculateAvgHeartRate()} bpm
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            
-            {/* Calories Burned Card */}
-            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
-                  <Flame className="mr-2 h-4 w-4 text-amber-500" />
-                  Avg Calories Burned
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold">
-                    {calculateAvgCaloriesBurned()}/day
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            
+          <h2 className="text-2xl font-semibold mb-4 text-gray-700">Daily Averages (Last 30 Days)</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Calories Consumed Card */}
             <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
               <CardHeader className="pb-2">
@@ -422,16 +480,36 @@ const OverallJam = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold">
-                    {calculateAvgCaloriesConsumed()}/day
-                  </div>
-                )}
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgCaloriesConsumed()}/day</div>}
               </CardContent>
             </Card>
-            
+
+            {/* Calories Burned Card */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
+                  <Flame className="mr-2 h-4 w-4 text-amber-500" />
+                  Avg Calories Burned
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgCaloriesBurned()}/day</div>}
+              </CardContent>
+            </Card>
+
+            {/* Heart Rate Card */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
+                  <Heart className="mr-2 h-4 w-4 text-red-500" />
+                  Avg Heart Rate
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgHeartRate()} bpm</div>}
+              </CardContent>
+            </Card>
+
             {/* Workout Duration Card */}
             <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
               <CardHeader className="pb-2">
@@ -441,29 +519,92 @@ const OverallJam = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold">
-                    {calculateAvgWorkoutDuration()} min
-                  </div>
-                )}
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgWorkoutDuration()} min/day</div>}
+              </CardContent>
+            </Card>
+
+            {/* Protein Card */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
+                  <Drumstick className="mr-2 h-4 w-4 text-violet-500" />
+                  Avg Protein
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgProtein()} g/day</div>}
+              </CardContent>
+            </Card>
+
+            {/* Carbs Card */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
+                  <Wheat className="mr-2 h-4 w-4 text-orange-500" />
+                  Avg Carbs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgCarbs()} g/day</div>}
+              </CardContent>
+            </Card>
+
+            {/* Fat Card */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
+                  <Apple className="mr-2 h-4 w-4 text-pink-500" /> {/* Using Apple icon for Fat as placeholder */}
+                  Avg Fat
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgFat()} g/day</div>}
+              </CardContent>
+            </Card>
+
+            {/* Fiber Card */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
+                  <Leaf className="mr-2 h-4 w-4 text-lime-600" />
+                  Avg Fiber
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{calculateAvgFiber()} g/day</div>}
               </CardContent>
             </Card>
           </div>
         </section>
-        
+
+        {/* Latest Blood Markers Section */}
+        {latestBloodMarkers && (
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-700">Latest Blood Markers (as of {new Date(latestBloodMarkers.date).toLocaleDateString()})</h2>
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {Object.entries(latestBloodMarkers.markers).map(([key, value]) => (
+                  <div key={key} className="text-center">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{key}</p>
+                    <p className="text-xl font-semibold text-gray-800">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </section>
+        )}
+
         {/* Combined Chart Section */}
         <section className="mb-12">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
-            <h3 className="text-lg font-medium mb-4">Combined Health Trends</h3>
+            <h3 className="text-lg font-medium mb-4">Combined Health Trends (Last 30 Days)</h3>
             <p className="text-sm text-gray-500 mb-6">
-              This chart shows your heart rate, calories burned, and calories consumed over the last 30 days.
-              Toggle metrics using the legend above the chart.
+              This chart shows your health metrics over the last 30 days.
+              Toggle metrics using the legend above the chart. Activity types for the day are shown in the tooltip.
             </p>
             {loading ? (
               <div className="h-96 flex items-center justify-center">
-                <div className="text-gray-400">Loading combined data...</div>
+                <Skeleton className="h-full w-full" />
               </div>
             ) : (
               <div className="h-96" id="combined-chart">
@@ -472,11 +613,11 @@ const OverallJam = () => {
             )}
           </Card>
         </section>
-        
+
         {/* Let's Jam Button */}
         <section className="mb-12 text-center">
-          <Button 
-            onClick={() => navigate('/lets-jam')} 
+          <Button
+            onClick={() => navigate('/lets-jam')}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-6 rounded-lg shadow-lg hover:shadow-xl transition-all"
           >
             <Activity className="mr-2 h-5 w-5" />
@@ -484,7 +625,7 @@ const OverallJam = () => {
           </Button>
         </section>
       </main>
-      
+
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <p>Data from your health logs over the last 30 days</p>
@@ -494,3 +635,4 @@ const OverallJam = () => {
 };
 
 export default OverallJam;
+
