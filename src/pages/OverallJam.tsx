@@ -124,16 +124,16 @@ const OverallJam = () => {
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data() as StravaData;
         
-        // Derive yyyy-mm-dd from start_date
-         // prefer pre-computed `date`, else derive from ISO `start_date`
- const activityDate =
-   data.date ?? (data.start_date ? data.start_date.split('T')[0] : null);
- if (!activityDate) return;                 // skip malformed docs
+  /* pick the short yyyy-mm-dd form no matter what’s in the doc */
+  const activityDate =
+    (data.date as string | undefined)            /* new docs */
+    ?? (data.start_date ? data.start_date.substring(0, 10) : undefined);
+  if (!activityDate || !tempData[activityDate]) return;
 
         if (tempData[activityDate]) {
           // Heart rate (average across multiple activities)
           if (data.heart_rate != null) {
-            const curHR = tempData[activityDate].heartRate || 0;
+            const curHR = tempData[activityDate].heartRate ?? 0;
             const cnt = tempData[activityDate].activityTypes.length;
             tempData[activityDate].heartRate =
               ((curHR * cnt) + data.heart_rate) / (cnt + 1);
