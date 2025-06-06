@@ -14,6 +14,7 @@ import { DailyLog } from "@/types/nutrition"; // Import DailyLog type
 interface StravaData {
   date: string;            // ISO
   type: string;                  // Run / Ride / …
+  start_date?: string;
   heart_rate: number | null;     // bpm
   caloriesBurned: number;
   duration: number;              // minutes
