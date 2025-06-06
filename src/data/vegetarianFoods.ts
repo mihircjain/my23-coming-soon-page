@@ -22,16 +22,13 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 1.4
   },
   {
-  "name": "Lotus Biscoff Cheesecake",
-  "quantity": 125,
-  "unit": "g",
-  "nutrition": {
-    "calories": 494,
-    "protein_g": 4.9,
-    "fat_g": 38.2,
-    "carbs_g": 34.4,
-    "fiber_g": 0.2
-  }
+  name: "Lotus Biscoff Cheesecake",
+  servingSize: 50,
+  calories: 198,
+  protein: 2,
+  fat : 15.3,
+  carbs: 13.7,
+  fiber: 0.1
   },
   {
     name: "Knorr Pizza and Pasta Sauce",
