@@ -74,7 +74,7 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model:      "gpt-4o-mini",
+        model:      "gpt-4",
         messages:   fullMsgs,
         temperature: 0.7,
         max_tokens: 500,
@@ -109,7 +109,7 @@ async function logPrompt(userId, systemPrompt, userPrompt, source) {
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
     systemPrompt,
     userPrompt,
-    model:  "gpt-4o-mini",
+    model:  "gpt-4",
     source,
   });
 }
