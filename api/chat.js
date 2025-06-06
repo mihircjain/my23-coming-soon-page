@@ -1,118 +1,154 @@
 // API endpoint for OpenAI chat completions
-// This file handles secure communication with OpenAI API
+// Adds last‑7‑days nutrition, Strava and blood‑marker context
+// Logs each prompt in Firestore
 
 import { db } from "../src/lib/firebaseConfig";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  Timestamp,
+} from "firebase/firestore";
 
 export default async function handler(req, res) {
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { messages, userId = "mihir_jain", source = "lets-jam-chatbot" } = req.body;
-    
-    // Validate request body
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: 'Invalid request body' });
-    }
-    
-    // Get API key from environment variable
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.error('OpenAI API key not found in environment variables');
-      return res.status(500).json({ 
-        error: 'Server configuration error',
-        message: 'The server is not properly configured. Please try again later.'
-      });
+    const {
+      messages,
+      userId = "mihir_jain",
+      source = "lets-jam-chatbot",
+    } = req.body;
+
+    if (!Array.isArray(messages)) {
+      return res.status(400).json({ error: "Invalid request body" });
     }
 
-    // Extract system prompt and user prompt for logging
-    let systemPrompt = "";
-    let userPrompt = "";
-    
-    messages.forEach(msg => {
-      if (msg.role === "system") {
-        systemPrompt = msg.content;
-      } else if (msg.role === "user") {
-        userPrompt = msg.content;
-      }
-    });
-    
-    // Log the prompt to Firestore
-    try {
-      await logPrompt(userId, systemPrompt, userPrompt, source);
-    } catch (logError) {
-      console.error('Error logging prompt:', logError);
-      // Continue with the API call even if logging fails
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "Server configuration error" });
     }
-    
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
+
+    /* ─── build 7‑day context prompt ─── */
+    const contextPrompt = await buildContextPrompt(userId);
+
+    /* prepend context to caller‑supplied messages */
+    const fullMsgs = [
+      { role: "system", content: contextPrompt },
+      ...messages,
+    ];
+
+    /* log prompt (best‑effort) */
+    const userPrompt = messages.find((m) => m.role === "user")?.content || "";
+    try {
+      await logPrompt(userId, contextPrompt, userPrompt, source);
+    } catch (_) {}
+
+    /* ─── OpenAI call ─── */
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4",
-        messages: messages,
+        model: "gpt-4o-mini",
+        messages: fullMsgs,
         temperature: 0.7,
-        max_tokens: 500
-      })
+        max_tokens: 500,
+      }),
     });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('OpenAI API error:', error);
-      
-      // Provide more specific error messages based on status code
-      if (response.status === 429) {
-        return res.status(503).json({ 
-          error: 'Service temporarily unavailable',
-          message: 'The AI service is currently busy. Please try again in a few moments.'
-        });
-      } else if (response.status === 400) {
-        return res.status(400).json({ 
-          error: 'Invalid request to AI service',
-          message: 'I couldn\'t process your question. Please try asking in a different way.'
-        });
-      } else {
-        return res.status(502).json({ 
-          error: 'Error from AI service',
-          message: 'I encountered an issue while processing your request. Please try again later.'
-        });
-      }
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const msg = resp.status === 429 ? "Service busy" : "AI service error";
+      return res.status(502).json({ error: msg, detail: err });
     }
-    
-    const data = await response.json();
+
+    const data = await resp.json();
     return res.status(200).json(data);
-    
-  } catch (error) {
-    console.error('Error in chat API:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: 'Something went wrong. Please try again later.'
-    });
+  } catch (err) {
+    console.error("/api/chat", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 
-// Function to log prompts to Firestore
+/* ───────────────── helpers ───────────────── */
 async function logPrompt(userId, systemPrompt, userPrompt, source) {
-  try {
-    const promptLogsRef = collection(db, "ai_prompt_logs");
-    await addDoc(promptLogsRef, {
-      userId: "mihir_jain", // Hardcoded to ensure consistency
-      timestamp: serverTimestamp(),
-      systemPrompt,
-      userPrompt,
-      model: "gpt-4",
-      source
-    });
-    console.log("Prompt logged successfully");
-  } catch (error) {
-    console.error("Error logging prompt:", error);
-    // Don't throw, just log the error
+  await addDoc(collection(db, "ai_prompt_logs"), {
+    userId,
+    timestamp: serverTimestamp(),
+    systemPrompt,
+    userPrompt,
+    model: "gpt-4o-mini",
+    source,
+  });
+}
+
+async function buildContextPrompt(userId) {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 6);
+  const startISO = sevenDaysAgo.toISOString().substring(0, 10);
+
+  /* nutritionLogs – flat docs named yyyy-mm-dd */
+  const nutSnap = await getDocs(
+    query(
+      collection(db, "nutritionLogs"),
+      where("userId", "==", userId),
+      where("date", ">=", startISO),
+      orderBy("date", "asc")
+    )
+  );
+  const nutLines = nutSnap.docs.map((d) => {
+    const t = d.data().totals || {};
+    return `${d.id} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${
+      t.carbs ?? 0
+    } fat:${t.fat ?? 0}`;
+  });
+
+  /* strava_data – start_date ISO */
+  const stravaSnap = await getDocs(
+    query(
+      collection(db, "strava_data"),
+      where("userId", "==", userId),
+      where("start_date", ">=", sevenDaysAgo.toISOString()),
+      orderBy("start_date", "asc"),
+      limit(100)
+    )
+  );
+  const stravaLines = stravaSnap.docs.map((d) => {
+    const a = d.data();
+    return `${a.date ?? a.start_date.substring(0, 10)} ${a.type} dur:${
+      a.duration
+    }m cal:${a.caloriesBurned}`;
+  });
+
+  /* blood markers */
+  const bloodDoc = await getDoc(doc(db, "blood_markers", userId));
+  const blood = bloodDoc.exists() ? bloodDoc.data() : {};
+
+  let prompt = `You are a personal health assistant. Use only the raw data below.\n\n`;
+  prompt += `Nutrition last 7 days:\n${nutLines.join("\n") || "none"}\n\n`;
+  prompt += `Activities last 7 days:\n${stravaLines.join("\n") || "none"}\n\n`;
+  prompt += `Latest blood markers:\n`;
+  if (Object.keys(blood).length) {
+    for (const [k, v] of Object.entries(blood)) prompt += `${k}: ${v}\n`;
+  } else {
+    prompt += `none\n`;
   }
+  prompt +=
+    "\nIf the user asks something not answerable from this data, reply 'not enough data'. Never invent numbers.";
+
+  return prompt;
 }
