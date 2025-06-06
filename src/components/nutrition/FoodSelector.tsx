@@ -4,75 +4,73 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { vegetarianFoods } from "@/data/vegetarianFoods";
 import { FoodEntry } from "@/types/nutrition";
-import { toast } from "sonner"; // Import toast
-import { CustomFoodSelect } from "./CustomFoodSelect"; // Import the new custom component
+import { toast } from "sonner";
+import { CustomFoodSelect } from "./CustomFoodSelect";
 
 interface FoodSelectorProps {
   onAddFood: (entry: FoodEntry) => void;
 }
 
+/**
+ * Selector for adding a food item to today’s log.
+ * ● Autocomplete drop‑down (CustomFoodSelect) for the food name.
+ * ● Numeric input for quantity (any positive decimal).
+ * ● “Add” button sends { foodId, quantity } to the parent.
+ */
 export function FoodSelector({ onAddFood }: FoodSelectorProps) {
-  const [value, setValue] = useState(""); // This will hold the selected food name
-  const [quantity, setQuantity] = useState(1);
+  const [selectedFood, setSelectedFood] = useState<string>("");
+  const [qty, setQty] = useState<number>(1);
 
-  const handleSelect = (selectedFoodName: string) => {
-    console.log("Custom select handleSelect called with:", selectedFoodName);
-    setValue(selectedFoodName);
-  };
+  /* when the user chooses a food in the autocomplete */
+  const handleSelect = (name: string) => setSelectedFood(name);
 
-  const handleAddFood = () => {
-    if (value) {
-      const foodItem = vegetarianFoods.find((food) => food.name === value);
-      if (foodItem) {
-        onAddFood({
-          foodId: value,
-          quantity: quantity,
-        });
-        // Show success toast
-        toast.success(`${foodItem.name} added successfully!`);
-        // Reset form
-        setValue("");
-        setQuantity(1);
-      }
+  /* add button */
+  const handleAdd = () => {
+    if (!selectedFood) return; // guard
+
+    const food = vegetarianFoods.find(f => f.name === selectedFood);
+    if (!food) {
+      toast.error("Food not found in database");
+      return;
     }
+
+    if (!qty || qty <= 0) {
+      toast.error("Quantity must be > 0");
+      return;
+    }
+
+    onAddFood({ foodId: selectedFood, quantity: qty });
+    toast.success(`${food.name} added!`);
+
+    // reset form
+    setSelectedFood("");
+    setQty(1);
   };
 
   return (
     <div className="flex flex-col md:flex-row gap-2 items-end">
+      {/* food selector */}
       <div className="flex-grow">
-        {/* Use the new CustomFoodSelect component */}
-        <CustomFoodSelect 
-          value={value} 
-          onSelect={handleSelect} 
-        />
+        <CustomFoodSelect value={selectedFood} onSelect={handleSelect} />
       </div>
 
+      {/* quantity input */}
       <div className="w-24 relative">
         <Input
-          type="text"
-          inputMode="decimal"
-          value={quantity}
-          onChange={(e) => {
-            const value = e.target.value;
-            // Only update if value is not empty
-            if (value !== '') {
-              const parsedValue = parseFloat(value);
-              // Only set if it's a valid number and greater than 0
-              if (!isNaN(parsedValue) && parsedValue > 0) {
-                setQuantity(parsedValue);
-              }
-            }
-          }}
-          className="h-10"
-          title="Enter any quantity above 0"
+          type="number"
+          min={0.01}
+          step={0.1}
+          value={qty}
+          onChange={e => setQty(parseFloat(e.target.value) || 0)}
+          className="h-10 text-right"
         />
-        <div className="absolute text-xs text-gray-500 mt-1">Any value &gt; 0</div>
+        <div className="absolute left-0 -bottom-5 text-xs text-gray-500">g / ml</div>
       </div>
 
-      <Button onClick={handleAddFood} disabled={!value}>
+      {/* add button */}
+      <Button onClick={handleAdd} disabled={!selectedFood || !qty || qty <= 0}>
         <Plus className="mr-2 h-4 w-4" /> Add
       </Button>
     </div>
   );
 }
-
