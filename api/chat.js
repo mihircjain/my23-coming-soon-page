@@ -4,6 +4,7 @@
 // Logs each prompt in Firestore
 
 import admin from "firebase-admin";
+import fetch from "node-fetch"; // Ensure you have node-fetch or a similar fetch polyfill installed
 
 // Prevent re-initializing Admin SDK on every invocation
 if (!admin.apps.length) {
@@ -15,6 +16,7 @@ if (!admin.apps.length) {
     }),
   });
 }
+
 const db = admin.firestore();
 
 export default async function handler(req, res) {
@@ -51,8 +53,8 @@ export default async function handler(req, res) {
     const userPrompt = messages.find((m) => m.role === "user")?.content || "";
     try {
       await logPrompt(userId, contextPrompt, userPrompt, source);
-    } catch (__) {
-      // If logging fails, we swallow the error and proceed
+    } catch (_) {
+      // If logging fails, swallow the error and proceed
     }
 
     // ─── Call OpenAI’s Chat Completion endpoint ───
@@ -78,7 +80,6 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
     return res.status(200).json(data);
-
   } catch (err) {
     console.error("/api/chat", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -99,7 +100,7 @@ async function logPrompt(userId, systemPrompt, userPrompt, source) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
-// Build a single “system‐prompt” string containing raw data from the last 7 days
+// Build a single “system-prompt” string containing raw data from the last 7 days
 async function buildContextPrompt(userId) {
   // Today at midnight UTC
   const today = new Date();
@@ -110,61 +111,70 @@ async function buildContextPrompt(userId) {
   sevenDaysAgo.setDate(today.getDate() - 6);
   const startISO = sevenDaysAgo.toISOString().substring(0, 10); // "YYYY-MM-DD"
 
-  // ── 1) LAST-7-DAYS NUTRITION LOGS ──
-  // We assume each nutrition log is stored under collection “nutritionLogs”
-  // with a document ID equal to the date string ("YYYY-MM-DD").
-  // Also fields: { userId, date: "YYYY-MM-DD", totals: { calories, protein, carbs, fat, fiber }, … }
+  //
+  // 1) LAST-7-DAYS NUTRITION LOGS
+  // We assume each nutrition log is stored under “nutritionLogs”
+  // with fields: { userId, date: "YYYY-MM-DD", totals: { calories, protein, carbs, fat, fiber }, … }
+  // The composite index in Firestore is: { userId: Ascending, date: Descending }.
+
   const nutCollection = db.collection("nutritionLogs");
   const nutQuery = nutCollection
     .where("userId", "==", userId)
     .where("date", ">=", startISO)
-    .orderBy("date", "asc");
+    .orderBy("date", "desc"); // ← must match the index (date descending)
+
   const nutSnap = await nutQuery.get();
+  // Take the most recent 7 documents (descending), then reverse to get ascending order
+  const lastNutDocs = nutSnap.docs.slice(0, 7);
+  const nutLines = lastNutDocs
+    .reverse()
+    .map((d) => {
+      const t = d.data().totals || {};
+      const dayId = d.id; // should equal the date string
+      return `${dayId} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${t.carbs ?? 0} fat:${t.fat ?? 0}`;
+    });
 
-  // Take only the last seven snapshots (in ascending order, so slice(-7)):
-  const nutLines = nutSnap.docs.slice(-7).map((d) => {
-    const t = d.data().totals || {};
-    const dayId = d.id; // should equal the date string
-    return `${dayId} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${t.carbs ?? 0} fat:${t.fat ?? 0}`;
-  });
-
-  // ── 2) LAST-7-DAYS STRAVA DATA ──
-  // We assume “strava_data” collection has documents with fields:
-  // { userId, start_date: "<ISO string>", date: "YYYY-MM-DD", type, duration, caloriesBurned, … }
-  // We query any document with start_date >= sevenDaysAgo.toISOString()
+  //
+  // 2) LAST-7-DAYS STRAVA DATA
+  // We assume “strava_data” has documents with { userId, start_date: "<ISO string>", date: "YYYY-MM-DD", type, duration, caloriesBurned, … }
+  // The composite index in Firestore is: { userId: Ascending, start_date: Descending }.
 
   const stravaCollection = db.collection("strava_data");
   const stravaQuery = stravaCollection
     .where("userId", "==", userId)
     .where("start_date", ">=", sevenDaysAgo.toISOString())
-    .orderBy("start_date", "asc")
+    .orderBy("start_date", "desc") // ← must match the index (start_date descending)
     .limit(100);
+
   const stravaSnap = await stravaQuery.get();
+  const lastStravaDocs = stravaSnap.docs.slice(0, 7);
+  const stravaLines = lastStravaDocs
+    .reverse()
+    .map((d) => {
+      const a = d.data();
+      const day = a.date || a.start_date.substring(0, 10);
+      return `${day} ${a.type} dur:${a.duration}m cal:${a.caloriesBurned}`;
+    });
 
-  const stravaLines = stravaSnap.docs.slice(-7).map((d) => {
-    const a = d.data();
-    // If your document stores `date` ("YYYY-MM-DD") separately, use a.date; otherwise substring from start_date
-    const day = a.date || a.start_date.substring(0, 10);
-    return `${day} ${a.type} dur:${a.duration}m cal:${a.caloriesBurned}`;
-  });
-
-  // ── 3) LATEST BLOOD MARKERS ──
-  // We now query “blood_markers” by userId, ordered descending on "date" field, limit 1.
-  // Each blood‐marker doc might look like: { userId, date: "YYYY-MM-DD", ldl, hdl, triglycerides, … }
+  //
+  // 3) LATEST BLOOD MARKERS
+  // We assume “blood_markers” has composite index { userId: Ascending, date: Descending }.
+  // Each document: { userId, date: "YYYY-MM-DD", ldl, hdl, triglycerides, … }.
 
   const bloodCollection = db.collection("blood_markers");
   const bloodQuery = bloodCollection
     .where("userId", "==", userId)
-    .orderBy("date", "desc")
+    .orderBy("date", "desc") // ← matches the index
     .limit(1);
-  const bloodSnap = await bloodQuery.get();
 
+  const bloodSnap = await bloodQuery.get();
   let blood = {};
   if (!bloodSnap.empty) {
     blood = bloodSnap.docs[0].data();
   }
 
-  // ── 4) ASSEMBLE THE FINAL PROMPT TEXT ──
+  //
+  // 4) ASSEMBLE THE FINAL PROMPT TEXT
   let prompt = `You are a personal health assistant. Use only the raw data below.\n\n`;
 
   prompt += `Nutrition last 7 days:\n${nutLines.join("\n") || "none"}\n\n`;
@@ -179,7 +189,8 @@ async function buildContextPrompt(userId) {
   }
 
   prompt +=
-    "\nIf the user asks something not answerable from this data, reply 'not enough data'. Never invent numbers.";
+    `\nIf the user asks something not answerable from this data, reply "not enough data". ` +
+    `Never invent numbers.`;
 
   return prompt;
 }
