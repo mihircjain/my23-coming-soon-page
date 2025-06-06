@@ -15,7 +15,7 @@ if (!admin.apps.length) {
     credential: admin.credential.cert({
       projectId:   process.env.VITE_FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n").trim(),
     }),
   });
 }
@@ -41,8 +41,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid request body: messages must be an array." });
     }
 
-    // Ensure we have an OpenAI key
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Pull the API key, trim whitespace/newlines
+    const rawKey = process.env.OPENAI_API_KEY || "";
+    const apiKey = rawKey.trim();
     if (!apiKey) {
       console.error("No OPENAI_API_KEY in environment");
       return res.status(500).json({ error: "Server configuration error" });
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
     // Build a “7-day snapshot” system prompt
     const contextPrompt = await buildContextPrompt(userId);
 
-    // Prepend the generated contextPrompt as a “system” message
+    // Prepend that context as a “system” message to whatever the client sent:
     const fullMsgs = [
       { role: "system", content: contextPrompt },
       ...messages,
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
       console.warn("Failed to log AI prompt:", loggingErr);
     }
 
-    // Call OpenAI’s Chat Completions endpoint
+    // ─── Call OpenAI’s Chat Completions endpoint ───
     const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -84,7 +85,7 @@ export default async function handler(req, res) {
       // Forward a reasonably helpful error to the client
       const errJson = await openAiResponse.json().catch(() => ({}));
       const errMsg = openAiResponse.status === 429
-        ? "Service temporarily busy"
+        ? "Service busy"
         : "AI service error";
       return res.status(502).json({ error: errMsg, detail: errJson });
     }
@@ -115,7 +116,7 @@ async function logPrompt(userId, systemPrompt, userPrompt, source) {
 
 
 // ——————————————————————————————————————————————————————————————————————————————
-// Helper #2: Build a single “system” prompt containing last-7-days data.
+// Helper #2: Build a single “system” prompt containing raw data from the last 7 days.
 //              - Nutrition from “nutritionLogs” (doc ID = YYYY-MM-DD).
 //              - Strava from “strava_data” (ordered by start_date DESC).
 //              - Blood markers from “blood_markers” (ordered by date DESC).
