@@ -72,6 +72,7 @@ export default async function handler(req, res) {
       return res.status(listResp.status).json({ error: txt });
     }
     const activitiesData = await listResp.json();
+    const summaries = [];                 // ← NEW
     const userId = req.query.userId || 'mihir_jain';
 
     /* ––– Write / update each activity ––– */
@@ -101,6 +102,8 @@ export default async function handler(req, res) {
         fetched_at    : new Date().toISOString(),
       };
 
+      summaries.push(summary);  
+
       const docRef = db.collection('strava_data')
                        .doc(`${userId}_${a.id}`);          // unique ID
       batch.set(docRef, summary, { merge: true });
@@ -108,8 +111,9 @@ export default async function handler(req, res) {
 
     await batch.commit();
     console.log(`Saved ${activitiesData.length} activities to Firestore`);
+    
 
-    return res.status(200).json(activitiesData);           // frontend uses this
+    return res.status(200).json(summaries);          // frontend uses this
   } catch (err) {
     console.error('Strava handler error:', err);
     return res.status(500).json({ error: 'Internal server error' });
