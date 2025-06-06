@@ -29,14 +29,14 @@ export function initializeCharts(heartRateData, distanceData, activityTypeData, 
   }
   
   // Render calories burned chart
-  if (caloriesData && document.getElementById('calories-burned-chart')) {
+  if (caloriesData && document.getElementById('calories-chart')) {
     renderCaloriesBurnedChart(caloriesData);
   }
 }
 
 // Destroy existing charts to prevent memory leaks
 function destroyCharts() {
-  const chartIds = ['heart-rate-chart', 'distance-chart', 'activity-type-chart', 'weight-training-chart', 'calories-burned-chart'];
+  const chartIds = ['heart-rate-chart', 'distance-chart', 'activity-type-chart', 'weight-training-chart', 'calories-chart'];
   
   chartIds.forEach(id => {
     const canvas = document.getElementById(id)?.querySelector('canvas');
