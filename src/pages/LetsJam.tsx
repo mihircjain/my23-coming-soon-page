@@ -104,17 +104,26 @@ const LetsJam = () => {
             const logData = logSnapshot.data();
             
             // Check if entries exist and are valid
-            if (logData.entries && Array.isArray(logData.entries)) {
-              daysWithData++;
-              
-              // Sum up macros for the day
-              logData.entries.forEach((entry: any) => {
-                totalCalories += entry.calories || 0;
-                totalProtein += entry.protein || 0;
-                totalFat += entry.fat || 0;
-                totalCarbs += entry.carbs || 0;
-                totalFiber += entry.fiber || 0;
-              });
+             // Prefer pre–computed day-level totals
+ if (logData.totals) {
+   daysWithData++;
+   totalCalories += logData.totals.calories || 0;
+   totalProtein  += logData.totals.protein  || 0;
+   totalFat      += logData.totals.fat      || 0;
+   totalCarbs    += logData.totals.carbs    || 0;
+   totalFiber    += logData.totals.fiber    || 0;
+
+ // --- fallback: sum each entry only if no totals ---
+ } else if (Array.isArray(logData.entries) && logData.entries.length) {
+   daysWithData++;
+   logData.entries.forEach((e: any) => {
+     totalCalories += e.calories || 0;
+     totalProtein  += e.protein  || 0;
+     totalFat      += e.fat      || 0;
+     totalCarbs    += e.carbs    || 0;
+     totalFiber    += e.fiber    || 0;
+   });
+ }
             }
           }
         } catch (dayError) {
@@ -158,12 +167,13 @@ const LetsJam = () => {
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
         const stravaDataRef = collection(db, "strava_data");
-        const stravaQuery = query(
-          stravaDataRef,
-          where("date", ">=", thirtyDaysAgo.toISOString().split('T')[0]),
-          orderBy("date", "desc"),
-          limit(30)
-        );
+ const stravaQuery = query(
+   stravaDataRef,
+   where("userId", "==", userId),
+   where("start_date", ">=", thirtyDaysAgo.toISOString()),
+   orderBy("start_date", "desc"),
+   limit(100)
+ );
         
         const stravaSnapshot = await getDocs(stravaQuery);
         
