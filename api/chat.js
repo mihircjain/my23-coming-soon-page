@@ -2,7 +2,7 @@
 // Adds last‑7‑days nutrition, Strava and blood‑marker context
 // Logs each prompt in Firestore
 
-import { db } from "../src/lib/firebaseConfig";
+import { db } from "../src/lib/firebaseConfig.js";
 import {
   collection,
   addDoc,
