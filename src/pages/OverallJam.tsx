@@ -108,6 +108,12 @@ const OverallJam = () => {
         })
       ]);
 
+      console.log(
+  '⚡ nutrition docs →', nutritionSnapshot.size,
+  'strava docs →',     stravaSnapshot.size,
+  'blood docs →',      bloodMarkersSnapshot.size
+);
+
       // Process nutrition data
       nutritionSnapshot.forEach(doc => {
         const data = doc.data() as DailyLog;
@@ -128,6 +134,10 @@ const OverallJam = () => {
   const activityDate =
     (data.date as string | undefined)            /* new docs */
     ?? (data.start_date ? data.start_date.substring(0, 10) : undefined);
+
+        console.log('doc', doc.id, 'date field→', data.date,
+            'start_date→', data.start_date?.substring(0, 10),
+            'activityDate→', activityDate);
   if (!activityDate || !tempData[activityDate]) return;
 
         if (tempData[activityDate]) {
