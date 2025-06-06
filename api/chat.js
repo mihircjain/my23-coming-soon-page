@@ -2,7 +2,20 @@
 // Adds last‑7‑days nutrition, Strava and blood‑marker context
 // Logs each prompt in Firestore
 
-import { db } from "../src/lib/firebaseConfig.js";
+ import admin from "firebase-admin";
+
+ // one-liner guard so we don’t re-initialise on every invocation
+ if (!admin.apps.length) {
+   admin.initializeApp({
+     credential: admin.credential.cert({
+       projectId:   process.env.VITE_FIREBASE_PROJECT_ID,
+       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+       privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+     }),
+   });
+ }
+
+ const db = admin.firestore();
 import {
   collection,
   addDoc,
