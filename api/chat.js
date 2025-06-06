@@ -110,7 +110,7 @@ async function buildContextPrompt(userId) {
       orderBy("date", "asc")
     )
   );
-  const nutLines = nutSnap.docs.map((d) => {
+  const nutLines = nutSnap.docs.slice(-7).map((d) => {
     const t = d.data().totals || {};
     return `${d.id} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${
       t.carbs ?? 0
@@ -127,7 +127,7 @@ async function buildContextPrompt(userId) {
       limit(100)
     )
   );
-  const stravaLines = stravaSnap.docs.map((d) => {
+  const stravaLines = stravaSnap.docs.slice(-7).map((d) => {
     const a = d.data();
     return `${a.date ?? a.start_date.substring(0, 10)} ${a.type} dur:${
       a.duration
