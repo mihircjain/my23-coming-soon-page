@@ -5,7 +5,7 @@
 
 import admin from "firebase-admin";
 
-// one-liner guard so we don’t re-initialise on every invocation
+// Prevent re-initializing Admin SDK on every invocation
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -38,22 +38,24 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Server configuration error" });
     }
 
-    /* ─── build 7-day context prompt ─── */
+    // ─── Build the 7-day context prompt ───
     const contextPrompt = await buildContextPrompt(userId);
 
-    /* prepend context to caller-supplied messages */
+    // Prepend that context as a “system” message to whatever the client sent:
     const fullMsgs = [
       { role: "system", content: contextPrompt },
       ...messages,
     ];
 
-    /* log prompt (best-effort) */
+    // Log the prompt to Firestore (best-effort):
     const userPrompt = messages.find((m) => m.role === "user")?.content || "";
     try {
       await logPrompt(userId, contextPrompt, userPrompt, source);
-    } catch (_) {}
+    } catch (__) {
+      // If logging fails, we swallow the error and proceed
+    }
 
-    /* ─── OpenAI call ─── */
+    // ─── Call OpenAI’s Chat Completion endpoint ───
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -76,13 +78,15 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
     return res.status(200).json(data);
+
   } catch (err) {
     console.error("/api/chat", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
-/* ───────────────── helper: log each prompt to Firestore ───────────────── */
+// ────────────────────────────────────────────────────────────────────────────────
+// Helper: log each prompt to the “ai_prompt_logs” collection
 async function logPrompt(userId, systemPrompt, userPrompt, source) {
   await db.collection("ai_prompt_logs").add({
     userId,
@@ -94,52 +98,75 @@ async function logPrompt(userId, systemPrompt, userPrompt, source) {
   });
 }
 
-/* ─────────── helper: buildContextPrompt(userId) ─────────── */
+// ────────────────────────────────────────────────────────────────────────────────
+// Build a single “system‐prompt” string containing raw data from the last 7 days
 async function buildContextPrompt(userId) {
+  // Today at midnight UTC
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
+
+  // Seven days ago (inclusive)
   const sevenDaysAgo = new Date(today);
   sevenDaysAgo.setDate(today.getDate() - 6);
-  const startISO = sevenDaysAgo.toISOString().substring(0, 10);
+  const startISO = sevenDaysAgo.toISOString().substring(0, 10); // "YYYY-MM-DD"
 
-  // ── 1) Fetch last-7-day nutrition logs (flat docs named by yyyy-mm-dd) ──
-  const nutSnap = await db
-    .collection("nutritionLogs")
+  // ── 1) LAST-7-DAYS NUTRITION LOGS ──
+  // We assume each nutrition log is stored under collection “nutritionLogs”
+  // with a document ID equal to the date string ("YYYY-MM-DD").
+  // Also fields: { userId, date: "YYYY-MM-DD", totals: { calories, protein, carbs, fat, fiber }, … }
+  const nutCollection = db.collection("nutritionLogs");
+  const nutQuery = nutCollection
     .where("userId", "==", userId)
     .where("date", ">=", startISO)
-    .orderBy("date", "asc")
-    .get();
+    .orderBy("date", "asc");
+  const nutSnap = await nutQuery.get();
 
-  const nutLines = nutSnap.docs
-    .slice(-7)
-    .map((d) => {
-      const t = d.data().totals || {};
-      return `${d.id} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${t.carbs ?? 0} fat:${t.fat ?? 0}`;
-    });
+  // Take only the last seven snapshots (in ascending order, so slice(-7)):
+  const nutLines = nutSnap.docs.slice(-7).map((d) => {
+    const t = d.data().totals || {};
+    const dayId = d.id; // should equal the date string
+    return `${dayId} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${t.carbs ?? 0} fat:${t.fat ?? 0}`;
+  });
 
-  // ── 2) Fetch last-7-day Strava activities ──
-  const stravaSnap = await db
-    .collection("strava_data")
+  // ── 2) LAST-7-DAYS STRAVA DATA ──
+  // We assume “strava_data” collection has documents with fields:
+  // { userId, start_date: "<ISO string>", date: "YYYY-MM-DD", type, duration, caloriesBurned, … }
+  // We query any document with start_date >= sevenDaysAgo.toISOString()
+
+  const stravaCollection = db.collection("strava_data");
+  const stravaQuery = stravaCollection
     .where("userId", "==", userId)
     .where("start_date", ">=", sevenDaysAgo.toISOString())
     .orderBy("start_date", "asc")
-    .limit(100)
-    .get();
+    .limit(100);
+  const stravaSnap = await stravaQuery.get();
 
-  const stravaLines = stravaSnap.docs
-    .slice(-7)
-    .map((d) => {
-      const a = d.data();
-      const day = a.date ?? a.start_date.substring(0, 10);
-      return `${day} ${a.type} dur:${a.duration}m cal:${a.caloriesBurned}`;
-    });
+  const stravaLines = stravaSnap.docs.slice(-7).map((d) => {
+    const a = d.data();
+    // If your document stores `date` ("YYYY-MM-DD") separately, use a.date; otherwise substring from start_date
+    const day = a.date || a.start_date.substring(0, 10);
+    return `${day} ${a.type} dur:${a.duration}m cal:${a.caloriesBurned}`;
+  });
 
-  // ── 3) Fetch latest blood markers ──
-  const bloodDoc = await db.collection("blood_markers").doc(userId).get();
-  const blood = bloodDoc.exists ? bloodDoc.data() : {};
+  // ── 3) LATEST BLOOD MARKERS ──
+  // We now query “blood_markers” by userId, ordered descending on "date" field, limit 1.
+  // Each blood‐marker doc might look like: { userId, date: "YYYY-MM-DD", ldl, hdl, triglycerides, … }
 
-  // ── 4) Build the consolidated prompt text ──
+  const bloodCollection = db.collection("blood_markers");
+  const bloodQuery = bloodCollection
+    .where("userId", "==", userId)
+    .orderBy("date", "desc")
+    .limit(1);
+  const bloodSnap = await bloodQuery.get();
+
+  let blood = {};
+  if (!bloodSnap.empty) {
+    blood = bloodSnap.docs[0].data();
+  }
+
+  // ── 4) ASSEMBLE THE FINAL PROMPT TEXT ──
   let prompt = `You are a personal health assistant. Use only the raw data below.\n\n`;
+
   prompt += `Nutrition last 7 days:\n${nutLines.join("\n") || "none"}\n\n`;
   prompt += `Activities last 7 days:\n${stravaLines.join("\n") || "none"}\n\n`;
   prompt += `Latest blood markers:\n`;
@@ -150,6 +177,7 @@ async function buildContextPrompt(userId) {
   } else {
     prompt += `none\n`;
   }
+
   prompt +=
     "\nIf the user asks something not answerable from this data, reply 'not enough data'. Never invent numbers.";
 
