@@ -125,7 +125,7 @@ const LetsJam = () => {
    });
  }
             }
-          }
+          
         } catch (dayError) {
           console.error(`Error fetching nutrition data for ${date}:`, dayError);
           // Continue with next date
