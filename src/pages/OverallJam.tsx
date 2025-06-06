@@ -80,7 +80,7 @@ const OverallJam = () => {
         // Fetch nutrition data
         getDocs(query(
           collection(db, "nutritionLogs"),
-          where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
+          // where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
           where("date", ">=", dateString),
           orderBy("date", "desc")
         )),
