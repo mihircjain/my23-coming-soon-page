@@ -124,7 +124,10 @@ const OverallJam = () => {
         const data = doc.data() as StravaData;
         
         // Derive yyyy-mm-dd from start_date
-        const activityDate = data.date.split('T')[0];
+         // prefer pre-computed `date`, else derive from ISO `start_date`
+ const activityDate =
+   data.date ?? (data.start_date ? data.start_date.split('T')[0] : null);
+ if (!activityDate) return;                 // skip malformed docs
 
         if (tempData[activityDate]) {
           // Heart rate (average across multiple activities)
