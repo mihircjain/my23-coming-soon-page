@@ -35,7 +35,8 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'GET')
       return res.status(405).json({ error: 'Method not allowed' });
-
+    const userId = req.query.userId || 'mihir_jain';
+    
     /* ––– Strava creds ––– */
     const { VITE_STRAVA_CLIENT_ID:     clientId,
             VITE_STRAVA_CLIENT_SECRET: clientSecret,
@@ -62,18 +63,31 @@ export default async function handler(req, res) {
     const { access_token: accessToken } = await tokenResp.json();
 
     /* ––– List last 50 activities ––– */
-    const listResp = await fetch(
-      'https://www.strava.com/api/v3/athlete/activities?per_page=50',
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!listResp.ok) {
-      const txt = await listResp.text();
-      console.error('Strava list error:', txt);
+     const listResp = await fetch(
+   'https://www.strava.com/api/v3/athlete/activities?per_page=50',
+   { headers: { Authorization: `Bearer ${accessToken}` } }
+ );
+
+ /* ─── Short-term rate-limit guard (100 calls / 15 min) ─── */
+ const usageHdr   = listResp.headers.get('x-ratelimit-usage') || '0,0';
+ const [shortUse] = usageHdr.split(',').map(Number);        // e.g. "98,440"
+ if (shortUse >= 98) {
+   console.warn('Strava 15-min bucket full; serving cached Firestore data');
+   const snapshot = await db
+     .collection('strava_data')
+     .where('userId', '==', userId)
+     .orderBy('start_date', 'desc')
+     .limit(50)
+     .get();
+   return res.status(200).json(snapshot.docs.map(d => d.data()));
+ }
+ if (!listResp.ok) {
+   const txt = await listResp.text();
+   console.error('Strava list error:', txt);
       return res.status(listResp.status).json({ error: txt });
-    }
-    const activitiesData = await listResp.json();
-    const summaries = [];                 // ← NEW
-    const userId = req.query.userId || 'mihir_jain';
+ }
+ const activitiesData = await listResp.json();
+ const summaries      = [];           /* cleaned objects we’ll return */
 
     /* ––– Write / update each activity ––– */
     const batch = db.batch();
@@ -103,6 +117,7 @@ export default async function handler(req, res) {
       };
 
       summaries.push(summary);  
+      
 
       const docRef = db.collection('strava_data')
                        .doc(`${userId}_${a.id}`);          // unique ID
