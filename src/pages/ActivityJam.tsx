@@ -84,7 +84,7 @@ const CurrentJam = () => {
               heart_rate: data.heart_rate,
               name: data.name,
               elevation_gain: data.elevation_gain,
-              calories: data.caloriesBurned // Use the correct field name
+              calories: data.caloriesBurned ?? 0
             };
           });
           
