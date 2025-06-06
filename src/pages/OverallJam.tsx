@@ -74,18 +74,42 @@ const OverallJam = () => {
         };
       }
 
-      // Fetch nutrition data
-      const nutritionLogsRef = collection(db, "nutritionLogs");
-      const nutritionQuery = query(
-        nutritionLogsRef,
-        where("userId", "==", "mihir_jain"), // Hardcoded userId
-        where("date", ">=", dateString),
-        orderBy("date", "desc")
-      );
+      // Fetch all data in parallel using Promise.all
+      const [nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot] = await Promise.all([
+        // Fetch nutrition data
+        getDocs(query(
+          collection(db, "nutritionLogs"),
+          where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
+          where("date", ">=", dateString),
+          orderBy("date", "desc")
+        )),
+        
+        // Fetch Strava data
+        getDocs(query(
+          collection(db, "strava_data"),
+          where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
+          orderBy("start_date", "desc"),
+          limit(50)
+        )).catch(error => {
+          console.warn("Could not fetch Strava data (collection might be missing):", error);
+          return { docs: [] }; // Return empty result
+        }),
+        
+        // Fetch latest blood markers
+        getDocs(query(
+          collection(db, "blood_markers"),
+          where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
+          orderBy("date", "desc"),
+          limit(1)
+        )).catch(error => {
+          console.warn("Could not fetch blood markers:", error);
+          return { docs: [] }; // Return empty result
+        })
+      ]);
 
-      const nutritionSnapshot = await getDocs(nutritionQuery);
+      // Process nutrition data
       nutritionSnapshot.forEach(doc => {
-        const data = doc.data() as DailyLog; // Use DailyLog type
+        const data = doc.data() as DailyLog;
         if (tempData[data.date]) {
           tempData[data.date].caloriesConsumed = data.totals?.calories || 0;
           tempData[data.date].protein = data.totals?.protein || 0;
@@ -95,64 +119,37 @@ const OverallJam = () => {
         }
       });
 
-      // Fetch activity data (handle potential absence)
-      try {
-        const stravaDataRef = collection(db, "strava_data");
-        const stravaQuery = query(
-          stravaDataRef,
-          where("userId", "==", "mihir_jain"), // Hardcoded userId
-          where("date", ">=", `${dateString}T00:00:00Z`),
-         orderBy("date", "desc")
-        );
+      // Process Strava data with correct field mappings
+      stravaSnapshot.docs.forEach(doc => {
+        const data = doc.data() as StravaData;
+        
+        // Derive yyyy-mm-dd from start_date
+        const activityDate = data.date.split('T')[0];
 
-        const stravaSnapshot = await getDocs(stravaQuery);
-stravaSnapshot.forEach(doc => {
-  const data = doc.data() as StravaData;
+        if (tempData[activityDate]) {
+          // Heart rate (average across multiple activities)
+          if (data.heart_rate != null) {
+            const curHR = tempData[activityDate].heartRate || 0;
+            const cnt = tempData[activityDate].activityTypes.length;
+            tempData[activityDate].heartRate =
+              ((curHR * cnt) + data.heart_rate) / (cnt + 1);
+          }
 
-  // derive yyyy-mm-dd from start_date
-  const activityDate = data.date.split('T')[0];
+          // Calories burned and workout duration
+          tempData[activityDate].caloriesBurned += data.caloriesBurned || 0;
+          tempData[activityDate].workoutDuration += data.duration || 0;
 
-  if (tempData[activityDate]) {
-    /* ───── heart-rate (avg across multiple activities) ───── */
-    if (data.heart_rate != null) {
-      const curHR = tempData[activityDate].heartRate || 0;
-      const cnt   = tempData[activityDate].activityTypes.length;
-      tempData[activityDate].heartRate =
-        ((curHR * cnt) + data.heart_rate) / (cnt + 1);
-    }
-
-    /* ───── calories & duration ───── */
-    tempData[activityDate].caloriesBurned  += data.caloriesBurned || 0;
-    tempData[activityDate].workoutDuration += data.duration       || 0;
-
-    /* ───── activity type list ───── */
-    if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
-      tempData[activityDate].activityTypes.push(data.type);
-    }
-  }
-});
-
-      } catch (stravaError) {
-        console.warn("Could not fetch Strava data (collection might be missing):", stravaError);
-        // Proceed without Strava data, values will remain 0
-      }
-
-      // Fetch latest blood markers
-      try {
-        const bloodMarkersRef = collection(db, "blood_markers");
-        const bloodMarkersQuery = query(
-          bloodMarkersRef,
-          where("userId", "==", "mihir_jain"), // Hardcoded userId
-          orderBy("date", "desc"),
-          limit(1)
-        );
-        const bloodMarkersSnapshot = await getDocs(bloodMarkersQuery);
-        if (!bloodMarkersSnapshot.empty) {
-          const latestDoc = bloodMarkersSnapshot.docs[0];
-          setLatestBloodMarkers(latestDoc.data() as BloodMarkerData);
+          // Activity type list
+          if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
+            tempData[activityDate].activityTypes.push(data.type);
+          }
         }
-      } catch (bloodMarkerError) {
-        console.error("Error fetching blood markers:", bloodMarkerError);
+      });
+
+      // Process blood markers
+      if (bloodMarkersSnapshot.docs.length > 0) {
+        const latestDoc = bloodMarkersSnapshot.docs[0];
+        setLatestBloodMarkers(latestDoc.data() as BloodMarkerData);
       }
 
       // Convert to array and sort by date

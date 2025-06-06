@@ -178,8 +178,8 @@ const LetsJam = () => {
             const activity = doc.data();
             activityCount++;
             
-            if (activity.avgHR) {
-              totalHeartRate += activity.avgHR;
+            if (activity.heart_rate) {
+              totalHeartRate += activity.heart_rate;
               activitiesWithHeartRate++;
             }
             

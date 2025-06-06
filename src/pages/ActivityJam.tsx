@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { initializeCharts } from './ActivityJamCharts';
+import { db } from "@/lib/firebaseConfig";
+import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
 
 // Define types for our Strava data
 interface StravaActivity {
@@ -48,58 +50,94 @@ const CurrentJam = () => {
   // Hardcoded userId for consistency across the application
   const userId = "mihir_jain";
 
-  // Function to fetch Strava data using our secure backend API
+  // Function to fetch Strava data from Firestore cache first, then API if needed
   const fetchStravaData = async () => {
-  try {
-    setLoading(true);
-    
-    // Use our secure backend API endpoint instead of direct Strava API calls
-    // This keeps all credentials secure on the server side
-    // Updated to fetch data from the last 30 calendar days
-    const activitiesResponse = await fetch('/api/strava?days=30&userId=' + userId);
-    
-    if (!activitiesResponse.ok) {
-      throw new Error(`Failed to fetch Strava data: ${activitiesResponse.status} ${activitiesResponse.statusText}`);
+    try {
+      setLoading(true);
+      
+      // First, check Firestore for recent data (last 24 hours)
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+      
+      try {
+        const stravaDataRef = collection(db, "strava_data");
+        const recentDataQuery = query(
+          stravaDataRef,
+          where("userId", "==", userId),
+          where("fetched_at", ">=", twentyFourHoursAgo.toISOString()),
+          orderBy("start_date", "desc"),
+          limit(50)
+        );
+        
+        const recentSnapshot = await getDocs(recentDataQuery);
+        
+        // If we have recent data, use it
+        if (!recentSnapshot.empty) {
+          console.log("Using cached Firestore data");
+          const cachedActivities = recentSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              date: new Date(data.start_date).toLocaleDateString(),
+              type: data.type,
+              distance: data.distance, // Already in km from API
+              duration: data.duration, // Already in minutes from API
+              heart_rate: data.heart_rate,
+              name: data.name,
+              elevation_gain: data.elevation_gain,
+              calories: data.caloriesBurned // Use the correct field name
+            };
+          });
+          
+          setActivities(cachedActivities);
+          generateChartData(cachedActivities);
+          calculateSummaryStats(cachedActivities);
+          return;
+        }
+      } catch (firestoreError) {
+        console.warn("Could not fetch from Firestore cache:", firestoreError);
+      }
+      
+      // If no recent data in cache, fetch from API
+      console.log("No recent cache found, fetching from API");
+      const activitiesResponse = await fetch('/api/strava?days=30&userId=' + userId);
+      
+      if (!activitiesResponse.ok) {
+        throw new Error(`Failed to fetch Strava data: ${activitiesResponse.status} ${activitiesResponse.statusText}`);
+      }
+      
+      const activitiesData = await activitiesResponse.json();
+      
+      // Process the activities into the format your charts expect
+      const processedActivities = activitiesData.map(a => ({
+        date: new Date(a.start_date).toLocaleDateString(),
+        type: a.type,
+        distance: a.distance / 1000,
+        duration: Math.round(a.moving_time / 60),
+        heart_rate: a.has_heartrate ? a.average_heartrate : null,
+        name: a.name,
+        elevation_gain: a.total_elevation_gain,
+        calories: a.caloriesBurned ?? a.calories ?? Math.round(a.moving_time / 60 * 7)
+      }));
+   
+      // Filter to ensure we only have activities from the last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const filteredActivities = processedActivities.filter(activity => {
+        const activityDate = new Date(activity.date);
+        return activityDate >= thirtyDaysAgo;
+      });
+      
+      setActivities(filteredActivities);
+      generateChartData(filteredActivities);
+      calculateSummaryStats(filteredActivities);
+      
+    } catch (error) {
+      console.error('Error fetching Strava data:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    const activitiesData = await activitiesResponse.json();
-    
-    // Process the activities into the format your charts expect
-   const processedActivities = activitiesData.map(a => ({
-  date:        new Date(a.start_date).toLocaleDateString(),
-  type:        a.type,
-  distance:    a.distance / 1000,
-  duration:    Math.round(a.moving_time / 60),
-  heart_rate:  a.has_heartrate ? a.average_heartrate : null,
-  name:        a.name,
-  elevation_gain: a.total_elevation_gain,
-  // NEW – prefer caloriesBurned if present, else a.calories, else fallback
-  calories:    a.caloriesBurned ?? a.calories ?? Math.round(a.moving_time / 60 * 7)
-}));
- 
-    // Filter to ensure we only have activities from the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const filteredActivities = processedActivities.filter(activity => {
-      const activityDate = new Date(activity.date);
-      return activityDate >= thirtyDaysAgo;
-    });
-    
-    setActivities(filteredActivities);
-    
-    // Generate chart data
-    generateChartData(filteredActivities);
-    
-    // Calculate summary stats
-    calculateSummaryStats(filteredActivities);
-    
-  } catch (error) {
-    console.error('Error fetching Strava data:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
   // Process the raw activities data
