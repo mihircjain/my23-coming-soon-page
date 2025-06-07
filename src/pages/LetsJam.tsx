@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +42,8 @@ const LetsJam = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<string>('');
   const [userData, setUserData] = useState<UserData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -49,8 +51,14 @@ const LetsJam = () => {
   const userId = "mihir_jain";
 
   // Fetch user data from Firebase
-  const fetchUserData = async () => {
+  const fetchUserData = async (forceRefresh = false) => {
     try {
+      if (forceRefresh) {
+        setRefreshing(true);
+      }
+
+      console.log(`🔄 Fetching user data (forceRefresh: ${forceRefresh})...`);
+      
       // Fetch nutrition data
       const nutritionData = await fetchNutritionData();
       
@@ -61,15 +69,27 @@ const LetsJam = () => {
       const bloodMarkers = await fetchBloodMarkers();
       
       // Set user data
-      setUserData({
+      const newUserData = {
         nutrition: nutritionData,
         activity: activityData,
         bloodMarkers: bloodMarkers
-      });
+      };
+
+      setUserData(newUserData);
+      setLastUpdate(new Date().toLocaleTimeString());
+
+      console.log('📊 Updated user data:', newUserData);
       
     } catch (error) {
       console.error("Error fetching user data:", error);
+    } finally {
+      setRefreshing(false);
     }
+  };
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    await fetchUserData(true); // Force refresh
   };
 
   // Fetch nutrition data from Firebase
@@ -93,6 +113,8 @@ const LetsJam = () => {
       let totalFiber = 0;
       let daysWithData = 0;
       
+      console.log(`🥗 Fetching nutrition data for ${dates.length} days...`);
+      
       // Fetch data for each day
       for (const date of dates) {
         try {
@@ -104,33 +126,38 @@ const LetsJam = () => {
             const logData = logSnapshot.data();
             
             // Check if entries exist and are valid
-             // Prefer pre–computed day-level totals
- if (logData.totals) {
-   daysWithData++;
-   totalCalories += logData.totals.calories || 0;
-   totalProtein  += logData.totals.protein  || 0;
-   totalFat      += logData.totals.fat      || 0;
-   totalCarbs    += logData.totals.carbs    || 0;
-   totalFiber    += logData.totals.fiber    || 0;
+            // Prefer pre–computed day-level totals
+            if (logData.totals) {
+              daysWithData++;
+              totalCalories += logData.totals.calories || 0;
+              totalProtein  += logData.totals.protein  || 0;
+              totalFat      += logData.totals.fat      || 0;
+              totalCarbs    += logData.totals.carbs    || 0;
+              totalFiber    += logData.totals.fiber    || 0;
 
- // --- fallback: sum each entry only if no totals ---
- } else if (Array.isArray(logData.entries) && logData.entries.length) {
-   daysWithData++;
-   logData.entries.forEach((e: any) => {
-     totalCalories += e.calories || 0;
-     totalProtein  += e.protein  || 0;
-     totalFat      += e.fat      || 0;
-     totalCarbs    += e.carbs    || 0;
-     totalFiber    += e.fiber    || 0;
-   });
- }
+              console.log(`📅 ${date}: ${logData.totals.calories} cal, ${logData.totals.protein}g protein`);
+
+            // --- fallback: sum each entry only if no totals ---
+            } else if (Array.isArray(logData.entries) && logData.entries.length) {
+              daysWithData++;
+              logData.entries.forEach((e: any) => {
+                totalCalories += e.calories || 0;
+                totalProtein  += e.protein  || 0;
+                totalFat      += e.fat      || 0;
+                totalCarbs    += e.carbs    || 0;
+                totalFiber    += e.fiber    || 0;
+              });
+              console.log(`📅 ${date}: Calculated from ${logData.entries.length} entries`);
             }
+          }
           
         } catch (dayError) {
           console.error(`Error fetching nutrition data for ${date}:`, dayError);
           // Continue with next date
         }
       }
+      
+      console.log(`🥗 Nutrition summary: ${daysWithData} days with data, ${totalCalories} total calories`);
       
       // Calculate averages
       const avgCalories = daysWithData > 0 ? Math.round(totalCalories / daysWithData) : 0;
@@ -161,19 +188,21 @@ const LetsJam = () => {
   // Fetch activity data from Strava API or cached data
   const fetchActivityData = async () => {
     try {
+      console.log('🏃 Fetching activity data...');
+      
       // First try to get cached data from strava_data collection
       try {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
         const stravaDataRef = collection(db, "strava_data");
- const stravaQuery = query(
-   stravaDataRef,
-   where("userId", "==", userId),
-   where("start_date", ">=", thirtyDaysAgo.toISOString()),
-   orderBy("start_date", "desc"),
-   limit(100)
- );
+        const stravaQuery = query(
+          stravaDataRef,
+          where("userId", "==", userId),
+          where("start_date", ">=", thirtyDaysAgo.toISOString()),
+          orderBy("start_date", "desc"),
+          limit(100)
+        );
         
         const stravaSnapshot = await getDocs(stravaQuery);
         
@@ -197,6 +226,8 @@ const LetsJam = () => {
             totalDuration += activity.duration || 0;
           });
           
+          console.log(`🏃 Found ${activityCount} activities, ${activitiesWithHeartRate} with heart rate`);
+          
           // Calculate averages and stats
           const avgHeartRate = activitiesWithHeartRate > 0 ? Math.round(totalHeartRate / activitiesWithHeartRate) : 0;
           const avgCaloriesBurned = activityCount > 0 ? Math.round(totalCaloriesBurned / activityCount) : 0;
@@ -212,6 +243,7 @@ const LetsJam = () => {
         }
         
         // If no cached data, try to fetch from Strava API via our backend
+        console.log('🏃 No cached data found, trying API...');
         const activitiesResponse = await fetch('/api/strava?days=30');
         
         if (!activitiesResponse.ok) {
@@ -268,46 +300,46 @@ const LetsJam = () => {
     }
   };
 
-  // Fetch blood markers from Firebase
+  // FIXED: Fetch blood markers from Firebase with correct structure
   const fetchBloodMarkers = async () => {
     try {
-      // Use flat structure: blood_markers/mihir_jain
+      console.log('🩸 Fetching blood markers...');
+      
+      // Based on your Firestore structure: blood_markers/mihir_jain
       const bloodMarkersRef = doc(db, "blood_markers", "mihir_jain");
       const bloodMarkersSnapshot = await getDoc(bloodMarkersRef);
       
       if (bloodMarkersSnapshot.exists()) {
-        return bloodMarkersSnapshot.data();
-      } else {
-        console.log("No blood markers data found");
-        // Return default values if no data exists
+        const data = bloodMarkersSnapshot.data();
+        console.log('🩸 Blood markers found:', data);
+        
+        // Return the data directly since it's already structured correctly
         return {
-          ldl: null,
-          hdl: null,
-          triglycerides: null,
-          total_cholesterol: null,
-          creatinine: null,
-          bun: null,
-          egfr: null,
-          test_date: null
+          calcium: data.Calcium || data.calcium,
+          creatinine: data.Creatinine || data.creatinine,
+          glucose: data["Glucose (Random)"] || data.glucose,
+          hdl: data["HDL Cholesterol"] || data.hdl,
+          hba1c: data.HbA1C || data.hba1c,
+          hemoglobin: data.Hemoglobin || data.hemoglobin,
+          ldl: data["LDL Cholesterol"] || data.ldl,
+          platelet_count: data["Platelet Count"] || data.platelet_count,
+          potassium: data.Potassium || data.potassium,
+          rbc: data.RBC || data.rbc,
+          sodium: data.Sodium || data.sodium,
+          tsh: data.TSH || data.tsh,
+          total_cholesterol: data["Total Cholesterol"] || data.total_cholesterol
         };
+      } else {
+        console.log("🩸 No blood markers data found");
+        return {};
       }
     } catch (error) {
       console.error("Error fetching blood markers:", error);
-      // Return default values on error
-      return {
-        ldl: null,
-        hdl: null,
-        triglycerides: null,
-        total_cholesterol: null,
-        creatinine: null,
-        bun: null,
-        egfr: null,
-        test_date: null
-      };
+      return {};
     }
   };
 
-  // Send message to chat API - UPDATED to not send system prompt
+  // FIXED: Send message to chat API with user data included
   const sendMessage = async () => {
     if (!input.trim()) return;
     
@@ -329,6 +361,7 @@ const LetsJam = () => {
       console.log('=== SENDING TO CHAT API ===');
       console.log('User message:', currentInput);
       console.log('Previous messages count:', messages.length);
+      console.log('User data being sent:', userData);
       
       // Build messages array with conversation history
       const conversationMessages = [
@@ -341,7 +374,7 @@ const LetsJam = () => {
       
       console.log('Total messages being sent:', conversationMessages.length);
       
-      // Call chat API - let backend handle system prompt from Firestore
+      // FIXED: Call chat API with user data included
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -350,7 +383,7 @@ const LetsJam = () => {
         body: JSON.stringify({
           userId: userId,
           source: "lets-jam-chatbot",
-          // ✅ REMOVED: hardcoded system prompt - let backend fetch from Firestore
+          userData: userData, // ✅ ADDED: Include user data for context
           messages: conversationMessages
         })
       });
@@ -402,7 +435,7 @@ const LetsJam = () => {
 
   // Fetch user data on component mount
   useEffect(() => {
-    fetchUserData();
+    fetchUserData(false); // Don't force refresh on initial load
   }, []);
 
   // Handle form submission
@@ -420,14 +453,26 @@ const LetsJam = () => {
       
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
-        <Button 
-          onClick={() => navigate('/')} 
-          variant="ghost" 
-          className="mb-6 hover:bg-white/20"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
-        </Button>
+        <div className="flex items-center justify-between mb-6">
+          <Button 
+            onClick={() => navigate('/')} 
+            variant="ghost" 
+            className="hover:bg-white/20"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Home
+          </Button>
+          
+          <Button 
+            onClick={handleRefresh}
+            variant="outline"
+            disabled={refreshing}
+            className="hover:bg-white/20"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
+        </div>
         
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
@@ -436,6 +481,11 @@ const LetsJam = () => {
           <p className="mt-3 text-lg text-gray-600">
             Chat with your personal health assistant powered by real data
           </p>
+          {lastUpdate && (
+            <p className="mt-1 text-sm text-gray-500">
+              Last updated: {lastUpdate}
+            </p>
+          )}
         </div>
       </header>
       
@@ -521,25 +571,25 @@ const LetsJam = () => {
                       {userData.bloodMarkers.ldl && (
                         <li className="flex justify-between">
                           <span className="text-gray-600">LDL:</span>
-                          <span className="font-medium">{userData.bloodMarkers.ldl} mg/dL</span>
+                          <span className="font-medium">{userData.bloodMarkers.ldl}</span>
                         </li>
                       )}
                       {userData.bloodMarkers.hdl && (
                         <li className="flex justify-between">
                           <span className="text-gray-600">HDL:</span>
-                          <span className="font-medium">{userData.bloodMarkers.hdl} mg/dL</span>
+                          <span className="font-medium">{userData.bloodMarkers.hdl}</span>
                         </li>
                       )}
-                      {userData.bloodMarkers.triglycerides && (
+                      {userData.bloodMarkers.total_cholesterol && (
                         <li className="flex justify-between">
-                          <span className="text-gray-600">Triglycerides:</span>
-                          <span className="font-medium">{userData.bloodMarkers.triglycerides} mg/dL</span>
+                          <span className="text-gray-600">Total Chol:</span>
+                          <span className="font-medium">{userData.bloodMarkers.total_cholesterol}</span>
                         </li>
                       )}
-                      {userData.bloodMarkers.test_date && (
+                      {userData.bloodMarkers.glucose && (
                         <li className="flex justify-between">
-                          <span className="text-gray-600">Test Date:</span>
-                          <span className="font-medium">{userData.bloodMarkers.test_date}</span>
+                          <span className="text-gray-600">Glucose:</span>
+                          <span className="font-medium">{userData.bloodMarkers.glucose}</span>
                         </li>
                       )}
                     </ul>
@@ -573,6 +623,7 @@ const LetsJam = () => {
                       <li>"How was my run today?"</li>
                       <li>"What activities did I do this week?"</li>
                       <li>"How many calories did I burn yesterday?"</li>
+                      <li>"Analyze my blood markers"</li>
                     </ul>
                   </div>
                 ) : (
