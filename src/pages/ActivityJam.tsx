@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ArrowLeft,
-  Send,
-  RefreshCw,
-  Utensils,
-  Activity,
-  Droplet,
-  Heart
-} from "lucide-react";
+import { ArrowLeft, Activity, Heart, Clock, Route, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -15,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { initializeCharts } from './ActivityJamCharts';
 import { db } from "@/lib/firebaseConfig";
 import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
-import LetsJamButton from "@/components/ui/LetsJamButton";
 
 // Define types for our Strava data
 interface StravaActivity {
@@ -662,7 +653,7 @@ const generateChartData = (activities: StravaActivity[]) => {
           </Card>
         </section>
       </main>
-
+      
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <p>Data from Strava API • Cached for performance • Updates twice daily</p>
