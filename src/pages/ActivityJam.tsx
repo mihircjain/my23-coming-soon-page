@@ -162,34 +162,42 @@ const CurrentJam = () => {
     }
   };
 
-  // Process activities data and update state
-  const processAndSetActivities = (activitiesData: any[]) => {
-    // Filter to last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const processedActivities = activitiesData
-      .map(activity => ({
-        date: new Date(activity.start_date || activity.date).toLocaleDateString(),
-        type: activity.type,
-        distance: activity.distance || 0,
-        duration: activity.duration || 0,
-        heart_rate: activity.heart_rate,
-        name: activity.name,
-        elevation_gain: activity.elevation_gain || 0,
-        calories: activity.caloriesBurned || activity.calories || 0,
-        start_date: activity.start_date || activity.date
-      }))
-      .filter(activity => {
-        const activityDate = new Date(activity.start_date);
-        return activityDate >= thirtyDaysAgo;
-      })
-      .slice(0, 30); // Limit to 30 most recent
-    
-    setActivities(processedActivities);
-    generateChartData(processedActivities);
-    calculateSummaryStats(processedActivities);
-  };
+// Fixed processAndSetActivities function - replace in your CurrentJam component
+
+const processAndSetActivities = (activitiesData: any[]) => {
+  // Filter to last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const processedActivities = activitiesData
+    .map(activity => ({
+      date: new Date(activity.start_date || activity.date).toLocaleDateString(),
+      type: activity.type,
+      distance: activity.distance || 0,
+      duration: activity.duration || 0,
+      heart_rate: activity.heart_rate,
+      name: activity.name,
+      elevation_gain: activity.elevation_gain || 0,
+      calories: activity.caloriesBurned || activity.calories || 0,
+      start_date: activity.start_date || activity.date
+    }))
+    .filter(activity => {
+      const activityDate = new Date(activity.start_date);
+      return activityDate >= thirtyDaysAgo;
+    });
+    // REMOVED: .slice(0, 30) - this was limiting your data artificially
+  
+  console.log(`Processed ${processedActivities.length} activities`);
+  console.log('Date range:', 
+    processedActivities.length > 0 ? 
+    `${processedActivities[processedActivities.length - 1].start_date} to ${processedActivities[0].start_date}` : 
+    'No activities'
+  );
+  
+  setActivities(processedActivities);
+  generateChartData(processedActivities);
+  calculateSummaryStats(processedActivities);
+};
 
   // Manual refresh function
   const handleRefresh = async () => {
