@@ -98,7 +98,8 @@ export default async function handler(req, res) {
         model: "gpt-4o-mini", // Using the supported model
         messages: fullMessages,
         temperature: 0.7,
-        max_tokens: 500
+        max_tokens: 500,
+        stream: false
       })
     });
     
@@ -149,6 +150,20 @@ export default async function handler(req, res) {
     
   } catch (error) {
     console.error('Error in chat API:', error);
+    
+    // Handle specific fetch errors
+    if (error.code === 'ENOTFOUND') {
+      return res.status(500).json({ 
+        error: 'Network error: Could not reach OpenAI API' 
+      });
+    }
+    
+    if (error.name === 'AbortError') {
+      return res.status(500).json({ 
+        error: 'Request timeout: OpenAI API did not respond in time' 
+      });
+    }
+    
     return res.status(500).json({ 
       error: 'Internal server error',
       message: 'Something went wrong. Please try again later.',
@@ -194,7 +209,7 @@ async function build7DaySystemPrompt(userId) {
     try {
       const activityQuery = db.collection('strava_data')
         .where('userId', '==', userId)
-        .where('date', '>=', `${dateString}T00:00:00Z`)
+        .where('start_date', '>=', `${dateString}T00:00:00Z`)
         .orderBy('start_date', 'desc')
         .limit(10);
       

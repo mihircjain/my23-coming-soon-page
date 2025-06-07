@@ -14,6 +14,7 @@ import { DailyLog } from "@/types/nutrition"; // Import DailyLog type
 interface StravaData {
   date: string;            // ISO
   type: string;                  // Run / Ride / …
+  start_date?: string;
   heart_rate: number | null;     // bpm
   caloriesBurned: number;
   duration: number;              // minutes
@@ -79,7 +80,7 @@ const OverallJam = () => {
         // Fetch nutrition data
         getDocs(query(
           collection(db, "nutritionLogs"),
-          where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
+          // where("userId", "==", "mihir_jain"), // TODO: Replace with auth.currentUser.uid when we add Firebase Auth
           where("date", ">=", dateString),
           orderBy("date", "desc")
         )),
@@ -107,6 +108,12 @@ const OverallJam = () => {
         })
       ]);
 
+      console.log(
+  '⚡ nutrition docs →', nutritionSnapshot.size,
+  'strava docs →',     stravaSnapshot.size,
+  'blood docs →',      bloodMarkersSnapshot.size
+);
+
       // Process nutrition data
       nutritionSnapshot.forEach(doc => {
         const data = doc.data() as DailyLog;
@@ -123,13 +130,20 @@ const OverallJam = () => {
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data() as StravaData;
         
-        // Derive yyyy-mm-dd from start_date
-        const activityDate = data.date.split('T')[0];
+  /* pick the short yyyy-mm-dd form no matter what’s in the doc */
+  const activityDate =
+    (data.date as string | undefined)            /* new docs */
+    ?? (data.start_date ? data.start_date.substring(0, 10) : undefined);
+
+        console.log('doc', doc.id, 'date field→', data.date,
+            'start_date→', data.start_date?.substring(0, 10),
+            'activityDate→', activityDate);
+  if (!activityDate || !tempData[activityDate]) return;
 
         if (tempData[activityDate]) {
           // Heart rate (average across multiple activities)
           if (data.heart_rate != null) {
-            const curHR = tempData[activityDate].heartRate || 0;
+            const curHR = tempData[activityDate].heartRate ?? 0;
             const cnt = tempData[activityDate].activityTypes.length;
             tempData[activityDate].heartRate =
               ((curHR * cnt) + data.heart_rate) / (cnt + 1);

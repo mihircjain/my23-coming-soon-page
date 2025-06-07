@@ -22,6 +22,15 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 1.4
   },
   {
+  name: "Lotus Biscoff Cheesecake",
+  servingSize: 50,
+  calories: 198,
+  protein: 2,
+  fat : 15.3,
+  carbs: 13.7,
+  fiber: 0.1
+  },
+  {
     name: "Knorr Pizza and Pasta Sauce",
     servingSize: "40g",
     calories: 33,
@@ -248,47 +257,47 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Dal",
-    servingSize: "165g",
-    calories: 127,
-    protein: 7.5,
-    carbs: 19.4,
-    fat: 2.1,
-    fiber: 3.1
+    servingSize: "150",
+    calories: 115,
+    protein: 6.8,
+    carbs: 17.7,
+    fat: 1.9,
+    fiber: 2.8
   },
   {
     name: "Dosa",
-    servingSize: "112g",
-    calories: 206,
-    protein: 5.0,
-    carbs: 31.7,
-    fat: 6.6,
-    fiber: 1.7
+    servingSize: "120",
+    calories: 221,
+    protein: 5.4,
+    carbs: 33.9,
+    fat: 7.1,
+    fiber: 1.9
   },
   {
     name: "Green Moong Dal Cheela",
-    servingSize: "170g",
-    calories: 309,
-    protein: 16.2,
-    carbs: 37.6,
-    fat: 10.4,
-    fiber: 11.5
+    servingSize: "200g",
+    calories: 363,
+    protein: 19,
+    carbs: 44.3,
+    fat: 12.3,
+    fiber: 13.6
   },
   {
     name: "100% Whole Wheat Bread, Britannia",
-    servingSize: "55g",
-    calories: 133,
-    protein: 4.4,
-    carbs: 27.5,
-    fat: 1.1,
-    fiber: 2.2
+    servingSize: "27",
+    calories: 67,
+    protein: 2.2,
+    carbs: 13.8,
+    fat: 0.6,
+    fiber: 1.1
   },
   {
     name: "Amul Cheese Slice",
-    servingSize: "40g",
-    calories: 124,
-    protein: 8.0,
-    carbs: 0.6,
-    fat: 10.0,
+    servingSize: "20",
+    calories: 62,
+    protein: 4.0,
+    carbs: 0.3,
+    fat: 5.0,
     fiber: 0.0
   },
   {
@@ -418,33 +427,33 @@ export const mealPresets: MealPreset[] = [
   {
     name: "Bread Pizza",
     foods: [
-      { name: "Capsicum Tomato Onion", quantity: 1.25 }, // 150g - 96 Cal
+      { name: "Capsicum Tomato Onion", quantity: 1 }, // 150g - 96 Cal
       { name: "100% Whole Wheat Bread, Britannia", quantity: 4 }, // 4 slices - 266 Cal
-      { name: "Knorr Pizza and Pasta Sauce", quantity: 1.25 }, // 50g - 41 Cal
-      { name: "Amul Cheese Slice", quantity: 4 } // 4 slices - 249 Cal
+      { name: "Knorr Pizza and Pasta Sauce", quantity: 1 }, // 50g - 41 Cal
+      { name: "Amul Cheese Slice", quantity: 1 } // 4 slices - 249 Cal
     ],
-    totalCalories: 652 // Explicitly set total calories
+    totalCalories: 652 
   },
   {
     name: "Aloo Beans Dal Roti",
     foods: [
-      { name: "Roti", quantity: 1.1 }, // 55g (50g * 1.1)
+      { name: "Roti", quantity: 1 }, // 50g 
       { name: "Aloo Beans", quantity: 1 }, // 100g
-      { name: "Dal", quantity: 0.91 } // 150g (165g * 0.91)
+      { name: "Dal", quantity: 1 } // 150g 
     ]
   },
   {
     name: "Paneer Chilla",
     foods: [
-      { name: "Green Moong Dal Cheela", quantity: 1.18 }, // 200g (170g * 1.18)
+      { name: "Green Moong Dal Cheela", quantity: 1 }, // 200g 
       { name: "Low Fat Paneer, Milky Mist", quantity: 0.5 } // 50g (100g * 0.5)
     ]
   },
   {
     name: "Bhindi Dal Roti",
     foods: [
-      { name: "Bhindi Fry", quantity: 1.11 }, // 100g (90g * 1.11)
-      { name: "Dal", quantity: 0.91 }, // 150g (165g * 0.91)
+      { name: "Bhindi Fry", quantity: 1 }, // 100g 
+      { name: "Dal", quantity: 1 }, // 150g 
       { name: "Roti", quantity: 1 } // 50g
     ]
   },
@@ -454,14 +463,14 @@ export const mealPresets: MealPreset[] = [
       { name: "Mixed Vegetable Sabzi", quantity: 2 }, // 100g (50g * 2) - using as substitute for Matar Sabzi
       { name: "Low Fat Paneer, Milky Mist", quantity: 1 }, // 100g
       { name: "Roti", quantity: 1 }, // 50g
-      { name: "Dal", quantity: 1.21 } // 200g (165g * 1.21)
+      { name: "Dal", quantity: 1 } // 200g 
     ]
   },
   {
     name: "Dosa Sambhar",
     foods: [
-      { name: "Dosa", quantity: 1 }, // 112g
-      { name: "Sambhar", quantity: 1.41 } // 212g (150g * 1.41)
+      { name: "Dosa", quantity: 1 }, // 120g
+      { name: "Sambhar", quantity: 1 } // 200g
     ]
   }
 ];
