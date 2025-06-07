@@ -456,4 +456,164 @@ const CurrentJam = () => {
             <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
-                  <Activity
+                  <Activity className="mr-2 h-4 w-4 text-green-500" />
+                  Activities
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <div className="text-2xl font-bold">{summaryStats.activityCount}</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+        
+        {/* Charts Section */}
+        <section className="mb-12 space-y-8">
+          {/* Heart Rate Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Heart Rate Trend</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading heart rate data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="heart-rate-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Distance Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Distance by Activity</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading distance data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="distance-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Activity Type Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Activity Type Distribution</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading activity type data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="activity-type-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Weight Training Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Weight Training Time</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading weight training data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="weight-training-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+          
+          {/* Calories Chart */}
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Calories Burned</h3>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-gray-400">Loading calories data...</div>
+              </div>
+            ) : (
+              <div className="h-64" id="calories-chart">
+                {/* Chart will be rendered here */}
+              </div>
+            )}
+          </Card>
+        </section>
+        
+        {/* Recent Activities Table */}
+        <section className="mb-12">
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Recent Activities</h3>
+            {loading ? (
+              <div className="space-y-4">
+                {Array(5).fill(0).map((_, i) => (
+                  <div key={i} className="flex items-center space-x-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4">Date</th>
+                      <th className="text-left py-3 px-4">Activity</th>
+                      <th className="text-left py-3 px-4">Type</th>
+                      <th className="text-right py-3 px-4">Distance</th>
+                      <th className="text-right py-3 px-4">Duration</th>
+                      <th className="text-right py-3 px-4">Heart Rate</th>
+                      <th className="text-right py-3 px-4">Calories</th>
+                      <th className="text-right py-3 px-4">Elevation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activities.slice(0, 15).map((activity, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">{activity.date}</td>
+                        <td className="py-3 px-4">{activity.name}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                            {activity.type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {activity.distance > 0 ? `${activity.distance.toFixed(2)} km` : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {Math.floor(activity.duration / 60)}:{(activity.duration % 60).toString().padStart(2, '0')}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {activity.heart_rate ? `${Math.round(activity.heart_rate)} bpm` : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {activity.calories > 0 ? `${activity.calories} cal` : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-right">{activity.elevation_gain} m</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </section>
+      </main>
+      
+      {/* Footer */}
+      <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
+        <p>Data from Strava API • Cached for performance • Updates twice daily</p>
+      </footer>
+    </div>
+  );
+};
+
+export default CurrentJam;
