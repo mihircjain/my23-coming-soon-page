@@ -114,41 +114,43 @@ async function getSystemPrompt() {
         
         console.log('Looking for nutrition dates:', dates);
         
-        for (const dateStr of dates) {
-          try {
-            const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
-            const nutritionDoc = await getDoc(nutritionRef);
-            
-            if (nutritionDoc.exists()) {
-              const data = nutritionDoc.data();
-              console.log(`Found nutrition data for ${dateStr} with ${data.entries?.length || 0} entries`);
-              
-              // Check if there are entries (array of food items)
-              if (data.entries && Array.isArray(data.entries)) {
-                data.entries.forEach((entry, index) => {
-                  const foodItem = {
-                    id: `${dateStr}-${index}`,
-                    date: new Date(dateStr + 'T12:00:00'),
-                    content: entry.foodId || entry.name || 'Food item',
-                    type: 'food',
-                    details: {
-                      quantity: entry.quantity,
-                      calories: entry.calories,
-                      protein: entry.protein,
-                      carbs: entry.carbs,
-                      fat: entry.fat,
-                      fiber: entry.fiber
-                    }
-                  };
-                  
-                  foodData.push(foodItem);
-                });
-              }
-            }
-          } catch (dateError) {
-            console.log(`Error fetching nutrition for ${dateStr}:`, dateError.message);
+// REPLACE the entire nutrition fetching section with this:
+console.log('Fetching nutrition TOTALS only...');
+for (const dateStr of dates) {
+  try {
+    const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
+    const nutritionDoc = await getDoc(nutritionRef);
+    
+    if (nutritionDoc.exists()) {
+      const data = nutritionDoc.data();
+      console.log(`=== NUTRITION DEBUG FOR ${dateStr} ===`);
+      console.log('Available keys:', Object.keys(data));
+      
+      if (data.totals) {
+        const totals = data.totals;
+        console.log('Raw totals object:', totals);
+        
+        const nutritionDay = {
+          date: new Date(dateStr),
+          totals: {
+            calories: Math.round(totals.calories || 0),
+            protein: Math.round((totals.protein || 0) * 10) / 10,
+            fat: Math.round((totals.fat || 0) * 10) / 10,
+            carbs: Math.round((totals.carbs || 0) * 10) / 10,
+            fiber: Math.round((totals.fiber || 0) * 10) / 10
           }
-        }
+        };
+        
+        console.log(`✅ Added nutrition: ${dateStr} = ${nutritionDay.totals.calories} cal`);
+        foodData.push(nutritionDay);
+      } else {
+        console.log(`❌ No totals found for ${dateStr}`);
+      }
+    }
+  } catch (error) {
+    console.log(`Error fetching ${dateStr}:`, error.message);
+  }
+}
       } catch (nutritionError) {
         console.log('Error fetching nutrition data:', nutritionError.message);
       }
