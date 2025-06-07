@@ -32,52 +32,137 @@ function initializeFirebase() {
   }
 }
 
-async function getSystemPrompt() {
+// UPDATED: Enhanced system prompt that incorporates both Firestore data AND structured userData
+async function getSystemPrompt(userData = null) {
   const firestore = initializeFirebase();
   
+  let systemContent = '';
+  
+  // SECTION 1: Use structured userData if available (from LetsJam)
+  if (userData) {
+    console.log('Building system prompt with structured userData...');
+    
+    systemContent += `You are a personal health assistant with access to comprehensive health data:\n\n`;
+    
+    // Add structured nutrition data
+    if (userData.nutrition) {
+      systemContent += `=== NUTRITION AVERAGES (30-day) ===\n`;
+      systemContent += `- Daily calories: ${userData.nutrition.avgCaloriesPerDay}\n`;
+      systemContent += `- Daily protein: ${userData.nutrition.avgProteinPerDay}g\n`;
+      systemContent += `- Daily carbs: ${userData.nutrition.avgCarbsPerDay}g\n`;
+      systemContent += `- Daily fat: ${userData.nutrition.avgFatPerDay}g\n`;
+      systemContent += `- Daily fiber: ${userData.nutrition.avgFiberPerDay}g\n\n`;
+    }
+    
+    // Add structured activity data
+    if (userData.activity) {
+      systemContent += `=== ACTIVITY AVERAGES (30-day) ===\n`;
+      systemContent += `- Workouts per week: ${userData.activity.workoutsPerWeek}\n`;
+      systemContent += `- Average workout heart rate: ${userData.activity.avgHeartRatePerWorkout} bpm\n`;
+      systemContent += `- Average calories burned per workout: ${userData.activity.avgCaloriesBurnedPerWorkout}\n`;
+      systemContent += `- Average workout duration: ${userData.activity.avgWorkoutDurationMinutes} minutes\n\n`;
+    }
+    
+    // Add structured blood markers
+    if (userData.bloodMarkers && userData.bloodMarkers.values) {
+      systemContent += `=== BLOOD TEST RESULTS (Latest) ===\n`;
+      systemContent += `Test Date: ${userData.bloodMarkers.testDate}\n\n`;
+      
+      const values = userData.bloodMarkers.values;
+      
+      if (values.cholesterol) {
+        systemContent += `Cholesterol Panel:\n`;
+        systemContent += `- Total: ${values.cholesterol.total}\n`;
+        systemContent += `- LDL: ${values.cholesterol.ldl}\n`;
+        systemContent += `- HDL: ${values.cholesterol.hdl}\n\n`;
+      }
+      
+      if (values.metabolic) {
+        systemContent += `Metabolic Markers:\n`;
+        systemContent += `- Glucose: ${values.metabolic.glucose}\n`;
+        systemContent += `- HbA1C: ${values.metabolic.hba1c}\n\n`;
+      }
+      
+      if (values.minerals) {
+        systemContent += `Minerals:\n`;
+        systemContent += `- Calcium: ${values.minerals.calcium}\n`;
+        systemContent += `- Sodium: ${values.minerals.sodium}\n`;
+        systemContent += `- Potassium: ${values.minerals.potassium}\n\n`;
+      }
+      
+      if (values.kidneyFunction) {
+        systemContent += `Kidney Function:\n`;
+        systemContent += `- Creatinine: ${values.kidneyFunction.creatinine}\n\n`;
+      }
+      
+      if (values.bloodCells) {
+        systemContent += `Blood Cells:\n`;
+        systemContent += `- Hemoglobin: ${values.bloodCells.hemoglobin}\n`;
+        systemContent += `- RBC: ${values.bloodCells.rbc}\n`;
+        systemContent += `- Platelet Count: ${values.bloodCells.plateletCount}\n\n`;
+      }
+      
+      if (values.hormones) {
+        systemContent += `Hormones:\n`;
+        systemContent += `- TSH: ${values.hormones.tsh}\n\n`;
+      }
+    }
+    
+    systemContent += `=== IMPORTANT INSTRUCTIONS ===\n`;
+    systemContent += `When answering questions about:\n`;
+    systemContent += `- BLOOD MARKERS (calcium, cholesterol, glucose, etc.): Use ONLY the blood test results above\n`;
+    systemContent += `- NUTRITION (calories, protein, etc.): Use ONLY the nutrition averages above\n`;
+    systemContent += `- ACTIVITY/WORKOUTS (heart rate, exercise, etc.): Use ONLY the activity averages above\n`;
+    systemContent += `- Be specific about values and provide context about normal ranges when relevant\n\n`;
+  }
+  
+  // SECTION 2: Add recent detailed activity/food data from Firestore (if available)
   if (!firestore) {
-    console.log('Firestore not available, using default system prompt');
-    return 'You are a helpful AI assistant with access to the user\'s recent food and activity data. Please respond to the user\'s message.';
+    console.log('Firestore not available, using userData only or default prompt');
+    if (!userData) {
+      return 'You are a helpful AI assistant with access to the user\'s recent food and activity data. Please respond to the user\'s message.';
+    }
+    systemContent += `Respond based on the health data provided above. Be conversational and provide actionable insights.`;
+    return systemContent;
   }
 
   try {
-    console.log('Attempting to fetch from Firestore...');
+    console.log('Fetching recent detailed data from Firestore...');
     
-    // Get last 10 days of data
+    // Get last 10 days of detailed data
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
     tenDaysAgo.setHours(0, 0, 0, 0);
     
-    console.log(`Fetching data from ${tenDaysAgo.toISOString()} onwards`);
+    console.log(`Fetching detailed data from ${tenDaysAgo.toISOString()} onwards`);
     
     // Create timeout promise
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Firestore query timeout')), 8000); // Increased timeout for more data
+      setTimeout(() => reject(new Error('Firestore query timeout')), 8000);
     });
     
     let foodData = [];
     let activityData = [];
     
     const queryPromise = (async () => {
-      // Fetch Strava activities from last 7 days
+      // Fetch recent Strava activities for detailed view
       try {
-        console.log('Fetching from strava_data collection...');
+        console.log('Fetching recent activities from strava_data collection...');
         const stravaRef = collection(firestore, 'strava_data');
         const stravaQuery = query(
           stravaRef,
           where('userId', '==', 'mihir_jain'),
           where('start_date', '>=', tenDaysAgo.toISOString()),
           orderBy('start_date', 'desc'),
-          limit(15) // Reduce from 30 to 15 to prevent timeout
+          limit(15)
         );
         
         const stravaSnapshot = await getDocs(stravaQuery);
-        console.log(`Found ${stravaSnapshot.size} Strava activities`);
+        console.log(`Found ${stravaSnapshot.size} recent Strava activities`);
         
         stravaSnapshot.forEach(doc => {
           const data = doc.data();
           
-          // Simplified logging to prevent timeout
           console.log(`Activity: ${data.name} on ${data.start_date} - ${data.distance}km - ${data.caloriesBurned}cal`);
           
           const activity = {
@@ -100,57 +185,50 @@ async function getSystemPrompt() {
         console.log('Error fetching Strava data:', stravaError.message);
       }
       
-      // Fetch nutrition data from last 7 days
+      // Fetch recent nutrition data for detailed view
       try {
-        console.log('Fetching from nutritionLogs collection...');
+        console.log('Fetching recent nutrition data...');
         
-        // Get date strings for last 5 days (reduced from 10)
+        // Get date strings for last 5 days
         const dates = [];
         for (let i = 0; i < 5; i++) {
           const date = new Date();
           date.setDate(date.getDate() - i);
-          dates.push(date.toISOString().split('T')[0]); // YYYY-MM-DD format
+          dates.push(date.toISOString().split('T')[0]);
         }
         
-        console.log('Looking for nutrition dates:', dates);
+        console.log('Looking for recent nutrition dates:', dates);
         
-// REPLACE the entire nutrition fetching section with this:
-console.log('Fetching nutrition TOTALS only...');
-for (const dateStr of dates) {
-  try {
-    const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
-    const nutritionDoc = await getDoc(nutritionRef);
-    
-    if (nutritionDoc.exists()) {
-      const data = nutritionDoc.data();
-      console.log(`=== NUTRITION DEBUG FOR ${dateStr} ===`);
-      console.log('Available keys:', Object.keys(data));
-      
-      if (data.totals) {
-        const totals = data.totals;
-        console.log('Raw totals object:', totals);
-        
-        const nutritionDay = {
-          date: new Date(dateStr),
-          totals: {
-            calories: Math.round(totals.calories || 0),
-            protein: Math.round((totals.protein || 0) * 10) / 10,
-            fat: Math.round((totals.fat || 0) * 10) / 10,
-            carbs: Math.round((totals.carbs || 0) * 10) / 10,
-            fiber: Math.round((totals.fiber || 0) * 10) / 10
+        for (const dateStr of dates) {
+          try {
+            const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
+            const nutritionDoc = await getDoc(nutritionRef);
+            
+            if (nutritionDoc.exists()) {
+              const data = nutritionDoc.data();
+              
+              if (data.totals) {
+                const totals = data.totals;
+                
+                const nutritionDay = {
+                  date: new Date(dateStr),
+                  totals: {
+                    calories: Math.round(totals.calories || 0),
+                    protein: Math.round((totals.protein || 0) * 10) / 10,
+                    fat: Math.round((totals.fat || 0) * 10) / 10,
+                    carbs: Math.round((totals.carbs || 0) * 10) / 10,
+                    fiber: Math.round((totals.fiber || 0) * 10) / 10
+                  }
+                };
+                
+                console.log(`✅ Added recent nutrition: ${dateStr} = ${nutritionDay.totals.calories} cal`);
+                foodData.push(nutritionDay);
+              }
+            }
+          } catch (error) {
+            console.log(`Error fetching ${dateStr}:`, error.message);
           }
-        };
-        
-        console.log(`✅ Added nutrition: ${dateStr} = ${nutritionDay.totals.calories} cal`);
-        foodData.push(nutritionDay);
-      } else {
-        console.log(`❌ No totals found for ${dateStr}`);
-      }
-    }
-  } catch (error) {
-    console.log(`Error fetching ${dateStr}:`, error.message);
-  }
-}
+        }
       } catch (nutritionError) {
         console.log('Error fetching nutrition data:', nutritionError.message);
       }
@@ -161,15 +239,15 @@ for (const dateStr of dates) {
     // Race between query and timeout
     const { foodData: foods, activityData: activities } = await Promise.race([queryPromise, timeoutPromise]);
     
-    console.log(`Successfully fetched ${foods.length} nutrition days and ${activities.length} activities`);
+    console.log(`Successfully fetched ${foods.length} recent nutrition days and ${activities.length} recent activities`);
     
-    // Build system prompt with actual data
+    // Add recent detailed data to system prompt
     if (foods.length > 0 || activities.length > 0) {
-      let systemContent = `You have access to the user's actual food and activity data from the past 10 days:\n\n`;
+      systemContent += `=== RECENT DETAILED DATA (Last 10 days) ===\n\n`;
       
       if (activities.length > 0) {
-        systemContent += `RECENT ACTIVITIES (Last 10 days):\n`;
-        activities.slice(0, 20).forEach(activity => { // Show more activities
+        systemContent += `RECENT ACTIVITIES:\n`;
+        activities.slice(0, 10).forEach(activity => {
           const date = activity.date.toLocaleDateString();
           const time = activity.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
           const duration = activity.details.duration ? ` (${activity.details.duration} min)` : '';
@@ -183,7 +261,7 @@ for (const dateStr of dates) {
       
       if (foods.length > 0) {
         systemContent += `RECENT NUTRITION (Daily totals):\n`;
-        foods.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
+        foods.sort((a, b) => new Date(b.date) - new Date(a.date));
         foods.forEach(nutritionDay => {
           if (nutritionDay.totals) {
             const date = nutritionDay.date.toLocaleDateString();
@@ -193,21 +271,22 @@ for (const dateStr of dates) {
         });
         systemContent += '\n';
       }
-      
-      systemContent += `Based on this actual food and activity data, answer questions about the user's recent eating habits, workouts, runs, health patterns, and provide personalized insights. Be specific and reference the actual data when possible. When discussing distances, use the correct values (distance is stored in meters in raw data but should be converted to km for display).`;
-      
-      console.log(`=== BUILT SYSTEM PROMPT WITH REAL DATA (${systemContent.length} characters) ===`);
-      console.log(systemContent);
-      console.log(`=== END SYSTEM PROMPT ===`);
-      
-      return systemContent;
-    } else {
-      console.log('No recent food or activity data found in Firestore');
-      return 'You are a helpful AI assistant. The user asked about their recent food and activities, but no recent data was found in the system for the past 10 days. Please let them know that no recent data is available and suggest they check their data tracking.';
     }
     
+    systemContent += `Based on both the 30-day averages and recent detailed data above, provide personalized insights. When asked about blood markers, reference ONLY the blood test results. When asked about recent activities or food, you can reference both the averages and specific recent entries. Be conversational and specific.`;
+    
+    console.log(`=== BUILT ENHANCED SYSTEM PROMPT WITH BOTH STRUCTURED + DETAILED DATA (${systemContent.length} characters) ===`);
+    console.log(systemContent.substring(0, 500) + '...');
+    console.log(`=== END SYSTEM PROMPT ===`);
+    
+    return systemContent;
+    
   } catch (error) {
-    console.error('Error fetching system prompt from Firestore:', error.message);
+    console.error('Error fetching detailed data from Firestore:', error.message);
+    if (userData) {
+      systemContent += `Respond based on the health data provided above. There was an issue accessing recent detailed activity data, but the averages above are still available.`;
+      return systemContent;
+    }
     return 'You are a helpful AI assistant. There was an issue accessing the user\'s recent food and activity data. Please respond helpfully and suggest they try again.';
   }
 }
@@ -255,8 +334,6 @@ async function makeGroqRequest(apiKey, messages, retryCount = 0) {
     };
 
     console.log(`=== GROQ API REQUEST (Attempt ${retryCount + 1}) ===`);
-    console.log(`URL: https://api.groq.com/openai/v1/chat/completions`);
-    console.log(`Method: POST`);
     console.log(`Messages being sent: ${messages.length}`);
     console.log(`Request payload size: ${JSON.stringify(requestBody).length} bytes`);
     
@@ -272,10 +349,8 @@ async function makeGroqRequest(apiKey, messages, retryCount = 0) {
 
     console.log(`=== GROQ API RESPONSE (Attempt ${retryCount + 1}) ===`);
     console.log(`Status: ${response.status} ${response.statusText}`);
-    console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
 
     if (response.status === 429 && retryCount < maxRetries) {
-      // Exponential backoff: wait longer each retry
       const delay = baseDelay * Math.pow(2, retryCount);
       console.log(`Rate limited. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
       
@@ -288,7 +363,6 @@ async function makeGroqRequest(apiKey, messages, retryCount = 0) {
     console.error(`=== GROQ REQUEST ERROR (Attempt ${retryCount + 1}) ===`);
     console.error(`Error type: ${error.name}`);
     console.error(`Error message: ${error.message}`);
-    console.error(`Error code: ${error.code}`);
     
     if (retryCount < maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')) {
       const delay = baseDelay * Math.pow(2, retryCount);
@@ -338,8 +412,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get messages from request body
-    const { messages } = req.body;
+    // UPDATED: Get both messages and userData from request body
+    const { messages, userData, userId, source } = req.body;
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ 
@@ -347,11 +421,20 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get system prompt from Firestore (with timeout protection)
-    console.log('Fetching system prompt from Firestore...');
-    const systemPromptPromise = getSystemPrompt();
+    console.log('=== INCOMING REQUEST ===');
+    console.log('Source:', source);
+    console.log('User ID:', userId);
+    console.log('Messages count:', messages.length);
+    console.log('Has userData:', !!userData);
+    if (userData) {
+      console.log('UserData keys:', Object.keys(userData));
+    }
+
+    // UPDATED: Get enhanced system prompt with both structured userData and Firestore data
+    console.log('Fetching enhanced system prompt...');
+    const systemPromptPromise = getSystemPrompt(userData);
     const systemPromptTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('System prompt fetch timeout')), 5000);
+      setTimeout(() => reject(new Error('System prompt fetch timeout')), 10000); // Increased timeout
     });
     
     let systemPrompt;
@@ -359,14 +442,18 @@ export default async function handler(req, res) {
       systemPrompt = await Promise.race([systemPromptPromise, systemPromptTimeout]);
     } catch (timeoutError) {
       console.error('System prompt fetch timed out, using fallback');
-      systemPrompt = 'You are a helpful AI assistant. The user may ask about their recent activities, but there was an issue accessing their data. Please respond helpfully.';
+      if (userData) {
+        systemPrompt = `You are a helpful health assistant. The user has provided some health data, but there was an issue accessing detailed recent data. Use the information available and respond helpfully.`;
+      } else {
+        systemPrompt = 'You are a helpful AI assistant. The user may ask about their recent activities, but there was an issue accessing their data. Please respond helpfully.';
+      }
     }
 
     console.log(`=== PREPARING GROQ REQUEST ===`);
     console.log(`User messages count: ${messages.length}`);
     console.log(`System prompt length: ${systemPrompt.length} characters`);
     
-    // Build full messages array with system prompt
+    // Build full messages array with enhanced system prompt
     const fullMsgs = [
       { role: 'system', content: systemPrompt },
       ...messages
@@ -386,28 +473,11 @@ export default async function handler(req, res) {
     });
     console.log(`=== END MESSAGES ARRAY ===`);
 
-    const requestBody = {
-      model: 'llama3-8b-8192',
-      messages: fullMsgs,
-      temperature: 0.7,
-      max_tokens: 500,
-      stream: false
-    };
-
-    console.log(`=== GROQ REQUEST DETAILS ===`);
-    console.log(`Model: ${requestBody.model}`);
-    console.log(`Temperature: ${requestBody.temperature}`);
-    console.log(`Max tokens: ${requestBody.max_tokens}`);
-    console.log(`Request body size: ${JSON.stringify(requestBody).length} characters`);
-    console.log(`=== SENDING TO GROQ ===`);
-
     // Make request to Groq API with retry logic
     const groqResponse = await makeGroqRequest(apiKey, fullMsgs);
 
     console.log(`=== GROQ RESPONSE ===`);
     console.log(`Status: ${groqResponse.status}`);
-    console.log(`Status text: ${groqResponse.statusText}`);
-    console.log(`Headers:`, Object.fromEntries(groqResponse.headers.entries()));
 
     // Check if response is OK
     if (!groqResponse.ok) {
