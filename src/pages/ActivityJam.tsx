@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { initializeCharts } from './ActivityJamCharts';
 import { db } from "@/lib/firebaseConfig";
 import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
+import LetsJamButton from "@/components/LetsJamButton";
 
 // Define types for our Strava data
 interface StravaActivity {
@@ -653,7 +654,22 @@ const generateChartData = (activities: StravaActivity[]) => {
           </Card>
         </section>
       </main>
-      
+
+      // Alternative compact version for pages with less space:
+{/* Compact Let's Jam Section */}
+<section className="mb-8">
+  <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200/50">
+    <CardContent className="p-6 text-center">
+      <h3 className="text-lg font-semibold text-gray-800 mb-2">
+        💬 Chat with Your Health AI
+      </h3>
+      <p className="text-gray-600 text-sm mb-4">
+        Get insights about your health data through natural conversation
+      </p>
+      <LetsJamButton variant="outline" />
+    </CardContent>
+  </Card>
+</section>
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <p>Data from Strava API • Cached for performance • Updates twice daily</p>
