@@ -1,10 +1,52 @@
-// CurrentJamCharts.js
+// ActivityJamCharts.js
 // This file contains the chart rendering logic for the CurrentJam page
 
 import Chart from 'chart.js/auto';
 
+// Debug function to log chart data
+export function debugChartData(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData) {
+  console.log('=== CHART DATA DEBUG ===');
+  
+  if (heartRateData) {
+    console.log('Heart Rate Data:');
+    console.log('- Labels count:', heartRateData.labels?.length || 0);
+    console.log('- First label:', heartRateData.labels?.[0]);
+    console.log('- Last label:', heartRateData.labels?.[heartRateData.labels.length - 1]);
+    console.log('- Data points count:', heartRateData.datasets?.[0]?.data?.length || 0);
+  }
+  
+  if (distanceData) {
+    console.log('Distance Data:');
+    console.log('- Labels count:', distanceData.labels?.length || 0);
+    console.log('- First label:', distanceData.labels?.[0]);
+    console.log('- Last label:', distanceData.labels?.[distanceData.labels.length - 1]);
+    console.log('- Data points count:', distanceData.datasets?.[0]?.data?.length || 0);
+  }
+  
+  if (weightTrainingData) {
+    console.log('Weight Training Data:');
+    console.log('- Labels count:', weightTrainingData.labels?.length || 0);
+    console.log('- First label:', weightTrainingData.labels?.[0]);
+    console.log('- Last label:', weightTrainingData.labels?.[weightTrainingData.labels.length - 1]);
+    console.log('- Data points count:', weightTrainingData.datasets?.[0]?.data?.length || 0);
+  }
+  
+  if (caloriesData) {
+    console.log('Calories Data:');
+    console.log('- Labels count:', caloriesData.labels?.length || 0);
+    console.log('- First label:', caloriesData.labels?.[0]);
+    console.log('- Last label:', caloriesData.labels?.[caloriesData.labels.length - 1]);
+    console.log('- Data points count:', caloriesData.datasets?.[0]?.data?.length || 0);
+  }
+  
+  console.log('=== END DEBUG ===');
+}
+
 // Initialize charts when data is available
 export function initializeCharts(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData) {
+  // Add debugging
+  debugChartData(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData);
+  
   // Destroy existing charts if they exist
   destroyCharts();
   
@@ -50,6 +92,58 @@ function destroyCharts() {
   });
 }
 
+// Improved helper function to simplify chart data for cleaner visualization
+function simplifyChartData(data, maxPoints) {
+  console.log('Original data length:', data.labels.length);
+  console.log('First date:', data.labels[0]);
+  console.log('Last date:', data.labels[data.labels.length - 1]);
+  
+  // If we have fewer points than maxPoints, return the original data
+  if (data.labels.length <= maxPoints) {
+    return data;
+  }
+  
+  // Use a more intelligent sampling approach
+  const totalPoints = data.labels.length;
+  const step = Math.max(1, Math.floor(totalPoints / maxPoints));
+  
+  const simplifiedLabels = [];
+  const simplifiedDatasets = data.datasets.map(dataset => ({
+    ...dataset,
+    data: []
+  }));
+  
+  // Always include the first point
+  simplifiedLabels.push(data.labels[0]);
+  data.datasets.forEach((dataset, datasetIndex) => {
+    simplifiedDatasets[datasetIndex].data.push(dataset.data[0]);
+  });
+  
+  // Sample points at regular intervals
+  for (let i = step; i < data.labels.length - step; i += step) {
+    simplifiedLabels.push(data.labels[i]);
+    data.datasets.forEach((dataset, datasetIndex) => {
+      simplifiedDatasets[datasetIndex].data.push(dataset.data[i]);
+    });
+  }
+  
+  // Always include the last point
+  if (data.labels.length > 1) {
+    simplifiedLabels.push(data.labels[data.labels.length - 1]);
+    data.datasets.forEach((dataset, datasetIndex) => {
+      simplifiedDatasets[datasetIndex].data.push(dataset.data[dataset.data.length - 1]);
+    });
+  }
+  
+  console.log('Simplified data length:', simplifiedLabels.length);
+  console.log('Step size:', step);
+  
+  return {
+    labels: simplifiedLabels,
+    datasets: simplifiedDatasets
+  };
+}
+
 // Render heart rate trend chart
 function renderHeartRateChart(data) {
   const container = document.getElementById('heart-rate-chart');
@@ -62,7 +156,7 @@ function renderHeartRateChart(data) {
   }
   
   // Simplify the data for a cleaner look
-  const simplifiedData = simplifyChartData(data,50);
+  const simplifiedData = simplifyChartData(data, 50);
   
   // Create the chart with minimal styling
   new Chart(canvas, {
@@ -276,39 +370,6 @@ function renderActivityTypeChart(data) {
       }
     }
   });
-}
-
-// Helper function to simplify chart data for cleaner visualization
-function simplifyChartData(data, maxPoints) {
-  // If we have fewer points than maxPoints, return the original data
-  if (data.labels.length <= maxPoints) {
-    return data;
-  }
-  
-  // Otherwise, sample the data to reduce the number of points
-  const step = Math.ceil(data.labels.length / maxPoints);
-  
-  const simplifiedLabels = [];
-  const simplifiedDatasets = data.datasets.map(dataset => {
-    const simplifiedData = [];
-    return {
-      ...dataset,
-      data: simplifiedData
-    };
-  });
-  
-  for (let i = 0; i < data.labels.length; i += step) {
-    simplifiedLabels.push(data.labels[i]);
-    
-    data.datasets.forEach((dataset, datasetIndex) => {
-      simplifiedDatasets[datasetIndex].data.push(dataset.data[i]);
-    });
-  }
-  
-  return {
-    labels: simplifiedLabels,
-    datasets: simplifiedDatasets
-  };
 }
 
 // Render weight training time chart
