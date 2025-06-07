@@ -571,184 +571,116 @@ const LetsJam = () => {
       
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8 flex flex-col">
-     // Updated Health Stats Summary section for LetsJam
-// Replace your existing Health Stats Summary section with this:
-
-{/* Health Stats Summary - Improved UI */}
-<section className="mb-8">
-  <div className="text-center mb-6">
-    <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-      Your Health Dashboard
-    </h2>
-    <p className="text-gray-600 mt-1">30-day averages • Real-time insights</p>
-  </div>
-
-  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    {/* Nutrition Card */}
-    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/50 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold text-green-700 flex items-center">
-          <Utensils className="mr-3 h-6 w-6 text-green-600" />
-          Nutrition Averages
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {userData ? (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 bg-white/70 rounded-lg">
-              <span className="text-gray-700 font-medium">Daily Calories</span>
-              <span className="text-xl font-bold text-green-700">{userData.nutrition.avgCalories}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-green-600">{userData.nutrition.avgProtein}g</div>
-                <div className="text-xs text-gray-600">Protein</div>
-              </div>
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-green-600">{userData.nutrition.avgCarbs}g</div>
-                <div className="text-xs text-gray-600">Carbs</div>
-              </div>
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-green-600">{userData.nutrition.avgFat}g</div>
-                <div className="text-xs text-gray-600">Fat</div>
-              </div>
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-green-600">{userData.nutrition.avgFiber}g</div>
-                <div className="text-xs text-gray-600">Fiber</div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <div className="grid grid-cols-2 gap-3">
-              <Skeleton className="h-12 w-full rounded-lg" />
-              <Skeleton className="h-12 w-full rounded-lg" />
-              <Skeleton className="h-12 w-full rounded-lg" />
-              <Skeleton className="h-12 w-full rounded-lg" />
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-    
-    {/* Activity Card */}
-    <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200/50 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold text-blue-700 flex items-center">
-          <Activity className="mr-3 h-6 w-6 text-blue-600" />
-          Activity Averages
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {userData ? (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 bg-white/70 rounded-lg">
-              <span className="text-gray-700 font-medium">Weekly Workouts</span>
-              <span className="text-xl font-bold text-blue-700">{userData.activity.workoutsPerWeek}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-blue-600">{userData.activity.avgDuration}</div>
-                <div className="text-xs text-gray-600">Avg Minutes</div>
-              </div>
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-blue-600">{userData.activity.avgHeartRate}</div>
-                <div className="text-xs text-gray-600">Avg HR (bpm)</div>
-              </div>
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-lg font-bold text-blue-600">{userData.activity.avgCaloriesBurned}</div>
-                <div className="text-xs text-gray-600">Calories/Workout</div>
-              </div>
-              <div className="text-center p-2 bg-white/50 rounded-lg">
-                <div className="text-xs text-gray-600 flex items-center justify-center">
-                  <Heart className="h-3 w-3 mr-1 text-red-500" />
-                  Cardio Focus
+        {/* Health Stats Summary */}
+        <section className="mb-8">
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-xl">Your Health Summary (30-day averages)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Nutrition Summary */}
+                <div>
+                  <h3 className="font-medium text-gray-800 mb-2">Nutrition</h3>
+                  {userData ? (
+                    <ul className="space-y-1 text-sm">
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Calories:</span>
+                        <span className="font-medium">{userData.nutrition.avgCalories}/day</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Protein:</span>
+                        <span className="font-medium">{userData.nutrition.avgProtein}g/day</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Carbs:</span>
+                        <span className="font-medium">{userData.nutrition.avgCarbs}g/day</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Fat:</span>
+                        <span className="font-medium">{userData.nutrition.avgFat}g/day</span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Activity Summary */}
+                <div>
+                  <h3 className="font-medium text-gray-800 mb-2">Activity</h3>
+                  {userData ? (
+                    <ul className="space-y-1 text-sm">
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Workouts:</span>
+                        <span className="font-medium">{userData.activity.workoutsPerWeek}/week</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Duration:</span>
+                        <span className="font-medium">{userData.activity.avgDuration} min</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Heart Rate:</span>
+                        <span className="font-medium">{userData.activity.avgHeartRate} bpm</span>
+                      </li>
+                      <li className="flex justify-between">
+                        <span className="text-gray-600">Calories:</span>
+                        <span className="font-medium">{userData.activity.avgCaloriesBurned}/workout</span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Blood Markers Summary */}
+                <div>
+                  <h3 className="font-medium text-gray-800 mb-2">Blood Markers</h3>
+                  {userData && userData.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 ? (
+                    <ul className="space-y-1 text-sm">
+                      {userData.bloodMarkers.ldl && (
+                        <li className="flex justify-between">
+                          <span className="text-gray-600">LDL:</span>
+                          <span className="font-medium">{userData.bloodMarkers.ldl}</span>
+                        </li>
+                      )}
+                      {userData.bloodMarkers.hdl && (
+                        <li className="flex justify-between">
+                          <span className="text-gray-600">HDL:</span>
+                          <span className="font-medium">{userData.bloodMarkers.hdl}</span>
+                        </li>
+                      )}
+                      {userData.bloodMarkers.total_cholesterol && (
+                        <li className="flex justify-between">
+                          <span className="text-gray-600">Total Chol:</span>
+                          <span className="font-medium">{userData.bloodMarkers.total_cholesterol}</span>
+                        </li>
+                      )}
+                      {userData.bloodMarkers.calcium && (
+                        <li className="flex justify-between">
+                          <span className="text-gray-600">Calcium:</span>
+                          <span className="font-medium">{userData.bloodMarkers.calcium}</span>
+                        </li>
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">No blood marker data available</p>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <div className="grid grid-cols-2 gap-3">
-              <Skeleton className="h-12 w-full rounded-lg" />
-              <Skeleton className="h-12 w-full rounded-lg" />
-              <Skeleton className="h-12 w-full rounded-lg" />
-              <Skeleton className="h-12 w-full rounded-lg" />
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-    
-    {/* Blood Markers Card */}
-    <Card className="bg-gradient-to-br from-red-50 to-pink-50 border border-red-200/50 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold text-red-700 flex items-center">
-          <Droplet className="mr-3 h-6 w-6 text-red-600" />
-          Latest Blood Work
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {userData && userData.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 ? (
-          <div className="space-y-3">
-            {userData.bloodMarkers.date && (
-              <div className="text-center p-2 bg-white/70 rounded-lg mb-3">
-                <div className="text-sm font-medium text-gray-700">Test Date</div>
-                <div className="text-xs text-gray-600">{new Date(userData.bloodMarkers.date).toLocaleDateString()}</div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              {userData.bloodMarkers.total_cholesterol && (
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-sm font-bold text-red-600">{userData.bloodMarkers.total_cholesterol}</div>
-                  <div className="text-xs text-gray-600">Total Chol</div>
-                </div>
-              )}
-              {userData.bloodMarkers.ldl && (
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-sm font-bold text-red-600">{userData.bloodMarkers.ldl}</div>
-                  <div className="text-xs text-gray-600">LDL</div>
-                </div>
-              )}
-              {userData.bloodMarkers.hdl && (
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-sm font-bold text-red-600">{userData.bloodMarkers.hdl}</div>
-                  <div className="text-xs text-gray-600">HDL</div>
-                </div>
-              )}
-              {userData.bloodMarkers.calcium && (
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-sm font-bold text-red-600">{userData.bloodMarkers.calcium}</div>
-                  <div className="text-xs text-gray-600">Calcium</div>
-                </div>
-              )}
-              {userData.bloodMarkers.glucose && (
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-sm font-bold text-red-600">{userData.bloodMarkers.glucose}</div>
-                  <div className="text-xs text-gray-600">Glucose</div>
-                </div>
-              )}
-              {userData.bloodMarkers.hemoglobin && (
-                <div className="text-center p-2 bg-white/50 rounded-lg">
-                  <div className="text-sm font-bold text-red-600">{userData.bloodMarkers.hemoglobin}</div>
-                  <div className="text-xs text-gray-600">Hemoglobin</div>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <Droplet className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">No blood marker data available</p>
-            <p className="text-xs text-gray-400 mt-1">Upload your latest lab results</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  </div>
-</section>
+            </CardContent>
+          </Card>
+        </section>
         
         {/* Chat Section */}
         <section className="flex-grow flex flex-col">
