@@ -183,9 +183,11 @@ async function getSystemPrompt() {
         systemContent += `RECENT NUTRITION (Daily totals):\n`;
         foods.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
         foods.forEach(nutritionDay => {
-          const date = nutritionDay.date.toLocaleDateString();
-          const totals = nutritionDay.totals;
-          systemContent += `${date}: ${totals.calories} cal | ${totals.protein}g protein | ${totals.fat}g fat | ${totals.carbs}g carbs | ${totals.fiber}g fiber\n`;
+          if (nutritionDay.totals) {
+            const date = nutritionDay.date.toLocaleDateString();
+            const totals = nutritionDay.totals;
+            systemContent += `${date}: ${totals.calories} cal | ${totals.protein}g protein | ${totals.fat}g fat | ${totals.carbs}g carbs | ${totals.fiber}g fiber\n`;
+          }
         });
         systemContent += '\n';
       }
