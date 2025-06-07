@@ -1,224 +1,174 @@
-// File: api/chat.js
-// -----------------
-// API endpoint for OpenAI chat completions.
-// It prepends a “last-7-days context” (nutrition + Strava + blood markers) as a system prompt,
-// logs every prompt to Firestore, and then forwards everything to OpenAI’s Chat Completion endpoint.
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
-import admin from "firebase-admin";
+// Initialize Firebase (adjust config as needed)
+const firebaseConfig = {
+  // Your Firebase configuration
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
+};
 
-// ——————————————————————————————————————————————————————————————————————————————
-// 1) Initialize the Admin SDK ONLY ONCE (per Cloud Function invocation).
-//    This prevents “already initialized” errors when using Next.js / Vercel serverless.
-// ——————————————————————————————————————————————————————————————————————————————
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId:   process.env.VITE_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n").trim(),
-    }),
-  });
+// Initialize Firebase only if not already initialized
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const db = getFirestore(app);
+
+async function getSystemPrompt() {
+  try {
+    // Get last 7 days of data from Firestore
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    // Adjust this query based on your Firestore structure
+    const q = query(
+      collection(db, 'prompts'), // Replace with your collection name
+      orderBy('timestamp', 'desc'),
+      limit(50) // Adjust limit as needed
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const prompts = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      // Filter for last 7 days
+      if (data.timestamp && data.timestamp.toDate() >= sevenDaysAgo) {
+        prompts.push(data.content || data.prompt || data.text); // Adjust field names
+      }
+    });
+    
+    // Build system prompt from collected data
+    const systemContent = prompts.length > 0 
+      ? `System context from the last 7 days:\n${prompts.join('\n\n')}\n\nBased on this context, please respond helpfully to the user's message.`
+      : 'You are a helpful AI assistant. Please respond to the user\'s message.';
+    
+    return systemContent;
+  } catch (error) {
+    console.error('Error fetching system prompt from Firestore:', error);
+    // Fallback system prompt
+    return 'You are a helpful AI assistant. Please respond to the user\'s message.';
+  }
 }
-const db = admin.firestore();
 
-// ——————————————————————————————————————————————————————————————————————————————
-// 2) The main handler: responds to POST /api/chat
-// ——————————————————————————————————————————————————————————————————————————————
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const {
-      messages,
-      userId = "mihir_jain",
-      source = "lets-jam-chatbot",
-    } = req.body;
-
-    // Validate that “messages” is an array
-    if (!Array.isArray(messages)) {
-      return res.status(400).json({ error: "Invalid request body: messages must be an array." });
-    }
-
-    // Pull the API key, trim whitespace/newlines
-    const rawKey = process.env.OPENAI_API_KEY || "";
-    const apiKey = rawKey.trim();
+    // Validate and clean the OpenAI API key
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    
     if (!apiKey) {
-      console.error("No OPENAI_API_KEY in environment");
-      return res.status(500).json({ error: "Server configuration error" });
+      console.error('OpenAI API key is missing');
+      return res.status(500).json({ 
+        error: 'Server configuration error: OpenAI API key not found' 
+      });
     }
 
-    // Build a “7-day snapshot” system prompt
-    const contextPrompt = await buildContextPrompt(userId);
+    // Validate API key format (should start with sk- and be at least 40 chars)
+    if (!apiKey.startsWith('sk-') || apiKey.length < 40) {
+      console.error('Invalid OpenAI API key format');
+      return res.status(500).json({ 
+        error: 'Server configuration error: Invalid API key format' 
+      });
+    }
 
-    // Prepend that context as a “system” message to whatever the client sent:
+    // Get messages from request body
+    const { messages } = req.body;
+    
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ 
+        error: 'Invalid request: messages array is required' 
+      });
+    }
+
+    // Get system prompt from Firestore
+    console.log('Fetching system prompt from Firestore...');
+    const systemPrompt = await getSystemPrompt();
+    
+    // Build full messages array with system prompt
     const fullMsgs = [
-      { role: "system", content: contextPrompt },
-      ...messages,
+      { role: 'system', content: systemPrompt },
+      ...messages
     ];
 
-    // Log what we’re sending (best-effort — swallow any logging errors)
-    const userPrompt = messages.find((m) => m.role === "user")?.content || "";
-    try {
-      await logPrompt(userId, contextPrompt, userPrompt, source);
-    } catch (loggingErr) {
-      console.warn("Failed to log AI prompt:", loggingErr);
-    }
+    console.log(`Sending request to OpenAI with ${fullMsgs.length} messages`);
 
-    // ─── Call OpenAI’s Chat Completions endpoint ───
-    const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
+    // Make request to OpenAI API
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'User-Agent': 'Vercel-Function/1.0'
       },
       body: JSON.stringify({
-        model:      "gpt-4.1-mini",
-        messages:   fullMsgs,
+        model: 'gpt-4o-mini', // This is the correct model name
+        messages: fullMsgs,
         temperature: 0.7,
         max_tokens: 500,
-      }),
+        stream: false
+      })
     });
 
-    if (!openAiResponse.ok) {
-      // Forward a reasonably helpful error to the client
-      const errJson = await openAiResponse.json().catch(() => ({}));
-      const errMsg = openAiResponse.status === 429
-        ? "Service busy"
-        : "AI service error";
-      return res.status(502).json({ error: errMsg, detail: errJson });
+    console.log(`OpenAI API response status: ${openaiResponse.status}`);
+
+    // Check if response is OK
+    if (!openaiResponse.ok) {
+      const errorText = await openaiResponse.text();
+      console.error(`OpenAI API error (${openaiResponse.status}):`, errorText);
+      
+      // Handle specific error codes
+      switch (openaiResponse.status) {
+        case 401:
+          return res.status(500).json({ 
+            error: 'Authentication failed - check API key configuration' 
+          });
+        case 429:
+          return res.status(429).json({ 
+            error: 'Rate limit exceeded - please try again later' 
+          });
+        case 502:
+          return res.status(502).json({ 
+            error: 'OpenAI service temporarily unavailable - please try again' 
+          });
+        default:
+          return res.status(500).json({ 
+            error: `OpenAI API error: ${openaiResponse.status}` 
+          });
+      }
     }
 
-    const data = await openAiResponse.json();
-    return res.status(200).json(data);
+    // Parse and return the response
+    const responseData = await openaiResponse.json();
+    console.log('OpenAI API call successful');
+    
+    return res.status(200).json(responseData);
 
-  } catch (err) {
-    console.error("/api/chat error:", err);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-}
-
-
-// ——————————————————————————————————————————————————————————————————————————————
-// Helper #1: Log each prompt into “ai_prompt_logs” (Firestore) for auditing.
-// ——————————————————————————————————————————————————————————————————————————————
-async function logPrompt(userId, systemPrompt, userPrompt, source) {
-  await db.collection("ai_prompt_logs").add({
-    userId,
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    systemPrompt,
-    userPrompt,
-    model:  "gpt-4.1-mini",
-    source,
-  });
-}
-
-
-// ——————————————————————————————————————————————————————————————————————————————
-// Helper #2: Build a single “system” prompt containing raw data from the last 7 days.
-//              - Nutrition from “nutritionLogs” (doc ID = YYYY-MM-DD).
-//              - Strava from “strava_data” (ordered by start_date DESC).
-//              - Blood markers from “blood_markers” (ordered by date DESC).
-// ——————————————————————————————————————————————————————————————————————————————
-async function buildContextPrompt(userId) {
-  // A) Compute “today” @ midnight UTC, and “seven days ago” @ midnight UTC
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  // We’ll treat “sevenDaysAgo” → “today” inclusive as exactly 7 days.
-
-  // ──────────── 1) NUTRITION LAST 7 DAYS ────────────
-  // Each nutritionLog doc’s ID = "YYYY-MM-DD". 
-  // We also store { userId, date, totals: {calories, protein, carbs, fat, fiber}, … }.
-  // We read exactly seven consecutive dates (sevenDaysAgo → today).
-
-  const nutLines = [];
-  for (let offset = 0; offset < 7; offset++) {
-    const dt = new Date(sevenDaysAgo);
-    dt.setDate(sevenDaysAgo.getDate() + offset);
-    const dateStr = dt.toISOString().substring(0, 10); // "YYYY-MM-DD"
-
-    // Attempt to read the document whose ID is dateStr
-    const docRef = db.collection("nutritionLogs").doc(dateStr);
-    const docSnap = await docRef.get();
-    if (docSnap.exists) {
-      const data = docSnap.data();
-      const t = data.totals || {};
-      nutLines.push(
-        `${dateStr} kcal:${t.calories ?? 0} pro:${t.protein ?? 0} carb:${t.carbs ?? 0} fat:${t.fat ?? 0}`
-      );
-    } else {
-      // No log for that date → treat everything as zero
-      nutLines.push(`${dateStr} kcal:0 pro:0 carb:0 fat:0`);
+  } catch (error) {
+    console.error('Handler error:', error);
+    
+    // Handle specific fetch errors
+    if (error.code === 'ENOTFOUND') {
+      return res.status(500).json({ 
+        error: 'Network error: Could not reach OpenAI API' 
+      });
     }
-  }
-
-  // ──────────── 2) STRAVA LAST 7 DAYS ────────────
-  // “strava_data” docs each have fields { userId, start_date (ISO), date (YYYY-MM-DD), type, duration, caloriesBurned,… }.
-  // We query all items in the past 7 days (start_date >= sevenDaysAgo.toISOString()) in descending order.
-  // Then we take the top 7, reverse them so oldest→newest.
-
-  const stravaLines = [];
-  {
-    const stravaCollection = db.collection("strava_data");
-    const stravaQuery = stravaCollection
-      .where("userId", "==", userId)
-      .where("start_date", ">=", sevenDaysAgo.toISOString())
-      .orderBy("start_date", "desc") // requires composite index (userId ASC, start_date DESC)
-      .limit(7);
-
-    const stravaSnap = await stravaQuery.get();
-    // stravaSnap.docs[0] is the **newest**; we want oldest first, so reverse:
-    stravaSnap.docs.reverse().forEach((docSnapshot) => {
-      const a = docSnapshot.data();
-      // If you store a separate “date” (YYYY-MM-DD), use a.date; otherwise substring:
-      const day = a.date || a.start_date.substring(0, 10);
-      stravaLines.push(`${day} ${a.type} dur:${a.duration}m cal:${a.caloriesBurned}`);
+    
+    if (error.name === 'AbortError') {
+      return res.status(500).json({ 
+        error: 'Request timeout: OpenAI API did not respond in time' 
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
-    // If there are fewer than 7, this simply returns as many as exist.
   }
-
-  // ──────────── 3) LATEST BLOOD MARKERS ────────────
-  // Firestore collection “blood_markers” has docs { userId, date: "YYYY-MM-DD", ldl, hdl, triglycerides, … }.
-  // We grab exactly the most recent one by date DESC.
-
-  let blood = {};
-  {
-    const bloodCollection = db.collection("blood_markers");
-    const bloodQuery = bloodCollection
-      .where("userId", "==", userId)
-      .orderBy("date", "desc") // requires composite index (userId ASC, date DESC)
-      .limit(1);
-
-    const bloodSnap = await bloodQuery.get();
-    if (!bloodSnap.empty) {
-      blood = bloodSnap.docs[0].data();
-      // Example: { userId: "mihir_jain", date: "2025-05-29", ldl: 120, hdl: 50, … }
-    }
-  }
-
-  // ──────────── 4) ASSEMBLE THE FINAL PROMPT TEXT ────────────
-  let prompt = `You are a personal health assistant. Use only the raw data below.\n\n`;
-
-  prompt += `Nutrition last 7 days:\n${nutLines.join("\n")}\n\n`;
-  prompt += `Activities last 7 days:\n${stravaLines.length ? stravaLines.join("\n") : "none"}\n\n`;
-  prompt += `Latest blood markers:\n`;
-
-  if (Object.keys(blood).length) {
-    for (const [k, v] of Object.entries(blood)) {
-      // Show each field (e.g. “ldl: 120”, “hdl: 50”, etc.)
-      prompt += `${k}: ${v}\n`;
-    }
-  } else {
-    prompt += `none\n`;
-  }
-
-  prompt +=
-    `\nIf the user asks something not answerable from this data, reply "not enough data". ` +
-    `Never invent numbers.`;
-
-  return prompt;
 }
