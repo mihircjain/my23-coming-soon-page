@@ -43,138 +43,139 @@ async function getSystemPrompt() {
   try {
     console.log('Attempting to fetch from Firestore...');
     
-    // Get last 2 days of data from Firestore with timeout
+    // Get last 2 days of data
     const twoDaysAgo = new Date();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    twoDaysAgo.setHours(0, 0, 0, 0); // Start of day 2 days ago
-    const twoDaysAgoTimestamp = Timestamp.fromDate(twoDaysAgo);
+    twoDaysAgo.setHours(0, 0, 0, 0);
     
     console.log(`Fetching data from ${twoDaysAgo.toISOString()} onwards`);
     
-    // Create a promise that will timeout after 3 seconds
+    // Create timeout promise
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Firestore query timeout')), 3000);
+      setTimeout(() => reject(new Error('Firestore query timeout')), 4000);
     });
-    
-    // Look for food and activity collections specifically
-    const targetCollections = [
-      { name: 'food', types: ['meal', 'snack', 'drink', 'food'] },
-      { name: 'foods', types: ['meal', 'snack', 'drink', 'food'] },
-      { name: 'meals', types: ['breakfast', 'lunch', 'dinner', 'snack'] },
-      { name: 'activities', types: ['exercise', 'workout', 'walk', 'activity'] },
-      { name: 'workouts', types: ['exercise', 'workout', 'training', 'fitness'] },
-      { name: 'events', types: ['activity', 'event', 'exercise'] }
-    ];
     
     let foodData = [];
     let activityData = [];
     
     const queryPromise = (async () => {
-      for (const collection_info of targetCollections) {
-        try {
-          console.log(`Trying collection: ${collection_info.name}`);
+      // Fetch Strava activities from last 2 days
+      try {
+        console.log('Fetching from strava_data collection...');
+        const stravaRef = collection(firestore, 'strava_data');
+        const stravaQuery = query(
+          stravaRef,
+          where('userId', '==', 'mihir_jain'),
+          where('start_date', '>=', twoDaysAgo.toISOString()),
+          orderBy('start_date', 'desc'),
+          limit(20)
+        );
+        
+        const stravaSnapshot = await getDocs(stravaQuery);
+        console.log(`Found ${stravaSnapshot.size} Strava activities`);
+        
+        stravaSnapshot.forEach(doc => {
+          const data = doc.data();
+          const activity = {
+            id: doc.id,
+            date: new Date(data.start_date),
+            content: data.name || 'Workout',
+            type: data.type || 'activity',
+            details: {
+              duration: data.duration || (data.moving_time ? Math.round(data.moving_time / 60) : null),
+              distance: data.distance ? (data.distance / 1000).toFixed(2) + ' km' : null,
+              calories: data.caloriesBurned || data.calories,
+              heartRate: data.heart_rate || data.average_heartrate
+            }
+          };
           
-          // Try with timestamp filter first
-          const timestampFields = ['timestamp', 'createdAt', 'created_at', 'date', 'dateTime'];
-          
-          for (const timestampField of timestampFields) {
-            try {
-              const q = query(
-                collection(firestore, collection_info.name),
-                where(timestampField, '>=', twoDaysAgoTimestamp),
-                orderBy(timestampField, 'desc'),
-                limit(15) // Limit per collection
-              );
+          console.log(`Strava activity: ${activity.content} on ${activity.date}`);
+          activityData.push(activity);
+        });
+      } catch (stravaError) {
+        console.log('Error fetching Strava data:', stravaError.message);
+      }
+      
+      // Fetch nutrition data from last 2 days
+      try {
+        console.log('Fetching from nutritionLogs collection...');
+        
+        // Get date strings for last 2 days
+        const dates = [];
+        for (let i = 0; i < 2; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          dates.push(date.toISOString().split('T')[0]); // YYYY-MM-DD format
+        }
+        
+        console.log('Looking for nutrition dates:', dates);
+        
+        for (const dateStr of dates) {
+          try {
+            const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
+            const nutritionDoc = await getDoc(nutritionRef);
+            
+            if (nutritionDoc.exists()) {
+              const data = nutritionDoc.data();
+              console.log(`Found nutrition data for ${dateStr}:`, Object.keys(data));
               
-              const snapshot = await getDocs(q);
-              
-              if (!snapshot.empty) {
-                console.log(`Found ${snapshot.size} recent documents in ${collection_info.name}`);
-                
-                snapshot.forEach((doc) => {
-                  const data = doc.data();
-                  
-                  // Extract relevant data
-                  const item = {
-                    id: doc.id,
-                    date: data[timestampField]?.toDate?.() || new Date(data[timestampField]),
-                    content: data.content || data.description || data.title || data.name || data.food || data.activity,
-                    type: data.type || data.category || 'unknown',
+              // Check if there are entries (array of food items)
+              if (data.entries && Array.isArray(data.entries)) {
+                data.entries.forEach((entry, index) => {
+                  const foodItem = {
+                    id: `${dateStr}-${index}`,
+                    date: new Date(dateStr),
+                    content: entry.foodId || entry.name || 'Food item',
+                    type: 'food',
                     details: {
-                      calories: data.calories,
-                      duration: data.duration,
-                      location: data.location,
-                      quantity: data.quantity,
-                      notes: data.notes
+                      quantity: entry.quantity,
+                      calories: entry.calories,
+                      protein: entry.protein,
+                      carbs: entry.carbs,
+                      fat: entry.fat
                     }
                   };
                   
-                  console.log(`Found item: ${item.type} - ${item.content} at ${item.date}`);
-                  
-                  // Categorize into food or activity
-                  if (item.content) {
-                    const itemType = item.type?.toLowerCase() || '';
-                    const itemContent = item.content?.toLowerCase() || '';
-                    
-                    if (collection_info.types.some(type => 
-                      itemType.includes(type) || 
-                      itemContent.includes(type) ||
-                      collection_info.name.includes('food') ||
-                      collection_info.name.includes('meal')
-                    )) {
-                      if (collection_info.name.includes('food') || collection_info.name.includes('meal') || 
-                          ['meal', 'snack', 'drink', 'food'].some(t => itemType.includes(t))) {
-                        foodData.push(item);
-                      } else {
-                        activityData.push(item);
-                      }
-                    }
-                  }
+                  console.log(`Food item: ${foodItem.content} - ${foodItem.details.calories} cal`);
+                  foodData.push(foodItem);
                 });
-                
-                if (foodData.length + activityData.length >= 20) {
-                  break; // We have enough data
-                }
               }
-            } catch (fieldError) {
-              console.log(`Field ${timestampField} not available in ${collection_info.name}`);
-              continue;
+              
+              // Also check for totals if available
+              if (data.totals) {
+                console.log(`Daily totals for ${dateStr}:`, data.totals);
+              }
+            } else {
+              console.log(`No nutrition data found for ${dateStr}`);
             }
+          } catch (dateError) {
+            console.log(`Error fetching nutrition for ${dateStr}:`, dateError.message);
           }
-          
-          if (foodData.length + activityData.length >= 20) {
-            break; // We have enough data
-          }
-          
-        } catch (collectionError) {
-          console.log(`Collection ${collection_info.name} not accessible:`, collectionError.message);
-          continue;
         }
+      } catch (nutritionError) {
+        console.log('Error fetching nutrition data:', nutritionError.message);
       }
       
       return { foodData, activityData };
     })();
     
-    // Race between the query and timeout
+    // Race between query and timeout
     const { foodData: foods, activityData: activities } = await Promise.race([queryPromise, timeoutPromise]);
     
-    console.log(`Found ${foods.length} food items and ${activities.length} activities`);
+    console.log(`Successfully fetched ${foods.length} food items and ${activities.length} activities`);
     
-    // Build concise system prompt focused on food and activities
+    // Build system prompt with actual data
     if (foods.length > 0 || activities.length > 0) {
-      // Sort by date (most recent first)
-      foods.sort((a, b) => new Date(b.date) - new Date(a.date));
-      activities.sort((a, b) => new Date(b.date) - new Date(a.date));
-      
-      let systemContent = `You have access to the user's food and activity data from the past 2 days:\n\n`;
+      let systemContent = `You have access to the user's actual food and activity data from the past 2 days:\n\n`;
       
       if (foods.length > 0) {
         systemContent += `RECENT FOOD/MEALS:\n`;
         foods.slice(0, 10).forEach(food => {
-          const date = new Date(food.date).toLocaleDateString();
-          const time = new Date(food.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          const details = food.details.calories ? ` (${food.details.calories} cal)` : '';
-          systemContent += `${date} ${time}: ${food.content}${details}\n`;
+          const date = food.date.toLocaleDateString();
+          const time = food.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          const calories = food.details.calories ? ` (${food.details.calories} cal)` : '';
+          const quantity = food.details.quantity ? ` - ${food.details.quantity}` : '';
+          systemContent += `${date} ${time}: ${food.content}${quantity}${calories}\n`;
         });
         systemContent += '\n';
       }
@@ -182,35 +183,31 @@ async function getSystemPrompt() {
       if (activities.length > 0) {
         systemContent += `RECENT ACTIVITIES:\n`;
         activities.slice(0, 10).forEach(activity => {
-          const date = new Date(activity.date).toLocaleDateString();
-          const time = new Date(activity.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          const details = activity.details.duration ? ` (${activity.details.duration})` : '';
-          systemContent += `${date} ${time}: ${activity.content}${details}\n`;
+          const date = activity.date.toLocaleDateString();
+          const time = activity.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          const duration = activity.details.duration ? ` (${activity.details.duration} min)` : '';
+          const distance = activity.details.distance ? ` - ${activity.details.distance}` : '';
+          const calories = activity.details.calories ? ` - ${activity.details.calories} cal` : '';
+          systemContent += `${date} ${time}: ${activity.content}${duration}${distance}${calories}\n`;
         });
         systemContent += '\n';
       }
       
-      systemContent += `Based on this food and activity context, answer questions about the user's recent eating habits, workouts, health patterns, and provide personalized recommendations.`;
+      systemContent += `Based on this actual food and activity data, answer questions about the user's recent eating habits, workouts, runs, health patterns, and provide personalized insights. Be specific and reference the actual data when possible.`;
       
-      console.log(`=== BUILT SYSTEM PROMPT (${systemContent.length} characters) ===`);
+      console.log(`=== BUILT SYSTEM PROMPT WITH REAL DATA (${systemContent.length} characters) ===`);
       console.log(systemContent);
       console.log(`=== END SYSTEM PROMPT ===`);
       
       return systemContent;
     } else {
-      console.log('No recent food or activity data found');
-      return 'You are a helpful AI assistant. The user may ask about their recent food and activities, but no recent data is currently available. Please respond helpfully and suggest they check their data tracking setup.';
+      console.log('No recent food or activity data found in Firestore');
+      return 'You are a helpful AI assistant. The user asked about their recent food and activities, but no recent data was found in the system. Please let them know that no recent data is available and suggest they check their data tracking.';
     }
     
   } catch (error) {
     console.error('Error fetching system prompt from Firestore:', error.message);
-    
-    if (error.message === 'Firestore query timeout') {
-      console.error('Firestore query took too long - using fallback');
-    }
-    
-    // Fallback system prompt
-    return 'You are a helpful AI assistant. The user may ask about their recent food and activities, but there was an issue accessing their data. Please respond helpfully and suggest they try again.';
+    return 'You are a helpful AI assistant. There was an issue accessing the user\'s recent food and activity data. Please respond helpfully and suggest they try again.';
   }
 }
 
