@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { initializeCharts } from './ActivityJamCharts';
 import { db } from "@/lib/firebaseConfig";
 import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
-import LetsJamButton from "@/components/LetsJamButton";
+import LetsJamButton from "@/components/ui/LetsJamButton";
 
 // Define types for our Strava data
 interface StravaActivity {
