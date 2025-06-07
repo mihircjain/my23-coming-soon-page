@@ -159,7 +159,7 @@ async function getSystemPrompt() {
     // Race between query and timeout
     const { foodData: foods, activityData: activities } = await Promise.race([queryPromise, timeoutPromise]);
     
-    console.log(`Successfully fetched ${foods.length} food items and ${activities.length} activities`);
+    console.log(`Successfully fetched ${foods.length} nutrition days and ${activities.length} activities`);
     
     // Build system prompt with actual data
     if (foods.length > 0 || activities.length > 0) {
@@ -180,27 +180,13 @@ async function getSystemPrompt() {
       }
       
       if (foods.length > 0) {
-        // Group foods by day for better organization
-        const foodsByDay = {};
-        foods.forEach(food => {
-          const dateKey = food.date.toDateString();
-          if (!foodsByDay[dateKey]) {
-            foodsByDay[dateKey] = [];
-          }
-          foodsByDay[dateKey].push(food);
+        systemContent += `RECENT NUTRITION (Daily totals):\n`;
+        foods.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
+        foods.forEach(nutritionDay => {
+          const date = nutritionDay.date.toLocaleDateString();
+          const totals = nutritionDay.totals;
+          systemContent += `${date}: ${totals.calories} cal | ${totals.protein}g protein | ${totals.fat}g fat | ${totals.carbs}g carbs | ${totals.fiber}g fiber\n`;
         });
-        
-        systemContent += `RECENT FOOD/MEALS (Last 10 days):\n`;
-        Object.entries(foodsByDay)
-          .sort(([a], [b]) => new Date(b) - new Date(a)) // Sort by date descending
-          .slice(0, 8) // Show last 8 days with food data
-          .forEach(([dateKey, dayFoods]) => {
-            systemContent += `\n${dateKey}:\n`;
-            dayFoods.slice(0, 8).forEach(food => { // Limit to 8 items per day
-              const quantity = food.details.quantity ? ` (${food.details.quantity})` : '';
-              systemContent += `  - ${food.content}${quantity}\n`;
-            });
-          });
         systemContent += '\n';
       }
       
