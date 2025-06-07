@@ -84,6 +84,96 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 13.8,
     fiber: 5.4
   },
+   {
+    "name": "Ultra Beer, Kingfisher",
+    "servingSize": "330ml",
+    "calories": 92,
+    "protein": 0.0,
+    "carbs": 7.9,
+    "fat": 0.0,
+    "fiber": 0.0
+  },
+  {
+    "name": "Avocado Toast",
+    "servingSize": "90g",
+    "calories": 187,
+    "protein": 4.9,
+    "carbs": 18.6,
+    "fat": 10.1,
+    "fiber": 4.2
+  },
+  {
+    "name": "Burmese Fried Rice",
+    "servingSize": "150g",
+    "calories": 155,
+    "protein": 4.2,
+    "carbs": 27.1,
+    "fat": 3.4,
+    "fiber": 1.0
+  },
+  {
+    "name": "Cocktail",
+    "servingSize": "480g",
+    "calories": 480,
+    "protein": 0.0,
+    "carbs": 48.0,
+    "fat": 0.0,
+    "fiber": 0.0
+  },
+  {
+    "name": "Idli (Regular)",
+    "servingSize": "50g",
+    "calories": 73,
+    "protein": 2.2,
+    "carbs": 15.2,
+    "fat": 0.3,
+    "fiber": 1.3
+  },
+  {
+    "name": "Mocha",
+    "servingSize": "250ml",
+    "calories": 202,
+    "protein": 9.3,
+    "carbs": 20.7,
+    "fat": 10.4,
+    "fiber": 1.7
+  },
+  {
+    "name": "Bhel",
+    "servingSize": "100g",
+    "calories": 222,
+    "protein": 5.5,
+    "carbs": 29.0,
+    "fat": 9.6,
+    "fiber": 3.1
+  },
+  {
+    "name": "Wada",
+    "servingSize": "60g",
+    "calories": 154,
+    "protein": 5.8,
+    "carbs": 14.3,
+    "fat": 8.2,
+    "fiber": 2.9
+  },
+  {
+    "name": "Parmesan Garlic Popcorn, Smartfood",
+    "servingSize": "48g",
+    "calories": 257,
+    "protein": 3.4,
+    "carbs": 24.0,
+    "fat": 17.1,
+    "fiber": 3.4
+  },
+  {
+    "name": "Capsicum Tomato Onion",
+    "servingSize": "120g",
+    "calories": 77,
+    "protein": 1.3,
+    "carbs": 7.0,
+    "fat": 5.2,
+    "fiber": 2.5
+  },
   {
     name: "Zucchini Bell Pepper Salad",
     servingSize: "50g",
