@@ -118,53 +118,65 @@ const LetsJam = () => {
       // Fetch data for each day
       for (const date of dates) {
         try {
-          // Use flat structure: nutritionLogs/date
           const logRef = doc(db, "nutritionLogs", date);
           const logSnapshot = await getDoc(logRef);
           
           if (logSnapshot.exists()) {
             const logData = logSnapshot.data();
             
-            // Check if entries exist and are valid
-            // Prefer pre–computed day-level totals
+            // Check if we have actual nutrition data (not just empty entries)
+            let dayCalories = 0;
+            let dayProtein = 0;
+            let dayFat = 0;
+            let dayCarbs = 0;
+            let dayFiber = 0;
+            
             if (logData.totals) {
-              daysWithData++;
-              totalCalories += logData.totals.calories || 0;
-              totalProtein  += logData.totals.protein  || 0;
-              totalFat      += logData.totals.fat      || 0;
-              totalCarbs    += logData.totals.carbs    || 0;
-              totalFiber    += logData.totals.fiber    || 0;
-
-              console.log(`📅 ${date}: ${logData.totals.calories} cal, ${logData.totals.protein}g protein`);
-
-            // --- fallback: sum each entry only if no totals ---
+              dayCalories = logData.totals.calories || 0;
+              dayProtein = logData.totals.protein || 0;
+              dayFat = logData.totals.fat || 0;
+              dayCarbs = logData.totals.carbs || 0;
+              dayFiber = logData.totals.fiber || 0;
             } else if (Array.isArray(logData.entries) && logData.entries.length) {
-              daysWithData++;
               logData.entries.forEach((e: any) => {
-                totalCalories += e.calories || 0;
-                totalProtein  += e.protein  || 0;
-                totalFat      += e.fat      || 0;
-                totalCarbs    += e.carbs    || 0;
-                totalFiber    += e.fiber    || 0;
+                dayCalories += e.calories || 0;
+                dayProtein += e.protein || 0;
+                dayFat += e.fat || 0;
+                dayCarbs += e.carbs || 0;
+                dayFiber += e.fiber || 0;
               });
-              console.log(`📅 ${date}: Calculated from ${logData.entries.length} entries`);
+            }
+            
+            // Only count days with actual food data (calories > 0)
+            if (dayCalories > 0) {
+              daysWithData++;
+              totalCalories += dayCalories;
+              totalProtein += dayProtein;
+              totalFat += dayFat;
+              totalCarbs += dayCarbs;
+              totalFiber += dayFiber;
+              
+              console.log(`📅 ${date}: ${dayCalories} cal, ${dayProtein}g protein (counted)`);
+            } else {
+              console.log(`📅 ${date}: No food data (skipped)`);
             }
           }
-          
         } catch (dayError) {
           console.error(`Error fetching nutrition data for ${date}:`, dayError);
-          // Continue with next date
         }
       }
       
-      console.log(`🥗 Nutrition summary: ${daysWithData} days with data, ${totalCalories} total calories`);
+      console.log(`🥗 Nutrition summary: ${daysWithData} days with data out of ${dates.length} days checked`);
+      console.log(`🥗 Totals: ${totalCalories} calories, ${totalProtein}g protein`);
       
-      // Calculate averages
+      // Calculate averages - ONLY divide by days that actually had food data
       const avgCalories = daysWithData > 0 ? Math.round(totalCalories / daysWithData) : 0;
       const avgProtein = daysWithData > 0 ? Math.round(totalProtein / daysWithData) : 0;
       const avgFat = daysWithData > 0 ? Math.round(totalFat / daysWithData) : 0;
       const avgCarbs = daysWithData > 0 ? Math.round(totalCarbs / daysWithData) : 0;
       const avgFiber = daysWithData > 0 ? Math.round(totalFiber / daysWithData) : 0;
+      
+      console.log(`🥗 Final averages: ${avgCalories} cal/day, ${avgProtein}g protein/day`);
       
       return {
         avgCalories,
@@ -327,7 +339,8 @@ const LetsJam = () => {
           rbc: data.RBC || data.rbc,
           sodium: data.Sodium || data.sodium,
           tsh: data.TSH || data.tsh,
-          total_cholesterol: data["Total Cholesterol"] || data.total_cholesterol
+          total_cholesterol: data["Total Cholesterol"] || data.total_cholesterol,
+          date: data.date || "unknown"
         };
       } else {
         console.log("🩸 No blood markers data found");
@@ -339,7 +352,7 @@ const LetsJam = () => {
     }
   };
 
-  // FIXED: Send message to chat API with user data included
+  // FIXED: Send message to chat API with better structured user data
   const sendMessage = async () => {
     if (!input.trim()) return;
     
@@ -361,7 +374,62 @@ const LetsJam = () => {
       console.log('=== SENDING TO CHAT API ===');
       console.log('User message:', currentInput);
       console.log('Previous messages count:', messages.length);
-      console.log('User data being sent:', userData);
+      
+      // FIXED: Better structure the userData for clarity
+      const structuredUserData = {
+        // Clearly separate different data types
+        nutrition: {
+          type: "nutrition_averages_30_days",
+          avgCaloriesPerDay: userData?.nutrition?.avgCalories || 0,
+          avgProteinPerDay: userData?.nutrition?.avgProtein || 0,
+          avgCarbsPerDay: userData?.nutrition?.avgCarbs || 0,
+          avgFatPerDay: userData?.nutrition?.avgFat || 0,
+          avgFiberPerDay: userData?.nutrition?.avgFiber || 0
+        },
+        
+        activity: {
+          type: "activity_averages_30_days", 
+          workoutsPerWeek: userData?.activity?.workoutsPerWeek || 0,
+          avgHeartRatePerWorkout: userData?.activity?.avgHeartRate || 0,
+          avgCaloriesBurnedPerWorkout: userData?.activity?.avgCaloriesBurned || 0,
+          avgWorkoutDurationMinutes: userData?.activity?.avgDuration || 0
+        },
+        
+        bloodMarkers: {
+          type: "latest_blood_test_results",
+          testDate: userData?.bloodMarkers?.date || "unknown",
+          values: {
+            // Organize blood markers clearly
+            cholesterol: {
+              total: userData?.bloodMarkers?.total_cholesterol || "not available",
+              ldl: userData?.bloodMarkers?.ldl || "not available", 
+              hdl: userData?.bloodMarkers?.hdl || "not available"
+            },
+            metabolic: {
+              glucose: userData?.bloodMarkers?.glucose || "not available",
+              hba1c: userData?.bloodMarkers?.hba1c || "not available"
+            },
+            minerals: {
+              calcium: userData?.bloodMarkers?.calcium || "not available",
+              sodium: userData?.bloodMarkers?.sodium || "not available", 
+              potassium: userData?.bloodMarkers?.potassium || "not available"
+            },
+            kidneyFunction: {
+              creatinine: userData?.bloodMarkers?.creatinine || "not available"
+            },
+            bloodCells: {
+              hemoglobin: userData?.bloodMarkers?.hemoglobin || "not available",
+              rbc: userData?.bloodMarkers?.rbc || "not available",
+              plateletCount: userData?.bloodMarkers?.platelet_count || "not available"
+            },
+            hormones: {
+              tsh: userData?.bloodMarkers?.tsh || "not available"
+            }
+          }
+        }
+      };
+      
+      console.log('Structured user data being sent:', structuredUserData);
       
       // Build messages array with conversation history
       const conversationMessages = [
@@ -374,7 +442,7 @@ const LetsJam = () => {
       
       console.log('Total messages being sent:', conversationMessages.length);
       
-      // FIXED: Call chat API with user data included
+      // Call chat API with better structured data
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -383,7 +451,7 @@ const LetsJam = () => {
         body: JSON.stringify({
           userId: userId,
           source: "lets-jam-chatbot",
-          userData: userData, // ✅ ADDED: Include user data for context
+          userData: structuredUserData, // ✅ FIXED: Better structured data
           messages: conversationMessages
         })
       });
@@ -433,9 +501,21 @@ const LetsJam = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Fetch user data on component mount
+  // Fetch user data on component mount and add auto-refresh
   useEffect(() => {
     fetchUserData(false); // Don't force refresh on initial load
+    
+    // Also refresh when window becomes focused (user switches back to tab)
+    const handleFocus = () => {
+      console.log('🔄 Window focused, checking for data refresh...');
+      fetchUserData(false);
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Handle form submission
@@ -586,10 +666,10 @@ const LetsJam = () => {
                           <span className="font-medium">{userData.bloodMarkers.total_cholesterol}</span>
                         </li>
                       )}
-                      {userData.bloodMarkers.glucose && (
+                      {userData.bloodMarkers.calcium && (
                         <li className="flex justify-between">
-                          <span className="text-gray-600">Glucose:</span>
-                          <span className="font-medium">{userData.bloodMarkers.glucose}</span>
+                          <span className="text-gray-600">Calcium:</span>
+                          <span className="font-medium">{userData.bloodMarkers.calcium}</span>
                         </li>
                       )}
                     </ul>
@@ -623,6 +703,7 @@ const LetsJam = () => {
                       <li>"How was my run today?"</li>
                       <li>"What activities did I do this week?"</li>
                       <li>"How many calories did I burn yesterday?"</li>
+                      <li>"What about my calcium levels?"</li>
                       <li>"Analyze my blood markers"</li>
                     </ul>
                   </div>
