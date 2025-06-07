@@ -307,7 +307,7 @@ const LetsJam = () => {
     }
   };
 
-  // Send message to OpenAI API
+  // Send message to chat API - UPDATED to not send system prompt
   const sendMessage = async () => {
     if (!input.trim()) return;
     
@@ -323,52 +323,54 @@ const LetsJam = () => {
       };
       
       setMessages(prev => [...prev, userMessage]);
+      const currentInput = input;
       setInput("");
       
-      // Construct system prompt with user data
-      const systemPrompt = constructSystemPrompt(userData || {
-        nutrition: {
-          avgCalories: 0,
-          avgProtein: 0,
-          avgFat: 0,
-          avgCarbs: 0,
-          avgFiber: 0
-        },
-        activity: {
-          workoutsPerWeek: 0,
-          avgHeartRate: 0,
-          avgCaloriesBurned: 0,
-          avgDuration: 0
-        },
-        bloodMarkers: {}
-      });
+      console.log('=== SENDING TO CHAT API ===');
+      console.log('User message:', currentInput);
+      console.log('Previous messages count:', messages.length);
       
-      // Call OpenAI API
+      // Build messages array with conversation history
+      const conversationMessages = [
+        ...messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: "user", content: currentInput }
+      ];
+      
+      console.log('Total messages being sent:', conversationMessages.length);
+      
+      // Call chat API - let backend handle system prompt from Firestore
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: userId, // Use hardcoded userId
+          userId: userId,
           source: "lets-jam-chatbot",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: input }
-          ]
+          // ✅ REMOVED: hardcoded system prompt - let backend fetch from Firestore
+          messages: conversationMessages
         })
       });
       
+      console.log('API response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`Chat API error: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log('API response:', data);
+      
       const assistantResponse = data.choices[0].message.content;
       
       // Add assistant response to chat
       const assistantMessage: Message = {
-        id: Date.now().toString(),
+        id: (Date.now() + 1).toString(),
         role: "assistant",
         content: assistantResponse,
         timestamp: new Date()
@@ -381,7 +383,7 @@ const LetsJam = () => {
       
       // Add error message
       const errorMessage: Message = {
-        id: Date.now().toString(),
+        id: (Date.now() + 1).toString(),
         role: "assistant",
         content: "Sorry, I encountered an error processing your request. Please try again later.",
         timestamp: new Date()
@@ -391,44 +393,6 @@ const LetsJam = () => {
     } finally {
       setSending(false);
     }
-  };
-
-  // Construct system prompt with user data
-  const constructSystemPrompt = (data: UserData) => {
-    let prompt = `You are a personal health assistant. Use only the user's actual data below:\n\n`;
-    
-    // Add nutrition data
-    prompt += `- Avg calories consumed: ${data.nutrition.avgCalories}/day\n`;
-    prompt += `- Avg protein: ${data.nutrition.avgProtein}g/day\n`;
-    prompt += `- Avg fat: ${data.nutrition.avgFat}g/day\n`;
-    prompt += `- Avg carbs: ${data.nutrition.avgCarbs}g/day\n`;
-    prompt += `- Avg fiber: ${data.nutrition.avgFiber}g/day\n\n`;
-    
-    // Add activity data
-    prompt += `- Workouts: ${data.activity.workoutsPerWeek}/week\n`;
-    prompt += `- Avg workout duration: ${data.activity.avgDuration} minutes\n`;
-    prompt += `- Avg heart rate: ${data.activity.avgHeartRate} bpm\n`;
-    prompt += `- Avg calories burned: ${data.activity.avgCaloriesBurned}/workout\n\n`;
-    
-    // Add blood markers if available
-    if (data.bloodMarkers && Object.keys(data.bloodMarkers).length > 0) {
-      prompt += "- Blood markers:\n";
-      if (data.bloodMarkers.ldl) prompt += `  - LDL: ${data.bloodMarkers.ldl} mg/dL\n`;
-      if (data.bloodMarkers.hdl) prompt += `  - HDL: ${data.bloodMarkers.hdl} mg/dL\n`;
-      if (data.bloodMarkers.triglycerides) prompt += `  - Triglycerides: ${data.bloodMarkers.triglycerides} mg/dL\n`;
-      if (data.bloodMarkers.total_cholesterol) prompt += `  - Total Cholesterol: ${data.bloodMarkers.total_cholesterol} mg/dL\n`;
-      if (data.bloodMarkers.creatinine) prompt += `  - Creatinine: ${data.bloodMarkers.creatinine} mg/dL\n`;
-      if (data.bloodMarkers.bun) prompt += `  - BUN: ${data.bloodMarkers.bun} mg/dL\n`;
-      if (data.bloodMarkers.egfr) prompt += `  - eGFR: ${data.bloodMarkers.egfr} mL/min/1.73m²\n`;
-      if (data.bloodMarkers.test_date) prompt += `  - Test date: ${data.bloodMarkers.test_date}\n`;
-      prompt += "\n";
-    } else {
-      prompt += "- Blood markers: No data available\n\n";
-    }
-    
-    prompt += `Answer concisely based only on this data. If data is missing or insufficient to answer the question, say so. Do not give medical advice beyond what can be directly inferred from this data. If unsure, say "not enough data".`;
-    
-    return prompt;
   };
 
   // Scroll to bottom of messages
@@ -470,7 +434,7 @@ const LetsJam = () => {
             Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Chat with your personal health assistant
+            Chat with your personal health assistant powered by real data
           </p>
         </div>
       </header>
@@ -481,13 +445,13 @@ const LetsJam = () => {
         <section className="mb-8">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-xl">Your Health Summary</CardTitle>
+              <CardTitle className="text-xl">Your Health Summary (30-day averages)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Nutrition Summary */}
                 <div>
-                  <h3 className="font-medium text-gray-800 mb-2">Nutrition (30-day avg)</h3>
+                  <h3 className="font-medium text-gray-800 mb-2">Nutrition</h3>
                   {userData ? (
                     <ul className="space-y-1 text-sm">
                       <li className="flex justify-between">
@@ -519,7 +483,7 @@ const LetsJam = () => {
                 
                 {/* Activity Summary */}
                 <div>
-                  <h3 className="font-medium text-gray-800 mb-2">Activity (30-day avg)</h3>
+                  <h3 className="font-medium text-gray-800 mb-2">Activity</h3>
                   {userData ? (
                     <ul className="space-y-1 text-sm">
                       <li className="flex justify-between">
@@ -593,18 +557,22 @@ const LetsJam = () => {
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm flex-grow flex flex-col">
             <CardHeader>
               <CardTitle className="text-xl">Chat with Your Health Assistant</CardTitle>
+              <p className="text-sm text-gray-600">
+                Ask about your recent activities, food, and health patterns based on real data
+              </p>
             </CardHeader>
             <CardContent className="flex-grow flex flex-col">
               {/* Messages */}
               <div className="flex-grow overflow-y-auto mb-4 space-y-4">
                 {messages.length === 0 ? (
                   <div className="text-center text-gray-500 my-8">
-                    <p>Ask me anything about your health data!</p>
+                    <p>Ask me about your recent food and activities!</p>
                     <p className="text-sm mt-2">Examples:</p>
                     <ul className="text-sm mt-1 space-y-1">
-                      <li>"How much protein am I eating on average?"</li>
-                      <li>"What's my workout frequency?"</li>
-                      <li>"How are my cholesterol levels?"</li>
+                      <li>"What did I eat yesterday?"</li>
+                      <li>"How was my run today?"</li>
+                      <li>"What activities did I do this week?"</li>
+                      <li>"How many calories did I burn yesterday?"</li>
                     </ul>
                   </div>
                 ) : (
@@ -647,13 +615,13 @@ const LetsJam = () => {
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
-                  disabled={sending || !userData}
+                  placeholder="Ask about your recent food and activities..."
+                  disabled={sending}
                   className="flex-grow"
                 />
-                <Button type="submit" disabled={sending || !input.trim() || !userData}>
+                <Button type="submit" disabled={sending || !input.trim()}>
                   <Send className="h-4 w-4 mr-2" />
-                  Send
+                  {sending ? "Sending..." : "Send"}
                 </Button>
               </form>
             </CardContent>
@@ -663,7 +631,7 @@ const LetsJam = () => {
       
       {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <p>Powered by OpenAI GPT-4</p>
+        <p>Powered by Groq AI with your real health data</p>
       </footer>
     </div>
   );
