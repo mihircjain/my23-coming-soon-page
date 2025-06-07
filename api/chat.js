@@ -126,19 +126,32 @@ export default async function handler(req, res) {
           message: 'Invalid API key configuration'
         });
       } else if (response.status === 429) {
-        return res.status(503).json({ 
-          error: 'Service temporarily unavailable',
-          message: 'The AI service is currently busy. Please try again in a few moments.'
-        });
+        // Check if it's a quota issue specifically
+        if (errorData.error?.code === 'insufficient_quota') {
+          return res.status(503).json({ 
+            error: 'Quota exceeded',
+            message: 'The AI service has reached its usage limit. Please try again later or contact support.',
+            userMessage: 'I\'m temporarily unavailable due to high usage. Please try again in a few minutes!',
+            code: 'insufficient_quota'
+          });
+        } else {
+          return res.status(503).json({ 
+            error: 'Rate limit exceeded',
+            message: 'The AI service is currently busy. Please try again in a few moments.',
+            userMessage: 'I\'m getting a lot of requests right now. Please wait a moment and try again!'
+          });
+        }
       } else if (response.status === 400) {
         return res.status(400).json({ 
           error: 'Invalid request to AI service',
-          message: errorData.error?.message || 'I couldn\'t process your question. Please try asking in a different way.'
+          message: errorData.error?.message || 'I couldn\'t process your question. Please try asking in a different way.',
+          userMessage: 'I had trouble understanding your question. Could you try rephrasing it?'
         });
       } else {
         return res.status(502).json({ 
           error: 'Error from AI service',
           message: 'I encountered an issue while processing your request. Please try again later.',
+          userMessage: 'I\'m experiencing technical difficulties. Please try again in a few minutes.',
           details: errorData.error?.message || 'Unknown error'
         });
       }
@@ -154,19 +167,22 @@ export default async function handler(req, res) {
     // Handle specific fetch errors
     if (error.code === 'ENOTFOUND') {
       return res.status(500).json({ 
-        error: 'Network error: Could not reach OpenAI API' 
+        error: 'Network error: Could not reach OpenAI API',
+        userMessage: 'I\'m having trouble connecting to my AI service. Please try again in a moment.'
       });
     }
     
     if (error.name === 'AbortError') {
       return res.status(500).json({ 
-        error: 'Request timeout: OpenAI API did not respond in time' 
+        error: 'Request timeout: OpenAI API did not respond in time',
+        userMessage: 'My response is taking too long. Please try asking again.'
       });
     }
     
     return res.status(500).json({ 
       error: 'Internal server error',
       message: 'Something went wrong. Please try again later.',
+      userMessage: 'I encountered an unexpected error. Please try again in a few minutes.',
       details: error.message
     });
   }
