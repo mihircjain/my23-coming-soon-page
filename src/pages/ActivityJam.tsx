@@ -198,140 +198,160 @@ const CurrentJam = () => {
   };
 
   // Generate chart data for our visualizations
-  const generateChartData = (activities: StravaActivity[]) => {
-    // Sort activities by date
-    const sortedActivities = [...activities].sort((a, b) => 
-      new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
-    );
-    
-    // Heart Rate Chart
-    const heartRateLabels = sortedActivities.map(a => a.date);
-    const heartRateValues = sortedActivities.map(a => a.heart_rate);
-    
-    setHeartRateData({
-      labels: heartRateLabels,
-      datasets: [{
-        label: 'Heart Rate (bpm)',
-        data: heartRateValues,
-        borderColor: 'rgba(255, 99, 132, 0.8)',
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        fill: false
-      }]
-    });
-    
-    // Distance Chart
-    const distanceLabels = sortedActivities.map(a => a.date);
-    const distanceValues = sortedActivities.map(a => a.distance);
-    
-    setDistanceData({
-      labels: distanceLabels,
-      datasets: [{
-        label: 'Distance (km)',
-        data: distanceValues,
-        backgroundColor: 'rgba(54, 162, 235, 0.6)',
-      }]
-    });
-    
-    // Activity Type Distribution
-    const activityTypes = sortedActivities.map(a => a.type);
-    const uniqueTypes = [...new Set(activityTypes)];
-    const typeCounts = uniqueTypes.map(type => 
-      activityTypes.filter(t => t === type).length
-    );
-    
-    const typeColors = uniqueTypes.map((_, index) => {
-      const hue = (index * 137) % 360;
-      return `hsla(${hue}, 70%, 60%, 0.7)`;
-    });
-    
-    setActivityTypeData({
-      labels: uniqueTypes,
-      datasets: [{
-        label: 'Activity Types',
-        data: typeCounts,
-        backgroundColor: typeColors,
-      }]
-    });
-    
-    // Weight Training Time Chart
-    const weightTrainingActivities = sortedActivities.filter(a => 
-      a.type.toLowerCase().includes('weight') || a.type.toLowerCase().includes('strength')
-    );
-    
-    const weightTrainingByDate = new Map<string, number>();
-    const today = new Date();
-    
-    // Initialize all dates with zero
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(today.getDate() - i);
-      const dateString = date.toLocaleDateString();
-      weightTrainingByDate.set(dateString, 0);
-    }
-    
-    // Add actual durations
-    weightTrainingActivities.forEach(activity => {
-      const currentDuration = weightTrainingByDate.get(activity.date) || 0;
-      weightTrainingByDate.set(activity.date, currentDuration + activity.duration);
-    });
-    
-    const weightTrainingDates = Array.from(weightTrainingByDate.keys()).sort((a, b) => 
-      new Date(a).getTime() - new Date(b).getTime()
-    );
-    
-    const weightTrainingDurations = weightTrainingDates.map(date => 
-      weightTrainingByDate.get(date) || 0
-    );
-    
-    setWeightTrainingData({
-      labels: weightTrainingDates,
-      datasets: [{
-        label: 'Weight Training (minutes)',
-        data: weightTrainingDurations,
-        borderColor: 'rgba(139, 92, 246, 0.8)',
-        backgroundColor: 'rgba(139, 92, 246, 0.2)',
-        fill: true,
-        tension: 0.3
-      }]
-    });
-    
-    // Calories Burned Chart
-    const caloriesByDate = new Map<string, number>();
-    
-    // Initialize all dates with zero
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(today.getDate() - i);
-      const dateString = date.toLocaleDateString();
-      caloriesByDate.set(dateString, 0);
-    }
-    
-    // Add actual calories
-    sortedActivities.forEach(activity => {
-      const currentCalories = caloriesByDate.get(activity.date) || 0;
-      caloriesByDate.set(activity.date, currentCalories + activity.calories);
-    });
-    
-    const calorieDates = Array.from(caloriesByDate.keys()).sort((a, b) => 
-      new Date(a).getTime() - new Date(b).getTime()
-    );
-    
-    const calorieValues = calorieDates.map(date => 
-      caloriesByDate.get(date) || 0
-    );
-    
-    setCaloriesData({
-      labels: calorieDates,
-      datasets: [{
-        label: 'Calories Burned',
-        data: calorieValues,
-        borderColor: 'rgba(245, 158, 11, 0.8)',
-        backgroundColor: 'rgba(245, 158, 11, 0.2)',
-        fill: true,
-        tension: 0.3
-      }]
-    });
-  };
+// Fixed generateChartData function - replace in your CurrentJam component
+
+const generateChartData = (activities: StravaActivity[]) => {
+  console.log('=== GENERATING CHART DATA ===');
+  console.log('Input activities count:', activities.length);
+  
+  // Sort activities by date
+  const sortedActivities = [...activities].sort((a, b) => 
+    new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+  );
+  
+  console.log('Sorted activities date range:', 
+    sortedActivities.length > 0 ? 
+    `${sortedActivities[0].start_date} to ${sortedActivities[sortedActivities.length - 1].start_date}` : 
+    'No activities'
+  );
+  
+  // FIXED: Heart Rate Chart - use start_date instead of date, and don't slice
+  const heartRateLabels = sortedActivities.map(a => a.start_date);
+  const heartRateValues = sortedActivities.map(a => a.heart_rate);
+  
+  setHeartRateData({
+    labels: heartRateLabels,
+    datasets: [{
+      label: 'Heart Rate (bpm)',
+      data: heartRateValues,
+      borderColor: 'rgba(255, 99, 132, 0.8)',
+      backgroundColor: 'rgba(255, 99, 132, 0.2)',
+      fill: false
+    }]
+  });
+  
+  // FIXED: Distance Chart - use start_date instead of date, and don't slice
+  const distanceLabels = sortedActivities.map(a => a.start_date);
+  const distanceValues = sortedActivities.map(a => a.distance);
+  
+  setDistanceData({
+    labels: distanceLabels,
+    datasets: [{
+      label: 'Distance (km)',
+      data: distanceValues,
+      backgroundColor: 'rgba(54, 162, 235, 0.6)',
+    }]
+  });
+  
+  // Activity Type Distribution (this one was working correctly)
+  const activityTypes = sortedActivities.map(a => a.type);
+  const uniqueTypes = [...new Set(activityTypes)];
+  const typeCounts = uniqueTypes.map(type => 
+    activityTypes.filter(t => t === type).length
+  );
+  
+  const typeColors = uniqueTypes.map((_, index) => {
+    const hue = (index * 137) % 360;
+    return `hsla(${hue}, 70%, 60%, 0.7)`;
+  });
+  
+  setActivityTypeData({
+    labels: uniqueTypes,
+    datasets: [{
+      label: 'Activity Types',
+      data: typeCounts,
+      backgroundColor: typeColors,
+    }]
+  });
+  
+  // FIXED: Weight Training Time Chart - use actual activity dates
+  const weightTrainingActivities = sortedActivities.filter(a => 
+    a.type.toLowerCase().includes('weight') || 
+    a.type.toLowerCase().includes('strength') ||
+    a.type.toLowerCase().includes('workout')
+  );
+  
+  console.log('Weight training activities found:', weightTrainingActivities.length);
+  
+  // Create a map of all unique dates from activities and initialize with 0
+  const allDates = [...new Set(sortedActivities.map(a => a.start_date))].sort();
+  const weightTrainingByDate = new Map<string, number>();
+  
+  // Initialize all activity dates with zero
+  allDates.forEach(date => {
+    weightTrainingByDate.set(date, 0);
+  });
+  
+  // Add actual durations for weight training
+  weightTrainingActivities.forEach(activity => {
+    const currentDuration = weightTrainingByDate.get(activity.start_date) || 0;
+    weightTrainingByDate.set(activity.start_date, currentDuration + activity.duration);
+  });
+  
+  const weightTrainingDates = Array.from(weightTrainingByDate.keys()).sort();
+  const weightTrainingDurations = weightTrainingDates.map(date => 
+    weightTrainingByDate.get(date) || 0
+  );
+  
+  console.log('Weight training chart dates:', weightTrainingDates.length);
+  console.log('Weight training date range:', 
+    weightTrainingDates.length > 0 ? 
+    `${weightTrainingDates[0]} to ${weightTrainingDates[weightTrainingDates.length - 1]}` : 
+    'No dates'
+  );
+  
+  setWeightTrainingData({
+    labels: weightTrainingDates,
+    datasets: [{
+      label: 'Weight Training (minutes)',
+      data: weightTrainingDurations,
+      borderColor: 'rgba(139, 92, 246, 0.8)',
+      backgroundColor: 'rgba(139, 92, 246, 0.2)',
+      fill: true,
+      tension: 0.3
+    }]
+  });
+  
+  // FIXED: Calories Burned Chart - use actual activity dates
+  const caloriesByDate = new Map<string, number>();
+  
+  // Initialize all activity dates with zero
+  allDates.forEach(date => {
+    caloriesByDate.set(date, 0);
+  });
+  
+  // Add actual calories
+  sortedActivities.forEach(activity => {
+    const currentCalories = caloriesByDate.get(activity.start_date) || 0;
+    caloriesByDate.set(activity.start_date, currentCalories + activity.calories);
+  });
+  
+  const calorieDates = Array.from(caloriesByDate.keys()).sort();
+  const calorieValues = calorieDates.map(date => 
+    caloriesByDate.get(date) || 0
+  );
+  
+  console.log('Calories chart dates:', calorieDates.length);
+  console.log('Calories date range:', 
+    calorieDates.length > 0 ? 
+    `${calorieDates[0]} to ${calorieDates[calorieDates.length - 1]}` : 
+    'No dates'
+  );
+  
+  setCaloriesData({
+    labels: calorieDates,
+    datasets: [{
+      label: 'Calories Burned',
+      data: calorieValues,
+      borderColor: 'rgba(245, 158, 11, 0.8)',
+      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+      fill: true,
+      tension: 0.3
+    }]
+  });
+  
+  console.log('=== CHART DATA GENERATION COMPLETE ===');
+};
 
   // Calculate summary statistics
   const calculateSummaryStats = (activities: StravaActivity[]) => {
