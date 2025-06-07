@@ -80,30 +80,32 @@ async function getSystemPrompt() {
           // Debug: Log all fields to see what's available
           console.log(`=== RAW STRAVA DOCUMENT ===`);
           console.log(`Document ID: ${doc.id}`);
-          console.log(`All fields:`, Object.keys(data));
+          console.log(`Raw start_date:`, data.start_date);
+          console.log(`Parsed date:`, new Date(data.start_date));
+          console.log(`Today is:`, new Date());
+          console.log(`10 days ago cutoff:`, tenDaysAgo);
           console.log(`Raw distance value:`, data.distance, typeof data.distance);
           console.log(`Raw duration value:`, data.duration, typeof data.duration);
           console.log(`Raw calories value:`, data.caloriesBurned, typeof data.caloriesBurned);
           console.log(`Raw name:`, data.name);
-          console.log(`Raw start_date:`, data.start_date);
+          
+          // Check if this activity is actually within our date range
+          const activityDate = new Date(data.start_date);
+          const isWithinRange = activityDate >= tenDaysAgo;
+          console.log(`Activity date: ${activityDate.toISOString()}`);
+          console.log(`Is within range (>= ${tenDaysAgo.toISOString()}): ${isWithinRange}`);
           
           // Convert distance properly
           let distanceKm = null;
           if (data.distance !== undefined && data.distance !== null) {
-            if (data.distance > 100) {
-              // Likely in meters, convert to km
-              distanceKm = (data.distance / 1000).toFixed(2) + ' km';
-              console.log(`Distance converted from meters: ${data.distance}m -> ${distanceKm}`);
-            } else {
-              // Likely already in km
-              distanceKm = data.distance.toFixed(2) + ' km';
-              console.log(`Distance treated as km: ${data.distance} -> ${distanceKm}`);
-            }
+            // Your distance appears to be in km already based on the values (2.4181)
+            distanceKm = data.distance.toFixed(2) + ' km';
+            console.log(`Distance processed: ${data.distance} -> ${distanceKm}`);
           }
           
           const activity = {
             id: doc.id,
-            date: new Date(data.start_date),
+            date: activityDate,
             content: data.name || 'Workout',
             type: data.type || 'activity',
             details: {
@@ -116,12 +118,13 @@ async function getSystemPrompt() {
           };
           
           console.log(`=== PROCESSED ACTIVITY ===`);
-          console.log(`Final activity object:`, {
+          console.log(`Final activity:`, {
             name: activity.content,
-            date: activity.date.toISOString(),
+            date: activity.date.toDateString(),
             distance: activity.details.distance,
             duration: activity.details.duration,
-            calories: activity.details.calories
+            calories: activity.details.calories,
+            heartRate: activity.details.heartRate
           });
           console.log(`=== END ACTIVITY DEBUG ===`);
           
@@ -153,12 +156,15 @@ async function getSystemPrompt() {
             if (nutritionDoc.exists()) {
               const data = nutritionDoc.data();
               console.log(`Found nutrition data for ${dateStr}:`, Object.keys(data));
+              console.log(`Raw nutrition document for ${dateStr}:`, data);
               
               // Check if there are entries (array of food items)
               if (data.entries && Array.isArray(data.entries)) {
                 console.log(`Processing ${data.entries.length} food entries for ${dateStr}`);
                 
                 data.entries.forEach((entry, index) => {
+                  console.log(`Processing entry ${index}:`, entry);
+                  
                   const foodItem = {
                     id: `${dateStr}-${index}`,
                     date: new Date(dateStr + 'T12:00:00'), // Add time to avoid timezone issues
@@ -174,17 +180,21 @@ async function getSystemPrompt() {
                     }
                   };
                   
-                  console.log(`Food item: ${foodItem.content} - quantity: ${foodItem.details.quantity}`);
+                  console.log(`Created food item: ${foodItem.content} for ${foodItem.date.toDateString()}`);
                   foodData.push(foodItem);
                 });
+              } else {
+                console.log(`No entries array found for ${dateStr}`);
               }
               
               // Also log daily totals if available
               if (data.totals) {
                 console.log(`Daily totals for ${dateStr}:`, data.totals);
+              } else {
+                console.log(`No totals found for ${dateStr}`);
               }
             } else {
-              console.log(`No nutrition data found for ${dateStr}`);
+              console.log(`No nutrition document found for ${dateStr}`);
             }
           } catch (dateError) {
             console.log(`Error fetching nutrition for ${dateStr}:`, dateError.message);
