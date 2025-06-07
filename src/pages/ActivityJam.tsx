@@ -113,6 +113,8 @@ const CurrentJam = () => {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
+      console.log('Filtering activities after:', thirtyDaysAgo.toISOString());
+      
       const stravaDataRef = collection(db, "strava_data");
       const cacheQuery = query(
         stravaDataRef,
@@ -123,9 +125,11 @@ const CurrentJam = () => {
       );
       
       const snapshot = await getDocs(cacheQuery);
+      console.log(`Found ${snapshot.docs.length} activities in Firestore after ${thirtyDaysAgo.toDateString()}`);
       
-      return snapshot.docs.map(doc => {
+      const activities = snapshot.docs.map(doc => {
         const data = doc.data();
+        console.log(`Activity: ${data.name} on ${data.start_date}`);
         return {
           date: new Date(data.start_date).toLocaleDateString(),
           type: data.type,
@@ -138,6 +142,20 @@ const CurrentJam = () => {
           start_date: data.start_date
         };
       });
+      
+      // Additional frontend filtering to be extra sure
+      const filteredActivities = activities.filter(activity => {
+        const activityDate = new Date(activity.start_date);
+        const isRecent = activityDate >= thirtyDaysAgo;
+        if (!isRecent) {
+          console.log(`Filtering out old activity: ${activity.name} from ${activityDate.toDateString()}`);
+        }
+        return isRecent;
+      });
+      
+      console.log(`Returning ${filteredActivities.length} activities from last 30 days`);
+      return filteredActivities;
+      
     } catch (error) {
       console.error('Error fetching from Firestore cache:', error);
       return [];
