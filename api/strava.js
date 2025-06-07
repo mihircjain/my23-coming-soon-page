@@ -168,10 +168,18 @@ export default async function handler(req, res) {
     
     const { access_token: accessToken } = await tokenResp.json();
 
-    /* ––– Fetch activities list (no individual detail calls) ––– */
+    /* ––– Fetch activities list with date filtering ––– */
     console.log('Fetching activities from Strava API...');
+    
+    // Add date filter to Strava API call
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - daysBack);
+    const after = Math.floor(thirtyDaysAgo.getTime() / 1000); // Unix timestamp for Strava API
+    
+    console.log(`Fetching activities after ${thirtyDaysAgo.toDateString()} (timestamp: ${after})`);
+    
     const listResp = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?per_page=${Math.min(daysBack, 50)}`,
+      `https://www.strava.com/api/v3/athlete/activities?per_page=${Math.min(daysBack, 50)}&after=${after}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
