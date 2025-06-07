@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Activity, Heart, Clock, Route, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  RefreshCw,
+  Utensils,
+  Activity,
+  Droplet,
+  Heart
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
