@@ -49,7 +49,7 @@ const EmailAndFeedbackCard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showFeedbackFields, setShowFeedbackFields] = useState(false);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes('@')) {
       toast.error('Please enter a valid email address');
@@ -57,36 +57,39 @@ const EmailAndFeedbackCard: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    try {
-      const signupData: EmailSignup = {
-        email,
-        timestamp: new Date().toISOString(),
-        source: 'homepage_signup'
-      };
+    
+    const signupData: EmailSignup = {
+      email,
+      timestamp: new Date().toISOString(),
+      source: 'homepage_signup'
+    };
 
-      await addDoc(collection(db, 'email_signups'), signupData);
-
-      // If feedback is provided, save it too
-      if (feedback.trim()) {
-        const feedbackData: UserFeedback = {
-          email,
-          message: feedback.trim(),
-          type,
-          timestamp: new Date().toISOString()
-        };
-        await addDoc(collection(db, 'user_feedback'), feedbackData);
-      }
-
-      toast.success('🎉 Thanks for signing up! We\'ll keep you updated.');
-      setEmail('');
-      setFeedback('');
-      setShowFeedbackFields(false);
-    } catch (error) {
-      console.error('Error saving data:', error);
-      toast.error('Failed to submit. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    addDoc(collection(db, 'email_signups'), signupData)
+      .then(() => {
+        if (feedback.trim()) {
+          const feedbackData: UserFeedback = {
+            email,
+            message: feedback.trim(),
+            type,
+            timestamp: new Date().toISOString()
+          };
+          return addDoc(collection(db, 'user_feedback'), feedbackData);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        toast.success('🎉 Thanks for signing up! We\'ll keep you updated.');
+        setEmail('');
+        setFeedback('');
+        setShowFeedbackFields(false);
+      })
+      .catch((error) => {
+        console.error('Error saving data:', error);
+        toast.error('Failed to submit. Please try again.');
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
 
   return (
@@ -114,7 +117,6 @@ const EmailAndFeedbackCard: React.FC = () => {
             required
           />
 
-          {/* Optional Feedback Toggle */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -125,7 +127,6 @@ const EmailAndFeedbackCard: React.FC = () => {
             </button>
           </div>
 
-          {/* Feedback Fields */}
           {showFeedbackFields && (
             <div className="space-y-3 border-t border-purple-200 pt-3">
               <div className="flex gap-1">
@@ -138,11 +139,11 @@ const EmailAndFeedbackCard: React.FC = () => {
                     key={option.value}
                     type="button"
                     onClick={() => setType(option.value as any)}
-                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                    className={'flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ' + (
                       type === option.value
                         ? 'bg-purple-200 text-purple-700 border border-purple-300'
                         : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-                    }`}
+                    )}
                   >
                     {option.icon} {option.label}
                   </button>
@@ -168,10 +169,10 @@ const EmailAndFeedbackCard: React.FC = () => {
             {isSubmitting ? (
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
             ) : (
-              <>
+              <React.Fragment>
                 <Send className="h-4 w-4" />
                 {showFeedbackFields && feedback.trim() ? 'Subscribe + Send Feedback' : 'Subscribe'}
-              </>
+              </React.Fragment>
             )}
           </Button>
         </form>
@@ -180,65 +181,63 @@ const EmailAndFeedbackCard: React.FC = () => {
   );
 };
 
-// Health Overview Component with OverallJam-style boxes
+// Health Overview Component
 const HealthOverviewCard: React.FC = () => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarkerData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchHealthData = async () => {
-    try {
-      // Get the last 7 days
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const dateString = sevenDaysAgo.toISOString().split('T')[0];
+  const fetchHealthData = () => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dateString = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Initialize data structure for 7 days
-      const tempData: Record<string, HealthData> = {};
+    const tempData: Record<string, HealthData> = {};
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
       
-      for (let i = 0; i < 7; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        tempData[dateStr] = {
-          date: dateStr,
-          heartRate: null,
-          caloriesBurned: 0,
-          caloriesConsumed: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fiber: 0,
-          workoutDuration: 0,
-          activityTypes: []
-        };
-      }
+      tempData[dateStr] = {
+        date: dateStr,
+        heartRate: null,
+        caloriesBurned: 0,
+        caloriesConsumed: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        workoutDuration: 0,
+        activityTypes: []
+      };
+    }
 
-      // Fetch nutrition and activity data
-      const [nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot] = await Promise.all([
-        getDocs(query(
-          collection(db, "nutritionLogs"),
-          where("date", ">=", dateString),
-          orderBy("date", "desc")
-        )).catch(() => ({ docs: [] })),
-        
-        getDocs(query(
-          collection(db, "strava_data"),
-          where("userId", "==", "mihir_jain"),
-          orderBy("start_date", "desc"),
-          limit(20)
-        )).catch(() => ({ docs: [] })),
-        
-        getDocs(query(
-          collection(db, "blood_markers"),
-          where("userId", "==", "mihir_jain"),
-          orderBy("date", "desc"),
-          limit(1)
-        )).catch(() => ({ docs: [] }))
-      ]);
+    const nutritionQuery = query(
+      collection(db, "nutritionLogs"),
+      where("date", ">=", dateString),
+      orderBy("date", "desc")
+    );
 
-      // Process nutrition data
+    const stravaQuery = query(
+      collection(db, "strava_data"),
+      where("userId", "==", "mihir_jain"),
+      orderBy("start_date", "desc"),
+      limit(20)
+    );
+
+    const bloodQuery = query(
+      collection(db, "blood_markers"),
+      where("userId", "==", "mihir_jain"),
+      orderBy("date", "desc"),
+      limit(1)
+    );
+
+    Promise.all([
+      getDocs(nutritionQuery).catch(() => ({ docs: [] })),
+      getDocs(stravaQuery).catch(() => ({ docs: [] })),
+      getDocs(bloodQuery).catch(() => ({ docs: [] }))
+    ]).then(([nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot]) => {
       nutritionSnapshot.docs.forEach(doc => {
         const data = doc.data();
         if (tempData[data.date]) {
@@ -250,7 +249,6 @@ const HealthOverviewCard: React.FC = () => {
         }
       });
 
-      // Process Strava data
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
@@ -272,7 +270,6 @@ const HealthOverviewCard: React.FC = () => {
         }
       });
 
-      // Process blood markers
       if (bloodMarkersSnapshot.docs.length > 0) {
         const latestDoc = bloodMarkersSnapshot.docs[0];
         setBloodMarkers(latestDoc.data() as BloodMarkerData);
@@ -283,12 +280,11 @@ const HealthOverviewCard: React.FC = () => {
       );
 
       setHealthData(sortedData);
-
-    } catch (error) {
+    }).catch((error) => {
       console.error("Error fetching health data:", error);
-    } finally {
+    }).finally(() => {
       setLoading(false);
-    }
+    });
   };
 
   const calculateAverage = (metric: keyof HealthData) => {
@@ -312,7 +308,6 @@ const HealthOverviewCard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 7-Day Health Overview - Full width section */}
       <Card className="bg-gradient-to-r from-blue-200 to-emerald-200 rounded-2xl p-6 text-gray-800 shadow-xl">
         <CardHeader className="text-center pb-4">
           <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-700 to-emerald-700 bg-clip-text text-transparent">
@@ -377,7 +372,6 @@ const HealthOverviewCard: React.FC = () => {
                         <span>Protein:</span>
                         <span className="font-medium">{Math.round(dayData.protein)}g</span>
                       </div>
-                      {/* Activities - Fixed to show one per line with max 2 lines */}
                       <div className="mt-2">
                         <span className="text-gray-600">Activities:</span>
                         <div className="mt-1 text-gray-800 font-medium min-h-[32px]">
@@ -408,7 +402,6 @@ const HealthOverviewCard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Weekly Averages Section */}
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -424,7 +417,6 @@ const HealthOverviewCard: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Calories In Card - Light Green Gradient */}
               <div className="bg-gradient-to-br from-green-200 to-emerald-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-800">Calories In</h3>
@@ -438,7 +430,6 @@ const HealthOverviewCard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Calories Out Card - Light Amber/Orange Gradient */}
               <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-800">Calories Out</h3>
@@ -452,7 +443,6 @@ const HealthOverviewCard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Protein Card - Light Purple Gradient */}
               <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-800">Protein</h3>
@@ -466,7 +456,6 @@ const HealthOverviewCard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Heart Rate Card - Light Red Gradient */}
               <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-800">Heart Rate</h3>
@@ -484,7 +473,6 @@ const HealthOverviewCard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Blood Markers Section */}
       {bloodMarkers && (
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
           <CardHeader>
@@ -512,29 +500,74 @@ const HealthOverviewCard: React.FC = () => {
   );
 };
 
-// Chatbot Card Component with Gemini integration
+// Chatbot Card Component
 const ChatbotCard: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hi! I\'m your AI health assistant. How can I help you today? 🤖' }
+    { role: 'assistant', content: 'Hi! I am your AI health assistant. How can I help you today? 🤖' }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-response || data.message || 'Sorry, I couldn\'t process that request.' };
+  const handleSendMessage = () => {
+    if (!input.trim()) return;
+
+    const userMessage = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsTyping(true);
+
+    console.log('Sending message to API:', userMessage.content);
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [...messages, userMessage].slice(-10),
+        userId: 'homepage_user',
+        source: 'homepage_chat'
+      }),
+    })
+    .then(response => {
+      console.log('API Response status:', response.status);
+      if (!response.ok) {
+        return response.text().then(errorText => {
+          console.error('API Error response:', errorText);
+          let errorData = {};
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (e) {
+            console.log('Error response is not JSON');
+          }
+          throw new Error(errorData.error || 'HTTP ' + response.status + ': ' + response.statusText);
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('API Response data:', data);
+      const assistantContent = data.choices?.[0]?.message?.content || 
+                              data.response || 
+                              data.message || 
+                              'Sorry, I could not process that request.';
       
+      const aiResponse = { role: 'assistant', content: assistantContent };
       setMessages(prev => [...prev, aiResponse]);
-    } catch (error) {
+    })
+    .catch(error => {
       console.error('Error getting AI response:', error);
       const errorResponse = { 
         role: 'assistant', 
-        content: 'Sorry, I\'m having trouble connecting right now. Please try again in a moment. 🤖💭' 
+        content: 'Sorry, I am having trouble connecting right now. Please try again in a moment. 🤖💭' 
       };
       setMessages(prev => [...prev, errorResponse]);
-      toast.error('Failed to get AI response. Please try again.');
-    } finally {
+      toast.error('Failed to get AI response: ' + error.message);
+    })
+    .finally(() => {
       setIsTyping(false);
-    }
+    });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -612,7 +645,6 @@ response || data.message || 'Sorry, I couldn\'t process that request.' };
       </CardHeader>
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Quick Prompts */}
           {messages.length <= 1 && (
             <div className="grid grid-cols-2 gap-1">
               {quickPrompts.map((prompt, index) => (
@@ -627,19 +659,18 @@ response || data.message || 'Sorry, I couldn\'t process that request.' };
             </div>
           )}
 
-          {/* Messages */}
           <div className="bg-white/60 rounded-lg p-3 h-48 overflow-y-auto space-y-2">
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}
               >
                 <div
-                  className={`max-w-[80%] p-2 rounded-lg text-xs ${
+                  className={'max-w-[80%] p-2 rounded-lg text-xs ' + (
                     message.role === 'user'
                       ? 'bg-indigo-500 text-white'
                       : 'bg-white text-gray-800 border border-gray-200'
-                  }`}
+                  )}
                 >
                   {message.content}
                 </div>
