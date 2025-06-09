@@ -550,7 +550,10 @@ const NutritionJam = () => {
   const loadDailyLog = useCallback(async (date: Date) => {
     setLoading(true);
     try {
-      const dateString = formatDateToYYYYMMDD(date);
+      const dateString = safeFormatDateToYYYYMMDD(date);
+      if (!dateString) {
+        throw new Error('Invalid date provided');
+      }
       const log = await getOrCreateDailyLogFirestore(dateString);
       setCurrentLog(log);
     } catch (error) {
@@ -742,6 +745,30 @@ const NutritionJam = () => {
 
   const isToday = formatDateToYYYYMMDD(selectedDate) === getTodayDateString();
 
+  // Safe date comparison
+  const safeFormatDateToYYYYMMDD = (date) => {
+    try {
+      if (!date) return '';
+      const dateObj = date instanceof Date ? date : new Date(date);
+      if (isNaN(dateObj.getTime())) return '';
+      return dateObj.toISOString().split('T')[0];
+    } catch (error) {
+      console.error('Error formatting date to YYYYMMDD:', error);
+      return '';
+    }
+  };
+
+  const safeTodayString = () => {
+    try {
+      return getTodayDateString();
+    } catch (error) {
+      console.error('Error getting today string:', error);
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+
+  const isTodaySafe = safeFormatDateToYYYYMMDD(selectedDate) === safeTodayString();
+
   // Initialize charts when data changes
   useEffect(() => {
     if (lastXDaysData && lastXDaysData.length > 0) {
@@ -804,7 +831,7 @@ const NutritionJam = () => {
               </PopoverContent>
             </Popover>
 
-            {isToday && (
+            {isTodaySafe && (
               <Button
                 onClick={handleAutoFillFromYesterday}
                 disabled={saving}
@@ -980,7 +1007,7 @@ const NutritionJam = () => {
                           key={log?.date || index}
                           log={log}
                           date={log?.date}
-                          isToday={log?.date === getTodayDateString()}
+                          isToday={log?.date === safeTodayString()}
                           onClick={() => {
                             if (log?.date) {
                               try {
