@@ -400,37 +400,56 @@ const MealPresetWidget = ({ meal, onAddMeal }) => {
   const totalProtein = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.protein) * safeNumber(food.quantity)), 0) || 0;
   const totalCarbs = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.carbs) * safeNumber(food.quantity)), 0) || 0;
   const totalFat = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.fat) * safeNumber(food.quantity)), 0) || 0;
+  const totalFiber = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.fiber || 0) * safeNumber(food.quantity)), 0) || 0;
+  const itemCount = meal.foods?.length || 0;
+
+  // Calculate calorie percentage for visual indicator (using 500 cal as typical meal goal)
+  const mealCalorieGoal = 500;
+  const caloriePercent = Math.min((totalCalories / mealCalorieGoal) * 100, 100);
   
   return (
     <Card 
-      className="cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group bg-gradient-to-br from-white via-blue-50/50 to-purple-50/50 border-blue-200 hover:shadow-blue-100"
+      className={cn(
+        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group",
+        "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:shadow-green-100"
+      )}
       onClick={() => onAddMeal(meal.foods)}
     >
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Meal Header */}
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h3 className="font-bold text-sm text-gray-800 mb-1 group-hover:text-blue-600 transition-colors">
-                {meal.name}
-              </h3>
-              <p className="text-xs text-gray-500 line-clamp-2">{meal.description}</p>
+          {/* Meal Header - similar to date header in DailyMacroBox */}
+          <div className="flex justify-between items-center">
+            <div className="text-sm font-bold text-gray-800 truncate">
+              {meal.name}
             </div>
-            <Plus className="h-4 w-4 text-blue-500 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2" />
+            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
+              {itemCount} items
+            </span>
           </div>
 
-          {/* Calories with progress-like display */}
+          {/* Calories with progress bar - matching DailyMacroBox */}
           <div className="space-y-2">
-            <div className="flex items-center gap-1">
-              <Flame className="h-3 w-3 text-orange-500" />
-              <span className="text-lg font-bold text-gray-800">
-                {Math.round(totalCalories)}
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <span className="text-lg font-bold text-gray-800">
+                  {Math.round(totalCalories)}
+                </span>
+                <span className="text-sm text-gray-500">cal</span>
+              </div>
+              <span className="text-xs text-gray-500">
+                {Math.round(caloriePercent)}%
               </span>
-              <span className="text-xs text-gray-500">cal</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${caloriePercent}%` }}
+              />
             </div>
           </div>
 
-          {/* Macro Grid - Same style as daily boxes */}
+          {/* Macro Breakdown - exactly matching DailyMacroBox */}
           <div className="grid grid-cols-4 gap-1 text-xs">
             <div className="text-center">
               <div className="font-semibold text-blue-600">{Math.round(totalProtein)}g</div>
@@ -445,13 +464,13 @@ const MealPresetWidget = ({ meal, onAddMeal }) => {
               <div className="text-gray-500">Fat</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-amber-600">{meal.foods?.length || 0}</div>
-              <div className="text-gray-500">Items</div>
+              <div className="font-semibold text-amber-600">{Math.round(totalFiber)}g</div>
+              <div className="text-gray-500">Fib</div>
             </div>
           </div>
 
-          {/* Add Button Indicator */}
-          <div className="flex items-center justify-center gap-1 text-xs text-blue-600 group-hover:text-blue-700 transition-colors pt-1 border-t border-gray-100">
+          {/* Add meal indicator - similar to meals count in DailyMacroBox */}
+          <div className="flex items-center justify-center gap-1 text-xs text-green-600 group-hover:text-green-700 transition-colors">
             <Plus className="h-3 w-3" />
             <span>Add Meal</span>
           </div>
@@ -473,15 +492,21 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
             Quick Meal Presets
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Save time with pre-configured meals. Click any widget to add the entire meal to your current day.
+            Save time with pre-configured meals. Click any card to add the entire meal to your current day.
           </p>
         </CardHeader>
         <CardContent>
+          {/* UPDATED: Grid layout: 4-5 cards per row depending on screen size */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <MealPresets onAddMeal={onAddMeal} renderAs="widget" />
           </div>
         </CardContent>
       </Card>
+
+      {/* Rest of the component remains the same... */}
+    </div>
+  );
+};
 
       {/* Create Custom Meal Section */}
       <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
@@ -562,34 +587,118 @@ const NutritionJam = () => {
     fetchLast7DaysData();
   }, [currentDate, fetchLogForDate, fetchLast7DaysData]);
 
-  // FIXED: Initialize charts with better error handling
-  useEffect(() => {
-    const initialize = async () => {
-      if (!loading && activeTab === "trends") {
-        console.log("NutritionJam: Initializing charts");
-        try {
-          const logsForChart = await getLastXDaysDataFirestore(chartTimeframe === "7day" ? 7 : 30);
-          const chartData = prepareChartData(logsForChart, chartTimeframe);
+// Add this function before your useEffect
+const refreshCharts = async () => {
+  try {
+    const logsForChart = await getLastXDaysDataFirestore(chartTimeframe === "7day" ? 7 : 30);
+    const chartData = prepareChartData(logsForChart, chartTimeframe);
+    
+    const combinedChartElement = document.getElementById('combined-nutrition-chart');
+    const macroChartElement = document.getElementById('macro-distribution-chart');
+    
+    if (combinedChartElement && macroChartElement) {
+      combinedChartElement.innerHTML = '';
+      macroChartElement.innerHTML = '';
+      initializeCharts(chartData, chartTimeframe);
+      toast.success("Charts refreshed successfully!");
+    }
+  } catch (error) {
+    console.error("Error refreshing charts:", error);
+    toast.error("Failed to refresh charts");
+  }
+};
+
+// Replace your existing chart useEffect with this:
+useEffect(() => {
+  const initialize = async () => {
+    if (!loading && activeTab === "trends") {
+      console.log("NutritionJam: Initializing charts");
+      try {
+        const logsForChart = await getLastXDaysDataFirestore(chartTimeframe === "7day" ? 7 : 30);
+        const chartData = prepareChartData(logsForChart, chartTimeframe);
+        
+        // Ensure DOM elements exist before initializing charts
+        const checkAndInitializeCharts = () => {
+          const combinedChartElement = document.getElementById('combined-nutrition-chart');
+          const macroChartElement = document.getElementById('macro-distribution-chart');
           
-          // Ensure DOM is ready before initializing charts
-          setTimeout(() => {
+          if (combinedChartElement && macroChartElement) {
             try {
+              // Clear any existing content first
+              combinedChartElement.innerHTML = '';
+              macroChartElement.innerHTML = '';
+              
+              // Initialize charts
               initializeCharts(chartData, chartTimeframe);
+              console.log("Charts initialized successfully");
             } catch (chartError) {
               console.error("Error initializing charts:", chartError);
-              // Fallback: try again after a longer delay
-              setTimeout(() => {
-                initializeCharts(chartData, chartTimeframe);
-              }, 1000);
+              
+              // Fallback: Show error message in chart containers
+              if (combinedChartElement) {
+                combinedChartElement.innerHTML = `
+                  <div class="flex items-center justify-center h-full text-gray-500">
+                    <div class="text-center">
+                      <p class="mb-2">Chart loading failed</p>
+                      <p class="text-sm">Please refresh the page</p>
+                    </div>
+                  </div>
+                `;
+              }
+              if (macroChartElement) {
+                macroChartElement.innerHTML = `
+                  <div class="flex items-center justify-center h-full text-gray-500">
+                    <div class="text-center">
+                      <p class="mb-2">Chart loading failed</p>
+                      <p class="text-sm">Please refresh the page</p>
+                    </div>
+                  </div>
+                `;
+              }
             }
-          }, 200);
-        } catch (error) {
-          console.error("Error preparing chart data:", error);
+          } else {
+            console.warn("Chart elements not found in DOM, retrying...");
+            // Retry after a short delay
+            setTimeout(checkAndInitializeCharts, 500);
+          }
+        };
+        
+        // Start the check process with a small delay to ensure DOM is ready
+        setTimeout(checkAndInitializeCharts, 100);
+        
+      } catch (error) {
+        console.error("Error preparing chart data:", error);
+        
+        // Show error message in chart containers
+        const combinedChartElement = document.getElementById('combined-nutrition-chart');
+        const macroChartElement = document.getElementById('macro-distribution-chart');
+        
+        if (combinedChartElement) {
+          combinedChartElement.innerHTML = `
+            <div class="flex items-center justify-center h-full text-gray-500">
+              <div class="text-center">
+                <p class="mb-2">Unable to load chart data</p>
+                <p class="text-sm">Please check your connection and try again</p>
+              </div>
+            </div>
+          `;
+        }
+        if (macroChartElement) {
+          macroChartElement.innerHTML = `
+            <div class="flex items-center justify-center h-full text-gray-500">
+              <div class="text-center">
+                <p class="mb-2">Unable to load chart data</p>
+                <p class="text-sm">Please check your connection and try again</p>
+              </div>
+            </div>
+          `;
         }
       }
-    };
-    initialize();
-  }, [loading, activeTab, chartTimeframe]);
+    }
+  };
+  
+  initialize();
+}, [loading, activeTab, chartTimeframe]);
 
   // Handle date selection
   const handleDateChange = (date) => {
