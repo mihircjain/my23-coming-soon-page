@@ -46,6 +46,23 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
 
   const caloriePercent = Math.min((totals.calories / calorieGoal) * 100, 100);
 
+  // Safe date formatting
+  const formatDate = (dateValue) => {
+    try {
+      if (!dateValue) return 'Invalid Date';
+      const dateObj = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+      if (isNaN(dateObj.getTime())) return 'Invalid Date';
+      return dateObj.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
+    }
+  };
+
   return (
     <Card
       className={cn(
@@ -62,11 +79,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
           {/* Date Header */}
           <div className="flex justify-between items-center">
             <div className="text-sm font-medium text-gray-600">
-              {new Date(date).toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric'
-              })}
+              {formatDate(date)}
             </div>
             {isToday && (
               <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
@@ -692,7 +705,14 @@ const NutritionJam = () => {
     setSaving(true);
     try {
       const newEntries = preset.foods.map(food => ({
-        ...food,
+        foodId: food.foodId || food.name,
+        calories: Number(food.calories) || 0,
+        protein: Number(food.protein) || 0,
+        carbs: Number(food.carbs) || 0,
+        fat: Number(food.fat) || 0,
+        fiber: Number(food.fiber) || 0,
+        quantity: Number(food.quantity) || 1,
+        unit: food.unit || 'serving',
         timestamp: new Date().toISOString()
       }));
       
@@ -724,9 +744,13 @@ const NutritionJam = () => {
 
   // Initialize charts when data changes
   useEffect(() => {
-    if (lastXDaysData.length > 0) {
-      const chartData = prepareChartData(lastXDaysData);
-      initializeCharts(chartData);
+    if (lastXDaysData && lastXDaysData.length > 0) {
+      try {
+        const chartData = prepareChartData(lastXDaysData);
+        initializeCharts(chartData);
+      } catch (error) {
+        console.error('Error initializing charts:', error);
+      }
     }
   }, [lastXDaysData]);
 
@@ -951,19 +975,32 @@ const NutritionJam = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {lastXDaysData.map((log, index) => (
+                      {lastXDaysData && lastXDaysData.length > 0 ? lastXDaysData.map((log, index) => (
                         <DailyMacroBox
-                          key={log.date}
+                          key={log?.date || index}
                           log={log}
-                          date={log.date}
-                          isToday={log.date === getTodayDateString()}
+                          date={log?.date}
+                          isToday={log?.date === getTodayDateString()}
                           onClick={() => {
-                            const date = new Date(log.date);
-                            setSelectedDate(date);
-                            setActiveTab("today");
+                            if (log?.date) {
+                              try {
+                                const date = new Date(log.date);
+                                if (!isNaN(date.getTime())) {
+                                  setSelectedDate(date);
+                                  setActiveTab("today");
+                                }
+                              } catch (error) {
+                                console.error('Error handling date click:', error);
+                              }
+                            }
                           }}
                         />
-                      ))}
+                      )) : (
+                        <div className="col-span-full text-center py-8 text-gray-500">
+                          <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                          <p>No data available for the last 7 days</p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
