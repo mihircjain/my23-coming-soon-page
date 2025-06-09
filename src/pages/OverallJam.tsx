@@ -55,9 +55,9 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
       return ((data.caloriesConsumed - 1500) / 300) * 40;
     })();
     
-    // Protein Score (30% of total) - Target: 135g+ 
-    // Perfect score at 135g+, proportional below that
-    const proteinScore = Math.min(30, (data.protein / 135) * 30);
+    // Protein Score (30% of total) - Target: 140g+ 
+    // Perfect score at 140g+, proportional below that
+    const proteinScore = Math.min(30, (data.protein / 140) * 30);
     
     // Calories Burned Score (30% of total) - Target: 500+ calories
     // Perfect score at 500+, proportional below that
