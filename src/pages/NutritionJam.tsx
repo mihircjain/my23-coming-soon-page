@@ -839,78 +839,81 @@ const NutritionJam = () => {
                       Daily Summary
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-                      {/* Calories Progress */}
-                      <div className="lg:col-span-2 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <Flame className="h-5 w-5 text-orange-500" />
-                            <span className="font-semibold text-gray-800">Calories</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-orange-600">
-                              {Math.round(currentLog?.totals?.calories || 0)}
-                            </div>
-                            <div className="text-sm text-gray-500">/ 2000 goal</div>
-                          </div>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div
-                            className="bg-gradient-to-r from-orange-400 to-red-500 h-3 rounded-full transition-all duration-500"
-                            style={{
-                              width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
-                            }}
-                          />
-                        </div>
-                        <div className="text-center text-sm text-gray-600">
-                          {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
-                        </div>
-                      </div>
-    {/* Stack Calories + Macros vertically */}
-    <div className="grid grid-cols-1 gap-6">
-                      <div className="lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
-                          <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
-                          <div className="text-2xl font-bold text-blue-600">
-                            {Math.round(currentLog?.totals?.protein || 0)}g
-                          </div>
-                          <div className="text-xs text-blue-700 font-medium">Protein</div>
-                        </div>
-                        <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
-                          <Activity className="h-5 w-5 mx-auto mb-2 text-green-500" />
-                          <div className="text-2xl font-bold text-green-600">
-                            {Math.round(currentLog?.totals?.carbs || 0)}g
-                          </div>
-                          <div className="text-xs text-green-700 font-medium">Carbs</div>
-                        </div>
-                        <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
-                          <div className="w-5 h-5 mx-auto mb-2 bg-purple-500 rounded-full"></div>
-                          <div className="text-2xl font-bold text-purple-600">
-                            {Math.round(currentLog?.totals?.fat || 0)}g
-                          </div>
-                          <div className="text-xs text-purple-700 font-medium">Fat</div>
-                        </div>
-                        <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
-                          <div className="w-5 h-5 mx-auto mb-2 bg-amber-500 rounded-sm"></div>
-                          <div className="text-2xl font-bold text-amber-600">
-                            {Math.round(currentLog?.totals?.fiber || 0)}g
-                          </div>
-                          <div className="text-xs text-amber-700 font-medium">Fiber</div>
-                        </div>
-                      </div>
-                    </div>
+ <CardContent>
+  <div className="flex flex-col gap-6">
+    {/* Calories Progress */}
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Flame className="h-5 w-5 text-orange-500" />
+          <span className="font-semibold text-gray-800">Calories</span>
+        </div>
+        <div className="text-right">
+          <div className="text-2xl font-bold text-orange-600">
+            {Math.round(currentLog?.totals?.calories || 0)}
+          </div>
+          <div className="text-sm text-gray-500">/ 2000 goal</div>
+        </div>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-3">
+        <div
+          className="bg-gradient-to-r from-orange-400 to-red-500 h-3 rounded-full transition-all duration-500"
+          style={{
+            width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
+          }}
+        />
+      </div>
+      <div className="text-center text-sm text-gray-600">
+        {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
+      </div>
+    </div>
 
-                    {/* Quick Stats */}
-                    <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-center justify-center text-sm">
-                        <span className="text-gray-600 flex items-center gap-1">
-                          <Utensils className="h-4 w-4" />
-                          <span className="font-semibold text-gray-800">{currentLog?.entries?.length || 0}</span> foods logged today
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
+    {/* Macros Grid */}
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+        <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
+        <div className="text-2xl font-bold text-blue-600">
+          {Math.round(currentLog?.totals?.protein || 0)}g
+        </div>
+        <div className="text-xs text-blue-700 font-medium">Protein</div>
+      </div>
+      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+        <Activity className="h-5 w-5 mx-auto mb-2 text-green-500" />
+        <div className="text-2xl font-bold text-green-600">
+          {Math.round(currentLog?.totals?.carbs || 0)}g
+        </div>
+        <div className="text-xs text-green-700 font-medium">Carbs</div>
+      </div>
+      <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+        <div className="w-5 h-5 mx-auto mb-2 bg-purple-500 rounded-full"></div>
+        <div className="text-2xl font-bold text-purple-600">
+          {Math.round(currentLog?.totals?.fat || 0)}g
+        </div>
+        <div className="text-xs text-purple-700 font-medium">Fat</div>
+      </div>
+      <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
+        <div className="w-5 h-5 mx-auto mb-2 bg-amber-500 rounded-sm"></div>
+        <div className="text-2xl font-bold text-amber-600">
+          {Math.round(currentLog?.totals?.fiber || 0)}g
+        </div>
+        <div className="text-xs text-amber-700 font-medium">Fiber</div>
+      </div>
+    </div>
+
+    {/* Quick Stats */}
+    <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
+      <div className="flex items-center justify-center text-sm">
+        <span className="text-gray-600 flex items-center gap-1">
+          <Utensils className="h-4 w-4" />
+          <span className="font-semibold text-gray-800">
+            {currentLog?.entries?.length || 0}
+          </span> foods logged today
+        </span>
+      </div>
+    </div>
+  </div>
+</CardContent>
+
                 </Card>
 
                 {/* Add Food - Horizontal Section */}
