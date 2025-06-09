@@ -7,7 +7,6 @@ import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FoodSelector } from "@/components/nutrition/FoodSelector";
-import { MacroAveragesSummary } from "@/components/nutrition/MacroAveragesSummary";
 import { DailyLog, FoodEntry } from "@/types/nutrition";
 import {
   getTodayDateString,
@@ -29,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Toaster, toast } from "sonner";
 import { PublicFoodLog } from "@/components/nutrition/PublicFoodLog";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Safe wrapper functions
 const safeFormatDateToYYYYMMDD = (date) => {
@@ -118,7 +118,188 @@ const safeCalculateTotals = (entries) => {
   }
 };
 
-// Daily Macro Box Component
+// Multi-line Chart Component for 7-day nutrition data
+const MultiLineNutritionChart = ({ last7DaysData }) => {
+  // Transform data for recharts
+  const chartData = last7DaysData.map(dayLog => {
+    const date = new Date(dayLog.date);
+    return {
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      fullDate: dayLog.date,
+      caloriesIn: Math.round(dayLog.totals?.calories || 0),
+      caloriesOut: Math.round(dayLog.totals?.caloriesBurned || 0), // Assuming you have this data
+      protein: Math.round(dayLog.totals?.protein || 0),
+      carbs: Math.round(dayLog.totals?.carbs || 0),
+      fat: Math.round(dayLog.totals?.fat || 0),
+      fiber: Math.round(dayLog.totals?.fiber || 0)
+    };
+  });
+
+  // Custom tooltip component
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-semibold text-gray-800 mb-2">{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: {entry.value}{entry.name.includes('Calories') ? ' cal' : 'g'}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <Card className="bg-gradient-to-br from-blue-50 to-green-50 border-blue-200">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-blue-600" />
+          <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+            7-Day Nutrition Trends
+          </span>
+        </CardTitle>
+        <p className="text-sm text-gray-600">
+          All nutrition metrics tracked over the last 7 days in one comprehensive view
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="h-96 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis 
+                dataKey="date" 
+                stroke="#6b7280"
+                fontSize={12}
+              />
+              <YAxis 
+                stroke="#6b7280"
+                fontSize={12}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend 
+                wrapperStyle={{ paddingTop: '20px' }}
+                iconType="line"
+              />
+              
+              {/* Calories In - Green gradient stroke */}
+              <Line 
+                type="monotone" 
+                dataKey="caloriesIn" 
+                stroke="url(#caloriesInGradient)"
+                strokeWidth={3}
+                dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#10b981' }}
+                name="Calories In"
+              />
+              
+              {/* Calories Out - Orange gradient stroke */}
+              <Line 
+                type="monotone" 
+                dataKey="caloriesOut" 
+                stroke="url(#caloriesOutGradient)"
+                strokeWidth={3}
+                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#f59e0b' }}
+                name="Calories Out"
+              />
+              
+              {/* Protein - Purple gradient stroke */}
+              <Line 
+                type="monotone" 
+                dataKey="protein" 
+                stroke="url(#proteinGradient)"
+                strokeWidth={3}
+                dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#8b5cf6' }}
+                name="Protein"
+              />
+              
+              {/* Carbs - Blue gradient stroke */}
+              <Line 
+                type="monotone" 
+                dataKey="carbs" 
+                stroke="url(#carbsGradient)"
+                strokeWidth={3}
+                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#3b82f6' }}
+                name="Carbs"
+              />
+              
+              {/* Fat - Red gradient stroke */}
+              <Line 
+                type="monotone" 
+                dataKey="fat" 
+                stroke="url(#fatGradient)"
+                strokeWidth={3}
+                dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#ef4444' }}
+                name="Fat"
+              />
+              
+              {/* Fiber - Amber gradient stroke */}
+              <Line 
+                type="monotone" 
+                dataKey="fiber" 
+                stroke="url(#fiberGradient)"
+                strokeWidth={3}
+                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#f59e0b' }}
+                name="Fiber"
+              />
+              
+              {/* Define gradients */}
+              <defs>
+                <linearGradient id="caloriesInGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#34d399" />
+                </linearGradient>
+                <linearGradient id="caloriesOutGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#fbbf24" />
+                </linearGradient>
+                <linearGradient id="proteinGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#8b5cf6" />
+                  <stop offset="100%" stopColor="#a78bfa" />
+                </linearGradient>
+                <linearGradient id="carbsGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#60a5fa" />
+                </linearGradient>
+                <linearGradient id="fatGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#ef4444" />
+                  <stop offset="100%" stopColor="#f87171" />
+                </linearGradient>
+                <linearGradient id="fiberGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#d97706" />
+                  <stop offset="100%" stopColor="#f59e0b" />
+                </linearGradient>
+              </defs>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        
+        {/* Chart Legend Info */}
+        <div className="mt-4 p-4 bg-white/60 rounded-lg border border-gray-200">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">Chart Information</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600">
+            <div>• <span className="text-green-600 font-medium">Calories In</span>: Daily food intake</div>
+            <div>• <span className="text-orange-600 font-medium">Calories Out</span>: Exercise calories burned</div>
+            <div>• <span className="text-purple-600 font-medium">Protein</span>: Daily protein consumption</div>
+            <div>• <span className="text-blue-600 font-medium">Carbs</span>: Daily carbohydrate intake</div>
+            <div>• <span className="text-red-600 font-medium">Fat</span>: Daily fat consumption</div>
+            <div>• <span className="text-amber-600 font-medium">Fiber</span>: Daily fiber intake</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Daily Macro Box Component (unchanged for compatibility)
 const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   const hasData = log?.entries?.length > 0;
@@ -233,7 +414,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   );
 };
 
-// Food Item Card Component
+// Food Item Card Component (unchanged)
 const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [quantity, setQuantity] = useState(entry.quantity);
@@ -326,7 +507,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   );
 };
 
-// Combined Meals Card Component
+// Combined Meals Card Component (unchanged but ensure vertical flex layout)
 const CombinedMealCard = ({ preset, onClick }) => {
   const totalCalories = preset.foods?.reduce((sum, food) => 
     sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
@@ -398,6 +579,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
           </div>
         </div>
 
+        {/* Ensure this button container always sits at the bottom */}
         <div className="mt-auto pt-4">
           <Button 
             onClick={onClick}
@@ -419,11 +601,10 @@ const NutritionJam = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastXDaysData, setLastXDaysData] = useState<DailyLog[]>([]);
-  const [weeklyAverages, setWeeklyAverages] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("last7days");
 
-  // Real meal presets
+  // Real meal presets (unchanged)
   const mealPresets = [
     {
       id: 1,
@@ -580,21 +761,10 @@ const NutritionJam = () => {
     }
   }, []);
 
-  const loadWeeklyAverages = useCallback(async () => {
-    try {
-      const averages = await getWeeklyAveragesFirestore();
-      setWeeklyAverages(averages);
-    } catch (error) {
-      console.error('Error loading weekly averages:', error);
-      setWeeklyAverages(null);
-    }
-  }, []);
-
   useEffect(() => {
     loadDailyLog(selectedDate);
     loadLastXDaysData();
-    loadWeeklyAverages();
-  }, [selectedDate, loadDailyLog, loadLastXDaysData, loadWeeklyAverages]);
+  }, [selectedDate, loadDailyLog, loadLastXDaysData]);
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
@@ -764,7 +934,6 @@ const NutritionJam = () => {
       <header className="pt-8 px-6 md:px-12">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                 <Utensils className="h-8 w-8 text-green-600" />
@@ -834,86 +1003,85 @@ const NutritionJam = () => {
                 {/* Daily Summary - Top Section */}
                 <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
                   <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-2 text-purple-800">
-                      <BarChart3 className="h-5 w-5 text-purple-600" />
+                    <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
+                      <BarChart3 className="mr-2 h-4 w-4 text-purple-600" />
                       Daily Summary
                     </CardTitle>
                   </CardHeader>
- <CardContent>
-  <div className="flex flex-col gap-6">
-    {/* Calories Progress */}
-    <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <Flame className="h-5 w-5 text-orange-500" />
-          <span className="font-semibold text-gray-800">Calories</span>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-orange-600">
-            {Math.round(currentLog?.totals?.calories || 0)}
-          </div>
-          <div className="text-sm text-gray-500">/ 2000 goal</div>
-        </div>
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-3">
-        <div
-          className="bg-gradient-to-r from-orange-400 to-red-500 h-3 rounded-full transition-all duration-500"
-          style={{
-            width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
-          }}
-        />
-      </div>
-      <div className="text-center text-sm text-gray-600">
-        {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
-      </div>
-    </div>
+                  <CardContent>
+                    <div className="flex flex-col gap-6">
+                      {/* Calories Progress */}
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Flame className="h-5 w-5 text-orange-500" />
+                            <span className="font-semibold text-gray-800">Calories</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-orange-600">
+                              {Math.round(currentLog?.totals?.calories || 0)}
+                            </div>
+                            <div className="text-sm text-gray-500">/ 2000 goal</div>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-gradient-to-r from-orange-400 to-red-500 h-3 rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
+                            }}
+                          />
+                        </div>
+                        <div className="text-center text-sm text-gray-600">
+                          {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
+                        </div>
+                      </div>
 
-    {/* Macros Grid */}
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
-        <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
-        <div className="text-2xl font-bold text-blue-600">
-          {Math.round(currentLog?.totals?.protein || 0)}g
-        </div>
-        <div className="text-xs text-blue-700 font-medium">Protein</div>
-      </div>
-      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
-        <Activity className="h-5 w-5 mx-auto mb-2 text-green-500" />
-        <div className="text-2xl font-bold text-green-600">
-          {Math.round(currentLog?.totals?.carbs || 0)}g
-        </div>
-        <div className="text-xs text-green-700 font-medium">Carbs</div>
-      </div>
-      <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
-        <div className="w-5 h-5 mx-auto mb-2 bg-purple-500 rounded-full"></div>
-        <div className="text-2xl font-bold text-purple-600">
-          {Math.round(currentLog?.totals?.fat || 0)}g
-        </div>
-        <div className="text-xs text-purple-700 font-medium">Fat</div>
-      </div>
-      <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
-        <div className="w-5 h-5 mx-auto mb-2 bg-amber-500 rounded-sm"></div>
-        <div className="text-2xl font-bold text-amber-600">
-          {Math.round(currentLog?.totals?.fiber || 0)}g
-        </div>
-        <div className="text-xs text-amber-700 font-medium">Fiber</div>
-      </div>
-    </div>
+                      {/* Macros Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                          <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
+                          <div className="text-2xl font-bold text-blue-600">
+                            {Math.round(currentLog?.totals?.protein || 0)}g
+                          </div>
+                          <div className="text-xs text-blue-700 font-medium">Protein</div>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                          <Activity className="h-5 w-5 mx-auto mb-2 text-green-500" />
+                          <div className="text-2xl font-bold text-green-600">
+                            {Math.round(currentLog?.totals?.carbs || 0)}g
+                          </div>
+                          <div className="text-xs text-green-700 font-medium">Carbs</div>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                          <div className="w-5 h-5 mx-auto mb-2 bg-purple-500 rounded-full"></div>
+                          <div className="text-2xl font-bold text-purple-600">
+                            {Math.round(currentLog?.totals?.fat || 0)}g
+                          </div>
+                          <div className="text-xs text-purple-700 font-medium">Fat</div>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
+                          <div className="w-5 h-5 mx-auto mb-2 bg-amber-500 rounded-sm"></div>
+                          <div className="text-2xl font-bold text-amber-600">
+                            {Math.round(currentLog?.totals?.fiber || 0)}g
+                          </div>
+                          <div className="text-xs text-amber-700 font-medium">Fiber</div>
+                        </div>
+                      </div>
 
-    {/* Quick Stats */}
-    <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
-      <div className="flex items-center justify-center text-sm">
-        <span className="text-gray-600 flex items-center gap-1">
-          <Utensils className="h-4 w-4" />
-          <span className="font-semibold text-gray-800">
-            {currentLog?.entries?.length || 0}
-          </span> foods logged today
-        </span>
-      </div>
-    </div>
-  </div>
-</CardContent>
-
+                      {/* Quick Stats */}
+                      <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="flex items-center justify-center text-sm">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            <Utensils className="h-4 w-4" />
+                            <span className="font-semibold text-gray-800">
+                              {currentLog?.entries?.length || 0}
+                            </span> foods logged today
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
                 </Card>
 
                 {/* Add Food - Horizontal Section */}
@@ -998,20 +1166,8 @@ const NutritionJam = () => {
               </CardContent>
             </Card>
             
-            {/* Weekly Averages Below */}
-            {weeklyAverages && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-blue-600" />
-                    7-Day Average Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <MacroAveragesSummary averages={weeklyAverages} />
-                </CardContent>
-              </Card>
-            )}
+            {/* Multi-line Chart replaces the Weekly Averages Summary */}
+            <MultiLineNutritionChart last7DaysData={lastXDaysData} />
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-6">
