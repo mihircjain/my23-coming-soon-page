@@ -320,34 +320,138 @@ function isRateLimited(ip) {
   return false;
 }
 
-async function makeGroqRequest(apiKey, messages, retryCount = 0) {
+// Convert OpenAI-style messages to Gemini format
+function convertMessagesToGeminiFormat(messages) {
+  const contents = [];
+  let systemMessage = null;
+  
+  for (const message of messages) {
+    if (message.role === 'system') {
+      systemMessage = message.content;
+      continue;
+    }
+    
+    let role;
+    if (message.role === 'user') {
+      role = 'user';
+    } else if (message.role === 'assistant') {
+      role = 'model';
+    } else {
+      continue; // Skip unknown roles
+    }
+    
+    contents.push({
+      role: role,
+      parts: [{ text: message.content }]
+    });
+  }
+  
+  // Handle system message by prepending it to the first user message
+  if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
+    contents[0].parts[0].text = systemMessage + '\n\nUser: ' + contents[0].parts[0].text;
+  } else if (systemMessage && contents.length === 0) {
+    // If no user messages, create one with just the system prompt
+    contents.push({
+      role: 'user',
+      parts: [{ text: systemMessage }]
+    });
+  }
+  
+  return contents;
+}
+
+// Convert Gemini response to OpenAI format
+function convertGeminiResponseToOpenAI(geminiResponse) {
+  const content = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const finishReason = geminiResponse.candidates?.[0]?.finishReason || 'STOP';
+  
+  // Map Gemini finish reasons to OpenAI format
+  let mappedFinishReason = 'stop';
+  switch (finishReason) {
+    case 'STOP':
+      mappedFinishReason = 'stop';
+      break;
+    case 'MAX_TOKENS':
+      mappedFinishReason = 'length';
+      break;
+    case 'SAFETY':
+      mappedFinishReason = 'content_filter';
+      break;
+    case 'RECITATION':
+      mappedFinishReason = 'content_filter';
+      break;
+    default:
+      mappedFinishReason = 'stop';
+  }
+  
+  return {
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: content
+        },
+        finish_reason: mappedFinishReason
+      }
+    ],
+    usage: {
+      prompt_tokens: geminiResponse.usageMetadata?.promptTokenCount || 0,
+      completion_tokens: geminiResponse.usageMetadata?.candidatesTokenCount || 0,
+      total_tokens: geminiResponse.usageMetadata?.totalTokenCount || 0
+    }
+  };
+}
+
+async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second
   
   try {
+    // Convert messages to Gemini format
+    const contents = convertMessagesToGeminiFormat(messages);
+    
     const requestBody = {
-      model: 'llama3-8b-8192',
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: 500,
-      stream: false
+      contents: contents,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
+        topP: 0.8,
+        topK: 40
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_ONLY_HIGH"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_ONLY_HIGH"
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_ONLY_HIGH"
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_ONLY_HIGH"
+        }
+      ]
     };
 
-    console.log(`=== GROQ API REQUEST (Attempt ${retryCount + 1}) ===`);
-    console.log(`Messages being sent: ${messages.length}`);
+    console.log(`=== GEMINI API REQUEST (Attempt ${retryCount + 1}) ===`);
+    console.log(`Contents being sent: ${contents.length}`);
     console.log(`Request payload size: ${JSON.stringify(requestBody).length} bytes`);
     
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
         'User-Agent': 'Vercel-Function/1.0'
       },
       body: JSON.stringify(requestBody)
     });
 
-    console.log(`=== GROQ API RESPONSE (Attempt ${retryCount + 1}) ===`);
+    console.log(`=== GEMINI API RESPONSE (Attempt ${retryCount + 1}) ===`);
     console.log(`Status: ${response.status} ${response.statusText}`);
 
     if (response.status === 429 && retryCount < maxRetries) {
@@ -355,12 +459,12 @@ async function makeGroqRequest(apiKey, messages, retryCount = 0) {
       console.log(`Rate limited. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
-      return makeGroqRequest(apiKey, messages, retryCount + 1);
+      return makeGeminiRequest(apiKey, messages, retryCount + 1);
     }
 
     return response;
   } catch (error) {
-    console.error(`=== GROQ REQUEST ERROR (Attempt ${retryCount + 1}) ===`);
+    console.error(`=== GEMINI REQUEST ERROR (Attempt ${retryCount + 1}) ===`);
     console.error(`Error type: ${error.name}`);
     console.error(`Error message: ${error.message}`);
     
@@ -369,7 +473,7 @@ async function makeGroqRequest(apiKey, messages, retryCount = 0) {
       console.log(`Network error. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
-      return makeGroqRequest(apiKey, messages, retryCount + 1);
+      return makeGeminiRequest(apiKey, messages, retryCount + 1);
     }
     throw error;
   }
@@ -394,19 +498,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Validate and clean the Groq API key
-    const apiKey = process.env.GROQ_API_KEY?.trim();
+    // Validate and clean the Gemini API key
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
     
     if (!apiKey) {
-      console.error('Groq API key is missing');
+      console.error('Gemini API key is missing');
       return res.status(500).json({ 
-        error: 'Server configuration error: Groq API key not found' 
+        error: 'Server configuration error: Gemini API key not found' 
       });
     }
 
-    // Validate API key format (Groq keys start with gsk_)
-    if (!apiKey.startsWith('gsk_') || apiKey.length < 40) {
-      console.error('Invalid Groq API key format');
+    // Validate API key format (Gemini keys start with AIza)
+    if (!apiKey.startsWith('AIza') || apiKey.length < 35) {
+      console.error('Invalid Gemini API key format');
       return res.status(500).json({ 
         error: 'Server configuration error: Invalid API key format' 
       });
@@ -449,7 +553,7 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`=== PREPARING GROQ REQUEST ===`);
+    console.log(`=== PREPARING GEMINI REQUEST ===`);
     console.log(`User messages count: ${messages.length}`);
     console.log(`System prompt length: ${systemPrompt.length} characters`);
     
@@ -459,7 +563,7 @@ export default async function handler(req, res) {
       ...messages
     ];
 
-    console.log(`=== FINAL MESSAGES ARRAY BEING SENT TO GROQ ===`);
+    console.log(`=== FINAL MESSAGES ARRAY BEING SENT TO GEMINI ===`);
     console.log(`Total messages: ${fullMsgs.length}`);
     fullMsgs.forEach((msg, index) => {
       console.log(`Message ${index}:`);
@@ -473,16 +577,16 @@ export default async function handler(req, res) {
     });
     console.log(`=== END MESSAGES ARRAY ===`);
 
-    // Make request to Groq API with retry logic
-    const groqResponse = await makeGroqRequest(apiKey, fullMsgs);
+    // Make request to Gemini API with retry logic
+    const geminiResponse = await makeGeminiRequest(apiKey, fullMsgs);
 
-    console.log(`=== GROQ RESPONSE ===`);
-    console.log(`Status: ${groqResponse.status}`);
+    console.log(`=== GEMINI RESPONSE ===`);
+    console.log(`Status: ${geminiResponse.status}`);
 
     // Check if response is OK
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text();
-      console.error(`Groq API error (${groqResponse.status}):`, errorText);
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error(`Gemini API error (${geminiResponse.status}):`, errorText);
       
       // Parse error details if available
       let errorDetails = null;
@@ -493,48 +597,62 @@ export default async function handler(req, res) {
       }
       
       // Handle specific error codes
-      switch (groqResponse.status) {
+      switch (geminiResponse.status) {
+        case 400:
+          return res.status(400).json({ 
+            error: 'Bad request - check message format',
+            details: errorDetails?.error?.message || 'Invalid request format'
+          });
         case 401:
           return res.status(500).json({ 
             error: 'Authentication failed - check API key configuration' 
           });
+        case 403:
+          return res.status(403).json({ 
+            error: 'Access denied - check API key permissions',
+            details: errorDetails?.error?.message || 'Forbidden'
+          });
         case 429:
           return res.status(429).json({ 
-            error: 'Groq rate limit exceeded. Please try again in a moment.',
+            error: 'Gemini rate limit exceeded. Please try again in a moment.',
             details: errorDetails?.error?.message || 'Rate limit exceeded',
             retryAfter: 60
           });
-        case 502:
-          return res.status(502).json({ 
-            error: 'Groq service temporarily unavailable - please try again' 
+        case 500:
+          return res.status(500).json({ 
+            error: 'Gemini internal server error - please try again' 
           });
         case 503:
           return res.status(503).json({ 
-            error: 'Groq service overloaded - please try again in a few minutes' 
+            error: 'Gemini service overloaded - please try again in a few minutes' 
           });
         default:
           return res.status(500).json({ 
-            error: `Groq API error: ${groqResponse.status}`,
+            error: `Gemini API error: ${geminiResponse.status}`,
             details: errorDetails?.error?.message || errorText
           });
       }
     }
 
     // Parse and return the response
-    const responseData = await groqResponse.json();
+    const responseData = await geminiResponse.json();
     
-    console.log(`=== GROQ RESPONSE DATA ===`);
+    console.log(`=== GEMINI RESPONSE DATA ===`);
     console.log(`Response object keys:`, Object.keys(responseData));
-    if (responseData.choices && responseData.choices[0]) {
-      console.log(`Response content: ${responseData.choices[0].message?.content?.substring(0, 200)}...`);
-      console.log(`Finish reason: ${responseData.choices[0].finish_reason}`);
+    if (responseData.candidates && responseData.candidates[0]) {
+      console.log(`Response content: ${responseData.candidates[0].content?.parts?.[0]?.text?.substring(0, 200)}...`);
+      console.log(`Finish reason: ${responseData.candidates[0].finishReason}`);
     }
-    if (responseData.usage) {
-      console.log(`Token usage:`, responseData.usage);
+    if (responseData.usageMetadata) {
+      console.log(`Token usage:`, responseData.usageMetadata);
     }
-    console.log('=== GROQ API CALL SUCCESSFUL ===');
     
-    return res.status(200).json(responseData);
+    // Convert Gemini response format to OpenAI-compatible format
+    const convertedResponse = convertGeminiResponseToOpenAI(responseData);
+    
+    console.log('=== GEMINI API CALL SUCCESSFUL ===');
+    
+    return res.status(200).json(convertedResponse);
 
   } catch (error) {
     console.error('Handler error:', error);
@@ -542,13 +660,13 @@ export default async function handler(req, res) {
     // Handle specific fetch errors
     if (error.code === 'ENOTFOUND') {
       return res.status(500).json({ 
-        error: 'Network error: Could not reach Groq API' 
+        error: 'Network error: Could not reach Gemini API' 
       });
     }
     
     if (error.name === 'AbortError') {
       return res.status(500).json({ 
-        error: 'Request timeout: Groq API did not respond in time' 
+        error: 'Request timeout: Gemini API did not respond in time' 
       });
     }
     
