@@ -353,7 +353,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0 flex flex-col h-full justify-between">
+      <CardContent className="pt-0 flex flex-col justify-between min-h-[300px]">
         <div className="flex-1">
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
@@ -390,15 +390,13 @@ const CombinedMealCard = ({ preset, onClick }) => {
           </div>
         </div>
 
-        <div className="pt-2">
-          <Button 
-            onClick={onClick}
-            className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Meal to Today
-          </Button>
-        </div>
+        <Button 
+          onClick={onClick}
+          className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 mt-auto"
+        >
+          <Plus className="h-4 w-4" />
+          Add Meal to Today
+        </Button>
       </CardContent>
     </Card>
   );
@@ -952,34 +950,36 @@ const NutritionJam = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                      {lastXDaysData && lastXDaysData.length > 0 ? lastXDaysData.map((log, index) => (
-                        <DailyMacroBox
-                          key={log?.date || index}
-                          log={log}
-                          date={log?.date}
-                          isToday={log?.date === safeTodayString}
-                          onClick={() => {
-                            if (log?.date) {
-                              try {
-                                const date = new Date(log.date);
-                                if (!isNaN(date.getTime())) {
-                                  setSelectedDate(date);
-                                  setActiveTab("today");
+                    {lastXDaysData && lastXDaysData.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+                        {lastXDaysData.map((log, index) => (
+                          <DailyMacroBox
+                            key={log?.date || index}
+                            log={log}
+                            date={log?.date}
+                            isToday={log?.date === safeTodayString}
+                            onClick={() => {
+                              if (log?.date) {
+                                try {
+                                  const date = new Date(log.date);
+                                  if (!isNaN(date.getTime())) {
+                                    setSelectedDate(date);
+                                    setActiveTab("today");
+                                  }
+                                } catch (error) {
+                                  console.error('Error handling date click:', error);
                                 }
-                              } catch (error) {
-                                console.error('Error handling date click:', error);
                               }
-                            }
-                          }}
-                        />
-                      )) : (
-                        <div className="col-span-full text-center py-8 text-gray-500">
-                          <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                          <p>No data available for the last 7 days</p>
-                        </div>
-                      )}
-                    </div>
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No data available for the last 7 days</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
