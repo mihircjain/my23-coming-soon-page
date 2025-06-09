@@ -597,7 +597,7 @@ const OverallJam = () => {
 
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
-            Overall Jam
+            Mihir's Overall Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
             Your complete health overview for the last 7 days
