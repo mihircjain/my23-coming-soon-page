@@ -137,7 +137,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   );
 };
 
-// Enhanced Food Item Card with hover tooltip showing macros
+// FIXED: Enhanced Food Item Card with proper NaN handling
 const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [quantity, setQuantity] = useState(entry.quantity);
@@ -148,11 +148,17 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
     setIsEditing(false);
   };
 
-  const totalCals = Math.round(entry.calories * entry.quantity);
-  const totalProtein = Math.round(entry.protein * entry.quantity);
-  const totalCarbs = Math.round(entry.carbs * entry.quantity);
-  const totalFat = Math.round(entry.fat * entry.quantity);
-  const totalFiber = Math.round((entry.fiber || 0) * entry.quantity);
+  // FIXED: Proper handling of numeric values with fallbacks
+  const safeNumber = (value) => {
+    const num = parseFloat(value);
+    return isNaN(num) || !isFinite(num) ? 0 : num;
+  };
+
+  const totalCals = Math.round(safeNumber(entry.calories) * safeNumber(entry.quantity));
+  const totalProtein = Math.round(safeNumber(entry.protein) * safeNumber(entry.quantity));
+  const totalCarbs = Math.round(safeNumber(entry.carbs) * safeNumber(entry.quantity));
+  const totalFat = Math.round(safeNumber(entry.fat) * safeNumber(entry.quantity));
+  const totalFiber = Math.round(safeNumber(entry.fiber || 0) * safeNumber(entry.quantity));
 
   return (
     <div className="relative">
@@ -200,20 +206,20 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onUpdateQuantity(index, Math.max(0.1, entry.quantity - 0.5));
+                        onUpdateQuantity(index, Math.max(0.1, safeNumber(entry.quantity) - 0.5));
                       }}
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
                     <span className="w-16 text-center text-sm font-medium">
-                      {entry.quantity} {entry.unit}
+                      {safeNumber(entry.quantity)} {entry.unit}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onUpdateQuantity(index, entry.quantity + 0.5);
+                        onUpdateQuantity(index, safeNumber(entry.quantity) + 0.5);
                       }}
                     >
                       <Plus className="h-3 w-3" />
@@ -252,7 +258,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
       {showTooltip && (
         <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-64">
           <div className="text-sm font-semibold text-gray-800 mb-2">{entry.foodId}</div>
-          <div className="text-xs text-gray-600 mb-3">{entry.quantity} {entry.unit}</div>
+          <div className="text-xs text-gray-600 mb-3">{safeNumber(entry.quantity)} {entry.unit}</div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Calories:</span>
@@ -298,28 +304,28 @@ const EnhancedFoodLogger = ({ currentLog, currentDate, onAddFood, onRemoveFood, 
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <Flame className="h-5 w-5 text-orange-500" />
-                <span className="text-2xl font-bold text-gray-800">{Math.round(totals.calories)}</span>
+                <span className="text-2xl font-bold text-gray-800">{Math.round(totals.calories || 0)}</span>
               </div>
               <div className="text-sm text-gray-600">Calories</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <Target className="h-5 w-5 text-blue-500" />
-                <span className="text-2xl font-bold text-blue-600">{Math.round(totals.protein)}</span>
+                <span className="text-2xl font-bold text-blue-600">{Math.round(totals.protein || 0)}</span>
               </div>
               <div className="text-sm text-gray-600">Protein (g)</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <Activity className="h-5 w-5 text-green-500" />
-                <span className="text-2xl font-bold text-green-600">{Math.round(totals.carbs)}</span>
+                <span className="text-2xl font-bold text-green-600">{Math.round(totals.carbs || 0)}</span>
               </div>
               <div className="text-sm text-gray-600">Carbs (g)</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <TrendingUp className="h-5 w-5 text-purple-500" />
-                <span className="text-2xl font-bold text-purple-600">{Math.round(totals.fat)}</span>
+                <span className="text-2xl font-bold text-purple-600">{Math.round(totals.fat || 0)}</span>
               </div>
               <div className="text-sm text-gray-600">Fat (g)</div>
             </div>
@@ -383,103 +389,79 @@ const EnhancedFoodLogger = ({ currentLog, currentDate, onAddFood, onRemoveFood, 
   );
 };
 
-// Enhanced Meal Preset Card - Interactive button style
-const MealPresetCard = ({ meal, onAddMeal }) => {
-  const totalCalories = meal.foods?.reduce((sum, food) => sum + (food.calories * food.quantity), 0) || 0;
-  const totalProtein = meal.foods?.reduce((sum, food) => sum + (food.protein * food.quantity), 0) || 0;
-  const totalCarbs = meal.foods?.reduce((sum, food) => sum + (food.carbs * food.quantity), 0) || 0;
-  const totalFat = meal.foods?.reduce((sum, food) => sum + (food.fat * food.quantity), 0) || 0;
+// FIXED: Cute Widget-Style Meal Preset Cards like Daily Nutrition Boxes
+const MealPresetWidget = ({ meal, onAddMeal }) => {
+  const safeNumber = (value) => {
+    const num = parseFloat(value);
+    return isNaN(num) || !isFinite(num) ? 0 : num;
+  };
+
+  const totalCalories = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.calories) * safeNumber(food.quantity)), 0) || 0;
+  const totalProtein = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.protein) * safeNumber(food.quantity)), 0) || 0;
+  const totalCarbs = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.carbs) * safeNumber(food.quantity)), 0) || 0;
+  const totalFat = meal.foods?.reduce((sum, food) => sum + (safeNumber(food.fat) * safeNumber(food.quantity)), 0) || 0;
   
   return (
-    <Button
+    <Card 
+      className="cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group bg-gradient-to-br from-white via-blue-50/50 to-purple-50/50 border-blue-200 hover:shadow-blue-100"
       onClick={() => onAddMeal(meal.foods)}
-      variant="outline"
-      className="h-auto p-0 group hover:scale-[1.02] transition-all duration-200 border-2 hover:border-blue-300"
     >
-      <Card className="w-full border-none shadow-none bg-gradient-to-br from-white via-blue-50/30 to-green-50/30 group-hover:from-blue-50 group-hover:via-indigo-50 group-hover:to-purple-50">
-        <CardContent className="p-6">
-          <div className="text-left space-y-4">
-            {/* Header */}
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-600 transition-colors mb-1">
-                  {meal.name}
-                </h3>
-                <p className="text-sm text-gray-500 mb-3">{meal.description}</p>
-              </div>
-              <div className="ml-4 opacity-60 group-hover:opacity-100 transition-opacity">
-                <Plus className="h-5 w-5 text-blue-500" />
-              </div>
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          {/* Meal Header */}
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h3 className="font-bold text-sm text-gray-800 mb-1 group-hover:text-blue-600 transition-colors">
+                {meal.name}
+              </h3>
+              <p className="text-xs text-gray-500 line-clamp-2">{meal.description}</p>
             </div>
-            
-            {/* Macro Summary - Interactive style */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white/60 rounded-lg p-3 border border-orange-100 group-hover:border-orange-200 transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <Flame className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm font-medium text-gray-600">Calories</span>
-                </div>
-                <div className="text-xl font-bold text-orange-600">{Math.round(totalCalories)}</div>
-              </div>
-              
-              <div className="bg-white/60 rounded-lg p-3 border border-blue-100 group-hover:border-blue-200 transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium text-gray-600">Protein</span>
-                </div>
-                <div className="text-xl font-bold text-blue-600">{Math.round(totalProtein)}g</div>
-              </div>
-              
-              <div className="bg-white/60 rounded-lg p-3 border border-green-100 group-hover:border-green-200 transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <Activity className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium text-gray-600">Carbs</span>
-                </div>
-                <div className="text-xl font-bold text-green-600">{Math.round(totalCarbs)}g</div>
-              </div>
-              
-              <div className="bg-white/60 rounded-lg p-3 border border-purple-100 group-hover:border-purple-200 transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingUp className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium text-gray-600">Fat</span>
-                </div>
-                <div className="text-xl font-bold text-purple-600">{Math.round(totalFat)}g</div>
-              </div>
-            </div>
-            
-            {/* Food Items Preview */}
-            <div className="space-y-2 pt-2 border-t border-gray-100">
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {meal.foods?.length || 0} Items
-              </div>
-              {meal.foods?.slice(0, 2).map((food, index) => (
-                <div key={index} className="flex justify-between items-center text-sm bg-white/40 p-2 rounded border">
-                  <span className="text-gray-700 font-medium">{food.foodId}</span>
-                  <span className="text-gray-500">{food.quantity} {food.unit}</span>
-                </div>
-              ))}
-              {meal.foods?.length > 2 && (
-                <div className="text-xs text-gray-400 text-center py-1 bg-white/20 rounded">
-                  +{meal.foods.length - 2} more items
-                </div>
-              )}
-            </div>
+            <Plus className="h-4 w-4 text-blue-500 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2" />
+          </div>
 
-            {/* Add button indicator */}
-            <div className="text-center pt-2">
-              <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 group-hover:text-blue-700 transition-colors">
-                <Plus className="h-4 w-4" />
-                Add to Today's Log
-              </div>
+          {/* Calories with progress-like display */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <Flame className="h-3 w-3 text-orange-500" />
+              <span className="text-lg font-bold text-gray-800">
+                {Math.round(totalCalories)}
+              </span>
+              <span className="text-xs text-gray-500">cal</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </Button>
+
+          {/* Macro Grid - Same style as daily boxes */}
+          <div className="grid grid-cols-4 gap-1 text-xs">
+            <div className="text-center">
+              <div className="font-semibold text-blue-600">{Math.round(totalProtein)}g</div>
+              <div className="text-gray-500">Pro</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-green-600">{Math.round(totalCarbs)}g</div>
+              <div className="text-gray-500">Carb</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-purple-600">{Math.round(totalFat)}g</div>
+              <div className="text-gray-500">Fat</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-amber-600">{meal.foods?.length || 0}</div>
+              <div className="text-gray-500">Items</div>
+            </div>
+          </div>
+
+          {/* Add Button Indicator */}
+          <div className="flex items-center justify-center gap-1 text-xs text-blue-600 group-hover:text-blue-700 transition-colors pt-1 border-t border-gray-100">
+            <Plus className="h-3 w-3" />
+            <span>Add Meal</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
-// Enhanced Meal Presets Section
+// Enhanced Meal Presets Section with Widget Grid
 const EnhancedMealPresets = ({ onAddMeal }) => {
   return (
     <div className="space-y-6">
@@ -491,12 +473,12 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
             Quick Meal Presets
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Save time with pre-configured meals. Click to add the entire meal to your current day.
+            Save time with pre-configured meals. Click any widget to add the entire meal to your current day.
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <MealPresets onAddMeal={onAddMeal} />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <MealPresets onAddMeal={onAddMeal} renderAs="widget" />
           </div>
         </CardContent>
       </Card>
@@ -580,16 +562,30 @@ const NutritionJam = () => {
     fetchLast7DaysData();
   }, [currentDate, fetchLogForDate, fetchLast7DaysData]);
 
-  // Initialize charts when data is loaded and trends tab is active
+  // FIXED: Initialize charts with better error handling
   useEffect(() => {
     const initialize = async () => {
       if (!loading && activeTab === "trends") {
         console.log("NutritionJam: Initializing charts");
-        const logsForChart = await getLastXDaysDataFirestore(chartTimeframe === "7day" ? 7 : 30);
-        const chartData = prepareChartData(logsForChart, chartTimeframe);
-        setTimeout(() => {
-          initializeCharts(chartData, chartTimeframe);
-        }, 100);
+        try {
+          const logsForChart = await getLastXDaysDataFirestore(chartTimeframe === "7day" ? 7 : 30);
+          const chartData = prepareChartData(logsForChart, chartTimeframe);
+          
+          // Ensure DOM is ready before initializing charts
+          setTimeout(() => {
+            try {
+              initializeCharts(chartData, chartTimeframe);
+            } catch (chartError) {
+              console.error("Error initializing charts:", chartError);
+              // Fallback: try again after a longer delay
+              setTimeout(() => {
+                initializeCharts(chartData, chartTimeframe);
+              }, 1000);
+            }
+          }, 200);
+        } catch (error) {
+          console.error("Error preparing chart data:", error);
+        }
       }
     };
     initialize();
