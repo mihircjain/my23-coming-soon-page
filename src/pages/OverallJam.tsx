@@ -619,38 +619,18 @@ const OverallJam = () => {
             <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-blue-700 to-emerald-700 bg-clip-text text-transparent">
               Last 7 Days Health Overview
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-              {last7Days.map((date) => (
-                <div key={date} className="bg-white/40 backdrop-blur-sm rounded-lg p-4 border border-white/40 shadow-md">
-                  <h3 className="font-semibold text-sm text-gray-700 mb-3">
-                    {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </h3>
-                  <div className="space-y-2 text-sm text-gray-700">
-                    <div className="flex justify-between">
-                      <span>Calories In:</span>
-                      <span className="font-medium">{last7DaysData[date]?.caloriesConsumed || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Calories Out:</span>
-                      <span className="font-medium">{last7DaysData[date]?.caloriesBurned || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Protein:</span>
-                      <span className="font-medium">{Math.round(last7DaysData[date]?.protein || 0)}g</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Activities:</span>
-                      <span className="font-medium">
-                        {last7DaysData[date]?.activityTypes?.length > 0 
-                          ? last7DaysData[date].activityTypes.join(', ') 
-                          : 'Rest'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+     {last7Days.map((date) => (
+       <DailyHealthBox
+         key={date}
+         data={last7DaysData[date]}
+         date={date}
+         isToday={date === new Date().toISOString().split('T')[0]}
+         onClick={() => navigate(`/daily-detail/${date}`)}  // or whatever you want on click
+       />
+     ))}
+   </div>
+            
           </div>
         </section>
 
