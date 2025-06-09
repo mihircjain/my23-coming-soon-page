@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, CheckCircle, Plus, Minus, Target, TrendingUp, Activity, Flame } from "lucide-react";
+import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, CheckCircle, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -34,22 +34,21 @@ import { PublicFoodLog } from "@/components/nutrition/PublicFoodLog";
 
 // Daily Macro Box Component (ActivityJam style)
 const DailyMacroBox = ({ log, date, isToday, onClick }) => {
-  const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   const hasData = log?.entries?.length > 0;
   
   // Calculate macro percentages for visual indicators
-  const calorieGoal = 2200; // Could be made configurable
+  const calorieGoal = 2200;
   const proteinGoal = 165;
   const carbsGoal = 275;
   const fatGoal = 73;
   
   const caloriePercent = Math.min((totals.calories / calorieGoal) * 100, 100);
-  const proteinPercent = Math.min((totals.protein / proteinGoal) * 100, 100);
   
   return (
     <Card 
       className={cn(
-        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg",
+        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group",
         hasData 
           ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:shadow-green-100" 
           : "bg-gray-50 border-gray-200 hover:shadow-gray-100",
@@ -100,33 +99,129 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
               </div>
 
               {/* Macro Breakdown */}
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-4 gap-1 text-xs">
                 <div className="text-center">
                   <div className="font-semibold text-blue-600">{Math.round(totals.protein)}g</div>
-                  <div className="text-gray-500">Protein</div>
+                  <div className="text-gray-500">Pro</div>
                 </div>
                 <div className="text-center">
                   <div className="font-semibold text-green-600">{Math.round(totals.carbs)}g</div>
-                  <div className="text-gray-500">Carbs</div>
+                  <div className="text-gray-500">Carb</div>
                 </div>
                 <div className="text-center">
                   <div className="font-semibold text-purple-600">{Math.round(totals.fat)}g</div>
                   <div className="text-gray-500">Fat</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-semibold text-amber-600">{Math.round(totals.fiber || 0)}g</div>
+                  <div className="text-gray-500">Fib</div>
                 </div>
               </div>
 
               {/* Meals count */}
               <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
                 <Utensils className="h-3 w-3" />
-                <span>{log.entries.length} items logged</span>
+                <span>{log.entries.length} items</span>
               </div>
             </>
           ) : (
-            <div className="text-center py-4">
-              <div className="text-gray-400 text-sm">No data logged</div>
-              <div className="text-xs text-gray-400 mt-1">Tap to add food</div>
+            <div className="text-center py-6">
+              <div className="text-gray-400 text-sm mb-1">No data</div>
+              <div className="text-xs text-gray-400">Tap to log</div>
+              <Plus className="h-6 w-6 mx-auto mt-2 text-gray-300 group-hover:text-blue-500 transition-colors" />
             </div>
           )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Enhanced Food Item Card
+const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [quantity, setQuantity] = useState(entry.quantity);
+
+  const handleSave = () => {
+    onUpdateQuantity(index, quantity);
+    setIsEditing(false);
+  };
+
+  const totalCals = Math.round(entry.calories * entry.quantity);
+  const totalProtein = Math.round(entry.protein * entry.quantity);
+
+  return (
+    <Card className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50">
+      <CardContent className="p-4">
+        <div className="flex justify-between items-center">
+          <div className="flex-1">
+            <div className="font-medium text-gray-800 mb-1">{entry.foodId}</div>
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              <span className="flex items-center gap-1">
+                <Flame className="h-3 w-3 text-orange-500" />
+                {totalCals} cal
+              </span>
+              <span className="flex items-center gap-1">
+                <Target className="h-3 w-3 text-blue-500" />
+                {totalProtein}g protein
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+                  className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500"
+                  step="0.1"
+                  min="0"
+                />
+                <Button size="sm" onClick={handleSave}>Save</Button>
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateQuantity(index, Math.max(0.1, entry.quantity - 0.5))}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-16 text-center text-sm font-medium">
+                    {entry.quantity} {entry.unit}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateQuantity(index, entry.quantity + 0.5)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onRemove(index)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -136,14 +231,14 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
 // Enhanced Food Logger with Daily Summary
 const EnhancedFoodLogger = ({ currentLog, currentDate, onAddFood, onRemoveFood, onUpdateQuantity, loading }) => {
   const currentEntries = Array.isArray(currentLog?.entries) ? currentLog.entries : [];
-  const totals = currentLog?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const totals = currentLog?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
 
   return (
     <div className="space-y-6">
       {/* Daily Summary Card */}
-      <Card className="bg-gradient-to-br from-blue-50 to-green-50 border-blue-200">
+      <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200">
         <CardContent className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <Flame className="h-5 w-5 text-orange-500" />
@@ -172,12 +267,19 @@ const EnhancedFoodLogger = ({ currentLog, currentDate, onAddFood, onRemoveFood, 
               </div>
               <div className="text-sm text-gray-600">Fat (g)</div>
             </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 mb-2">
+                <BarChart3 className="h-5 w-5 text-amber-500" />
+                <span className="text-2xl font-bold text-amber-600">{Math.round(totals.fiber || 0)}</span>
+              </div>
+              <div className="text-sm text-gray-600">Fiber (g)</div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Add Food Section */}
-      <Card>
+      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-green-500" />
@@ -200,16 +302,84 @@ const EnhancedFoodLogger = ({ currentLog, currentDate, onAddFood, onRemoveFood, 
         <CardContent>
           {loading ? (
             <Skeleton className="h-40 w-full" />
+          ) : currentEntries.length === 0 ? (
+            <div className="text-center py-12">
+              <Utensils className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+              <p className="text-gray-500 mb-2">No food logged today</p>
+              <p className="text-sm text-gray-400">Add your first meal above to get started</p>
+            </div>
           ) : (
-            <FoodList 
-              entries={currentEntries}
-              onRemoveFood={onRemoveFood}
-              onUpdateQuantity={onUpdateQuantity}
-            />
+            <div className="space-y-3">
+              {currentEntries.map((entry, index) => (
+                <FoodItemCard
+                  key={index}
+                  entry={entry}
+                  index={index}
+                  onRemove={onRemoveFood}
+                  onUpdateQuantity={onUpdateQuantity}
+                />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+// Enhanced Meal Preset Card
+const MealPresetCard = ({ meal, onAddMeal }) => {
+  const totalCalories = meal.foods?.reduce((sum, food) => sum + (food.calories * food.quantity), 0) || 0;
+  const totalProtein = meal.foods?.reduce((sum, food) => sum + (food.protein * food.quantity), 0) || 0;
+  
+  return (
+    <Card className="group hover:shadow-lg transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-white via-gray-50 to-blue-50 border-blue-200">
+      <CardContent className="p-6">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1">
+            <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-600 transition-colors mb-2">
+              {meal.name}
+            </h3>
+            <p className="text-sm text-gray-500 mb-3">{meal.description}</p>
+            
+            {/* Macro Summary */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-1">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <span className="font-semibold text-gray-800">{Math.round(totalCalories)} cal</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Target className="h-4 w-4 text-blue-500" />
+                <span className="font-semibold text-blue-600">{Math.round(totalProtein)}g pro</span>
+              </div>
+            </div>
+          </div>
+          <Button 
+            onClick={() => onAddMeal(meal.foods)}
+            size="sm"
+            className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Meal
+          </Button>
+        </div>
+        
+        {/* Food Items */}
+        <div className="space-y-2">
+          {meal.foods?.slice(0, 3).map((food, index) => (
+            <div key={index} className="flex justify-between items-center text-sm bg-white/50 p-2 rounded border">
+              <span className="text-gray-700 font-medium">{food.foodId}</span>
+              <span className="text-gray-500">{food.quantity} {food.unit}</span>
+            </div>
+          ))}
+          {meal.foods?.length > 3 && (
+            <div className="text-xs text-gray-400 text-center py-1">
+              +{meal.foods.length - 3} more items
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -225,11 +395,13 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
             Quick Meal Presets
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Save time with pre-configured meals. Click "Add" to log the entire meal to your current day.
+            Save time with pre-configured meals. Click "Add Meal" to log the entire meal to your current day.
           </p>
         </CardHeader>
         <CardContent>
-          <MealPresets onAddMeal={onAddMeal} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MealPresets onAddMeal={onAddMeal} />
+          </div>
         </CardContent>
       </Card>
 
@@ -245,7 +417,7 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
           <div className="text-center py-8">
             <div className="text-gray-500 mb-4">
               <Utensils className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-              <p>Create your own meal presets</p>
+              <p className="font-medium">Create your own meal presets</p>
               <p className="text-sm">Combine multiple foods into reusable meals</p>
             </div>
             <Button 
@@ -268,7 +440,7 @@ const NutritionJam = () => {
   const [currentDate, setCurrentDate] = useState(getTodayDateString());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentLog, setCurrentLog] = useState(null);
-  const [activeTab, setActiveTab] = useState("trends"); // Changed default to trends
+  const [activeTab, setActiveTab] = useState("trends");
   const [chartTimeframe, setChartTimeframe] = useState("7day");
   const [last7DaysData, setLast7DaysData] = useState({});
 
@@ -483,160 +655,176 @@ const NutritionJam = () => {
       
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
-        <Tabs defaultValue="trends" value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
-            <TabsTrigger value="trends" className="text-sm md:text-base">
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Nutrition Trends
-            </TabsTrigger>
-            <TabsTrigger value="today" className="text-sm md:text-base">
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              Daily Logger
-            </TabsTrigger>
-            <TabsTrigger value="meals" className="text-sm md:text-base">
-              <Utensils className="mr-2 h-4 w-4" />
-              Meal Presets
-            </TabsTrigger>
-          </TabsList>
-          
-          {/* Trends Tab - Now the default */}
-          <TabsContent value="trends" className="space-y-6">
-            {/* Timeframe selector */}
-            <div className="flex justify-end mb-4">
-              <div className="inline-flex rounded-md shadow-sm">
-                <Button
-                  variant={chartTimeframe === "7day" ? "default" : "outline"}
-                  className="rounded-l-md rounded-r-none"
-                  onClick={() => handleTimeframeChange("7day")}
-                >
-                  7 Days
-                </Button>
-                <Button
-                  variant={chartTimeframe === "30day" ? "default" : "outline"}
-                  className="rounded-r-md rounded-l-none"
-                  onClick={() => handleTimeframeChange("30day")}
-                >
-                  30 Days
-                </Button>
-              </div>
-            </div>
+       <Tabs defaultValue="trends" value={activeTab} onValueChange={handleTabChange} className="w-full">
+         <TabsList className="grid w-full grid-cols-3 mb-8">
+           <TabsTrigger value="trends" className="text-sm md:text-base">
+             <BarChart3 className="mr-2 h-4 w-4" />
+             Nutrition Trends
+           </TabsTrigger>
+           <TabsTrigger value="today" className="text-sm md:text-base">
+             <CalendarIcon className="mr-2 h-4 w-4" />
+             Daily Logger
+           </TabsTrigger>
+           <TabsTrigger value="meals" className="text-sm md:text-base">
+             <Utensils className="mr-2 h-4 w-4" />
+             Meal Presets
+           </TabsTrigger>
+         </TabsList>
+         
+         {/* Trends Tab - Now the default */}
+         <TabsContent value="trends" className="space-y-6">
+           {/* Timeframe selector */}
+           <div className="flex justify-end mb-4">
+             <div className="inline-flex rounded-md shadow-sm">
+               <Button
+                 variant={chartTimeframe === "7day" ? "default" : "outline"}
+                 className="rounded-l-md rounded-r-none"
+                 onClick={() => handleTimeframeChange("7day")}
+               >
+                 7 Days
+               </Button>
+               <Button
+                 variant={chartTimeframe === "30day" ? "default" : "outline"}
+                 className="rounded-r-md rounded-l-none"
+                 onClick={() => handleTimeframeChange("30day")}
+               >
+                 30 Days
+               </Button>
+             </div>
+           </div>
 
-            {/* Average Daily Macros Summary */}
-            <MacroAveragesSummary 
-              chartTimeframe={chartTimeframe} 
-              loading={loading} 
-            />
+           {/* Average Daily Macros Summary */}
+           <MacroAveragesSummary 
+             chartTimeframe={chartTimeframe} 
+             loading={loading} 
+           />
 
-            {/* Last 7 Days - Daily Macro Boxes (ActivityJam Style) */}
-            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-blue-500" />
-                  Last 7 Days Nutrition
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                  {last7Days.map((date) => (
-                    <DailyMacroBox
-                      key={date}
-                      log={last7DaysData[date]}
-                      date={date}
-                      isToday={date === getTodayDateString()}
-                      onClick={() => {
-                        setCurrentDate(date);
-                        setSelectedDate(new Date(date));
-                        setActiveTab("today");
-                      }}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Charts Section */}
-            {["Calories", "Macro Distribution", "Macros (g)"].map((title) => {
-              let chartId = "";
-              if (title === "Calories") chartId = "calories-chart";
-              else if (title === "Macro Distribution") chartId = "macro-distribution-chart";
-              else if (title === "Macros (g)") chartId = "combined-macros-chart";
-              
-              return (
-                <Card key={title} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader>
-                    <CardTitle>{title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64" id={chartId}>
-                      {loading && <Skeleton className="h-full w-full" />}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </TabsContent>
-          
-          {/* Daily Logger Tab */}
-          <TabsContent value="today" className="space-y-6">
-            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  <span>Food Log for {formatDateForDisplay(currentDate)}</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-[200px] justify-start text-left font-normal",
-                          !selectedDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? formatDateForDisplay(formatDateToYYYYMMDD(selectedDate)) : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={handleDateChange}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <EnhancedFoodLogger
-                  currentLog={currentLog}
-                  currentDate={currentDate}
-                  onAddFood={handleAddFood}
-                  onRemoveFood={handleRemoveFood}
-                  onUpdateQuantity={handleUpdateQuantity}
-                  loading={loading}
-                />
-              </CardContent>
-            </Card>
+           {/* Last 7 Days - Daily Macro Boxes (ActivityJam Style) */}
+           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+             <CardHeader>
+               <CardTitle className="flex items-center gap-2">
+                 <Activity className="h-5 w-5 text-blue-500" />
+                 Last 7 Days Nutrition
+               </CardTitle>
+             </CardHeader>
+             <CardContent>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                 {last7Days.map((date) => (
+                   <DailyMacroBox
+                     key={date}
+                     log={last7DaysData[date]}
+                     date={date}
+                     isToday={date === getTodayDateString()}
+                     onClick={() => {
+                       setCurrentDate(date);
+                       setSelectedDate(new Date(date));
+                       setActiveTab("today");
+                     }}
+                   />
+                 ))}
+               </div>
+             </CardContent>
+           </Card>
+           
+           {/* Combined Charts Section - Improved */}
+           {/* Combined Nutrition Chart */}
+           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+             <CardHeader>
+               <CardTitle className="flex items-center gap-2">
+                 <BarChart3 className="h-5 w-5 text-purple-500" />
+                 Nutrition Overview
+               </CardTitle>
+               <p className="text-sm text-gray-600 mt-2">
+                 Complete nutrition tracking with calories, protein, carbs, fat, and fiber
+               </p>
+             </CardHeader>
+             <CardContent>
+               <div className="h-80" id="combined-nutrition-chart">
+                 {loading && <Skeleton className="h-full w-full" />}
+               </div>
+             </CardContent>
+           </Card>
 
-            {/* Public Food Log Display */}
-            <PublicFoodLog />
-          </TabsContent>
-          
-          {/* Meal Presets Tab */}
-          <TabsContent value="meals" className="space-y-6">
-            <EnhancedMealPresets onAddMeal={handleAddMeal} />
-          </TabsContent>
-        </Tabs>
-      </main>
-      
-      {/* Enhanced Footer */}
-      <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>Data stored securely in the cloud</span>
-            <span className="hidden md:inline">•</span>
-            <span className="flex items-center gap-1">
-              <Activity className="h-4 w-4" />
+           {/* Macro Distribution Chart */}
+           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+             <CardHeader>
+               <CardTitle className="flex items-center gap-2">
+                 <Target className="h-5 w-5 text-green-500" />
+                 Macro Distribution
+               </CardTitle>
+               <p className="text-sm text-gray-600 mt-2">
+                 Breakdown of your macronutrient ratios
+               </p>
+             </CardHeader>
+             <CardContent>
+               <div className="h-64" id="macro-distribution-chart">
+                 {loading && <Skeleton className="h-full w-full" />}
+               </div>
+             </CardContent>
+           </Card>
+         </TabsContent>
+         
+         {/* Daily Logger Tab */}
+         <TabsContent value="today" className="space-y-6">
+           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+             <CardHeader>
+               <CardTitle className="flex justify-between items-center">
+                 <span>Food Log for {formatDateForDisplay(currentDate)}</span>
+                 <Popover>
+                   <PopoverTrigger asChild>
+                     <Button
+                       variant={"outline"}
+                       className={cn(
+                         "w-[200px] justify-start text-left font-normal",
+                         !selectedDate && "text-muted-foreground"
+                       )}
+                     >
+                       <CalendarIcon className="mr-2 h-4 w-4" />
+                       {selectedDate ? formatDateForDisplay(formatDateToYYYYMMDD(selectedDate)) : <span>Pick a date</span>}
+                     </Button>
+                   </PopoverTrigger>
+                   <PopoverContent className="w-auto p-0">
+                     <Calendar
+                       mode="single"
+                       selected={selectedDate}
+                       onSelect={handleDateChange}
+                       initialFocus
+                     />
+                   </PopoverContent>
+                 </Popover>
+               </CardTitle>
+             </CardHeader>
+             <CardContent>
+               <EnhancedFoodLogger
+                 currentLog={currentLog}
+                 currentDate={currentDate}
+                 onAddFood={handleAddFood}
+                 onRemoveFood={handleRemoveFood}
+                 onUpdateQuantity={handleUpdateQuantity}
+                 loading={loading}
+               />
+             </CardContent>
+           </Card>
+
+           {/* Public Food Log Display */}
+           <PublicFoodLog />
+         </TabsContent>
+         
+         {/* Meal Presets Tab */}
+         <TabsContent value="meals" className="space-y-6">
+           <EnhancedMealPresets onAddMeal={handleAddMeal} />
+         </TabsContent>
+       </Tabs>
+     </main>
+     
+     {/* Enhanced Footer */}
+     <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
+       <div className="flex flex-col md:flex-row justify-between items-center">
+         <div className="flex items-center gap-4 mb-2 md:mb-0">
+           <span>Data stored securely in the cloud</span>
+           <span className="hidden md:inline">•</span>
+           <span className="flex items-center gap-1">
+             <Activity className="h-4 w-4" />
              Nutrition tracking powered by smart insights
            </span>
          </div>
