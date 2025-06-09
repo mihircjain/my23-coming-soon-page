@@ -1,61 +1,4 @@
-const loadLastXDaysData = useCallback(async () => {
-    try {
-      // Always generate 7 days regardless of what's in Firestore
-      const last7Days = [];
-      const today = new Date();
-      
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        const dateString = safeFormatDateToYYYYMMDD(date);
-        
-        // Create a basic log structure for each day
-        const dayLog = {
-          date: dateString,
-          entries: [],
-          totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
-          lastUpdated: null
-        };
-        
-        // Try to get actual data from Firestore if available
-        try {
-          const actualLog = await getOrCreateDailyLogFirestore(dateString);
-          if (actualLog && actualLog.entries && actualLog.entries.length > 0) {
-            dayLog.entries = actualLog.entries;
-            dayLog.totals = actualLog.totals || safeCalculateTotals(actualLog.entries);
-            dayLog.lastUpdated = actualLog.lastUpdated;
-          }
-        } catch (error) {
-          console.error(`Error loading data for ${dateString}:`, error);
-          // Keep the empty structure
-        }
-        
-        last7Days.push(dayLog);
-      }
-      
-      setLastXDaysData(last7Days);
-    } catch (error) {
-      console.error('Error loading last X days data:', error);
-      // Still create empty 7 days structure
-      const fallback7Days = [];
-      const today = new Date();
-      
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        const dateString = safeFormatDateToYYYYMMDD(date);
-        
-        fallback7Days.push({
-          date: dateString,
-          entries: [],
-          totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
-          lastUpdated: null
-        });
-      }
-      
-      setLastXDaysData(fallback7Days);
-    }
-  }, []);import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -340,7 +283,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
   );
 };
 
-// Daily Macro Box Component (unchanged for compatibility)
+// Daily Macro Box Component
 const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   const hasData = log?.entries?.length > 0;
@@ -455,7 +398,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   );
 };
 
-// Food Item Card Component (unchanged)
+// Food Item Card Component
 const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [quantity, setQuantity] = useState(entry.quantity);
@@ -548,7 +491,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   );
 };
 
-// Combined Meals Card Component (unchanged but ensure vertical flex layout)
+// Combined Meals Card Component with proper vertical flex layout
 const CombinedMealCard = ({ preset, onClick }) => {
   const totalCalories = preset.foods?.reduce((sum, food) => 
     sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
@@ -564,7 +507,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
   const foodCount = preset.foods?.length || 0;
 
   return (
-    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300 flex flex-col h-full">
+    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300 h-full flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex justify-between items-start mb-2">
           <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
@@ -585,43 +528,62 @@ const CombinedMealCard = ({ preset, onClick }) => {
       
       <CardContent className="pt-0 flex flex-col flex-1">
         <div className="flex-1">
+          {/* Summary stats - Better alignment with fixed heights */}
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
-              <div className="text-2xl font-bold text-orange-600">
+            <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200 flex flex-col justify-center h-20">
+              <div className="text-xl font-bold text-orange-600 leading-tight">
                 {Math.round(totalCalories)}
               </div>
-              <div className="text-xs text-orange-700 font-medium">calories</div>
+              <div className="text-xs text-orange-700 font-medium mt-1">calories</div>
             </div>
-            <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 flex flex-col justify-center h-20">
+              <div className="text-xl font-bold text-blue-600 leading-tight">
                 {foodCount}
               </div>
-              <div className="text-xs text-blue-700 font-medium">items</div>
+              <div className="text-xs text-blue-700 font-medium mt-1">items</div>
             </div>
           </div>
           
+          {/* Detailed macros grid - Fixed alignment with consistent heights */}
           <div className="grid grid-cols-4 gap-2 mb-4 text-xs">
-            <div className="text-center bg-blue-50 rounded-lg py-2 border border-blue-100">
-              <div className="font-bold text-blue-600">{Math.round(totalProtein)}g</div>
-              <div className="text-blue-700 text-[10px]">Protein</div>
+            <div className="text-center bg-blue-50 rounded-lg py-2 px-1 border border-blue-100 flex flex-col justify-center h-16">
+              <div className="font-bold text-blue-600 text-sm leading-tight">{Math.round(totalProtein)}g</div>
+              <div className="text-blue-700 text-[10px] mt-1">Protein</div>
             </div>
-            <div className="text-center bg-green-50 rounded-lg py-2 border border-green-100">
-              <div className="font-bold text-green-600">{Math.round(totalCarbs)}g</div>
-              <div className="text-green-700 text-[10px]">Carbs</div>
+            <div className="text-center bg-green-50 rounded-lg py-2 px-1 border border-green-100 flex flex-col justify-center h-16">
+              <div className="font-bold text-green-600 text-sm leading-tight">{Math.round(totalCarbs)}g</div>
+              <div className="text-green-700 text-[10px] mt-1">Carbs</div>
             </div>
-            <div className="text-center bg-purple-50 rounded-lg py-2 border border-purple-100">
-              <div className="font-bold text-purple-600">{Math.round(totalFat)}g</div>
-              <div className="text-purple-700 text-[10px]">Fat</div>
+            <div className="text-center bg-purple-50 rounded-lg py-2 px-1 border border-purple-100 flex flex-col justify-center h-16">
+              <div className="font-bold text-purple-600 text-sm leading-tight">{Math.round(totalFat)}g</div>
+              <div className="text-purple-700 text-[10px] mt-1">Fat</div>
             </div>
-            <div className="text-center bg-amber-50 rounded-lg py-2 border border-amber-100">
-              <div className="font-bold text-amber-600">{Math.round(totalFiber)}g</div>
-              <div className="text-amber-700 text-[10px]">Fiber</div>
+            <div className="text-center bg-amber-50 rounded-lg py-2 px-1 border border-amber-100 flex flex-col justify-center h-16">
+              <div className="font-bold text-amber-600 text-sm leading-tight">{Math.round(totalFiber)}g</div>
+              <div className="text-amber-700 text-[10px] mt-1">Fiber</div>
             </div>
+          </div>
+
+          {/* Food breakdown (optional, shown if space allows) */}
+          <div className="space-y-1 text-xs text-gray-600 overflow-hidden">
+            {preset.foods?.slice(0, 3).map((food, index) => (
+              <div key={index} className="flex justify-between">
+                <span className="truncate flex-1">{food.foodId}</span>
+                <span className="ml-2 text-gray-500 flex-shrink-0">
+                  {Math.round(food.calories * food.quantity)}cal
+                </span>
+              </div>
+            ))}
+            {preset.foods && preset.foods.length > 3 && (
+              <div className="text-center text-gray-400 text-[10px]">
+                +{preset.foods.length - 3} more items
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Ensure this button container always sits at the bottom */}
-        <div className="mt-auto pt-4">
+        {/* Fixed bottom section with button - uses mt-auto to push to bottom */}
+        <div className="mt-auto pt-4 flex-shrink-0">
           <Button 
             onClick={onClick}
             className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
@@ -645,7 +607,7 @@ const NutritionJam = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("last7days");
 
-  // Real meal presets (unchanged)
+  // Real meal presets
   const mealPresets = [
     {
       id: 1,
