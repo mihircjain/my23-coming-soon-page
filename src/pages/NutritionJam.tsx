@@ -30,6 +30,7 @@ import { Toaster, toast } from "sonner";
 import { PublicFoodLog } from "@/components/nutrition/PublicFoodLog";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+
 // Safe wrapper functions
 const safeFormatDateToYYYYMMDD = (date) => {
   try {
