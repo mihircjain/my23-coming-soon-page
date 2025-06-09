@@ -255,14 +255,18 @@ export default async function handler(req, res) {
     const userId = req.query.userId || 'mihir_jain';
     const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
     const daysBack = parseInt(req.query.days) || 30;
-    const cleanup = req.query.cleanup === 'true'; // Optional cleanup parameter
+    const cleanup = req.query.cleanup === 'true'; // Basic cleanup
+    const cleanupStrategy = req.query.cleanupStrategy || 'activityId'; // 'activityId', 'dateAndName', 'all'
+    const deepClean = req.query.deepClean === 'true'; // More aggressive cleanup
     
-    console.log(`🚀 Strava API request: userId=${userId}, forceRefresh=${forceRefresh}, daysBack=${daysBack}, cleanup=${cleanup}`);
+    console.log(`🚀 Strava API request: userId=${userId}, forceRefresh=${forceRefresh}, daysBack=${daysBack}`);
+    console.log(`🧹 Cleanup options: cleanup=${cleanup}, strategy=${cleanupStrategy}, deepClean=${deepClean}`);
     
-    // OPTIONAL: Run cleanup if requested
-    if (cleanup) {
-      const duplicatesRemoved = await cleanupDuplicates(userId);
-      console.log(`🧹 Cleanup completed: ${duplicatesRemoved} duplicates removed`);
+    // ENHANCED: Run cleanup with specified strategy
+    if (cleanup || deepClean) {
+      const strategy = deepClean ? 'all' : cleanupStrategy;
+      const duplicatesRemoved = await cleanupDuplicates(userId, strategy);
+      console.log(`🧹 Cleanup completed: ${duplicatesRemoved} duplicates removed (strategy: ${strategy})`);
     }
     
     // For force refresh, bypass all cache checks
