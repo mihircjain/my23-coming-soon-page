@@ -138,7 +138,7 @@ const canRefreshData = async (userId) => {
     const metadataRef = db.collection('strava_metadata').doc(`${userId}_${today}`);
     const metadataDoc = await metadataRef.get();
     
-    if (!metadataDoc.exists()) {
+    if (!metadataDoc.exists) {
       // First refresh of the day
       await metadataRef.set({ refreshCount: 1, lastRefresh: new Date().toISOString() });
       return true;
