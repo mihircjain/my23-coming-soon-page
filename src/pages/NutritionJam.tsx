@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, CheckCircle, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,14 +30,13 @@ import { cn } from "@/lib/utils";
 import { Toaster, toast } from "sonner";
 import { PublicFoodLog } from "@/components/nutrition/PublicFoodLog";
 
-// Safe wrapper for potentially problematic utility functions
+// Safe wrapper functions
 const safeFormatDateToYYYYMMDD = (date) => {
   try {
     if (!date) return new Date().toISOString().split('T')[0];
     if (typeof formatDateToYYYYMMDD === 'function') {
       return formatDateToYYYYMMDD(date);
     }
-    // Fallback implementation
     const d = date instanceof Date ? date : new Date(date);
     return d.toISOString().split('T')[0];
   } catch (error) {
@@ -64,7 +63,6 @@ const safeFormatDateForDisplay = (date) => {
     if (typeof formatDateForDisplay === 'function') {
       return formatDateForDisplay(date);
     }
-    // Fallback implementation
     const d = date instanceof Date ? date : new Date(date);
     return d.toLocaleDateString('en-US', {
       weekday: 'short',
@@ -82,7 +80,6 @@ const safeCalculateTotals = (entries) => {
     if (typeof calculateTotals === 'function') {
       return calculateTotals(entries);
     }
-    // Fallback implementation
     if (!Array.isArray(entries)) {
       return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
     }
@@ -106,16 +103,13 @@ const safeCalculateTotals = (entries) => {
   }
 };
 
-// Daily Macro Box Component (ActivityJam style)
+// Daily Macro Box Component
 const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   const hasData = log?.entries?.length > 0;
-
-  // Calculate macro percentages for visual indicators
   const calorieGoal = 2000;
   const caloriePercent = Math.min((totals.calories / calorieGoal) * 100, 100);
 
-  // Safe date formatting
   const formatDate = (dateValue) => {
     try {
       if (!dateValue) return 'Invalid Date';
@@ -145,7 +139,6 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
     >
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Date Header */}
           <div className="flex justify-between items-center">
             <div className="text-sm font-medium text-gray-600">
               {formatDate(date)}
@@ -159,7 +152,6 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
 
           {hasData ? (
             <>
-              {/* Calories with progress bar */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-1">
@@ -181,7 +173,6 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
                 </div>
               </div>
 
-              {/* Macro Breakdown */}
               <div className="grid grid-cols-4 gap-1 text-xs">
                 <div className="text-center">
                   <div className="font-semibold text-blue-600">{Math.round(totals.protein)}g</div>
@@ -201,7 +192,6 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
                 </div>
               </div>
 
-              {/* Meals count */}
               <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
                 <Utensils className="h-3 w-3" />
                 <span>{log.entries.length} items</span>
@@ -220,18 +210,16 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   );
 };
 
-// Enhanced Food Item Card with proper NaN handling
+// Food Item Card Component
 const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [quantity, setQuantity] = useState(entry.quantity);
-  const [showTooltip, setShowTooltip] = useState(false);
 
   const handleSave = () => {
     onUpdateQuantity(index, quantity);
     setIsEditing(false);
   };
 
-  // Proper handling of numeric values with fallbacks
   const safeNumber = (value) => {
     const num = parseFloat(value);
     return isNaN(num) || !isFinite(num) ? 0 : num;
@@ -239,137 +227,83 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
 
   const totalCals = Math.round(safeNumber(entry.calories) * safeNumber(entry.quantity));
   const totalProtein = Math.round(safeNumber(entry.protein) * safeNumber(entry.quantity));
-  const totalCarbs = Math.round(safeNumber(entry.carbs) * safeNumber(entry.quantity));
-  const totalFat = Math.round(safeNumber(entry.fat) * safeNumber(entry.quantity));
-  const totalFiber = Math.round(safeNumber(entry.fiber || 0) * safeNumber(entry.quantity));
 
   return (
-    <div className="relative">
-      <Card
-        className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50 cursor-pointer"
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
-        onClick={() => setShowTooltip(!showTooltip)}
-      >
-        <CardContent className="p-4">
-          <div className="flex justify-between items-center">
-            <div className="flex-1">
-              <div className="font-medium text-gray-800 mb-1">{entry.foodId}</div>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span className="flex items-center gap-1">
-                  <Flame className="h-3 w-3 text-orange-500" />
-                  {totalCals} cal
-                </span>
-                <span className="flex items-center gap-1">
-                  <Target className="h-3 w-3 text-blue-500" />
-                  {totalProtein}g protein
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {isEditing ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                    className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500"
-                    step="0.1"
-                    min="0"
-                  />
-                  <Button size="sm" onClick={handleSave}>Save</Button>
-                  <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUpdateQuantity(index, Math.max(0.1, safeNumber(entry.quantity) - 0.5));
-                      }}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-16 text-center text-sm font-medium">
-                      {safeNumber(entry.quantity)} {entry.unit}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUpdateQuantity(index, safeNumber(entry.quantity) + 0.5);
-                      }}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsEditing(true);
-                    }}
-                  >
-                    <Edit className="h-3 w-3" />
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove(index);
-                    }}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </>
-              )}
+    <Card className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50">
+      <CardContent className="p-4">
+        <div className="flex justify-between items-center">
+          <div className="flex-1">
+            <div className="font-medium text-gray-800 mb-1">{entry.foodId}</div>
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              <span className="flex items-center gap-1">
+                <Flame className="h-3 w-3 text-orange-500" />
+                {totalCals} cal
+              </span>
+              <span className="flex items-center gap-1">
+                <Target className="h-3 w-3 text-blue-500" />
+                {totalProtein}g protein
+              </span>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Detailed tooltip */}
-      {showTooltip && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-2 p-4 bg-white border rounded-lg shadow-lg">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="font-medium text-gray-700 mb-2">Nutrition per {entry.unit}</div>
-              <div className="space-y-1 text-gray-600">
-                <div>Calories: {Math.round(safeNumber(entry.calories))}</div>
-                <div>Protein: {Math.round(safeNumber(entry.protein))}g</div>
-                <div>Carbs: {Math.round(safeNumber(entry.carbs))}g</div>
-                <div>Fat: {Math.round(safeNumber(entry.fat))}g</div>
-                {entry.fiber && <div>Fiber: {Math.round(safeNumber(entry.fiber))}g</div>}
+          <div className="flex items-center gap-3">
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+                  className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500"
+                  step="0.1"
+                  min="0"
+                />
+                <Button size="sm" onClick={handleSave}>Save</Button>
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
               </div>
-            </div>
-            <div>
-              <div className="font-medium text-gray-700 mb-2">Total ({safeNumber(entry.quantity)} {entry.unit})</div>
-              <div className="space-y-1 text-gray-600">
-                <div>Calories: {totalCals}</div>
-                <div>Protein: {totalProtein}g</div>
-                <div>Carbs: {totalCarbs}g</div>
-                <div>Fat: {totalFat}g</div>
-                {entry.fiber && <div>Fiber: {totalFiber}g</div>}
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateQuantity(index, Math.max(0.1, safeNumber(entry.quantity) - 0.5))}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-16 text-center text-sm font-medium">
+                    {safeNumber(entry.quantity)} {entry.unit}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateQuantity(index, safeNumber(entry.quantity) + 0.5)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                  <Edit className="h-3 w-3" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onRemove(index)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
-// Combined Meals Card Component (ActivityJam Recent Activities style)
+// Combined Meals Card Component
 const CombinedMealCard = ({ preset, onClick }) => {
   const totalCalories = preset.foods?.reduce((sum, food) => 
     sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
@@ -383,8 +317,6 @@ const CombinedMealCard = ({ preset, onClick }) => {
     sum + (food.fiber || 0) * (food.quantity || 1), 0) || 0;
 
   const foodCount = preset.foods?.length || 0;
-
-  // Calculate pace-like metric (calories per item)
   const caloriesPerItem = foodCount > 0 ? Math.round(totalCalories / foodCount) : 0;
 
   return (
@@ -471,7 +403,7 @@ const NutritionJam = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
 
-  // Real meal presets from your vegetarianFoods.ts
+  // Real meal presets
   const mealPresets = [
     {
       id: 1,
@@ -571,8 +503,6 @@ const NutritionJam = () => {
 
   const loadLastXDaysData = useCallback(async () => {
     try {
-  const loadLastXDaysData = useCallback(async () => {
-    try {
       const data = await getLastXDaysDataFirestore(7);
       setLastXDaysData(data || []);
     } catch (error) {
@@ -585,10 +515,6 @@ const NutritionJam = () => {
     try {
       const averages = await getWeeklyAveragesFirestore();
       setWeeklyAverages(averages);
-    } catch (error) {
-      console.error('Error loading weekly averages:', error);
-      setWeeklyAverages(null);
-    }
   }, []);
 
   useEffect(() => {
@@ -600,7 +526,6 @@ const NutritionJam = () => {
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
       try {
-        // Validate the date
         if (isNaN(date.getTime())) {
           console.error('Invalid date selected');
           return;
@@ -632,7 +557,6 @@ const NutritionJam = () => {
       setCurrentLog(updatedLog);
       toast.success('Food added successfully!');
       
-      // Reload last X days data to update charts
       loadLastXDaysData();
     } catch (error) {
       console.error('Error adding food:', error);
@@ -661,7 +585,6 @@ const NutritionJam = () => {
       setCurrentLog(updatedLog);
       toast.success('Food removed successfully!');
       
-      // Reload last X days data to update charts
       loadLastXDaysData();
     } catch (error) {
       console.error('Error removing food:', error);
@@ -691,7 +614,6 @@ const NutritionJam = () => {
       setCurrentLog(updatedLog);
       toast.success('Quantity updated successfully!');
       
-      // Reload last X days data to update charts
       loadLastXDaysData();
     } catch (error) {
       console.error('Error updating quantity:', error);
@@ -710,7 +632,6 @@ const NutritionJam = () => {
       setCurrentLog(updatedLog);
       toast.success('Auto-filled from yesterday!');
       
-      // Reload last X days data to update charts
       loadLastXDaysData();
     } catch (error) {
       console.error('Error auto-filling from yesterday:', error);
@@ -751,7 +672,6 @@ const NutritionJam = () => {
       setCurrentLog(updatedLog);
       toast.success(`${preset.name} added successfully!`);
       
-      // Reload last X days data to update charts
       loadLastXDaysData();
     } catch (error) {
       console.error('Error adding preset:', error);
@@ -761,7 +681,6 @@ const NutritionJam = () => {
     }
   };
 
-  // Safe date operations
   const isToday = safeFormatDateToYYYYMMDD(selectedDate) === safeGetTodayDateString();
   const safeTodayString = safeGetTodayDateString();
 
@@ -769,7 +688,6 @@ const NutritionJam = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
       <Toaster position="top-right" />
       
-      {/* Header */}
       <header className="pt-8 px-6 md:px-12">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
@@ -830,7 +748,6 @@ const NutritionJam = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 px-6 md:px-12 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
@@ -840,7 +757,6 @@ const NutritionJam = () => {
             <TabsTrigger value="public">Public Logs</TabsTrigger>
           </TabsList>
 
-          {/* Today's Log Tab */}
           <TabsContent value="today" className="space-y-6">
             {loading ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -855,9 +771,7 @@ const NutritionJam = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Food Entry and List */}
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Food Selector */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -870,7 +784,6 @@ const NutritionJam = () => {
                     </CardContent>
                   </Card>
 
-                  {/* Food List */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -902,9 +815,7 @@ const NutritionJam = () => {
                   </Card>
                 </div>
 
-                {/* Right Column - Summary and Stats */}
                 <div className="space-y-6">
-                  {/* Daily Summary */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -914,7 +825,6 @@ const NutritionJam = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {/* Calories */}
                         <div>
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm font-medium">Calories</span>
@@ -932,7 +842,6 @@ const NutritionJam = () => {
                           </div>
                         </div>
 
-                        {/* Macros */}
                         <div className="grid grid-cols-2 gap-4">
                           <div className="text-center p-3 bg-blue-50 rounded-lg">
                             <div className="text-lg font-bold text-blue-600">
@@ -963,7 +872,6 @@ const NutritionJam = () => {
                     </CardContent>
                   </Card>
 
-                  {/* Weekly Averages */}
                   {weeklyAverages && (
                     <MacroAveragesSummary averages={weeklyAverages} />
                   )}
@@ -972,10 +880,8 @@ const NutritionJam = () => {
             )}
           </TabsContent>
 
-          {/* Last 7 Days Tab */}
           <TabsContent value="last7days" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Last 7 Days Grid */}
               <div className="lg:col-span-2">
                 <Card>
                   <CardHeader>
@@ -1016,43 +922,9 @@ const NutritionJam = () => {
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Charts - Simplified to avoid Chart.js errors */}
-              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Nutrition Trends</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px] flex items-center justify-center text-gray-500">
-                      <div className="text-center">
-                        <BarChart3 className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p>Charts temporarily disabled</p>
-                        <p className="text-sm">Will be restored once core functionality is stable</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Weekly Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px] flex items-center justify-center text-gray-500">
-                      <div className="text-center">
-                        <Activity className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p>Summary coming soon</p>
-                        <p className="text-sm">Aggregate data visualization</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           </TabsContent>
 
-          {/* Combined Meals (Presets) Tab */}
           <TabsContent value="presets" className="space-y-6">
             <section>
               <div className="flex items-center mb-6">
@@ -1072,7 +944,6 @@ const NutritionJam = () => {
             </section>
           </TabsContent>
 
-          {/* Public Logs Tab */}
           <TabsContent value="public" className="space-y-6">
             <PublicFoodLog />
           </TabsContent>
