@@ -605,9 +605,19 @@ const ChatbotCard: React.FC = () => {
         <CardContent>
           <div className="space-y-3">
             <div className="bg-white/60 rounded-lg p-3 border border-indigo-200">
-              <div className="text-xs text-gray-600 mb-1">Powered by Gemini AI</div>
-              <div className="text-sm font-medium text-indigo-700">"How's my nutrition this week?"</div>
-            </div>
+       <div
+   onClick={(e) => {
+     e.stopPropagation();             // don’t open the chat UI
+     window.location.href = '/lets-jam';
+   }}
+   className="text-xs text-gray-600 mb-1 cursor-pointer hover:underline"
+ >
+   Powered by Gemini AI
+ </div>
+  <div className="text-sm font-medium text-indigo-700">
+    "How's my nutrition this week?"
+  </div>
+</div>
        <Button
    onClick={(e) => {
      e.stopPropagation();               // prevent the Card’s onClick
