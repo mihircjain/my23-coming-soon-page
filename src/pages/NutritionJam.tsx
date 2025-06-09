@@ -287,7 +287,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   );
 };
 
-// Combined Meals Card Component (Recent Activities style)
+// Combined Meals Card Component (ActivityJam Recent Activities style)
 const CombinedMealCard = ({ preset, onClick }) => {
   const totalCalories = preset.foods?.reduce((sum, food) => 
     sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
@@ -297,73 +297,81 @@ const CombinedMealCard = ({ preset, onClick }) => {
     sum + (food.carbs || 0) * (food.quantity || 1), 0) || 0;
   const totalFat = preset.foods?.reduce((sum, food) => 
     sum + (food.fat || 0) * (food.quantity || 1), 0) || 0;
+  const totalFiber = preset.foods?.reduce((sum, food) => 
+    sum + (food.fiber || 0) * (food.quantity || 1), 0) || 0;
 
   const foodCount = preset.foods?.length || 0;
 
+  // Calculate pace-like metric (calories per item)
+  const caloriesPerItem = foodCount > 0 ? Math.round(totalCalories / foodCount) : 0;
+
   return (
     <Card 
-      className="cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:shadow-green-100"
+      className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
       onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          {/* Preset Header */}
-          <div className="flex justify-between items-center">
-            <div className="text-sm font-medium text-gray-600">
-              {preset.name}
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start">
+          <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
+            {preset.name}
+          </CardTitle>
+          <Badge variant="secondary" className="ml-2 shrink-0">
+            Preset
+          </Badge>
+        </div>
+        <div className="flex items-center text-sm text-gray-600">
+          <CalendarIcon className="h-4 w-4 mr-2" />
+          Combined Meal
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="text-center p-3 bg-orange-50 rounded-lg">
+            <div className="text-2xl font-bold text-orange-600">
+              {Math.round(totalCalories)}
             </div>
-            <Badge className="text-xs bg-green-100 text-green-600 hover:bg-green-100">
-              Preset
-            </Badge>
+            <div className="text-xs text-gray-600">calories</div>
           </div>
-
-          {/* Calories with progress bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-1">
-                <Flame className="h-4 w-4 text-orange-500" />
-                <span className="text-lg font-bold text-gray-800">
-                  {Math.round(totalCalories)}
-                </span>
-                <span className="text-sm text-gray-500">cal</span>
-              </div>
-              <span className="text-xs text-gray-500">
-                {Math.round((totalCalories / 2000) * 100)}%
+          <div className="text-center p-3 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600">
+              {foodCount}
+            </div>
+            <div className="text-xs text-gray-600">items</div>
+          </div>
+        </div>
+        
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Avg per item:</span>
+            <span className="font-medium">{caloriesPerItem} cal</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Protein:</span>
+            <span className="font-medium">{Math.round(totalProtein)}g</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Carbs:</span>
+            <span className="font-medium flex items-center">
+              <Activity className="h-3 w-3 mr-1 text-green-500" />
+              {Math.round(totalCarbs)}g
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Fat:</span>
+            <span className="font-medium flex items-center">
+              <Target className="h-3 w-3 mr-1 text-purple-500" />
+              {Math.round(totalFat)}g
+            </span>
+          </div>
+          {totalFiber > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">Fiber:</span>
+              <span className="font-medium flex items-center">
+                <Flame className="h-3 w-3 mr-1 text-amber-500" />
+                {Math.round(totalFiber)}g
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min((totalCalories / 2000) * 100, 100)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Macro Breakdown */}
-          <div className="grid grid-cols-4 gap-1 text-xs">
-            <div className="text-center">
-              <div className="font-semibold text-blue-600">{Math.round(totalProtein)}g</div>
-              <div className="text-gray-500">Pro</div>
-            </div>
-            <div className="text-center">
-              <div className="font-semibold text-green-600">{Math.round(totalCarbs)}g</div>
-              <div className="text-gray-500">Carb</div>
-            </div>
-            <div className="text-center">
-              <div className="font-semibold text-purple-600">{Math.round(totalFat)}g</div>
-              <div className="text-gray-500">Fat</div>
-            </div>
-            <div className="text-center">
-              <div className="font-semibold text-amber-600">{Math.round(0)}g</div>
-              <div className="text-gray-500">Fib</div>
-            </div>
-          </div>
-
-          {/* Meals count */}
-          <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
-            <Utensils className="h-3 w-3" />
-            <span>{foodCount} items</span>
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -381,41 +389,147 @@ const NutritionJam = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
 
-  // Sample meal presets data (you can replace this with actual data from your backend)
+  // Vegetarian food database for lookup
+  const vegetarianFoods = [
+    { name: "Mixed Vegetable Sabzi", servingSize: "50g", calories: 28, protein: 0.7, carbs: 3.6, fat: 1.2, fiber: 1.4 },
+    { name: "Mushroom Burrito", servingSize: "300g", calories: 327, protein: 10.9, carbs: 48.2, fat: 11.4, fiber: 11.1 },
+    { name: "Tiramisu Ice Cream", servingSize: "100g", calories: 230, protein: 4.4, carbs: 28.3, fat: 4.4, fiber: 0.0 },
+    { name: "Beetroot Hummus Toast", servingSize: "126g", calories: 216, protein: 5.3, carbs: 26.0, fat: 9.1, fiber: 6.1 },
+    { name: "Mango Peach Smoothie", servingSize: "125ml", calories: 106, protein: 2.3, carbs: 24.2, fat: 0.2, fiber: 1.3 },
+    { name: "Lotus Biscoff Cheesecake", servingSize: "50g", calories: 198, protein: 2, fat: 15.3, carbs: 13.7, fiber: 0.1 },
+    { name: "Knorr Pizza and Pasta Sauce", servingSize: "40g", calories: 33, protein: 0.5, carbs: 5.6, fat: 1.0, fiber: 0.4 },
+    { name: "71% Dark Chocolate", servingSize: "52g", calories: 310, protein: 4.2, carbs: 20.8, fat: 23.4, fiber: 4.2 },
+    { name: "Caramel and Salted Popcorn", servingSize: "120g", calories: 461, protein: 9.0, carbs: 100.8, fat: 3.6, fiber: 10.2 },
+    { name: "Pyaaz ka Paratha", servingSize: "150g", calories: 287, protein: 5.9, carbs: 34.9, fat: 14.1, fiber: 6.2 },
+    { name: "Capsicum Tomato Onion", servingSize: "120g", calories: 77, protein: 1.3, carbs: 7.0, fat: 5.2, fiber: 2.5 },
+    { name: "13g Protein Bar, Double Cocoa", servingSize: "52g", calories: 256, protein: 13.3, carbs: 19.6, fat: 13.8, fiber: 5.4 },
+    { name: "Ultra Beer, Kingfisher", servingSize: "330ml", calories: 92, protein: 0.0, carbs: 7.9, fat: 0.0, fiber: 0.0 },
+    { name: "Avocado Toast", servingSize: "90g", calories: 187, protein: 4.9, carbs: 18.6, fat: 10.1, fiber: 4.2 },
+    { name: "Burmese Fried Rice", servingSize: "150g", calories: 155, protein: 4.2, carbs: 27.1, fat: 3.4, fiber: 1.0 },
+    { name: "Cocktail", servingSize: "480g", calories: 480, protein: 0.0, carbs: 48.0, fat: 0.0, fiber: 0.0 },
+    { name: "Idli (Regular)", servingSize: "50g", calories: 73, protein: 2.2, carbs: 15.2, fat: 0.3, fiber: 1.3 },
+    { name: "Mocha", servingSize: "250ml", calories: 202, protein: 9.3, carbs: 20.7, fat: 10.4, fiber: 1.7 },
+    { name: "Bhel", servingSize: "100g", calories: 222, protein: 5.5, carbs: 29.0, fat: 9.6, fiber: 3.1 },
+    { name: "Wada", servingSize: "60g", calories: 154, protein: 5.8, carbs: 14.3, fat: 8.2, fiber: 2.9 },
+    { name: "Parmesan Garlic Popcorn, Smartfood", servingSize: "48g", calories: 257, protein: 3.4, carbs: 24.0, fat: 17.1, fiber: 3.4 },
+    { name: "Zucchini Bell Pepper Salad", servingSize: "50g", calories: 48, protein: 1.0, carbs: 1.7, fat: 4.4, fiber: 0.6 },
+    { name: "Durum Wheat Pasta", servingSize: "60g", calories: 209, protein: 7.5, carbs: 43.1, fat: 0.8, fiber: 1.5 },
+    { name: "Pani Puri", servingSize: "197g", calories: 265, protein: 5.0, carbs: 36.7, fat: 11.0, fiber: 3.2 },
+    { name: "Rajma Tikki Burger", servingSize: "100g", calories: 250, protein: 8.0, carbs: 30.0, fat: 10.0, fiber: 5.0 },
+    { name: "Salted Caramel Popcorn (PVR/INOX)", servingSize: "95g", calories: 461, protein: 5.0, carbs: 80.0, fat: 15.0, fiber: 8.0 },
+    { name: "Omani Dates, Happilo", servingSize: "24g", calories: 68, protein: 0.6, carbs: 18.0, fat: 0.1, fiber: 1.9 },
+    { name: "Mango", servingSize: "130g", calories: 96, protein: 0.8, carbs: 22.0, fat: 0.5, fiber: 2.6 },
+    { name: "Slim n Trim Skimmed Milk, Amul", servingSize: "100ml", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0 },
+    { name: "Walnut", servingSize: "6g", calories: 40, protein: 0.9, carbs: 0.6, fat: 3.9, fiber: 0.3 },
+    { name: "Raw Whey Protein, Unflavoured", servingSize: "47g", calories: 178, protein: 35.6, carbs: 3.5, fat: 2.4, fiber: 0.4 },
+    { name: "Almonds", servingSize: "6g", calories: 37, protein: 1.3, carbs: 1.3, fat: 3.0, fiber: 0.8 },
+    { name: "Nutty Gritties Super Seeds Mix", servingSize: "9g", calories: 64, protein: 2.4, carbs: 1.1, fat: 4.9, fiber: 1.6 },
+    { name: "Skyr High Protein Yogurt, Milky Mist", servingSize: "100g", calories: 100, protein: 12.0, carbs: 9.5, fat: 1.5, fiber: 0.0 },
+    { name: "Oats, Quaker", servingSize: "40g", calories: 163, protein: 4.7, carbs: 27.4, fat: 3.8, fiber: 4.0 },
+    { name: "Low Fat Paneer, Milky Mist", servingSize: "100g", calories: 204, protein: 25.0, carbs: 5.8, fat: 9.0, fiber: 0.0 },
+    { name: "Roti", servingSize: "50g", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8 },
+    { name: "Cocoa Whey Protein, The Whole Truth", servingSize: "48g", calories: 191, protein: 34.1, carbs: 8.6, fat: 2.1, fiber: 2.1 },
+    { name: "Sambhar", servingSize: "150g", calories: 114, protein: 5.5, carbs: 16.2, fat: 3.0, fiber: 3.7 },
+    { name: "Bhindi Fry", servingSize: "90g", calories: 83, protein: 1.3, carbs: 5.5, fat: 6.3, fiber: 2.3 },
+    { name: "Dal", servingSize: "150g", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8 },
+    { name: "Dosa", servingSize: "120g", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9 },
+    { name: "Green Moong Dal Cheela", servingSize: "200g", calories: 363, protein: 19, carbs: 44.3, fat: 12.3, fiber: 13.6 },
+    { name: "100% Whole Wheat Bread, Britannia", servingSize: "27g", calories: 67, protein: 2.2, carbs: 13.8, fat: 0.6, fiber: 1.1 },
+    { name: "Amul Cheese Slice", servingSize: "20g", calories: 62, protein: 4.0, carbs: 0.3, fat: 5.0, fiber: 0.0 },
+    { name: "Bhaji of Pav Bhaji", servingSize: "150g", calories: 137, protein: 2.3, carbs: 16.8, fat: 6.9, fiber: 2.1 },
+    { name: "Protein Bar, Double Cocoa, Whole Truth", servingSize: "52g", calories: 256, protein: 13.3, carbs: 19.6, fat: 13.8, fiber: 5.4 },
+    { name: "Masala Chai (no sugar)", servingSize: "180ml", calories: 58, protein: 3.2, carbs: 4.1, fat: 3.3, fiber: 0.3 },
+    { name: "Aloo Beans", servingSize: "100g", calories: 93, protein: 1.9, carbs: 11.5, fat: 4.5, fiber: 2.7 },
+    { name: "Low Fat Paneer Paratha", servingSize: "200g", calories: 445, protein: 26.4, carbs: 40.4, fat: 20.0, fiber: 5.8 },
+    { name: "Aloo Palak", servingSize: "100g", calories: 73, protein: 1.8, carbs: 9.4, fat: 3.3, fiber: 2.1 },
+    { name: "Elite Gel, Unived", servingSize: "75.7g", calories: 190, protein: 1.0, carbs: 45.0, fat: 0.7, fiber: 0.0 },
+    { name: "Guilt Free Ice Cream, Belgian Chocolate", servingSize: "125ml (80g)", calories: 134, protein: 9.8, carbs: 10.4, fat: 5.8, fiber: 1.7 },
+    { name: "Dutch Chocolate Ice Cream", servingSize: "130ml", calories: 175, protein: 3.9, carbs: 19.0, fat: 9.2, fiber: 0.0 },
+    { name: "Pizza, Garden Veggie", servingSize: "2.5 Slices (267.5g)", calories: 434, protein: 24.1, carbs: 60.2, fat: 12.0, fiber: 9.6 }
+  ];
+
+  // Helper function to get food details by name
+  const getFoodByName = (name: string) => {
+    return vegetarianFoods.find(food => food.name === name);
+  };
+
+  // Convert meal presets to the format expected by the UI
   const mealPresets = [
     {
       id: 1,
-      name: "High Protein Breakfast",
+      name: "Morning Smoothie",
       foods: [
-        { foodId: "Eggs (2 large)", calories: 140, protein: 12, carbs: 1, fat: 10, quantity: 1, unit: "serving" },
-        { foodId: "Greek Yogurt", calories: 100, protein: 17, carbs: 6, fat: 0, quantity: 1, unit: "cup" },
-        { foodId: "Banana", calories: 105, protein: 1, carbs: 27, fat: 0, quantity: 1, unit: "medium" }
+        { foodId: "Oats, Quaker", calories: 163, protein: 4.7, carbs: 27.4, fat: 3.8, fiber: 4.0, quantity: 1, unit: "serving" },
+        { foodId: "Omani Dates, Happilo", calories: 68, protein: 0.6, carbs: 18.0, fat: 0.1, fiber: 1.9, quantity: 1, unit: "serving" },
+        { foodId: "Almonds", calories: 37, protein: 1.3, carbs: 1.3, fat: 3.0, fiber: 0.8, quantity: 1, unit: "serving" },
+        { foodId: "Skyr High Protein Yogurt, Milky Mist", calories: 100, protein: 12.0, carbs: 9.5, fat: 1.5, fiber: 0.0, quantity: 1, unit: "serving" },
+        { foodId: "Raw Whey Protein, Unflavoured", calories: 178, protein: 35.6, carbs: 3.5, fat: 2.4, fiber: 0.4, quantity: 1, unit: "serving" },
+        { foodId: "Nutty Gritties Super Seeds Mix", calories: 64, protein: 2.4, carbs: 1.1, fat: 4.9, fiber: 1.6, quantity: 1, unit: "serving" },
+        { foodId: "Slim n Trim Skimmed Milk, Amul", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0, quantity: 1, unit: "serving" },
+        { foodId: "Walnut", calories: 40, protein: 0.9, carbs: 0.6, fat: 3.9, fiber: 0.3, quantity: 1, unit: "serving" },
+        { foodId: "Mango", calories: 96, protein: 0.8, carbs: 22.0, fat: 0.5, fiber: 2.6, quantity: 1, unit: "serving" }
       ]
     },
     {
       id: 2,
-      name: "Post-Workout Meal",
+      name: "Evening Smoothie",
       foods: [
-        { foodId: "Chicken Breast", calories: 165, protein: 31, carbs: 0, fat: 3.6, quantity: 100, unit: "g" },
-        { foodId: "Brown Rice", calories: 216, protein: 5, carbs: 45, fat: 1.8, quantity: 1, unit: "cup" },
-        { foodId: "Broccoli", calories: 25, protein: 3, carbs: 5, fat: 0, quantity: 1, unit: "cup" }
+        { foodId: "Cocoa Whey Protein, The Whole Truth", calories: 191, protein: 34.1, carbs: 8.6, fat: 2.1, fiber: 2.1, quantity: 1, unit: "serving" },
+        { foodId: "Slim n Trim Skimmed Milk, Amul", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0, quantity: 1, unit: "serving" }
       ]
     },
     {
       id: 3,
-      name: "Healthy Snack",
+      name: "Bread Pizza",
       foods: [
-        { foodId: "Almonds", calories: 164, protein: 6, carbs: 6, fat: 14, quantity: 28, unit: "g" },
-        { foodId: "Apple", calories: 95, protein: 0, carbs: 25, fat: 0, quantity: 1, unit: "medium" }
+        { foodId: "Capsicum Tomato Onion", calories: 77, protein: 1.3, carbs: 7.0, fat: 5.2, fiber: 2.5, quantity: 1, unit: "serving" },
+        { foodId: "100% Whole Wheat Bread, Britannia", calories: 67, protein: 2.2, carbs: 13.8, fat: 0.6, fiber: 1.1, quantity: 4, unit: "slices" },
+        { foodId: "Knorr Pizza and Pasta Sauce", calories: 33, protein: 0.5, carbs: 5.6, fat: 1.0, fiber: 0.4, quantity: 1.25, unit: "serving" },
+        { foodId: "Amul Cheese Slice", calories: 62, protein: 4.0, carbs: 0.3, fat: 5.0, fiber: 0.0, quantity: 4, unit: "slices" }
       ]
     },
     {
       id: 4,
-      name: "Balanced Lunch",
+      name: "Aloo Beans Dal Roti",
       foods: [
-        { foodId: "Salmon Fillet", calories: 206, protein: 22, carbs: 0, fat: 12, quantity: 100, unit: "g" },
-        { foodId: "Quinoa", calories: 222, protein: 8, carbs: 39, fat: 4, quantity: 1, unit: "cup" },
-        { foodId: "Mixed Vegetables", calories: 50, protein: 2, carbs: 10, fat: 0, quantity: 1, unit: "cup" }
+        { foodId: "Roti", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8, quantity: 1, unit: "serving" },
+        { foodId: "Aloo Beans", calories: 93, protein: 1.9, carbs: 11.5, fat: 4.5, fiber: 2.7, quantity: 1, unit: "serving" },
+        { foodId: "Dal", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8, quantity: 1, unit: "serving" }
+      ]
+    },
+    {
+      id: 5,
+      name: "Paneer Chilla",
+      foods: [
+        { foodId: "Green Moong Dal Cheela", calories: 363, protein: 19, carbs: 44.3, fat: 12.3, fiber: 13.6, quantity: 1, unit: "serving" },
+        { foodId: "Low Fat Paneer, Milky Mist", calories: 204, protein: 25.0, carbs: 5.8, fat: 9.0, fiber: 0.0, quantity: 0.5, unit: "serving" }
+      ]
+    },
+    {
+      id: 6,
+      name: "Bhindi Dal Roti",
+      foods: [
+        { foodId: "Bhindi Fry", calories: 83, protein: 1.3, carbs: 5.5, fat: 6.3, fiber: 2.3, quantity: 1, unit: "serving" },
+        { foodId: "Dal", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8, quantity: 1, unit: "serving" },
+        { foodId: "Roti", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8, quantity: 1, unit: "serving" }
+      ]
+    },
+    {
+      id: 7,
+      name: "Matar Paneer + Dal",
+      foods: [
+        { foodId: "Mixed Vegetable Sabzi", calories: 28, protein: 0.7, carbs: 3.6, fat: 1.2, fiber: 1.4, quantity: 2, unit: "servings" },
+        { foodId: "Low Fat Paneer, Milky Mist", calories: 204, protein: 25.0, carbs: 5.8, fat: 9.0, fiber: 0.0, quantity: 1, unit: "serving" },
+        { foodId: "Roti", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8, quantity: 1, unit: "serving" },
+        { foodId: "Dal", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8, quantity: 1, unit: "serving" }
+      ]
+    },
+    {
+      id: 8,
+      name: "Dosa Sambhar",
+      foods: [
+        { foodId: "Dosa", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9, quantity: 1, unit: "serving" },
+        { foodId: "Sambhar", calories: 114, protein: 5.5, carbs: 16.2, fat: 3.0, fiber: 3.7, quantity: 1, unit: "serving" }
       ]
     }
   ];
@@ -906,25 +1020,22 @@ const NutritionJam = () => {
 
           {/* Combined Meals (Presets) Tab */}
           <TabsContent value="presets" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-green-600" />
-                  Combined Meals (Presets)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {mealPresets.map((preset) => (
-                    <CombinedMealCard
-                      key={preset.id}
-                      preset={preset}
-                      onClick={() => handleAddPreset(preset)}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <section>
+              <div className="flex items-center mb-6">
+                <CalendarIcon className="h-6 w-6 mr-3 text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-800">Combined Meals (Presets)</h2>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {mealPresets.map((preset) => (
+                  <CombinedMealCard
+                    key={preset.id}
+                    preset={preset}
+                    onClick={() => handleAddPreset(preset)}
+                  />
+                ))}
+              </div>
+            </section>
           </TabsContent>
 
           {/* Public Logs Tab */}
@@ -938,4 +1049,3 @@ const NutritionJam = () => {
 };
 
 export default NutritionJam;
-
