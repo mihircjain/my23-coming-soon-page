@@ -698,7 +698,7 @@ const NutritionJam = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate('/overall')}
+              onClick={() => navigate('/')}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
