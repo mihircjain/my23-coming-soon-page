@@ -30,7 +30,6 @@ import { Toaster, toast } from "sonner";
 import { PublicFoodLog } from "@/components/nutrition/PublicFoodLog";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-
 // Safe wrapper functions
 const safeFormatDateToYYYYMMDD = (date) => {
   try {
@@ -119,7 +118,7 @@ const safeCalculateTotals = (entries) => {
   }
 };
 
-// Multi-line Chart Component for 7-day nutrition data
+// Multi-line Chart Component for 7-day nutrition data with proper Y-axis scaling
 const MultiLineNutritionChart = ({ last7DaysData }) => {
   // Transform data for recharts
   const chartData = last7DaysData.map(dayLog => {
@@ -163,22 +162,36 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
           </span>
         </CardTitle>
         <p className="text-sm text-gray-600">
-          All nutrition metrics tracked over the last 7 days in one comprehensive view
+          All nutrition metrics tracked over the last 7 days with dual Y-axis scaling for better visibility
         </p>
       </CardHeader>
       <CardContent>
         <div className="h-96 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 20, right: 60, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis 
                 dataKey="date" 
                 stroke="#6b7280"
                 fontSize={12}
               />
+              {/* Left Y-axis for Calories (0-3000 range) */}
               <YAxis 
+                yAxisId="calories"
+                orientation="left"
                 stroke="#6b7280"
                 fontSize={12}
+                domain={[0, 'dataMax + 200']}
+                label={{ value: 'Calories', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+              />
+              {/* Right Y-axis for Macros (0-200 range) */}
+              <YAxis 
+                yAxisId="macros"
+                orientation="right"
+                stroke="#6b7280"
+                fontSize={12}
+                domain={[0, 'dataMax + 20']}
+                label={{ value: 'Grams', angle: 90, position: 'insideRight', style: { textAnchor: 'middle' } }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend 
@@ -186,99 +199,77 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
                 iconType="line"
               />
               
-              {/* Calories In - Green gradient stroke */}
+              {/* Calories In - Green gradient stroke - Left axis */}
               <Line 
+                yAxisId="calories"
                 type="monotone" 
                 dataKey="caloriesIn" 
-                stroke="url(#caloriesInGradient)"
+                stroke="#10b981"
                 strokeWidth={3}
                 dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
                 activeDot={{ r: 7, fill: '#10b981' }}
                 name="Calories In"
               />
               
-              {/* Calories Out - Orange gradient stroke */}
+              {/* Calories Out - Orange gradient stroke - Left axis */}
               <Line 
+                yAxisId="calories"
                 type="monotone" 
                 dataKey="caloriesOut" 
-                stroke="url(#caloriesOutGradient)"
+                stroke="#f59e0b"
                 strokeWidth={3}
                 dot={{ fill: '#f59e0b', strokeWidth: 2, r: 5 }}
                 activeDot={{ r: 7, fill: '#f59e0b' }}
                 name="Calories Out"
               />
               
-              {/* Protein - Purple gradient stroke */}
+              {/* Protein - Purple gradient stroke - Right axis */}
               <Line 
+                yAxisId="macros"
                 type="monotone" 
                 dataKey="protein" 
-                stroke="url(#proteinGradient)"
+                stroke="#8b5cf6"
                 strokeWidth={3}
                 dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 5 }}
                 activeDot={{ r: 7, fill: '#8b5cf6' }}
                 name="Protein"
               />
               
-              {/* Carbs - Blue gradient stroke */}
+              {/* Carbs - Blue gradient stroke - Right axis */}
               <Line 
+                yAxisId="macros"
                 type="monotone" 
                 dataKey="carbs" 
-                stroke="url(#carbsGradient)"
+                stroke="#3b82f6"
                 strokeWidth={3}
                 dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
                 activeDot={{ r: 7, fill: '#3b82f6' }}
                 name="Carbs"
               />
               
-              {/* Fat - Red gradient stroke */}
+              {/* Fat - Red gradient stroke - Right axis */}
               <Line 
+                yAxisId="macros"
                 type="monotone" 
                 dataKey="fat" 
-                stroke="url(#fatGradient)"
+                stroke="#ef4444"
                 strokeWidth={3}
                 dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
                 activeDot={{ r: 7, fill: '#ef4444' }}
                 name="Fat"
               />
               
-              {/* Fiber - Amber gradient stroke */}
+              {/* Fiber - Amber gradient stroke - Right axis */}
               <Line 
+                yAxisId="macros"
                 type="monotone" 
                 dataKey="fiber" 
-                stroke="url(#fiberGradient)"
+                stroke="#d97706"
                 strokeWidth={3}
-                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#f59e0b' }}
+                dot={{ fill: '#d97706', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#d97706' }}
                 name="Fiber"
               />
-              
-              {/* Define gradients */}
-              <defs>
-                <linearGradient id="caloriesInGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#10b981" />
-                  <stop offset="100%" stopColor="#34d399" />
-                </linearGradient>
-                <linearGradient id="caloriesOutGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#f59e0b" />
-                  <stop offset="100%" stopColor="#fbbf24" />
-                </linearGradient>
-                <linearGradient id="proteinGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="100%" stopColor="#a78bfa" />
-                </linearGradient>
-                <linearGradient id="carbsGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#60a5fa" />
-                </linearGradient>
-                <linearGradient id="fatGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#ef4444" />
-                  <stop offset="100%" stopColor="#f87171" />
-                </linearGradient>
-                <linearGradient id="fiberGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#d97706" />
-                  <stop offset="100%" stopColor="#f59e0b" />
-                </linearGradient>
-              </defs>
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -286,13 +277,19 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
         {/* Chart Legend Info */}
         <div className="mt-4 p-4 bg-white/60 rounded-lg border border-gray-200">
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Chart Information</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600">
-            <div>• <span className="text-green-600 font-medium">Calories In</span>: Daily food intake</div>
-            <div>• <span className="text-orange-600 font-medium">Calories Out</span>: Exercise calories burned</div>
-            <div>• <span className="text-purple-600 font-medium">Protein</span>: Daily protein consumption</div>
-            <div>• <span className="text-blue-600 font-medium">Carbs</span>: Daily carbohydrate intake</div>
-            <div>• <span className="text-red-600 font-medium">Fat</span>: Daily fat consumption</div>
-            <div>• <span className="text-amber-600 font-medium">Fiber</span>: Daily fiber intake</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
+            <div>
+              <div className="font-medium text-gray-700 mb-1">Left Axis (Calories):</div>
+              <div>• <span className="text-green-600 font-medium">Calories In</span>: Daily food intake</div>
+              <div>• <span className="text-orange-600 font-medium">Calories Out</span>: Exercise calories burned</div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-700 mb-1">Right Axis (Grams):</div>
+              <div>• <span className="text-purple-600 font-medium">Protein</span>: Daily protein consumption</div>
+              <div>• <span className="text-blue-600 font-medium">Carbs</span>: Daily carbohydrate intake</div>
+              <div>• <span className="text-red-600 font-medium">Fat</span>: Daily fat consumption</div>
+              <div>• <span className="text-amber-600 font-medium">Fiber</span>: Daily fiber intake</div>
+            </div>
           </div>
         </div>
       </CardContent>
