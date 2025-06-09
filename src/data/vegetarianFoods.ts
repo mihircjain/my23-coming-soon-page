@@ -22,6 +22,42 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 1.4
   },
   {
+  name: "Mushroom Burrito",
+  servingSize: "300g",
+  calories: 327,
+  protein: 10.9,
+  carbs: 48.2,
+  fat: 11.4,
+  fiber: 11.1
+},
+{
+  name: "Tiramisu Ice Cream",
+  servingSize: "100g",
+  calories: 230,
+  protein: 4.4,
+  carbs: 28.3,
+  fat: 4.4,
+  fiber: 0.0
+},
+{
+  name: "Beetroot Hummus Toast",
+  servingSize: "126g",
+  calories: 216,
+  protein: 5.3,
+  carbs: 26.0,
+  fat: 9.1,
+  fiber: 6.1
+},
+{
+  name: "Mango Peach Smoothie",
+  servingSize: "125ml",
+  calories: 106,
+  protein: 2.3,
+  carbs: 24.2,
+  fat: 0.2,
+  fiber: 1.3
+},
+  {
   name: "Lotus Biscoff Cheesecake",
   servingSize: 50,
   calories: 198,
