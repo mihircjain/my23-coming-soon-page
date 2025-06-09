@@ -796,73 +796,27 @@ const NutritionJam = () => {
 
           <TabsContent value="today" className="space-y-6">
             {loading ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
+              <div className="space-y-6">
+                <Skeleton className="h-[200px] w-full" />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Skeleton className="h-[200px] w-full" />
                   <Skeleton className="h-[300px] w-full" />
                 </div>
-                <div className="space-y-6">
-                  <Skeleton className="h-[150px] w-full" />
-                  <Skeleton className="h-[200px] w-full" />
-                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Plus className="h-5 w-5 text-green-600" />
-                        Add Food
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FoodSelector onAddFood={handleAddFood} disabled={saving} />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Utensils className="h-5 w-5 text-blue-600" />
-                        Today's Foods ({currentLog?.entries?.length || 0})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {currentLog?.entries?.length > 0 ? (
-                        <div className="space-y-3">
-                          {currentLog.entries.map((entry, index) => (
-                            <FoodItemCard
-                              key={index}
-                              entry={entry}
-                              index={index}
-                              onRemove={handleRemoveFood}
-                              onUpdateQuantity={handleUpdateQuantity}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Utensils className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                          <p>No foods logged yet</p>
-                          <p className="text-sm">Add your first food above</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="space-y-6">
-                  <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-purple-800">
-                        <BarChart3 className="h-5 w-5 text-purple-600" />
-                        Daily Summary
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
+              <div className="space-y-6">
+                {/* Daily Summary - Top Section */}
+                <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-2 text-purple-800">
+                      <BarChart3 className="h-5 w-5 text-purple-600" />
+                      Daily Summary
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
                       {/* Calories Progress */}
-                      <div className="space-y-3">
+                      <div className="lg:col-span-2 space-y-3">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-2">
                             <Flame className="h-5 w-5 text-orange-500" />
@@ -889,7 +843,7 @@ const NutritionJam = () => {
                       </div>
 
                       {/* Macros Grid */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
                           <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
                           <div className="text-2xl font-bold text-blue-600">
@@ -919,19 +873,61 @@ const NutritionJam = () => {
                           <div className="text-xs text-amber-700 font-medium">Fiber</div>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Quick Stats */}
-                      <div className="bg-white rounded-lg p-4 border border-gray-200">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 flex items-center gap-1">
-                            <Utensils className="h-4 w-4" />
-                            Foods logged
-                          </span>
-                          <span className="font-semibold text-gray-800">
-                            {currentLog?.entries?.length || 0}
-                          </span>
-                        </div>
+                    {/* Quick Stats */}
+                    <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center justify-center text-sm">
+                        <span className="text-gray-600 flex items-center gap-1">
+                          <Utensils className="h-4 w-4" />
+                          <span className="font-semibold text-gray-800">{currentLog?.entries?.length || 0}</span> foods logged today
+                        </span>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Add Food and Today's Foods - Bottom Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Plus className="h-5 w-5 text-green-600" />
+                        Add Food
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <FoodSelector onAddFood={handleAddFood} disabled={saving} />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Utensils className="h-5 w-5 text-blue-600" />
+                        Today's Foods ({currentLog?.entries?.length || 0})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="max-h-[400px] overflow-y-auto">
+                      {currentLog?.entries?.length > 0 ? (
+                        <div className="space-y-3">
+                          {currentLog.entries.map((entry, index) => (
+                            <FoodItemCard
+                              key={index}
+                              entry={entry}
+                              index={index}
+                              onRemove={handleRemoveFood}
+                              onUpdateQuantity={handleUpdateQuantity}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <Utensils className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                          <p>No foods logged yet</p>
+                          <p className="text-sm">Add your first food using the form on the left</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
