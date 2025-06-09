@@ -531,9 +531,6 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
   );
 };
 
-export default EnhancedMealPresets;
-
-
 const NutritionJam = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
