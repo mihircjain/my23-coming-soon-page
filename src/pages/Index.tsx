@@ -117,160 +117,7 @@ const EmailAndFeedbackCard: React.FC = () => {
           {/* Optional Feedback Toggle */}
           <div className="flex items-center gap-2">
             <button
-              </div>
-            ))}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-white text-gray-800 border border-gray-200 p-2 rounded-lg text-xs">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Ask about your health..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              className="text-sm border-indigo-200 focus:border-indigo-400"
-              disabled={isTyping}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!input.trim() || isTyping}
-              size="sm"
-              className="bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white px-3"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Footer */}
-          <div className="text-center">
-            <button
-              onClick={() => window.location.href = '/lets-jam'}
-              className="text-xs text-indigo-600 hover:text-indigo-700 underline"
-            >
-              Open full chat page →
-            </button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-const Index = () => {
-  const handleEmailClick = () => {
-    window.location.href = "mailto:mihir@my23.ai";
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 relative overflow-hidden">
-      <Toaster position="top-right" />
-      
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
-      
-      {/* Floating elements for visual interest */}
-      <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-purple-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
-      
-      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
-        {/* Main heading section */}
-        <div className="text-center mb-12">
-          <div className="space-y-6 mb-8">
-            <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in leading-tight">
-              🩺 MY HEALTH.<br />
-              🗄️ MY DATA.<br />
-              🧬 MY 23.
-            </h1>
-            
-            <div className="space-y-4">
-              <p className="text-xl md:text-2xl font-medium text-blue-600 animate-slide-up delay-200">
-                🚀 Coming Soon
-              </p>
-            </div>
-          </div>
-          
-          <div className="mb-8 animate-slide-up delay-300">
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-              Your complete genetic blueprint lives in 23 pairs of chromosomes. 
-              Take control of your health journey with AI-powered insights from your personal health data. 🔬✨
-            </p>
-          </div>
-          
-          <div className="animate-slide-up delay-500 mb-8">
-            <Button 
-              onClick={handleEmailClick}
-              className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-            >
-              <Mail className="mr-3 h-5 w-5" />
-              mihir@my23.ai
-            </Button>
-          </div>
-        </div>
-
-        {/* Interactive Cards Grid - Updated layout */}
-        <div className="space-y-8 mb-12">
-          {/* Health Overview - Full width */}
-          <HealthOverviewCard />
-          
-          {/* Other cards in a row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ChatbotCard />
-            <EmailAndFeedbackCard />
-          </div>
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
-          <Button 
-            onClick={() => window.location.href = '/activity-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            <Activity className="mr-3 h-5 w-5" />
-            Activity Jam
-          </Button>
-          
-          <Button 
-            onClick={() => window.location.href = '/nutrition-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            <Utensils className="mr-3 h-5 w-5" />
-            Nutrition Jam
-          </Button>
-          
-          <Button 
-            onClick={() => window.location.href = '/body-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            <Heart className="mr-3 h-5 w-5" />
-            Body Jam
-          </Button>
-        </div>
-        
-        {/* Coming soon indicator */}
-        <div className="text-center animate-slide-up delay-900">
-          <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600 font-medium">📬 Building the future of personalized health</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Index;type="button"
+              type="button"
               onClick={() => setShowFeedbackFields(!showFeedbackFields)}
               className="text-sm text-purple-600 hover:text-purple-700 font-medium"
             >
@@ -824,3 +671,157 @@ const ChatbotCard: React.FC = () => {
                 >
                   {message.content}
                 </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white text-gray-800 border border-gray-200 p-2 rounded-lg text-xs">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Ask about your health..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="text-sm border-indigo-200 focus:border-indigo-400"
+              disabled={isTyping}
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isTyping}
+              size="sm"
+              className="bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white px-3"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center">
+            <button
+              onClick={() => window.location.href = '/lets-jam'}
+              className="text-xs text-indigo-600 hover:text-indigo-700 underline"
+            >
+              Open full chat page →
+            </button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const Index = () => {
+  const handleEmailClick = () => {
+    window.location.href = "mailto:mihir@my23.ai";
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 relative overflow-hidden">
+      <Toaster position="top-right" />
+      
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
+      
+      {/* Floating elements for visual interest */}
+      <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-purple-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
+      
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
+        {/* Main heading section */}
+        <div className="text-center mb-12">
+          <div className="space-y-6 mb-8">
+            <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in leading-tight">
+              🩺 MY HEALTH.<br />
+              🗄️ MY DATA.<br />
+              🧬 MY 23.
+            </h1>
+            
+            <div className="space-y-4">
+              <p className="text-xl md:text-2xl font-medium text-blue-600 animate-slide-up delay-200">
+                🚀 Coming Soon
+              </p>
+            </div>
+          </div>
+          
+          <div className="mb-8 animate-slide-up delay-300">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Your complete genetic blueprint lives in 23 pairs of chromosomes. 
+              Take control of your health journey with AI-powered insights from your personal health data. 🔬✨
+            </p>
+          </div>
+          
+          <div className="animate-slide-up delay-500 mb-8">
+            <Button 
+              onClick={handleEmailClick}
+              className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            >
+              <Mail className="mr-3 h-5 w-5" />
+              mihir@my23.ai
+            </Button>
+          </div>
+        </div>
+
+        {/* Interactive Cards Grid - Updated layout */}
+        <div className="space-y-8 mb-12">
+          {/* Health Overview - Full width */}
+          <HealthOverviewCard />
+          
+          {/* Other cards in a row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChatbotCard />
+            <EmailAndFeedbackCard />
+          </div>
+        </div>
+
+        {/* Navigation Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+          <Button 
+            onClick={() => window.location.href = '/activity-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Activity className="mr-3 h-5 w-5" />
+            Activity Jam
+          </Button>
+          
+          <Button 
+            onClick={() => window.location.href = '/nutrition-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Utensils className="mr-3 h-5 w-5" />
+            Nutrition Jam
+          </Button>
+          
+          <Button 
+            onClick={() => window.location.href = '/body-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Heart className="mr-3 h-5 w-5" />
+            Body Jam
+          </Button>
+        </div>
+        
+        {/* Coming soon indicator */}
+        <div className="text-center animate-slide-up delay-900">
+          <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600 font-medium">📬 Building the future of personalized health</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Index;
