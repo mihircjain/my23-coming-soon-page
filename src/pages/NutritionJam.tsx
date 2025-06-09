@@ -7,8 +7,6 @@ import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FoodSelector } from "@/components/nutrition/FoodSelector";
-import { FoodList } from "@/components/nutrition/FoodList";
-import { MealPresets } from "@/components/nutrition/MealPresets";
 import { MacroAveragesSummary } from "@/components/nutrition/MacroAveragesSummary";
 import { DailyLog, FoodEntry } from "@/types/nutrition";
 import {
@@ -22,7 +20,6 @@ import {
   getLastXDaysDataFirestore,
   getWeeklyAveragesFirestore
 } from "@/lib/nutritionUtils";
-import { initializeCharts, prepareChartData } from "./NutritionJamCharts";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -33,6 +30,82 @@ import { cn } from "@/lib/utils";
 import { Toaster, toast } from "sonner";
 import { PublicFoodLog } from "@/components/nutrition/PublicFoodLog";
 
+// Safe wrapper for potentially problematic utility functions
+const safeFormatDateToYYYYMMDD = (date) => {
+  try {
+    if (!date) return new Date().toISOString().split('T')[0];
+    if (typeof formatDateToYYYYMMDD === 'function') {
+      return formatDateToYYYYMMDD(date);
+    }
+    // Fallback implementation
+    const d = date instanceof Date ? date : new Date(date);
+    return d.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
+const safeGetTodayDateString = () => {
+  try {
+    if (typeof getTodayDateString === 'function') {
+      return getTodayDateString();
+    }
+    return new Date().toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error getting today string:', error);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
+const safeFormatDateForDisplay = (date) => {
+  try {
+    if (!date) return 'Invalid Date';
+    if (typeof formatDateForDisplay === 'function') {
+      return formatDateForDisplay(date);
+    }
+    // Fallback implementation
+    const d = date instanceof Date ? date : new Date(date);
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error('Error formatting display date:', error);
+    return 'Invalid Date';
+  }
+};
+
+const safeCalculateTotals = (entries) => {
+  try {
+    if (typeof calculateTotals === 'function') {
+      return calculateTotals(entries);
+    }
+    // Fallback implementation
+    if (!Array.isArray(entries)) {
+      return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+    }
+    return entries.reduce((totals, entry) => {
+      const calories = parseFloat(entry?.calories || 0) * parseFloat(entry?.quantity || 1);
+      const protein = parseFloat(entry?.protein || 0) * parseFloat(entry?.quantity || 1);
+      const carbs = parseFloat(entry?.carbs || 0) * parseFloat(entry?.quantity || 1);
+      const fat = parseFloat(entry?.fat || 0) * parseFloat(entry?.quantity || 1);
+      const fiber = parseFloat(entry?.fiber || 0) * parseFloat(entry?.quantity || 1);
+      return {
+        calories: totals.calories + (isNaN(calories) ? 0 : calories),
+        protein: totals.protein + (isNaN(protein) ? 0 : protein),
+        carbs: totals.carbs + (isNaN(carbs) ? 0 : carbs),
+        fat: totals.fat + (isNaN(fat) ? 0 : fat),
+        fiber: totals.fiber + (isNaN(fiber) ? 0 : fiber)
+      };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+  } catch (error) {
+    console.error('Error calculating totals:', error);
+    return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+  }
+};
+
 // Daily Macro Box Component (ActivityJam style)
 const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
@@ -40,10 +113,6 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
 
   // Calculate macro percentages for visual indicators
   const calorieGoal = 2000;
-  const proteinGoal = 143;
-  const carbsGoal = 238;
-  const fatGoal = 30;
-
   const caloriePercent = Math.min((totals.calories / calorieGoal) * 100, 100);
 
   // Safe date formatting
@@ -151,7 +220,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   );
 };
 
-// FIXED: Enhanced Food Item Card with proper NaN handling
+// Enhanced Food Item Card with proper NaN handling
 const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [quantity, setQuantity] = useState(entry.quantity);
@@ -162,7 +231,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
     setIsEditing(false);
   };
 
-  // FIXED: Proper handling of numeric values with fallbacks
+  // Proper handling of numeric values with fallbacks
   const safeNumber = (value) => {
     const num = parseFloat(value);
     return isNaN(num) || !isFinite(num) ? 0 : num;
@@ -402,71 +471,7 @@ const NutritionJam = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
 
-  // Vegetarian food database for lookup
-  const vegetarianFoods = [
-    { name: "Mixed Vegetable Sabzi", servingSize: "50g", calories: 28, protein: 0.7, carbs: 3.6, fat: 1.2, fiber: 1.4 },
-    { name: "Mushroom Burrito", servingSize: "300g", calories: 327, protein: 10.9, carbs: 48.2, fat: 11.4, fiber: 11.1 },
-    { name: "Tiramisu Ice Cream", servingSize: "100g", calories: 230, protein: 4.4, carbs: 28.3, fat: 4.4, fiber: 0.0 },
-    { name: "Beetroot Hummus Toast", servingSize: "126g", calories: 216, protein: 5.3, carbs: 26.0, fat: 9.1, fiber: 6.1 },
-    { name: "Mango Peach Smoothie", servingSize: "125ml", calories: 106, protein: 2.3, carbs: 24.2, fat: 0.2, fiber: 1.3 },
-    { name: "Lotus Biscoff Cheesecake", servingSize: "50g", calories: 198, protein: 2, fat: 15.3, carbs: 13.7, fiber: 0.1 },
-    { name: "Knorr Pizza and Pasta Sauce", servingSize: "40g", calories: 33, protein: 0.5, carbs: 5.6, fat: 1.0, fiber: 0.4 },
-    { name: "71% Dark Chocolate", servingSize: "52g", calories: 310, protein: 4.2, carbs: 20.8, fat: 23.4, fiber: 4.2 },
-    { name: "Caramel and Salted Popcorn", servingSize: "120g", calories: 461, protein: 9.0, carbs: 100.8, fat: 3.6, fiber: 10.2 },
-    { name: "Pyaaz ka Paratha", servingSize: "150g", calories: 287, protein: 5.9, carbs: 34.9, fat: 14.1, fiber: 6.2 },
-    { name: "Capsicum Tomato Onion", servingSize: "120g", calories: 77, protein: 1.3, carbs: 7.0, fat: 5.2, fiber: 2.5 },
-    { name: "13g Protein Bar, Double Cocoa", servingSize: "52g", calories: 256, protein: 13.3, carbs: 19.6, fat: 13.8, fiber: 5.4 },
-    { name: "Ultra Beer, Kingfisher", servingSize: "330ml", calories: 92, protein: 0.0, carbs: 7.9, fat: 0.0, fiber: 0.0 },
-    { name: "Avocado Toast", servingSize: "90g", calories: 187, protein: 4.9, carbs: 18.6, fat: 10.1, fiber: 4.2 },
-    { name: "Burmese Fried Rice", servingSize: "150g", calories: 155, protein: 4.2, carbs: 27.1, fat: 3.4, fiber: 1.0 },
-    { name: "Cocktail", servingSize: "480g", calories: 480, protein: 0.0, carbs: 48.0, fat: 0.0, fiber: 0.0 },
-    { name: "Idli (Regular)", servingSize: "50g", calories: 73, protein: 2.2, carbs: 15.2, fat: 0.3, fiber: 1.3 },
-    { name: "Mocha", servingSize: "250ml", calories: 202, protein: 9.3, carbs: 20.7, fat: 10.4, fiber: 1.7 },
-    { name: "Bhel", servingSize: "100g", calories: 222, protein: 5.5, carbs: 29.0, fat: 9.6, fiber: 3.1 },
-    { name: "Wada", servingSize: "60g", calories: 154, protein: 5.8, carbs: 14.3, fat: 8.2, fiber: 2.9 },
-    { name: "Parmesan Garlic Popcorn, Smartfood", servingSize: "48g", calories: 257, protein: 3.4, carbs: 24.0, fat: 17.1, fiber: 3.4 },
-    { name: "Zucchini Bell Pepper Salad", servingSize: "50g", calories: 48, protein: 1.0, carbs: 1.7, fat: 4.4, fiber: 0.6 },
-    { name: "Durum Wheat Pasta", servingSize: "60g", calories: 209, protein: 7.5, carbs: 43.1, fat: 0.8, fiber: 1.5 },
-    { name: "Pani Puri", servingSize: "197g", calories: 265, protein: 5.0, carbs: 36.7, fat: 11.0, fiber: 3.2 },
-    { name: "Rajma Tikki Burger", servingSize: "100g", calories: 250, protein: 8.0, carbs: 30.0, fat: 10.0, fiber: 5.0 },
-    { name: "Salted Caramel Popcorn (PVR/INOX)", servingSize: "95g", calories: 461, protein: 5.0, carbs: 80.0, fat: 15.0, fiber: 8.0 },
-    { name: "Omani Dates, Happilo", servingSize: "24g", calories: 68, protein: 0.6, carbs: 18.0, fat: 0.1, fiber: 1.9 },
-    { name: "Mango", servingSize: "130g", calories: 96, protein: 0.8, carbs: 22.0, fat: 0.5, fiber: 2.6 },
-    { name: "Slim n Trim Skimmed Milk, Amul", servingSize: "100ml", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0 },
-    { name: "Walnut", servingSize: "6g", calories: 40, protein: 0.9, carbs: 0.6, fat: 3.9, fiber: 0.3 },
-    { name: "Raw Whey Protein, Unflavoured", servingSize: "47g", calories: 178, protein: 35.6, carbs: 3.5, fat: 2.4, fiber: 0.4 },
-    { name: "Almonds", servingSize: "6g", calories: 37, protein: 1.3, carbs: 1.3, fat: 3.0, fiber: 0.8 },
-    { name: "Nutty Gritties Super Seeds Mix", servingSize: "9g", calories: 64, protein: 2.4, carbs: 1.1, fat: 4.9, fiber: 1.6 },
-    { name: "Skyr High Protein Yogurt, Milky Mist", servingSize: "100g", calories: 100, protein: 12.0, carbs: 9.5, fat: 1.5, fiber: 0.0 },
-    { name: "Oats, Quaker", servingSize: "40g", calories: 163, protein: 4.7, carbs: 27.4, fat: 3.8, fiber: 4.0 },
-    { name: "Low Fat Paneer, Milky Mist", servingSize: "100g", calories: 204, protein: 25.0, carbs: 5.8, fat: 9.0, fiber: 0.0 },
-    { name: "Roti", servingSize: "50g", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8 },
-    { name: "Cocoa Whey Protein, The Whole Truth", servingSize: "48g", calories: 191, protein: 34.1, carbs: 8.6, fat: 2.1, fiber: 2.1 },
-    { name: "Sambhar", servingSize: "150g", calories: 114, protein: 5.5, carbs: 16.2, fat: 3.0, fiber: 3.7 },
-    { name: "Bhindi Fry", servingSize: "90g", calories: 83, protein: 1.3, carbs: 5.5, fat: 6.3, fiber: 2.3 },
-    { name: "Dal", servingSize: "150g", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8 },
-    { name: "Dosa", servingSize: "120g", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9 },
-    { name: "Green Moong Dal Cheela", servingSize: "200g", calories: 363, protein: 19, carbs: 44.3, fat: 12.3, fiber: 13.6 },
-    { name: "100% Whole Wheat Bread, Britannia", servingSize: "27g", calories: 67, protein: 2.2, carbs: 13.8, fat: 0.6, fiber: 1.1 },
-    { name: "Amul Cheese Slice", servingSize: "20g", calories: 62, protein: 4.0, carbs: 0.3, fat: 5.0, fiber: 0.0 },
-    { name: "Bhaji of Pav Bhaji", servingSize: "150g", calories: 137, protein: 2.3, carbs: 16.8, fat: 6.9, fiber: 2.1 },
-    { name: "Protein Bar, Double Cocoa, Whole Truth", servingSize: "52g", calories: 256, protein: 13.3, carbs: 19.6, fat: 13.8, fiber: 5.4 },
-    { name: "Masala Chai (no sugar)", servingSize: "180ml", calories: 58, protein: 3.2, carbs: 4.1, fat: 3.3, fiber: 0.3 },
-    { name: "Aloo Beans", servingSize: "100g", calories: 93, protein: 1.9, carbs: 11.5, fat: 4.5, fiber: 2.7 },
-    { name: "Low Fat Paneer Paratha", servingSize: "200g", calories: 445, protein: 26.4, carbs: 40.4, fat: 20.0, fiber: 5.8 },
-    { name: "Aloo Palak", servingSize: "100g", calories: 73, protein: 1.8, carbs: 9.4, fat: 3.3, fiber: 2.1 },
-    { name: "Elite Gel, Unived", servingSize: "75.7g", calories: 190, protein: 1.0, carbs: 45.0, fat: 0.7, fiber: 0.0 },
-    { name: "Guilt Free Ice Cream, Belgian Chocolate", servingSize: "125ml (80g)", calories: 134, protein: 9.8, carbs: 10.4, fat: 5.8, fiber: 1.7 },
-    { name: "Dutch Chocolate Ice Cream", servingSize: "130ml", calories: 175, protein: 3.9, carbs: 19.0, fat: 9.2, fiber: 0.0 },
-    { name: "Pizza, Garden Veggie", servingSize: "2.5 Slices (267.5g)", calories: 434, protein: 24.1, carbs: 60.2, fat: 12.0, fiber: 9.6 }
-  ];
-
-  // Helper function to get food details by name
-  const getFoodByName = (name: string) => {
-    return vegetarianFoods.find(food => food.name === name);
-  };
-
-  // Convert meal presets to the format expected by the UI
+  // Real meal presets from your vegetarianFoods.ts
   const mealPresets = [
     {
       id: 1,
@@ -566,10 +571,13 @@ const NutritionJam = () => {
 
   const loadLastXDaysData = useCallback(async () => {
     try {
+  const loadLastXDaysData = useCallback(async () => {
+    try {
       const data = await getLastXDaysDataFirestore(7);
-      setLastXDaysData(data);
+      setLastXDaysData(data || []);
     } catch (error) {
       console.error('Error loading last X days data:', error);
+      setLastXDaysData([]);
     }
   }, []);
 
@@ -579,6 +587,7 @@ const NutritionJam = () => {
       setWeeklyAverages(averages);
     } catch (error) {
       console.error('Error loading weekly averages:', error);
+      setWeeklyAverages(null);
     }
   }, []);
 
@@ -590,8 +599,17 @@ const NutritionJam = () => {
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
-      setSelectedDate(date);
-      setIsCalendarOpen(false);
+      try {
+        // Validate the date
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date selected');
+          return;
+        }
+        setSelectedDate(date);
+        setIsCalendarOpen(false);
+      } catch (error) {
+        console.error('Error handling date select:', error);
+      }
     }
   };
 
@@ -601,7 +619,7 @@ const NutritionJam = () => {
     setSaving(true);
     try {
       const updatedEntries = [...currentLog.entries, foodEntry];
-      const updatedTotals = calculateTotals(updatedEntries);
+      const updatedTotals = safeCalculateTotals(updatedEntries);
       
       const updatedLog: DailyLog = {
         ...currentLog,
@@ -630,7 +648,7 @@ const NutritionJam = () => {
     setSaving(true);
     try {
       const updatedEntries = currentLog.entries.filter((_, i) => i !== index);
-      const updatedTotals = calculateTotals(updatedEntries);
+      const updatedTotals = safeCalculateTotals(updatedEntries);
       
       const updatedLog: DailyLog = {
         ...currentLog,
@@ -660,7 +678,7 @@ const NutritionJam = () => {
     try {
       const updatedEntries = [...currentLog.entries];
       updatedEntries[index] = { ...updatedEntries[index], quantity: newQuantity };
-      const updatedTotals = calculateTotals(updatedEntries);
+      const updatedTotals = safeCalculateTotals(updatedEntries);
       
       const updatedLog: DailyLog = {
         ...currentLog,
@@ -720,7 +738,7 @@ const NutritionJam = () => {
       }));
       
       const updatedEntries = [...currentLog.entries, ...newEntries];
-      const updatedTotals = calculateTotals(updatedEntries);
+      const updatedTotals = safeCalculateTotals(updatedEntries);
       
       const updatedLog: DailyLog = {
         ...currentLog,
@@ -743,43 +761,9 @@ const NutritionJam = () => {
     }
   };
 
-  const isToday = formatDateToYYYYMMDD(selectedDate) === getTodayDateString();
-
-  // Safe date comparison
-  const safeFormatDateToYYYYMMDD = (date) => {
-    try {
-      if (!date) return '';
-      const dateObj = date instanceof Date ? date : new Date(date);
-      if (isNaN(dateObj.getTime())) return '';
-      return dateObj.toISOString().split('T')[0];
-    } catch (error) {
-      console.error('Error formatting date to YYYYMMDD:', error);
-      return '';
-    }
-  };
-
-  const safeTodayString = () => {
-    try {
-      return getTodayDateString();
-    } catch (error) {
-      console.error('Error getting today string:', error);
-      return new Date().toISOString().split('T')[0];
-    }
-  };
-
-  const isTodaySafe = safeFormatDateToYYYYMMDD(selectedDate) === safeTodayString();
-
-  // Initialize charts when data changes
-  useEffect(() => {
-    if (lastXDaysData && lastXDaysData.length > 0) {
-      try {
-        const chartData = prepareChartData(lastXDaysData);
-        initializeCharts(chartData);
-      } catch (error) {
-        console.error('Error initializing charts:', error);
-      }
-    }
-  }, [lastXDaysData]);
+  // Safe date operations
+  const isToday = safeFormatDateToYYYYMMDD(selectedDate) === safeGetTodayDateString();
+  const safeTodayString = safeGetTodayDateString();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
@@ -818,7 +802,7 @@ const NutritionJam = () => {
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? formatDateForDisplay(selectedDate) : <span>Pick a date</span>}
+                  {selectedDate ? safeFormatDateForDisplay(selectedDate) : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -831,7 +815,7 @@ const NutritionJam = () => {
               </PopoverContent>
             </Popover>
 
-            {isTodaySafe && (
+            {isToday && (
               <Button
                 onClick={handleAutoFillFromYesterday}
                 disabled={saving}
@@ -1007,7 +991,7 @@ const NutritionJam = () => {
                           key={log?.date || index}
                           log={log}
                           date={log?.date}
-                          isToday={log?.date === safeTodayString()}
+                          isToday={log?.date === safeTodayString}
                           onClick={() => {
                             if (log?.date) {
                               try {
@@ -1033,48 +1017,34 @@ const NutritionJam = () => {
                 </Card>
               </div>
 
-              {/* Charts */}
+              {/* Charts - Simplified to avoid Chart.js errors */}
               <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Calories Trend</CardTitle>
+                    <CardTitle className="text-lg">Nutrition Trends</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[200px]">
-                      <canvas id="caloriesChart"></canvas>
+                    <div className="h-[200px] flex items-center justify-center text-gray-500">
+                      <div className="text-center">
+                        <BarChart3 className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>Charts temporarily disabled</p>
+                        <p className="text-sm">Will be restored once core functionality is stable</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Protein Trend</CardTitle>
+                    <CardTitle className="text-lg">Weekly Summary</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[200px]">
-                      <canvas id="proteinChart"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Carbs Trend</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px]">
-                      <canvas id="carbsChart"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Fat Trend</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px]">
-                      <canvas id="fatChart"></canvas>
+                    <div className="h-[200px] flex items-center justify-center text-gray-500">
+                      <div className="text-center">
+                        <Activity className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>Summary coming soon</p>
+                        <p className="text-sm">Aggregate data visualization</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
