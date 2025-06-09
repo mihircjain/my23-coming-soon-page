@@ -614,9 +614,7 @@ const ChatbotCard: React.FC = () => {
  >
    Powered by Gemini AI
  </div>
-  <div className="text-sm font-medium text-indigo-700">
-    "How's my nutrition this week?"
-  </div>
+
 </div>
        <Button
    onClick={(e) => {
