@@ -316,7 +316,7 @@ const HealthOverviewCard: React.FC = () => {
       <Card className="bg-gradient-to-r from-blue-200 to-emerald-200 rounded-2xl p-6 text-gray-800 shadow-xl">
         <CardHeader className="text-center pb-4">
           <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-700 to-emerald-700 bg-clip-text text-transparent">
-            📊 Mihir's Last 7 Days Health Overview
+            📊 Last 7 Days Health Overview
           </CardTitle>
           <p className="text-sm text-gray-700 mt-2">
             Your complete health overview for the last 7 days
@@ -412,7 +412,7 @@ const HealthOverviewCard: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            📈 Mihir's Weekly Averages
+            📈 Weekly Averages
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -469,7 +469,7 @@ const HealthOverviewCard: React.FC = () => {
               {/* Heart Rate Card - Light Red Gradient */}
               <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-800">Acitivity Heart Rate</h3>
+                  <h3 className="text-sm font-semibold text-gray-800">Heart Rate</h3>
                   <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
                     <Heart className="h-4 w-4 text-gray-700" />
                   </div>
@@ -734,15 +734,7 @@ const Index = () => {
             </p>
           </div>
           
-          <div className="animate-slide-up delay-500 mb-8">
-            <Button 
-              onClick={handleEmailClick}
-              className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-            >
-              <Mail className="mr-3 h-5 w-5" />
-              mihir@my23.ai
-            </Button>
-          </div>
+
         </div>
 
         {/* Interactive Cards Grid - Updated layout */}
@@ -758,45 +750,56 @@ const Index = () => {
         </div>
 
         {/* Navigation Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           <Button 
             onClick={() => window.location.href = '/overall-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-4 py-4 text-base font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
-            <BarChart2 className="mr-3 h-5 w-5" />
+            <BarChart2 className="mr-2 h-5 w-5" />
             Overall Jam
           </Button>
           
           <Button 
             onClick={() => window.location.href = '/lets-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-4 py-4 text-base font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
-            <MessageSquare className="mr-3 h-5 w-5" />
+            <MessageSquare className="mr-2 h-5 w-5" />
             Lets Jam
           </Button>
           
           <Button 
             onClick={() => window.location.href = '/activity-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-4 py-4 text-base font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
-            <Activity className="mr-3 h-5 w-5" />
+            <Activity className="mr-2 h-5 w-5" />
             Activity Jam
           </Button>
           
           <Button 
             onClick={() => window.location.href = '/nutrition-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-4 py-4 text-base font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
-            <Utensils className="mr-3 h-5 w-5" />
+            <Utensils className="mr-2 h-5 w-5" />
             Nutrition Jam
           </Button>
           
           <Button 
             onClick={() => window.location.href = '/body-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-4 py-4 text-base font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
-            <Heart className="mr-3 h-5 w-5" />
+            <Heart className="mr-2 h-5 w-5" />
             Body Jam
+          </Button>
+        </div>
+
+        {/* Contact Email Button */}
+        <div className="text-center mb-12 animate-slide-up delay-500">
+          <Button 
+            onClick={handleEmailClick}
+            className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+          >
+            <Mail className="mr-3 h-5 w-5" />
+            mihir@my23.ai
           </Button>
         </div>
         
