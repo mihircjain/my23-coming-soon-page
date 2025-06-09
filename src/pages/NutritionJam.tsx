@@ -515,6 +515,10 @@ const NutritionJam = () => {
     try {
       const averages = await getWeeklyAveragesFirestore();
       setWeeklyAverages(averages);
+    } catch (error) {
+      console.error('Error loading weekly averages:', error);
+      setWeeklyAverages(null);
+    }
   }, []);
 
   useEffect(() => {
