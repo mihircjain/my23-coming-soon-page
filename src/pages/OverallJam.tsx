@@ -639,8 +639,13 @@ const OverallJam = () => {
                       <span className="font-medium">{Math.round(last7DaysData[date]?.protein || 0)}g</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Heart Rate:</span>
-                      <span className="font-medium">{last7DaysData[date]?.heartRate ? Math.round(last7DaysData[date].heartRate) : '-'} {last7DaysData[date]?.heartRate ? 'bpm' : ''}</span>
+                      <span>Activities:</span>
+                      <span className="font-medium">
+                        {last7DaysData[date]?.activityTypes?.length > 0 
+                          ? last7DaysData[date].activityTypes.join(', ') 
+                          : 'Rest'
+                        }
+                      </span>
                     </div>
                   </div>
                 </div>
