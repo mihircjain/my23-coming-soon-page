@@ -1,6 +1,4 @@
->
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? safeFormatDateForDisplay(selectedDate) : <span>Pick a date</span>}import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
