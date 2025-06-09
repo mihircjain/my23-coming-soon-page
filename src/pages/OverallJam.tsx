@@ -15,7 +15,7 @@ interface StravaData {
   type: string;
   start_date?: string;
   heart_rate: number | null;
-  caloriesBurned: number;
+  calories: number;
   duration: number;
 }
 
@@ -171,7 +171,7 @@ const OverallJam = () => {
   const [last7DaysData, setLast7DaysData] = useState({});
   const [latestBloodMarkers, setLatestBloodMarkers] = useState(null);
 
-  // Fetch combined data from Firebase
+  // Fetch combined data from Firebase - FIXED with proper activity calories
   const fetchCombinedData = async (forceRefresh = false) => {
     try {
       setLoading(true);
@@ -272,7 +272,7 @@ const OverallJam = () => {
         }
       });
 
-      // Process Strava data
+      // Process Strava data - FIXED: Use proper calories field from activity data
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data();
         
@@ -287,9 +287,12 @@ const OverallJam = () => {
           tempData[activityDate].heartRate = cnt === 0 ? data.heart_rate : ((curHR * cnt) + data.heart_rate) / (cnt + 1);
         }
 
-        // Calories burned and workout duration
-        tempData[activityDate].caloriesBurned += data.caloriesBurned || 0;
+        // FIXED: Use the correct calories field from Strava activity data
+        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
+        tempData[activityDate].caloriesBurned += activityCalories;
         tempData[activityDate].workoutDuration += data.duration || 0;
+
+        console.log(`🔥 Activity calories for ${activityDate}: ${activityCalories} (type: ${data.type})`);
 
         // Activity type list
         if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
@@ -333,7 +336,7 @@ const OverallJam = () => {
     await fetchCombinedData(true);
   };
 
-  // Render combined chart
+  // FIXED: Enhanced chart rendering with better Y-axis scaling for protein variability
   const renderCombinedChart = (data) => {
     const container = document.getElementById('combined-health-chart');
     if (!container) return;
@@ -354,6 +357,23 @@ const OverallJam = () => {
       return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     });
 
+    // Calculate data ranges for better scaling
+    const proteinData = data.map(d => d.protein).filter(p => p > 0);
+    const caloriesConsumedData = data.map(d => d.caloriesConsumed).filter(c => c > 0);
+    const caloriesBurnedData = data.map(d => d.caloriesBurned).filter(c => c > 0);
+    const heartRateData = data.map(d => d.heartRate).filter(hr => hr !== null && hr > 0);
+
+    // Calculate separate Y-axis scales for better visibility
+    const proteinMin = proteinData.length > 0 ? Math.min(...proteinData) : 0;
+    const proteinMax = proteinData.length > 0 ? Math.max(...proteinData) : 100;
+    const proteinRange = proteinMax - proteinMin;
+    const proteinPadding = Math.max(5, proteinRange * 0.1); // At least 5g padding
+
+    const caloriesMin = Math.min(...caloriesConsumedData, ...caloriesBurnedData);
+    const caloriesMax = Math.max(...caloriesConsumedData, ...caloriesBurnedData);
+    const caloriesRange = caloriesMax - caloriesMin;
+    const caloriesPadding = Math.max(50, caloriesRange * 0.1); // At least 50 cal padding
+
     new Chart(canvas, {
       type: 'line',
       data: {
@@ -367,8 +387,9 @@ const OverallJam = () => {
             fill: false,
             tension: 0.4,
             borderWidth: 3,
-            pointRadius: 4,
-            pointHoverRadius: 6
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            yAxisID: 'y-calories'
           },
           {
             label: 'Calories Burned',
@@ -378,8 +399,9 @@ const OverallJam = () => {
             fill: false,
             tension: 0.4,
             borderWidth: 3,
-            pointRadius: 4,
-            pointHoverRadius: 6
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            yAxisID: 'y-calories'
           },
           {
             label: 'Protein (g)',
@@ -389,8 +411,9 @@ const OverallJam = () => {
             fill: false,
             tension: 0.4,
             borderWidth: 3,
-            pointRadius: 4,
-            pointHoverRadius: 6
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            yAxisID: 'y-protein'
           },
           {
             label: 'Heart Rate (bpm)',
@@ -400,9 +423,10 @@ const OverallJam = () => {
             fill: false,
             tension: 0.4,
             borderWidth: 3,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            hidden: true // Hidden by default
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            hidden: true, // Hidden by default
+            yAxisID: 'y-heartrate'
           }
         ]
       },
@@ -460,69 +484,59 @@ const OverallJam = () => {
               font: { size: 11 }
             }
           },
-          y: {
-            grid: { color: 'rgba(226, 232, 240, 0.5)' },
-            beginAtZero: false, // Don't start from zero to show variation
-            min: function(context) {
-              // Calculate dynamic min/max for better scaling
-              const datasets = context.chart.data.datasets;
-              let allValues = [];
-              
-              datasets.forEach(dataset => {
-                if (!dataset.hidden && dataset.data) {
-                  allValues = allValues.concat(dataset.data.filter(val => val !== null && val !== undefined));
-                }
-              });
-              
-              if (allValues.length === 0) return 0;
-              
-              const minVal = Math.min(...allValues);
-              const maxVal = Math.max(...allValues);
-              const range = maxVal - minVal;
-              
-              // Add 10% padding below minimum for better visualization
-              return Math.max(0, minVal - (range * 0.1));
-            },
-            max: function(context) {
-              const datasets = context.chart.data.datasets;
-              let allValues = [];
-              
-              datasets.forEach(dataset => {
-                if (!dataset.hidden && dataset.data) {
-                  allValues = allValues.concat(dataset.data.filter(val => val !== null && val !== undefined));
-                }
-              });
-              
-              if (allValues.length === 0) return 100;
-              
-              const minVal = Math.min(...allValues);
-              const maxVal = Math.max(...allValues);
-              const range = maxVal - minVal;
-              
-              // Add 10% padding above maximum for better visualization
-              return maxVal + (range * 0.1);
-            },
+          // FIXED: Separate Y-axes for different data types
+          'y-calories': {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            grid: { color: 'rgba(226, 232, 240, 0.3)' },
+            min: Math.max(0, caloriesMin - caloriesPadding),
+            max: caloriesMax + caloriesPadding,
             ticks: { 
               font: { size: 11 },
-              stepSize: function(context) {
-                // Dynamic step size based on data range
-                const datasets = context.chart.data.datasets;
-                let allValues = [];
-                
-                datasets.forEach(dataset => {
-                  if (!dataset.hidden && dataset.data) {
-                    allValues = allValues.concat(dataset.data.filter(val => val !== null && val !== undefined));
-                  }
-                });
-                
-                if (allValues.length === 0) return 50;
-                
-                const minVal = Math.min(...allValues);
-                const maxVal = Math.max(...allValues);
-                const range = maxVal - minVal;
-                
-                // Create 8-10 tick marks for good granularity
-                return Math.max(1, Math.round(range / 8));
+              stepSize: Math.max(50, Math.round(caloriesRange / 6)),
+              callback: function(value) {
+                return Math.round(value) + ' cal';
+              }
+            },
+            title: {
+              display: true,
+              text: 'Calories',
+              font: { size: 12, weight: 'bold' },
+              color: 'rgba(16, 185, 129, 0.8)'
+            }
+          },
+          'y-protein': {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            grid: { display: false }, // Hide grid for secondary axis
+            min: Math.max(0, proteinMin - proteinPadding),
+            max: proteinMax + proteinPadding,
+            ticks: { 
+              font: { size: 11 },
+              stepSize: Math.max(2, Math.round(proteinRange / 8)), // More granular steps for protein
+              callback: function(value) {
+                return Math.round(value) + 'g';
+              }
+            },
+            title: {
+              display: true,
+              text: 'Protein (g)',
+              font: { size: 12, weight: 'bold' },
+              color: 'rgba(139, 92, 246, 0.8)'
+            }
+          },
+          'y-heartrate': {
+            type: 'linear',
+            display: false, // Hidden since heart rate is hidden by default
+            position: 'right',
+            min: heartRateData.length > 0 ? Math.min(...heartRateData) - 10 : 60,
+            max: heartRateData.length > 0 ? Math.max(...heartRateData) + 10 : 180,
+            ticks: { 
+              font: { size: 11 },
+              callback: function(value) {
+                return Math.round(value) + ' bpm';
               }
             }
           }
