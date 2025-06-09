@@ -652,8 +652,8 @@ const OverallJam = () => {
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
-                    <div>🎯 Target: 135g+ = 30 pts</div>
-                    <div>📈 Below: (protein/135) × 30</div>
+                    <div>🎯 Target: 140g+ = 30 pts</div>
+                    <div>📈 Below: (protein/140) × 30</div>
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-orange-600">Calories Burned (30 pts)</div>
