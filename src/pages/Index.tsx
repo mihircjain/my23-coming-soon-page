@@ -608,10 +608,16 @@ const ChatbotCard: React.FC = () => {
               <div className="text-xs text-gray-600 mb-1">Powered by Gemini AI</div>
               <div className="text-sm font-medium text-indigo-700">"How's my nutrition this week?"</div>
             </div>
-            <Button className="w-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm">
-              <MessageSquare className="h-4 w-4" />
-              Start Chatting
-            </Button>
+       <Button
+   onClick={(e) => {
+     e.stopPropagation();               // prevent the Card’s onClick
+     window.location.href = '/lets-jam';
+   }}
+   className="w-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+ >
+   <MessageSquare className="h-4 w-4" />
+   Start Chatting
+ </Button>
           </div>
         </CardContent>
       </Card>
