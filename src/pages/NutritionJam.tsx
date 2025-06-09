@@ -141,85 +141,93 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
     }
   };
 
+  const getCardStyle = () => {
+    if (isToday) {
+      return "ring-2 ring-blue-500 bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-300";
+    }
+    if (hasData) {
+      return "bg-gradient-to-br from-green-50 to-emerald-100 border-green-300 hover:shadow-green-200";
+    }
+    return "bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:shadow-gray-200";
+  };
+
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group",
-        hasData
-          ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 hover:shadow-green-100"
-          : "bg-gray-50 border-gray-200 hover:shadow-gray-100",
-        isToday && "ring-2 ring-blue-500"
+        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group min-h-[280px] flex flex-col",
+        getCardStyle()
       )}
       onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <div className="text-sm font-medium text-gray-700">
-              {formatDate(date)}
-            </div>
-            {isToday && (
-              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
-                Today
-              </span>
-            )}
+      <CardContent className="p-4 flex flex-col h-full">
+        <div className="flex justify-between items-center mb-3">
+          <div className="text-sm font-medium text-gray-700">
+            {formatDate(date)}
           </div>
-
-          {hasData ? (
-            <>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-1">
-                    <Flame className="h-4 w-4 text-orange-500" />
-                    <span className="text-xl font-bold text-gray-800">
-                      {Math.round(totals.calories)}
-                    </span>
-                    <span className="text-sm text-gray-500">cal</span>
-                  </div>
-                  <span className="text-xs text-gray-500 font-medium">
-                    {Math.round(caloriePercent)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div
-                    className="bg-gradient-to-r from-orange-400 to-red-500 h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${caloriePercent}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                <div className="text-center bg-blue-50 rounded-lg py-2">
-                  <div className="font-bold text-blue-600">{Math.round(totals.protein)}g</div>
-                  <div className="text-gray-500 text-[10px]">Protein</div>
-                </div>
-                <div className="text-center bg-green-50 rounded-lg py-2">
-                  <div className="font-bold text-green-600">{Math.round(totals.carbs)}g</div>
-                  <div className="text-gray-500 text-[10px]">Carbs</div>
-                </div>
-                <div className="text-center bg-purple-50 rounded-lg py-2">
-                  <div className="font-bold text-purple-600">{Math.round(totals.fat)}g</div>
-                  <div className="text-gray-500 text-[10px]">Fat</div>
-                </div>
-                <div className="text-center bg-amber-50 rounded-lg py-2">
-                  <div className="font-bold text-amber-600">{Math.round(totals.fiber || 0)}g</div>
-                  <div className="text-gray-500 text-[10px]">Fiber</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-1 text-xs text-gray-500 mt-2">
-                <Utensils className="h-3 w-3" />
-                <span>{log.entries.length} items logged</span>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-6">
-              <div className="text-gray-400 text-sm mb-1">No data</div>
-              <div className="text-xs text-gray-400">Tap to log food</div>
-              <Plus className="h-6 w-6 mx-auto mt-2 text-gray-300 group-hover:text-blue-500 transition-colors" />
-            </div>
+          {isToday && (
+            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
+              Today
+            </span>
           )}
         </div>
+
+        {hasData ? (
+          <div className="flex-1 flex flex-col justify-between">
+            {/* Calories Section */}
+            <div className="space-y-3 mb-4">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  <span className="text-2xl font-bold text-gray-800">
+                    {Math.round(totals.calories)}
+                  </span>
+                  <span className="text-sm text-gray-500">cal</span>
+                </div>
+                <div className="text-xs text-gray-500 font-medium mb-2">
+                  {Math.round(caloriePercent)}% of goal
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${caloriePercent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Macros Grid */}
+            <div className="grid grid-cols-2 gap-2 text-xs mb-4">
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-blue-200">
+                <div className="font-bold text-blue-600 text-lg">{Math.round(totals.protein)}g</div>
+                <div className="text-blue-700 text-xs">Protein</div>
+              </div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-green-200">
+                <div className="font-bold text-green-600 text-lg">{Math.round(totals.carbs)}g</div>
+                <div className="text-green-700 text-xs">Carbs</div>
+              </div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-purple-200">
+                <div className="font-bold text-purple-600 text-lg">{Math.round(totals.fat)}g</div>
+                <div className="text-purple-700 text-xs">Fat</div>
+              </div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-amber-200">
+                <div className="font-bold text-amber-600 text-lg">{Math.round(totals.fiber || 0)}g</div>
+                <div className="text-amber-700 text-xs">Fiber</div>
+              </div>
+            </div>
+
+            {/* Items Count */}
+            <div className="flex items-center justify-center gap-1 text-xs text-gray-600 mt-auto">
+              <Utensils className="h-3 w-3" />
+              <span>{log.entries.length} items logged</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+            <div className="text-gray-400 text-sm mb-2">No data</div>
+            <div className="text-xs text-gray-400 mb-4">Tap to log food</div>
+            <Plus className="h-8 w-8 text-gray-300 group-hover:text-blue-500 transition-colors" />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -515,8 +523,7 @@ const NutritionJam = () => {
 
   const loadLastXDaysData = useCallback(async () => {
     try {
-      const data = await getLastXDaysDataFirestore(7);
-      // Generate last 7 days data even if some days are missing
+      // Always generate 7 days regardless of what's in Firestore
       const last7Days = [];
       const today = new Date();
       
@@ -525,24 +532,51 @@ const NutritionJam = () => {
         date.setDate(today.getDate() - i);
         const dateString = safeFormatDateToYYYYMMDD(date);
         
-        const existingLog = data?.find(log => log.date === dateString);
-        if (existingLog) {
-          last7Days.push(existingLog);
-        } else {
-          // Create empty log for missing days
-          last7Days.push({
-            date: dateString,
-            entries: [],
-            totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
-            lastUpdated: null
-          });
+        // Create a basic log structure for each day
+        const dayLog = {
+          date: dateString,
+          entries: [],
+          totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+          lastUpdated: null
+        };
+        
+        // Try to get actual data from Firestore if available
+        try {
+          const actualLog = await getOrCreateDailyLogFirestore(dateString);
+          if (actualLog && actualLog.entries && actualLog.entries.length > 0) {
+            dayLog.entries = actualLog.entries;
+            dayLog.totals = actualLog.totals || safeCalculateTotals(actualLog.entries);
+            dayLog.lastUpdated = actualLog.lastUpdated;
+          }
+        } catch (error) {
+          console.error(`Error loading data for ${dateString}:`, error);
+          // Keep the empty structure
         }
+        
+        last7Days.push(dayLog);
       }
       
       setLastXDaysData(last7Days);
     } catch (error) {
       console.error('Error loading last X days data:', error);
-      setLastXDaysData([]);
+      // Still create empty 7 days structure
+      const fallback7Days = [];
+      const today = new Date();
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = safeFormatDateToYYYYMMDD(date);
+        
+        fallback7Days.push({
+          date: dateString,
+          entries: [],
+          totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+          lastUpdated: null
+        });
+      }
+      
+      setLastXDaysData(fallback7Days);
     }
   }, []);
 
@@ -944,58 +978,27 @@ const NutritionJam = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                  {lastXDaysData && lastXDaysData.length > 0 ? (
-                    lastXDaysData.map((log, index) => (
-                      <DailyMacroBox
-                        key={log?.date || index}
-                        log={log}
-                        date={log?.date}
-                        isToday={log?.date === safeTodayString}
-                        onClick={() => {
-                          if (log?.date) {
-                            try {
-                              const date = new Date(log.date);
-                              if (!isNaN(date.getTime())) {
-                                setSelectedDate(date);
-                                setActiveTab("today");
-                              }
-                            } catch (error) {
-                              console.error('Error handling date click:', error);
-                            }
-                          }
-                        }}
-                      />
-                    ))
-                  ) : (
-                    // Generate 7 placeholder boxes while loading
-                    Array.from({ length: 7 }, (_, index) => {
-                      const date = new Date();
-                      date.setDate(date.getDate() - (6 - index));
-                      const dateString = safeFormatDateToYYYYMMDD(date);
-                      
-                      return (
-                        <DailyMacroBox
-                          key={index}
-                          log={{
-                            date: dateString,
-                            entries: [],
-                            totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
-                            lastUpdated: null
-                          }}
-                          date={dateString}
-                          isToday={dateString === safeTodayString}
-                          onClick={() => {
-                            try {
+                  {lastXDaysData.map((log, index) => (
+                    <DailyMacroBox
+                      key={log?.date || index}
+                      log={log}
+                      date={log?.date}
+                      isToday={log?.date === safeTodayString}
+                      onClick={() => {
+                        if (log?.date) {
+                          try {
+                            const date = new Date(log.date);
+                            if (!isNaN(date.getTime())) {
                               setSelectedDate(date);
                               setActiveTab("today");
-                            } catch (error) {
-                              console.error('Error handling date click:', error);
                             }
-                          }}
-                        />
-                      );
-                    })
-                  )}
+                          } catch (error) {
+                            console.error('Error handling date click:', error);
+                          }
+                        }
+                      }}
+                    />
+                  ))}
                 </div>
               </CardContent>
             </Card>
