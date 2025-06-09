@@ -1,8 +1,5 @@
-// Fixed ActivityJam.tsx with Correct Refresh Logic
-// Replace your existing ActivityJam component with this corrected version:
-
 import { useState, useEffect } from "react";
-import { ArrowLeft, RefreshCw, Calendar, MapPin, Clock, Zap } from "lucide-react";
+import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,21 +31,7 @@ const ActivityJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
 
-  // FIXED: Get current date range (last 30 days from TODAY)
-  const getCurrentDateRange = () => {
-    const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    
-    return {
-      startDate: thirtyDaysAgo.toISOString().split('T')[0], // YYYY-MM-DD
-      endDate: today.toISOString().split('T')[0], // YYYY-MM-DD
-      startDateISO: thirtyDaysAgo.toISOString(),
-      endDateISO: today.toISOString()
-    };
-  };
-
-  // FIXED: Fetch activities with proper date filtering and cache busting
+  // FIXED: Fetch activities with better error handling and faster response
   const fetchActivities = async (forceRefresh = false) => {
     try {
       if (forceRefresh) {
@@ -60,67 +43,80 @@ const ActivityJam = () => {
       }
 
       setError('');
-      const { startDate, endDate, startDateISO, endDateISO } = getCurrentDateRange();
       
-      console.log(`📅 Fetching activities from ${startDate} to ${endDate}`);
-      console.log(`📅 ISO range: ${startDateISO} to ${endDateISO}`);
-
-      // FIXED: Add cache busting and proper date parameters
-      const timestamp = forceRefresh ? `&timestamp=${Date.now()}` : '';
-      const url = `/api/strava?days=30&after=${Math.floor(new Date(startDateISO).getTime() / 1000)}&before=${Math.floor(new Date(endDateISO).getTime() / 1000)}&forceRefresh=${forceRefresh}${timestamp}`;
+      // FIXED: Simpler API call with proper cache control
+      const params = new URLSearchParams({
+        days: '30',
+        userId: 'mihir_jain'
+      });
       
+      if (forceRefresh) {
+        params.set('refresh', 'true');
+        params.set('timestamp', Date.now().toString());
+      }
+      
+      const url = `/api/strava?${params.toString()}`;
       console.log(`🌐 API URL: ${url}`);
 
+      const startTime = Date.now();
+      
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          // FIXED: Add cache control headers for refresh
           ...(forceRefresh && {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
+            'Pragma': 'no-cache'
           })
         }
       });
 
+      const loadTime = Date.now() - startTime;
+      console.log(`⏱️ API response time: ${loadTime}ms`);
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ API Error: ${response.status} - ${errorText}`);
-        throw new Error(`Failed to fetch activities: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch activities: ${response.status}`);
       }
 
       const data = await response.json();
       console.log(`✅ Received ${data.length} activities from API`);
 
-      // FIXED: Filter activities by date range on frontend as backup
-      const filteredActivities = data.filter((activity: Activity) => {
-        const activityDate = new Date(activity.start_date);
-        const startFilter = new Date(startDateISO);
-        const endFilter = new Date(endDateISO);
-        
-        const isInRange = activityDate >= startFilter && activityDate <= endFilter;
-        if (!isInRange) {
-          console.log(`🚫 Filtering out activity: ${activity.name} (${activity.start_date}) - outside range`);
-        }
-        return isInRange;
-      });
+      // FIXED: Process activities with correct distance handling
+      const processedActivities = data.map((activity: any) => ({
+        id: activity.id?.toString() || Math.random().toString(),
+        name: activity.name || 'Unnamed Activity',
+        type: activity.type || 'Activity',
+        start_date: activity.start_date,
+        // FIXED: Handle distance properly (Strava API returns in meters, convert to km)
+        distance: typeof activity.distance === 'number' 
+          ? activity.distance  // If already in km from our API
+          : (activity.distance || 0) / 1000, // If in meters, convert to km
+        moving_time: activity.moving_time || activity.duration * 60 || 0,
+        total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
+        average_speed: activity.average_speed || 0,
+        max_speed: activity.max_speed || 0,
+        has_heartrate: activity.has_heartrate || false,
+        average_heartrate: activity.average_heartrate || activity.heart_rate,
+        max_heartrate: activity.max_heartrate,
+        calories: activity.calories || activity.caloriesBurned || 0,
+        caloriesBurned: activity.caloriesBurned || activity.calories || 0
+      }));
 
-      console.log(`📊 Final filtered activities: ${filteredActivities.length}`);
-
-      // FIXED: Sort by date (most recent first)
-      const sortedActivities = filteredActivities.sort((a: Activity, b: Activity) => 
+      // Sort by date (most recent first)
+      const sortedActivities = processedActivities.sort((a: Activity, b: Activity) => 
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
       setActivities(sortedActivities);
       setLastUpdate(new Date().toLocaleTimeString());
 
-      // Log first few activities for debugging
+      // Debug log
       if (sortedActivities.length > 0) {
-        console.log('📋 Recent activities:');
-        sortedActivities.slice(0, 3).forEach((activity: Activity, index: number) => {
-          console.log(`${index + 1}. ${activity.name} - ${new Date(activity.start_date).toLocaleDateString()}`);
+        console.log('📋 Sample processed activities:');
+        sortedActivities.slice(0, 2).forEach((activity: Activity, index: number) => {
+          console.log(`${index + 1}. ${activity.name} - ${activity.distance}km - ${new Date(activity.start_date).toLocaleDateString()}`);
         });
       }
 
@@ -133,59 +129,39 @@ const ActivityJam = () => {
     }
   };
 
-  // FIXED: Manual refresh function with proper cache clearing
+  // Manual refresh
   const handleRefresh = async () => {
     console.log('🔄 Manual refresh triggered');
-    await fetchActivities(true); // Force refresh = true
+    await fetchActivities(true);
   };
 
-  // FIXED: Load activities on mount with current date logic
+  // Load on mount
   useEffect(() => {
-    console.log('🚀 ActivityJam component mounted');
-    fetchActivities(false); // Initial load, don't force refresh
+    fetchActivities(false);
   }, []);
 
-  // FIXED: Auto-refresh when window gains focus (user switches back to tab)
-  useEffect(() => {
-    const handleFocus = () => {
-      console.log('👁️ Window focused, checking for fresh data...');
-      const lastUpdateTime = localStorage.getItem('activityjam-last-update');
-      const now = Date.now();
-      const fiveMinutes = 5 * 60 * 1000;
-      
-      // Only auto-refresh if last update was more than 5 minutes ago
-      if (!lastUpdateTime || (now - parseInt(lastUpdateTime)) > fiveMinutes) {
-        console.log('⏰ Auto-refreshing due to stale data...');
-        fetchActivities(false);
-        localStorage.setItem('activityjam-last-update', now.toString());
-      } else {
-        console.log('✅ Data is fresh, skipping auto-refresh');
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
-
-  // Format distance
+  // FIXED: Format distance properly
   const formatDistance = (distance: number) => {
-    return (distance / 1000).toFixed(2); // Convert meters to km
+    if (distance === 0) return '0.00';
+    if (distance < 0.1) return distance.toFixed(3); // Show 3 decimals for very small distances
+    return distance.toFixed(2); // Normal 2 decimal places
   };
 
   // Format time
   const formatTime = (seconds: number) => {
+    if (!seconds) return '0m';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   };
 
-  // Format pace (min/km)
+  // FIXED: Format pace properly
   const formatPace = (distance: number, time: number) => {
-    if (distance === 0) return 'N/A';
-    const paceSeconds = time / (distance / 1000);
+    if (distance === 0 || time === 0) return 'N/A';
+    const paceSeconds = time / distance; // seconds per km
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')} /km`;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
   };
 
   if (error) {
@@ -297,7 +273,7 @@ const ActivityJam = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activities.map((activity) => (
               <Card key={activity.id} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200">
                 <CardHeader className="pb-3">
@@ -346,13 +322,19 @@ const ActivityJam = () => {
                     {activity.has_heartrate && activity.average_heartrate && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Avg HR:</span>
-                        <span className="font-medium">{activity.average_heartrate} bpm</span>
+                        <span className="font-medium flex items-center">
+                          <Heart className="h-3 w-3 mr-1 text-red-500" />
+                          {activity.average_heartrate} bpm
+                        </span>
                       </div>
                     )}
                     {(activity.calories || activity.caloriesBurned) && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Calories:</span>
-                        <span className="font-medium">{activity.calories || activity.caloriesBurned}</span>
+                        <span className="font-medium flex items-center">
+                          <Zap className="h-3 w-3 mr-1 text-yellow-500" />
+                          {activity.calories || activity.caloriesBurned}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -361,8 +343,6 @@ const ActivityJam = () => {
             ))}
           </div>
         )}
-
-
       </main>
     </div>
   );
