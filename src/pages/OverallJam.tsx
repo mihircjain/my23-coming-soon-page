@@ -613,19 +613,19 @@ const OverallJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview - Updated with lighter blue-to-green gradient */}
+        {/* 7-Day Health Overview - Much lighter blue-to-green gradient */}
         <section className="mb-8">
-          <div className="bg-gradient-to-r from-blue-400 to-emerald-400 rounded-2xl p-8 text-white shadow-xl">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-white to-blue-50 bg-clip-text text-transparent">
+          <div className="bg-gradient-to-r from-blue-200 to-emerald-200 rounded-2xl p-8 text-gray-800 shadow-xl">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-blue-700 to-emerald-700 bg-clip-text text-transparent">
               Last 7 Days Health Overview
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
               {last7Days.map((date) => (
-                <div key={date} className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 shadow-lg">
-                  <h3 className="font-semibold text-sm opacity-90 mb-3">
+                <div key={date} className="bg-white/40 backdrop-blur-sm rounded-lg p-4 border border-white/40 shadow-md">
+                  <h3 className="font-semibold text-sm text-gray-700 mb-3">
                     {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   </h3>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-2 text-sm text-gray-700">
                     <div className="flex justify-between">
                       <span>Calories In:</span>
                       <span className="font-medium">{last7DaysData[date]?.caloriesConsumed || 0}</span>
@@ -659,70 +659,70 @@ const OverallJam = () => {
             {/* Calories In Card - Green Gradient */}
             <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Calories In</h3>
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Utensils className="h-5 w-5" />
+                <h3 className="text-lg font-semibold text-gray-800">Calories In</h3>
+                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
+                  <Utensils className="h-5 w-5 text-gray-700" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold">{calculateAvgMetric('caloriesConsumed')}</p>
-                <p className="text-sm opacity-90">cal/day</p>
+                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('caloriesConsumed')}</p>
+                <p className="text-sm text-gray-700">cal/day</p>
               </div>
             </div>
 
-            {/* Calories Out Card - Amber/Orange Gradient */}
-            <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Calories Out Card - Much Lighter Amber/Orange Gradient */}
+            <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Calories Out</h3>
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Flame className="h-5 w-5" />
+                <h3 className="text-lg font-semibold text-gray-800">Calories Out</h3>
+                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
+                  <Flame className="h-5 w-5 text-gray-700" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold">{calculateAvgMetric('caloriesBurned')}</p>
-                <p className="text-sm opacity-90">cal/day</p>
+                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('caloriesBurned')}</p>
+                <p className="text-sm text-gray-700">cal/day</p>
               </div>
             </div>
 
-            {/* Protein Card - Purple Gradient */}
-            <div className="bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Protein Card - Much Lighter Purple Gradient */}
+            <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Protein</h3>
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5" />
+                <h3 className="text-lg font-semibold text-gray-800">Protein</h3>
+                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
+                  <Target className="h-5 w-5 text-gray-700" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold">{calculateAvgMetric('protein')}</p>
-                <p className="text-sm opacity-90">g/day</p>
+                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('protein')}</p>
+                <p className="text-sm text-gray-700">g/day</p>
               </div>
             </div>
 
-            {/* Heart Rate Card - Red Gradient */}
-            <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Heart Rate Card - Much Lighter Red Gradient */}
+            <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Heart Rate</h3>
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Heart className="h-5 w-5" />
+                <h3 className="text-lg font-semibold text-gray-800">Heart Rate</h3>
+                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
+                  <Heart className="h-5 w-5 text-gray-700" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold">{calculateAvgMetric('heartRate') || '-'}</p>
-                <p className="text-sm opacity-90">{calculateAvgMetric('heartRate') ? 'bpm' : 'avg'}</p>
+                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('heartRate') || '-'}</p>
+                <p className="text-sm text-gray-700">{calculateAvgMetric('heartRate') ? 'bpm' : 'avg'}</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Combined Chart Section */}
+        {/* Combined Chart Section - Much lighter gradient background */}
         <section className="mb-8">
-          <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
+          <Card className="bg-gradient-to-r from-indigo-200 to-purple-300 rounded-2xl p-6 text-gray-800 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-semibold bg-gradient-to-r from-white to-indigo-100 bg-clip-text text-transparent flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-white" />
+              <CardTitle className="text-xl font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-gray-700" />
                 Health Trends (Last 7 Days)
               </CardTitle>
-              <p className="text-sm text-white/80 mt-2">
+              <p className="text-sm text-gray-700 mt-2">
                 Track your key health metrics over the past week. Toggle datasets using the legend.
               </p>
             </CardHeader>
@@ -732,7 +732,7 @@ const OverallJam = () => {
                   <Skeleton className="h-full w-full" />
                 </div>
               ) : (
-                <div className="h-80 bg-white/10 backdrop-blur-sm rounded-lg p-4" id="combined-health-chart">
+                <div className="h-80 bg-white/30 backdrop-blur-sm rounded-lg p-4" id="combined-health-chart">
                   {/* Chart will be rendered here */}
                 </div>
               )}
