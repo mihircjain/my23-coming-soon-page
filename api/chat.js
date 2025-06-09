@@ -1,678 +1,815 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, orderBy, limit, where, Timestamp, doc, getDoc } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { Mail, Activity, Utensils, Heart, BarChart2, MessageSquare, Send, TrendingUp, Flame, Target, Droplet, Bot, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast, Toaster } from 'sonner';
+import { db } from '@/lib/firebaseConfig';
+import { collection, addDoc, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
-// Initialize Firebase only if environment variables are available
-let db = null;
-
-function initializeFirebase() {
-  if (db) return db;
-  
-  const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID
-  };
-
-  // Check if all required config is present
-  if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-    console.warn('Firebase configuration incomplete - skipping Firestore integration');
-    return null;
-  }
-
-  try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-    db = getFirestore(app);
-    return db;
-  } catch (error) {
-    console.error('Failed to initialize Firebase:', error);
-    return null;
-  }
+// Types
+interface HealthData {
+  date: string;
+  heartRate: number | null;
+  caloriesBurned: number;
+  caloriesConsumed: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  workoutDuration: number;
+  activityTypes: string[];
 }
 
-// UPDATED: Enhanced system prompt that incorporates both Firestore data AND structured userData
-async function getSystemPrompt(userData = null) {
-  const firestore = initializeFirebase();
-  
-  let systemContent = '';
-  
-  // SECTION 1: Use structured userData if available (from LetsJam)
-  if (userData) {
-    console.log('Building system prompt with structured userData...');
-    
-    systemContent += `You are a personal health assistant with access to comprehensive health data:\n\n`;
-    
-    // Add structured nutrition data
-    if (userData.nutrition) {
-      systemContent += `=== NUTRITION AVERAGES (30-day) ===\n`;
-      systemContent += `- Daily calories: ${userData.nutrition.avgCaloriesPerDay}\n`;
-      systemContent += `- Daily protein: ${userData.nutrition.avgProteinPerDay}g\n`;
-      systemContent += `- Daily carbs: ${userData.nutrition.avgCarbsPerDay}g\n`;
-      systemContent += `- Daily fat: ${userData.nutrition.avgFatPerDay}g\n`;
-      systemContent += `- Daily fiber: ${userData.nutrition.avgFiberPerDay}g\n\n`;
-    }
-    
-    // Add structured activity data
-    if (userData.activity) {
-      systemContent += `=== ACTIVITY AVERAGES (30-day) ===\n`;
-      systemContent += `- Workouts per week: ${userData.activity.workoutsPerWeek}\n`;
-      systemContent += `- Average workout heart rate: ${userData.activity.avgHeartRatePerWorkout} bpm\n`;
-      systemContent += `- Average calories burned per workout: ${userData.activity.avgCaloriesBurnedPerWorkout}\n`;
-      systemContent += `- Average workout duration: ${userData.activity.avgWorkoutDurationMinutes} minutes\n\n`;
-    }
-    
-    // Add structured blood markers
-    if (userData.bloodMarkers && userData.bloodMarkers.values) {
-      systemContent += `=== BLOOD TEST RESULTS (Latest) ===\n`;
-      systemContent += `Test Date: ${userData.bloodMarkers.testDate}\n\n`;
-      
-      const values = userData.bloodMarkers.values;
-      
-      if (values.cholesterol) {
-        systemContent += `Cholesterol Panel:\n`;
-        systemContent += `- Total: ${values.cholesterol.total}\n`;
-        systemContent += `- LDL: ${values.cholesterol.ldl}\n`;
-        systemContent += `- HDL: ${values.cholesterol.hdl}\n\n`;
-      }
-      
-      if (values.metabolic) {
-        systemContent += `Metabolic Markers:\n`;
-        systemContent += `- Glucose: ${values.metabolic.glucose}\n`;
-        systemContent += `- HbA1C: ${values.metabolic.hba1c}\n\n`;
-      }
-      
-      if (values.minerals) {
-        systemContent += `Minerals:\n`;
-        systemContent += `- Calcium: ${values.minerals.calcium}\n`;
-        systemContent += `- Sodium: ${values.minerals.sodium}\n`;
-        systemContent += `- Potassium: ${values.minerals.potassium}\n\n`;
-      }
-      
-      if (values.kidneyFunction) {
-        systemContent += `Kidney Function:\n`;
-        systemContent += `- Creatinine: ${values.kidneyFunction.creatinine}\n\n`;
-      }
-      
-      if (values.bloodCells) {
-        systemContent += `Blood Cells:\n`;
-        systemContent += `- Hemoglobin: ${values.bloodCells.hemoglobin}\n`;
-        systemContent += `- RBC: ${values.bloodCells.rbc}\n`;
-        systemContent += `- Platelet Count: ${values.bloodCells.plateletCount}\n\n`;
-      }
-      
-      if (values.hormones) {
-        systemContent += `Hormones:\n`;
-        systemContent += `- TSH: ${values.hormones.tsh}\n\n`;
-      }
-    }
-    
-    systemContent += `=== IMPORTANT INSTRUCTIONS ===\n`;
-    systemContent += `When answering questions about:\n`;
-    systemContent += `- BLOOD MARKERS (calcium, cholesterol, glucose, etc.): Use ONLY the blood test results above\n`;
-    systemContent += `- NUTRITION (calories, protein, etc.): Use ONLY the nutrition averages above\n`;
-    systemContent += `- ACTIVITY/WORKOUTS (heart rate, exercise, etc.): Use ONLY the activity averages above\n`;
-    systemContent += `- Be specific about values and provide context about normal ranges when relevant\n\n`;
-  }
-  
-  // SECTION 2: Add recent detailed activity/food data from Firestore (if available)
-  if (!firestore) {
-    console.log('Firestore not available, using userData only or default prompt');
-    if (!userData) {
-      return 'You are a helpful AI assistant with access to the user\'s recent food and activity data. Please respond to the user\'s message.';
-    }
-    systemContent += `Respond based on the health data provided above. Be conversational and provide actionable insights.`;
-    return systemContent;
-  }
+interface BloodMarkerData {
+  date: string;
+  markers: Record<string, number | string>;
+}
 
-  try {
-    console.log('Fetching recent detailed data from Firestore...');
-    
-    // Get last 10 days of detailed data
-    const tenDaysAgo = new Date();
-    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-    tenDaysAgo.setHours(0, 0, 0, 0);
-    
-    console.log(`Fetching detailed data from ${tenDaysAgo.toISOString()} onwards`);
-    
-    // Create timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Firestore query timeout')), 8000);
-    });
-    
-    let foodData = [];
-    let activityData = [];
-    
-    const queryPromise = (async () => {
-      // Fetch recent Strava activities for detailed view
-      try {
-        console.log('Fetching recent activities from strava_data collection...');
-        const stravaRef = collection(firestore, 'strava_data');
-        const stravaQuery = query(
-          stravaRef,
-          where('userId', '==', 'mihir_jain'),
-          where('start_date', '>=', tenDaysAgo.toISOString()),
-          orderBy('start_date', 'desc'),
-          limit(15)
-        );
-        
-        const stravaSnapshot = await getDocs(stravaQuery);
-        console.log(`Found ${stravaSnapshot.size} recent Strava activities`);
-        
-        stravaSnapshot.forEach(doc => {
-          const data = doc.data();
-          
-          console.log(`Activity: ${data.name} on ${data.start_date} - ${data.distance}km - ${data.caloriesBurned}cal`);
-          
-          const activity = {
-            id: doc.id,
-            date: new Date(data.start_date),
-            content: data.name || 'Workout',
-            type: data.type || 'activity',
-            details: {
-              duration: data.duration || (data.moving_time ? Math.round(data.moving_time / 60) : null),
-              distance: data.distance ? data.distance.toFixed(2) + ' km' : null,
-              calories: data.caloriesBurned || data.calories,
-              heartRate: data.heart_rate || data.average_heartrate,
-              elevationGain: data.elevation_gain
-            }
-          };
-          
-          activityData.push(activity);
-        });
-      } catch (stravaError) {
-        console.log('Error fetching Strava data:', stravaError.message);
+interface EmailSignup {
+  email: string;
+  timestamp: string;
+  source: string;
+}
+
+interface UserFeedback {
+  email?: string;
+  message: string;
+  type: 'suggestion' | 'feature_request' | 'feedback';
+  timestamp: string;
+}
+
+// Combined Email Signup and Feedback Component
+const EmailAndFeedbackCard: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [type, setType] = useState<'suggestion' | 'feature_request' | 'feedback'>('suggestion');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showFeedbackFields, setShowFeedbackFields] = useState(false);
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const signupData: EmailSignup = {
+        email,
+        timestamp: new Date().toISOString(),
+        source: 'homepage_signup'
+      };
+
+      await addDoc(collection(db, 'email_signups'), signupData);
+
+      // If feedback is provided, save it too
+      if (feedback.trim()) {
+        const feedbackData: UserFeedback = {
+          email,
+          message: feedback.trim(),
+          type,
+          timestamp: new Date().toISOString()
+        };
+        await addDoc(collection(db, 'user_feedback'), feedbackData);
       }
-      
-      // Fetch recent nutrition data for detailed view
-      try {
-        console.log('Fetching recent nutrition data...');
-        
-        // Get date strings for last 5 days
-        const dates = [];
-        for (let i = 0; i < 5; i++) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          dates.push(date.toISOString().split('T')[0]);
-        }
-        
-        console.log('Looking for recent nutrition dates:', dates);
-        
-        for (const dateStr of dates) {
-          try {
-            const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
-            const nutritionDoc = await getDoc(nutritionRef);
-            
-            if (nutritionDoc.exists()) {
-              const data = nutritionDoc.data();
+
+      toast.success('🎉 Thanks for signing up! We\'ll keep you updated.');
+      setEmail('');
+      setFeedback('');
+      setShowFeedbackFields(false);
+    } catch (error) {
+      console.error('Error saving data:', error);
+      toast.error('Failed to submit. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300">
+      <CardHeader className="text-center pb-4">
+        <div className="mx-auto w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-3">
+          <Mail className="h-6 w-6 text-white" />
+        </div>
+        <CardTitle className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+          📬 Stay Updated
+        </CardTitle>
+        <p className="text-sm text-gray-600">
+          Get notified about new features & share your ideas
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
+          <Input
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-lg border-purple-200 focus:border-purple-400 focus:ring-purple-400 text-sm"
+            disabled={isSubmitting}
+            required
+          />
+
+          {/* Optional Feedback Toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFeedbackFields(!showFeedbackFields)}
+              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+            >
+              {showFeedbackFields ? '📬 Just email signup' : '💭 + Add feedback/suggestions'}
+            </button>
+          </div>
+
+          {/* Feedback Fields */}
+          {showFeedbackFields && (
+            <div className="space-y-3 border-t border-purple-200 pt-3">
+              <div className="flex gap-1">
+                {[
+                  { value: 'suggestion', label: 'Idea', icon: '💡' },
+                  { value: 'feature_request', label: 'Feature', icon: '✨' },
+                  { value: 'feedback', label: 'Feedback', icon: '💬' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setType(option.value as any)}
+                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                      type === option.value
+                        ? 'bg-purple-200 text-purple-700 border border-purple-300'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {option.icon} {option.label}
+                  </button>
+                ))}
+              </div>
               
-              if (data.totals) {
-                const totals = data.totals;
-                
-                const nutritionDay = {
-                  date: new Date(dateStr),
-                  totals: {
-                    calories: Math.round(totals.calories || 0),
-                    protein: Math.round((totals.protein || 0) * 10) / 10,
-                    fat: Math.round((totals.fat || 0) * 10) / 10,
-                    carbs: Math.round((totals.carbs || 0) * 10) / 10,
-                    fiber: Math.round((totals.fiber || 0) * 10) / 10
-                  }
+              <Textarea
+                placeholder="What would you like to see in My23.ai?"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                rows={3}
+                className="rounded-lg border-purple-200 focus:border-purple-400 focus:ring-purple-400 resize-none text-sm"
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isSubmitting || !email}
+            className="w-full bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+          >
+            {isSubmitting ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+            ) : (
+              <>
+                <Send className="h-4 w-4" />
+                {showFeedbackFields && feedback.trim() ? 'Subscribe + Send Feedback' : 'Subscribe'}
+              </>
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Health Overview Component with OverallJam-style boxes
+const HealthOverviewCard: React.FC = () => {
+  const [healthData, setHealthData] = useState<HealthData[]>([]);
+  const [bloodMarkers, setBloodMarkers] = useState<BloodMarkerData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchHealthData = async () => {
+    try {
+      // Get the last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const dateString = sevenDaysAgo.toISOString().split('T')[0];
+
+      // Initialize data structure for 7 days
+      const tempData: Record<string, HealthData> = {};
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        tempData[dateStr] = {
+          date: dateStr,
+          heartRate: null,
+          caloriesBurned: 0,
+          caloriesConsumed: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+          workoutDuration: 0,
+          activityTypes: []
+        };
+      }
+
+      // Fetch nutrition and activity data
+      const [nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot] = await Promise.all([
+        getDocs(query(
+          collection(db, "nutritionLogs"),
+          where("date", ">=", dateString),
+          orderBy("date", "desc")
+        )).catch(() => ({ docs: [] })),
+        
+        getDocs(query(
+          collection(db, "strava_data"),
+          where("userId", "==", "mihir_jain"),
+          orderBy("start_date", "desc"),
+          limit(20)
+        )).catch(() => ({ docs: [] })),
+        
+        getDocs(query(
+          collection(db, "blood_markers"),
+          where("userId", "==", "mihir_jain"),
+          orderBy("date", "desc"),
+          limit(1)
+        )).catch(() => ({ docs: [] }))
+      ]);
+
+      // Process nutrition data
+      nutritionSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (tempData[data.date]) {
+          tempData[data.date].caloriesConsumed = data.totals?.calories || 0;
+          tempData[data.date].protein = data.totals?.protein || 0;
+          tempData[data.date].carbs = data.totals?.carbs || 0;
+          tempData[data.date].fat = data.totals?.fat || 0;
+          tempData[data.date].fiber = data.totals?.fiber || 0;
+        }
+      });
+
+      // Process Strava data
+      stravaSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
+        
+        if (!activityDate || !tempData[activityDate]) return;
+
+        if (data.heart_rate != null) {
+          const curHR = tempData[activityDate].heartRate || 0;
+          const cnt = tempData[activityDate].activityTypes.length;
+          tempData[activityDate].heartRate = cnt === 0 ? data.heart_rate : ((curHR * cnt) + data.heart_rate) / (cnt + 1);
+        }
+
+        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
+        tempData[activityDate].caloriesBurned += activityCalories;
+        tempData[activityDate].workoutDuration += data.duration || 0;
+
+        if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
+          tempData[activityDate].activityTypes.push(data.type);
+        }
+      });
+
+      // Process blood markers
+      if (bloodMarkersSnapshot.docs.length > 0) {
+        const latestDoc = bloodMarkersSnapshot.docs[0];
+        setBloodMarkers(latestDoc.data() as BloodMarkerData);
+      }
+
+      const sortedData = Object.values(tempData).sort((a, b) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+      setHealthData(sortedData);
+
+    } catch (error) {
+      console.error("Error fetching health data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateAverage = (metric: keyof HealthData) => {
+    const validData = healthData.filter(d => d[metric] !== null && (d[metric] as number) > 0);
+    if (validData.length === 0) return 0;
+    const sum = validData.reduce((total, d) => total + ((d[metric] as number) || 0), 0);
+    return Math.round(sum / validData.length);
+  };
+
+  const generateLast7Days = () => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return date.toISOString().split('T')[0];
+    });
+  };
+
+  useEffect(() => {
+    fetchHealthData();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* 7-Day Health Overview - Full width section */}
+      <Card className="bg-gradient-to-r from-blue-200 to-emerald-200 rounded-2xl p-6 text-gray-800 shadow-xl">
+        <CardHeader className="text-center pb-4">
+          <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-700 to-emerald-700 bg-clip-text text-transparent">
+            📊 Mihir's Last 7 Days Health Overview
+          </CardTitle>
+          <p className="text-sm text-gray-700 mt-2">
+            Your complete health overview for the last 7 days
+          </p>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-32 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              {generateLast7Days().map((date) => {
+                const dayData = healthData.find(d => d.date === date) || {
+                  date,
+                  heartRate: null,
+                  caloriesBurned: 0,
+                  caloriesConsumed: 0,
+                  protein: 0,
+                  carbs: 0,
+                  fat: 0,
+                  fiber: 0,
+                  workoutDuration: 0,
+                  activityTypes: []
                 };
                 
-                console.log(`✅ Added recent nutrition: ${dateStr} = ${nutritionDay.totals.calories} cal`);
-                foodData.push(nutritionDay);
-              }
-            }
-          } catch (error) {
-            console.log(`Error fetching ${dateStr}:`, error.message);
-          }
-        }
-      } catch (nutritionError) {
-        console.log('Error fetching nutrition data:', nutritionError.message);
-      }
+                const isToday = date === new Date().toISOString().split('T')[0];
+                
+                return (
+                  <div
+                    key={date}
+                    className="bg-white/40 backdrop-blur-sm rounded-lg p-4 border border-white/40 shadow-md"
+                  >
+                    <h3 className="font-semibold text-sm text-gray-700 mb-3 text-center">
+                      {new Date(date).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                      {isToday && (
+                        <span className="block text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-medium mt-1">
+                          Today
+                        </span>
+                      )}
+                    </h3>
+                    <div className="space-y-2 text-xs text-gray-700">
+                      <div className="flex justify-between">
+                        <span>Calories In:</span>
+                        <span className="font-medium">{Math.round(dayData.caloriesConsumed)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Calories Out:</span>
+                        <span className="font-medium">{Math.round(dayData.caloriesBurned)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Protein:</span>
+                        <span className="font-medium">{Math.round(dayData.protein)}g</span>
+                      </div>
+                      {/* Activities - Fixed to show one per line with max 2 lines */}
+                      <div className="mt-2">
+                        <span className="text-gray-600">Activities:</span>
+                        <div className="mt-1 text-gray-800 font-medium min-h-[32px]">
+                          {dayData.activityTypes.length > 0 ? (
+                            <div className="space-y-1">
+                              {dayData.activityTypes.slice(0, 2).map((activity, index) => (
+                                <div key={index} className="truncate text-xs">
+                                  {activity}
+                                </div>
+                              ))}
+                              {dayData.activityTypes.length > 2 && (
+                                <div className="text-xs text-gray-500">
+                                  +{dayData.activityTypes.length - 2} more
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500">Rest</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Weekly Averages Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            📈 Mihir's Weekly Averages
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Calories In Card - Light Green Gradient */}
+              <div className="bg-gradient-to-br from-green-200 to-emerald-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-800">Calories In</h3>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Utensils className="h-4 w-4 text-gray-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-gray-800">{calculateAverage('caloriesConsumed')}</p>
+                  <p className="text-xs text-gray-700">cal/day</p>
+                </div>
+              </div>
+
+              {/* Calories Out Card - Light Amber/Orange Gradient */}
+              <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-800">Calories Out</h3>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Flame className="h-4 w-4 text-gray-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-gray-800">{calculateAverage('caloriesBurned')}</p>
+                  <p className="text-xs text-gray-700">cal/day</p>
+                </div>
+              </div>
+
+              {/* Protein Card - Light Purple Gradient */}
+              <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-800">Protein</h3>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Target className="h-4 w-4 text-gray-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-gray-800">{calculateAverage('protein')}</p>
+                  <p className="text-xs text-gray-700">g/day</p>
+                </div>
+              </div>
+
+              {/* Heart Rate Card - Light Red Gradient */}
+              <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-800">Acitivity Heart Rate</h3>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Heart className="h-4 w-4 text-gray-700" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-gray-800">{calculateAverage('heartRate') || '-'}</p>
+                  <p className="text-xs text-gray-700">{calculateAverage('heartRate') ? 'bpm' : 'avg'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Blood Markers Section */}
+      {bloodMarkers && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Droplet className="h-5 w-5 text-blue-500" />
+              Latest Blood Markers
+            </CardTitle>
+            <p className="text-sm text-gray-600">
+              As of {new Date(bloodMarkers.date).toLocaleDateString()}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {Object.entries(bloodMarkers.markers).map(([key, value]) => (
+                <div key={key} className="text-center bg-white/50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{key}</p>
+                  <p className="text-xl font-semibold text-gray-800">{value}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+// Chatbot Card Component with Gemini integration
+const ChatbotCard: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Hi! I\'m your AI health assistant. How can I help you today? 🤖' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+
+response || data.message || 'Sorry, I couldn\'t process that request.' };
       
-      return { foodData, activityData };
-    })();
-    
-    // Race between query and timeout
-    const { foodData: foods, activityData: activities } = await Promise.race([queryPromise, timeoutPromise]);
-    
-    console.log(`Successfully fetched ${foods.length} recent nutrition days and ${activities.length} recent activities`);
-    
-    // Add recent detailed data to system prompt
-    if (foods.length > 0 || activities.length > 0) {
-      systemContent += `=== RECENT DETAILED DATA (Last 10 days) ===\n\n`;
-      
-      if (activities.length > 0) {
-        systemContent += `RECENT ACTIVITIES:\n`;
-        activities.slice(0, 10).forEach(activity => {
-          const date = activity.date.toLocaleDateString();
-          const time = activity.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          const duration = activity.details.duration ? ` (${activity.details.duration} min)` : '';
-          const distance = activity.details.distance ? ` - ${activity.details.distance}` : '';
-          const calories = activity.details.calories ? ` - ${activity.details.calories} cal` : '';
-          const heartRate = activity.details.heartRate ? ` - HR: ${activity.details.heartRate} bpm` : '';
-          systemContent += `${date} ${time}: ${activity.content}${duration}${distance}${calories}${heartRate}\n`;
-        });
-        systemContent += '\n';
-      }
-      
-      if (foods.length > 0) {
-        systemContent += `RECENT NUTRITION (Daily totals):\n`;
-        foods.sort((a, b) => new Date(b.date) - new Date(a.date));
-        foods.forEach(nutritionDay => {
-          if (nutritionDay.totals) {
-            const date = nutritionDay.date.toLocaleDateString();
-            const totals = nutritionDay.totals;
-            systemContent += `${date}: ${totals.calories} cal | ${totals.protein}g protein | ${totals.fat}g fat | ${totals.carbs}g carbs | ${totals.fiber}g fiber\n`;
-          }
-        });
-        systemContent += '\n';
-      }
-    }
-    
-    systemContent += `Based on both the 30-day averages and recent detailed data above, provide personalized insights. When asked about blood markers, reference ONLY the blood test results. When asked about recent activities or food, you can reference both the averages and specific recent entries. Be conversational and specific.`;
-    
-    console.log(`=== BUILT ENHANCED SYSTEM PROMPT WITH BOTH STRUCTURED + DETAILED DATA (${systemContent.length} characters) ===`);
-    console.log(systemContent.substring(0, 500) + '...');
-    console.log(`=== END SYSTEM PROMPT ===`);
-    
-    return systemContent;
-    
-  } catch (error) {
-    console.error('Error fetching detailed data from Firestore:', error.message);
-    if (userData) {
-      systemContent += `Respond based on the health data provided above. There was an issue accessing recent detailed activity data, but the averages above are still available.`;
-      return systemContent;
-    }
-    return 'You are a helpful AI assistant. There was an issue accessing the user\'s recent food and activity data. Please respond helpfully and suggest they try again.';
-  }
-}
-
-// Simple in-memory rate limiting (use Redis in production)
-const rateLimitMap = new Map();
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute window
-  const maxRequests = 10; // Max 10 requests per minute per IP
-  
-  if (!rateLimitMap.has(ip)) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
-    return false;
-  }
-  
-  const limit = rateLimitMap.get(ip);
-  
-  if (now > limit.resetTime) {
-    limit.count = 1;
-    limit.resetTime = now + windowMs;
-    return false;
-  }
-  
-  if (limit.count >= maxRequests) {
-    return true;
-  }
-  
-  limit.count++;
-  return false;
-}
-
-// Convert OpenAI-style messages to Gemini format
-function convertMessagesToGeminiFormat(messages) {
-  const contents = [];
-  let systemMessage = null;
-  
-  for (const message of messages) {
-    if (message.role === 'system') {
-      systemMessage = message.content;
-      continue;
-    }
-    
-    let role;
-    if (message.role === 'user') {
-      role = 'user';
-    } else if (message.role === 'assistant') {
-      role = 'model';
-    } else {
-      continue; // Skip unknown roles
-    }
-    
-    contents.push({
-      role: role,
-      parts: [{ text: message.content }]
-    });
-  }
-  
-  // Handle system message by prepending it to the first user message
-  if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
-    contents[0].parts[0].text = systemMessage + '\n\nUser: ' + contents[0].parts[0].text;
-  } else if (systemMessage && contents.length === 0) {
-    // If no user messages, create one with just the system prompt
-    contents.push({
-      role: 'user',
-      parts: [{ text: systemMessage }]
-    });
-  }
-  
-  return contents;
-}
-
-// Convert Gemini response to OpenAI format
-function convertGeminiResponseToOpenAI(geminiResponse) {
-  const content = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const finishReason = geminiResponse.candidates?.[0]?.finishReason || 'STOP';
-  
-  // Map Gemini finish reasons to OpenAI format
-  let mappedFinishReason = 'stop';
-  switch (finishReason) {
-    case 'STOP':
-      mappedFinishReason = 'stop';
-      break;
-    case 'MAX_TOKENS':
-      mappedFinishReason = 'length';
-      break;
-    case 'SAFETY':
-      mappedFinishReason = 'content_filter';
-      break;
-    case 'RECITATION':
-      mappedFinishReason = 'content_filter';
-      break;
-    default:
-      mappedFinishReason = 'stop';
-  }
-  
-  return {
-    choices: [
-      {
-        message: {
-          role: 'assistant',
-          content: content
-        },
-        finish_reason: mappedFinishReason
-      }
-    ],
-    usage: {
-      prompt_tokens: geminiResponse.usageMetadata?.promptTokenCount || 0,
-      completion_tokens: geminiResponse.usageMetadata?.candidatesTokenCount || 0,
-      total_tokens: geminiResponse.usageMetadata?.totalTokenCount || 0
+      setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorResponse = { 
+        role: 'assistant', 
+        content: 'Sorry, I\'m having trouble connecting right now. Please try again in a moment. 🤖💭' 
+      };
+      setMessages(prev => [...prev, errorResponse]);
+      toast.error('Failed to get AI response. Please try again.');
+    } finally {
+      setIsTyping(false);
     }
   };
-}
 
-async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
-  const maxRetries = 3;
-  const baseDelay = 1000; // 1 second
-  
-  try {
-    // Convert messages to Gemini format
-    const contents = convertMessagesToGeminiFormat(messages);
-    
-    const requestBody = {
-      contents: contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 500,
-        topP: 0.8,
-        topK: 40
-      },
-      safetySettings: [
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_ONLY_HIGH"
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_ONLY_HIGH"
-        },
-        {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_ONLY_HIGH"
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_ONLY_HIGH"
-        }
-      ]
-    };
-
-    console.log(`=== GEMINI API REQUEST (Attempt ${retryCount + 1}) ===`);
-    console.log(`Contents being sent: ${contents.length}`);
-    console.log(`Request payload size: ${JSON.stringify(requestBody).length} bytes`);
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Vercel-Function/1.0'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    console.log(`=== GEMINI API RESPONSE (Attempt ${retryCount + 1}) ===`);
-    console.log(`Status: ${response.status} ${response.statusText}`);
-
-    if (response.status === 429 && retryCount < maxRetries) {
-      const delay = baseDelay * Math.pow(2, retryCount);
-      console.log(`Rate limited. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-      
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return makeGeminiRequest(apiKey, messages, retryCount + 1);
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
+  };
 
-    return response;
-  } catch (error) {
-    console.error(`=== GEMINI REQUEST ERROR (Attempt ${retryCount + 1}) ===`);
-    console.error(`Error type: ${error.name}`);
-    console.error(`Error message: ${error.message}`);
-    
-    if (retryCount < maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')) {
-      const delay = baseDelay * Math.pow(2, retryCount);
-      console.log(`Network error. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-      
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return makeGeminiRequest(apiKey, messages, retryCount + 1);
-    }
-    throw error;
-  }
-}
+  const quickPrompts = [
+    "How's my nutrition this week?",
+    "What's my calorie trend?",
+    "Any health recommendations?",
+    "Analyze my protein intake"
+  ];
 
-export default async function handler(req, res) {
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  const handleQuickPrompt = (prompt: string) => {
+    setInput(prompt);
+  };
+
+  if (!isOpen) {
+    return (
+      <Card className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" onClick={() => setIsOpen(true)}>
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center mb-3">
+            <Bot className="h-6 w-6 text-white" />
+          </div>
+          <CardTitle className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            🤖 AI Health Chat
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Get personalized health insights
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="bg-white/60 rounded-lg p-3 border border-indigo-200">
+              <div className="text-xs text-gray-600 mb-1">Powered by Gemini AI</div>
+              <div className="text-sm font-medium text-indigo-700">"How's my nutrition this week?"</div>
+            </div>
+            <Button className="w-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm">
+              <MessageSquare className="h-4 w-4" />
+              Start Chatting
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
-  // Get client IP for rate limiting
-  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
-  
-  // Check rate limit
-  if (isRateLimited(clientIP)) {
-    console.log(`Rate limit exceeded for IP: ${clientIP}`);
-    return res.status(429).json({ 
-      error: 'Too many requests. Please wait a moment before trying again.',
-      retryAfter: 60
-    });
-  }
+  return (
+    <Card className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg">
+      <CardHeader className="text-center pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center">
+              <Bot className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                AI Health Chat
+              </CardTitle>
+              <p className="text-xs text-gray-500">Powered by Gemini</p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsOpen(false)}
+            className="h-6 w-6 p-0 text-gray-500 hover:text-gray-700"
+          >
+            ×
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          {/* Quick Prompts */}
+          {messages.length <= 1 && (
+            <div className="grid grid-cols-2 gap-1">
+              {quickPrompts.map((prompt, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleQuickPrompt(prompt)}
+                  className="text-xs p-2 bg-white/60 hover:bg-white/80 border border-indigo-200 rounded text-indigo-700 transition-all duration-200"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
 
-  try {
-    // Validate and clean the Gemini API key
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
-    
-    if (!apiKey) {
-      console.error('Gemini API key is missing');
-      return res.status(500).json({ 
-        error: 'Server configuration error: Gemini API key not found' 
-      });
-    }
+          {/* Messages */}
+          <div className="bg-white/60 rounded-lg p-3 h-48 overflow-y-auto space-y-2">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] p-2 rounded-lg text-xs ${
+                    message.role === 'user'
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-white text-gray-800 border border-gray-200'
+                  }`}
+                >
+                  {message.content}
+                </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white text-gray-800 border border-gray-200 p-2 rounded-lg text-xs">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
-    // Validate API key format (Gemini keys start with AIza)
-    if (!apiKey.startsWith('AIza') || apiKey.length < 35) {
-      console.error('Invalid Gemini API key format');
-      return res.status(500).json({ 
-        error: 'Server configuration error: Invalid API key format' 
-      });
-    }
+          {/* Input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Ask about your health..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="text-sm border-indigo-200 focus:border-indigo-400"
+              disabled={isTyping}
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isTyping}
+              size="sm"
+              className="bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white px-3"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
 
-    // UPDATED: Get both messages and userData from request body
-    const { messages, userData, userId, source } = req.body;
-    
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ 
-        error: 'Invalid request: messages array is required' 
-      });
-    }
+          {/* Footer */}
+          <div className="text-center">
+            <button
+              onClick={() => window.location.href = '/lets-jam'}
+              className="text-xs text-indigo-600 hover:text-indigo-700 underline"
+            >
+              Open full chat page →
+            </button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
-    console.log('=== INCOMING REQUEST ===');
-    console.log('Source:', source);
-    console.log('User ID:', userId);
-    console.log('Messages count:', messages.length);
-    console.log('Has userData:', !!userData);
-    if (userData) {
-      console.log('UserData keys:', Object.keys(userData));
-    }
+const Index = () => {
+  const handleEmailClick = () => {
+    window.location.href = "mailto:mihir@my23.ai";
+  };
 
-    // UPDATED: Get enhanced system prompt with both structured userData and Firestore data
-    console.log('Fetching enhanced system prompt...');
-    const systemPromptPromise = getSystemPrompt(userData);
-    const systemPromptTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('System prompt fetch timeout')), 10000); // Increased timeout
-    });
-    
-    let systemPrompt;
-    try {
-      systemPrompt = await Promise.race([systemPromptPromise, systemPromptTimeout]);
-    } catch (timeoutError) {
-      console.error('System prompt fetch timed out, using fallback');
-      if (userData) {
-        systemPrompt = `You are a helpful health assistant. The user has provided some health data, but there was an issue accessing detailed recent data. Use the information available and respond helpfully.`;
-      } else {
-        systemPrompt = 'You are a helpful AI assistant. The user may ask about their recent activities, but there was an issue accessing their data. Please respond helpfully.';
-      }
-    }
-
-    console.log(`=== PREPARING GEMINI REQUEST ===`);
-    console.log(`User messages count: ${messages.length}`);
-    console.log(`System prompt length: ${systemPrompt.length} characters`);
-    
-    // Build full messages array with enhanced system prompt
-    const fullMsgs = [
-      { role: 'system', content: systemPrompt },
-      ...messages
-    ];
-
-    console.log(`=== FINAL MESSAGES ARRAY BEING SENT TO GEMINI ===`);
-    console.log(`Total messages: ${fullMsgs.length}`);
-    fullMsgs.forEach((msg, index) => {
-      console.log(`Message ${index}:`);
-      console.log(`  Role: ${msg.role}`);
-      console.log(`  Content length: ${msg.content?.length || 0} characters`);
-      if (msg.role === 'system') {
-        console.log(`  System content preview: ${msg.content.substring(0, 200)}...`);
-      } else {
-        console.log(`  Content: ${msg.content}`);
-      }
-    });
-    console.log(`=== END MESSAGES ARRAY ===`);
-
-    // Make request to Gemini API with retry logic
-    const geminiResponse = await makeGeminiRequest(apiKey, fullMsgs);
-
-    console.log(`=== GEMINI RESPONSE ===`);
-    console.log(`Status: ${geminiResponse.status}`);
-
-    // Check if response is OK
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error(`Gemini API error (${geminiResponse.status}):`, errorText);
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 relative overflow-hidden">
+      <Toaster position="top-right" />
       
-      // Parse error details if available
-      let errorDetails = null;
-      try {
-        errorDetails = JSON.parse(errorText);
-      } catch (e) {
-        // Error text is not JSON
-      }
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
       
-      // Handle specific error codes
-      switch (geminiResponse.status) {
-        case 400:
-          return res.status(400).json({ 
-            error: 'Bad request - check message format',
-            details: errorDetails?.error?.message || 'Invalid request format'
-          });
-        case 401:
-          return res.status(500).json({ 
-            error: 'Authentication failed - check API key configuration' 
-          });
-        case 403:
-          return res.status(403).json({ 
-            error: 'Access denied - check API key permissions',
-            details: errorDetails?.error?.message || 'Forbidden'
-          });
-        case 429:
-          return res.status(429).json({ 
-            error: 'Gemini rate limit exceeded. Please try again in a moment.',
-            details: errorDetails?.error?.message || 'Rate limit exceeded',
-            retryAfter: 60
-          });
-        case 500:
-          return res.status(500).json({ 
-            error: 'Gemini internal server error - please try again' 
-          });
-        case 503:
-          return res.status(503).json({ 
-            error: 'Gemini service overloaded - please try again in a few minutes' 
-          });
-        default:
-          return res.status(500).json({ 
-            error: `Gemini API error: ${geminiResponse.status}`,
-            details: errorDetails?.error?.message || errorText
-          });
-      }
-    }
+      {/* Floating elements for visual interest */}
+      <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-purple-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
+      
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
+        {/* Main heading section */}
+        <div className="text-center mb-12">
+          <div className="space-y-6 mb-8">
+            <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent animate-fade-in leading-tight">
+              🩺 MY HEALTH.<br />
+              🗄️ MY DATA.<br />
+              🧬 MY 23.
+            </h1>
+            
+            <div className="space-y-4">
+              <p className="text-xl md:text-2xl font-medium text-blue-600 animate-slide-up delay-200">
+                🚀 Coming Soon
+              </p>
+            </div>
+          </div>
+          
+          <div className="mb-8 animate-slide-up delay-300">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Your complete genetic blueprint lives in 23 pairs of chromosomes. 
+              Take control of your health journey with AI-powered insights from your personal health data. 🔬✨
+            </p>
+          </div>
+          
+          <div className="animate-slide-up delay-500 mb-8">
+            <Button 
+              onClick={handleEmailClick}
+              className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            >
+              <Mail className="mr-3 h-5 w-5" />
+              mihir@my23.ai
+            </Button>
+          </div>
+        </div>
 
-    // Parse and return the response
-    const responseData = await geminiResponse.json();
-    
-    console.log(`=== GEMINI RESPONSE DATA ===`);
-    console.log(`Response object keys:`, Object.keys(responseData));
-    if (responseData.candidates && responseData.candidates[0]) {
-      console.log(`Response content: ${responseData.candidates[0].content?.parts?.[0]?.text?.substring(0, 200)}...`);
-      console.log(`Finish reason: ${responseData.candidates[0].finishReason}`);
-    }
-    if (responseData.usageMetadata) {
-      console.log(`Token usage:`, responseData.usageMetadata);
-    }
-    
-    // Convert Gemini response format to OpenAI-compatible format
-    const convertedResponse = convertGeminiResponseToOpenAI(responseData);
-    
-    console.log('=== GEMINI API CALL SUCCESSFUL ===');
-    
-    return res.status(200).json(convertedResponse);
+        {/* Interactive Cards Grid - Updated layout */}
+        <div className="space-y-8 mb-12">
+          {/* Health Overview - Full width */}
+          <HealthOverviewCard />
+          
+          {/* Other cards in a row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChatbotCard />
+            <EmailAndFeedbackCard />
+          </div>
+        </div>
 
-  } catch (error) {
-    console.error('Handler error:', error);
-    
-    // Handle specific fetch errors
-    if (error.code === 'ENOTFOUND') {
-      return res.status(500).json({ 
-        error: 'Network error: Could not reach Gemini API' 
-      });
-    }
-    
-    if (error.name === 'AbortError') {
-      return res.status(500).json({ 
-        error: 'Request timeout: Gemini API did not respond in time' 
-      });
-    }
-    
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-}
+        {/* Navigation Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-12">
+          <Button 
+            onClick={() => window.location.href = '/overall-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <BarChart2 className="mr-3 h-5 w-5" />
+            Overall Jam
+          </Button>
+          
+          <Button 
+            onClick={() => window.location.href = '/lets-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <MessageSquare className="mr-3 h-5 w-5" />
+            Lets Jam
+          </Button>
+          
+          <Button 
+            onClick={() => window.location.href = '/activity-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Activity className="mr-3 h-5 w-5" />
+            Activity Jam
+          </Button>
+          
+          <Button 
+            onClick={() => window.location.href = '/nutrition-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Utensils className="mr-3 h-5 w-5" />
+            Nutrition Jam
+          </Button>
+          
+          <Button 
+            onClick={() => window.location.href = '/body-jam'} 
+            className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <Heart className="mr-3 h-5 w-5" />
+            Body Jam
+          </Button>
+        </div>
+        
+        {/* Coming soon indicator */}
+        <div className="text-center animate-slide-up delay-900">
+          <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600 font-medium">📬 Building the future of personalized health</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Index;
