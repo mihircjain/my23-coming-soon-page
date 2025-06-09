@@ -196,7 +196,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
             </div>
 
             {/* Macros Grid */}
-            <div className="grid grid-cols-2 gap-2 text-xs mb-4">
+            <div className="grid grid-cols-1 gap-6">
               <div className="text-center bg-white/60 rounded-lg py-3 border border-blue-200">
                 <div className="font-bold text-blue-600 text-lg">{Math.round(totals.protein)}g</div>
                 <div className="text-blue-700 text-xs">Protein</div>
