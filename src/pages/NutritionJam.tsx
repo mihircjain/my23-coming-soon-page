@@ -59,19 +59,34 @@ const safeGetTodayDateString = () => {
 
 const safeFormatDateForDisplay = (date) => {
   try {
-    if (!date) return 'Invalid Date';
-    if (typeof formatDateForDisplay === 'function') {
-      return formatDateForDisplay(date);
+    if (!date) return new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    
+    let dateObj;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      return new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     }
-    const d = date instanceof Date ? date : new Date(date);
-    return d.toLocaleDateString('en-US', {
+    
+    if (isNaN(dateObj.getTime())) {
+      return new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    
+    if (typeof formatDateForDisplay === 'function') {
+      const result = formatDateForDisplay(dateObj);
+      if (result && result !== 'Invalid Date') return result;
+    }
+    
+    return dateObj.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short', 
       day: 'numeric'
     });
   } catch (error) {
     console.error('Error formatting display date:', error);
-    return 'Invalid Date';
+    return new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
 };
 
@@ -319,7 +334,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
   const foodCount = preset.foods?.length || 0;
 
   return (
-    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300">
+    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300 h-full">
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start mb-2">
           <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
@@ -332,55 +347,58 @@ const CombinedMealCard = ({ preset, onClick }) => {
         
         {/* Food items description */}
         <div className="text-sm text-gray-600 mb-3">
-          <div className="line-clamp-2">
-            {preset.foods?.slice(0, 3).map(food => food.foodId).join(", ")}
-            {foodCount > 3 && ` + ${foodCount - 3} more items`}
+          <div className="leading-relaxed">
+            {preset.foods?.map(food => food.foodId).join(", ")}
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0">
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
-            <div className="text-2xl font-bold text-orange-600">
-              {Math.round(totalCalories)}
+      <CardContent className="pt-0 flex flex-col h-full justify-between">
+        <div className="flex-1">
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
+              <div className="text-2xl font-bold text-orange-600">
+                {Math.round(totalCalories)}
+              </div>
+              <div className="text-xs text-orange-700 font-medium">calories</div>
             </div>
-            <div className="text-xs text-orange-700 font-medium">calories</div>
-          </div>
-          <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-            <div className="text-2xl font-bold text-blue-600">
-              {foodCount}
+            <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+              <div className="text-2xl font-bold text-blue-600">
+                {foodCount}
+              </div>
+              <div className="text-xs text-blue-700 font-medium">items</div>
             </div>
-            <div className="text-xs text-blue-700 font-medium">items</div>
           </div>
-        </div>
-        
-        <div className="grid grid-cols-4 gap-2 mb-4 text-xs">
-          <div className="text-center bg-blue-50 rounded-lg py-2 border border-blue-100">
-            <div className="font-bold text-blue-600">{Math.round(totalProtein)}g</div>
-            <div className="text-blue-700 text-[10px]">Protein</div>
-          </div>
-          <div className="text-center bg-green-50 rounded-lg py-2 border border-green-100">
-            <div className="font-bold text-green-600">{Math.round(totalCarbs)}g</div>
-            <div className="text-green-700 text-[10px]">Carbs</div>
-          </div>
-          <div className="text-center bg-purple-50 rounded-lg py-2 border border-purple-100">
-            <div className="font-bold text-purple-600">{Math.round(totalFat)}g</div>
-            <div className="text-purple-700 text-[10px]">Fat</div>
-          </div>
-          <div className="text-center bg-amber-50 rounded-lg py-2 border border-amber-100">
-            <div className="font-bold text-amber-600">{Math.round(totalFiber)}g</div>
-            <div className="text-amber-700 text-[10px]">Fiber</div>
+          
+          <div className="grid grid-cols-4 gap-2 mb-4 text-xs">
+            <div className="text-center bg-blue-50 rounded-lg py-2 border border-blue-100">
+              <div className="font-bold text-blue-600">{Math.round(totalProtein)}g</div>
+              <div className="text-blue-700 text-[10px]">Protein</div>
+            </div>
+            <div className="text-center bg-green-50 rounded-lg py-2 border border-green-100">
+              <div className="font-bold text-green-600">{Math.round(totalCarbs)}g</div>
+              <div className="text-green-700 text-[10px]">Carbs</div>
+            </div>
+            <div className="text-center bg-purple-50 rounded-lg py-2 border border-purple-100">
+              <div className="font-bold text-purple-600">{Math.round(totalFat)}g</div>
+              <div className="text-purple-700 text-[10px]">Fat</div>
+            </div>
+            <div className="text-center bg-amber-50 rounded-lg py-2 border border-amber-100">
+              <div className="font-bold text-amber-600">{Math.round(totalFiber)}g</div>
+              <div className="text-amber-700 text-[10px]">Fiber</div>
+            </div>
           </div>
         </div>
 
-        <Button 
-          onClick={onClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Meal to Today
-        </Button>
+        <div className="pt-2">
+          <Button 
+            onClick={onClick}
+            className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Meal to Today
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -395,7 +413,7 @@ const NutritionJam = () => {
   const [lastXDaysData, setLastXDaysData] = useState<DailyLog[]>([]);
   const [weeklyAverages, setWeeklyAverages] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("today");
+  const [activeTab, setActiveTab] = useState("last7days");
 
   // Real meal presets
   const mealPresets = [
@@ -918,54 +936,60 @@ const NutritionJam = () => {
                       </div>
                     </CardContent>
                   </Card>
-
-                  {weeklyAverages && (
-                    <MacroAveragesSummary averages={weeklyAverages} />
-                  )}
                 </div>
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="last7days" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-green-600" />
-                  Last 7 Days Nutrition Overview
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                  {lastXDaysData && lastXDaysData.length > 0 ? lastXDaysData.map((log, index) => (
-                    <DailyMacroBox
-                      key={log?.date || index}
-                      log={log}
-                      date={log?.date}
-                      isToday={log?.date === safeTodayString}
-                      onClick={() => {
-                        if (log?.date) {
-                          try {
-                            const date = new Date(log.date);
-                            if (!isNaN(date.getTime())) {
-                              setSelectedDate(date);
-                              setActiveTab("today");
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-3">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-green-600" />
+                      Last 7 Days Nutrition Overview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                      {lastXDaysData && lastXDaysData.length > 0 ? lastXDaysData.map((log, index) => (
+                        <DailyMacroBox
+                          key={log?.date || index}
+                          log={log}
+                          date={log?.date}
+                          isToday={log?.date === safeTodayString}
+                          onClick={() => {
+                            if (log?.date) {
+                              try {
+                                const date = new Date(log.date);
+                                if (!isNaN(date.getTime())) {
+                                  setSelectedDate(date);
+                                  setActiveTab("today");
+                                }
+                              } catch (error) {
+                                console.error('Error handling date click:', error);
+                              }
                             }
-                          } catch (error) {
-                            console.error('Error handling date click:', error);
-                          }
-                        }
-                      }}
-                    />
-                  )) : (
-                    <div className="col-span-full text-center py-8 text-gray-500">
-                      <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>No data available for the last 7 days</p>
+                          }}
+                        />
+                      )) : (
+                        <div className="col-span-full text-center py-8 text-gray-500">
+                          <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                          <p>No data available for the last 7 days</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="lg:col-span-1">
+                {weeklyAverages && (
+                  <MacroAveragesSummary averages={weeklyAverages} />
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-6">
@@ -977,11 +1001,12 @@ const NutritionJam = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {mealPresets.map((preset) => (
-                  <CombinedMealCard
-                    key={preset.id}
-                    preset={preset}
-                    onClick={() => handleAddPreset(preset)}
-                  />
+                  <div key={preset.id} className="h-full">
+                    <CombinedMealCard
+                      preset={preset}
+                      onClick={() => handleAddPreset(preset)}
+                    />
+                  </div>
                 ))}
               </div>
             </section>
