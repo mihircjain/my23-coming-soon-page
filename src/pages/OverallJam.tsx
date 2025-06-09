@@ -613,10 +613,10 @@ const OverallJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview - Updated with blue-to-green gradient */}
+        {/* 7-Day Health Overview - Updated with lighter blue-to-green gradient */}
         <section className="mb-8">
-          <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-2xl p-8 text-white shadow-2xl">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+          <div className="bg-gradient-to-r from-blue-400 to-emerald-400 rounded-2xl p-8 text-white shadow-xl">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-white to-blue-50 bg-clip-text text-transparent">
               Last 7 Days Health Overview
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
