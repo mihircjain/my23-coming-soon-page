@@ -613,25 +613,60 @@ const OverallJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview - Much lighter blue-to-green gradient */}
+         {/* 7-Day Health Overview */}
         <section className="mb-8">
-          <div className="bg-gradient-to-r from-blue-200 to-emerald-200 rounded-2xl p-8 text-gray-800 shadow-xl">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-blue-700 to-emerald-700 bg-clip-text text-transparent">
-              Last 7 Days Health Overview
-            </h2>
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="h-5 w-5 text-red-500" />
+                Last 7 Days Health Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-     {last7Days.map((date) => (
-       <DailyHealthBox
-         key={date}
-         data={last7DaysData[date]}
-         date={date}
-         isToday={date === new Date().toISOString().split('T')[0]}
-         onClick={() => navigate(`/daily-detail/${date}`)}  // or whatever you want on click
-       />
-     ))}
-   </div>
-            
-          </div>
+                {last7Days.map((date) => (
+                  <DailyHealthBox
+                    key={date}
+                    data={last7DaysData[date] || {}}
+                    date={date}
+                    isToday={date === new Date().toISOString().split('T')[0]}
+                    onClick={() => {
+                      // Could navigate to detailed view for that day
+                      console.log(`Clicked on ${date}`);
+                    }}
+                  />
+                ))}
+              </div>
+              
+              {/* Health Score Explanation Footer */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-blue-500" />
+                  Health Score Calculation (100 points total)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                  <div className="space-y-1">
+                    <div className="font-medium text-green-600">Calories Consumed (40 pts)</div>
+                    <div>🎯 Target: 1800-2000 cal = 40 pts</div>
+                    <div>📉 Below/Above: Proportional scoring</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
+                    <div>🎯 Target: 140g+ = 30 pts</div>
+                    <div>📈 Below: (protein/140) × 30</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="font-medium text-orange-600">Calories Burned (30 pts)</div>
+                    <div>🎯 Target: 500+ cal = 30 pts</div>
+                    <div>📈 Below: (burned/500) × 30</div>
+                  </div>
+                </div>
+                <div className="mt-3 text-xs text-gray-500 border-t pt-2">
+                  <strong>Perfect Day Example:</strong> 1900 cal consumed + 140g protein + 550 cal burned = 100 points 🎉
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         {/* Weekly Averages Section - Updated with gradient text and individual card colors */}
