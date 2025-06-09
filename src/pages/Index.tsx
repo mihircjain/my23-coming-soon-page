@@ -612,7 +612,7 @@ const ChatbotCard: React.FC = () => {
    }}
    className="text-xs text-gray-600 mb-1 cursor-pointer hover:underline"
  >
-   Powered by Gemini AI
+   "How's my nutrition this week?"
  </div>
 
 </div>
