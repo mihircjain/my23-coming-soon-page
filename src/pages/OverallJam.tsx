@@ -613,156 +613,116 @@ const OverallJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview */}
+        {/* 7-Day Health Overview - Updated with blue-to-green gradient */}
         <section className="mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-red-500" />
-                Last 7 Days Health Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                {last7Days.map((date) => (
-                  <DailyHealthBox
-                    key={date}
-                    data={last7DaysData[date] || {}}
-                    date={date}
-                    isToday={date === new Date().toISOString().split('T')[0]}
-                    onClick={() => {
-                      // Could navigate to detailed view for that day
-                      console.log(`Clicked on ${date}`);
-                    }}
-                  />
-                ))}
-              </div>
-              
-              {/* Health Score Explanation Footer */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  Health Score Calculation (100 points total)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
-                  <div className="space-y-1">
-                    <div className="font-medium text-green-600">Calories Consumed (40 pts)</div>
-                    <div>🎯 Target: 1800-2000 cal = 40 pts</div>
-                    <div>📉 Below/Above: Proportional scoring</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
-                    <div>🎯 Target: 140g+ = 30 pts</div>
-                    <div>📈 Below: (protein/140) × 30</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-orange-600">Calories Burned (30 pts)</div>
-                    <div>🎯 Target: 500+ cal = 30 pts</div>
-                    <div>📈 Below: (burned/500) × 30</div>
+          <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-2xl p-8 text-white shadow-2xl">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+              Last 7 Days Health Overview
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              {last7Days.map((date) => (
+                <div key={date} className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 shadow-lg">
+                  <h3 className="font-semibold text-sm opacity-90 mb-3">
+                    {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Calories In:</span>
+                      <span className="font-medium">{last7DaysData[date]?.caloriesConsumed || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Calories Out:</span>
+                      <span className="font-medium">{last7DaysData[date]?.caloriesBurned || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Protein:</span>
+                      <span className="font-medium">{Math.round(last7DaysData[date]?.protein || 0)}g</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Heart Rate:</span>
+                      <span className="font-medium">{last7DaysData[date]?.heartRate ? Math.round(last7DaysData[date].heartRate) : '-'} {last7DaysData[date]?.heartRate ? 'bpm' : ''}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-3 text-xs text-gray-500 border-t pt-2">
-                  <strong>Perfect Day Example:</strong> 1900 cal consumed + 140g protein + 550 cal burned = 100 points 🎉
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </div>
         </section>
 
-        {/* Summary Stats Section */}
+        {/* Weekly Averages Section - Updated with gradient text and individual card colors */}
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-6 text-gray-700 flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-blue-500" />
+          <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             Weekly Averages
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Calories Consumed Card */}
-            <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
-                  <Utensils className="mr-2 h-4 w-4 text-green-500" />
-                  Avg Calories In
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold text-green-600">
-                    {calculateAvgMetric('caloriesConsumed')}/day
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            
+            {/* Calories In Card - Green Gradient */}
+            <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Calories In</h3>
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Utensils className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-3xl font-bold">{calculateAvgMetric('caloriesConsumed')}</p>
+                <p className="text-sm opacity-90">cal/day</p>
+              </div>
+            </div>
 
-            {/* Calories Burned Card */}
-            <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
-                  <Flame className="mr-2 h-4 w-4 text-amber-500" />
-                  Avg Calories Out
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold text-amber-600">
-                    {calculateAvgMetric('caloriesBurned')}/day
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Calories Out Card - Amber/Orange Gradient */}
+            <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Calories Out</h3>
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Flame className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-3xl font-bold">{calculateAvgMetric('caloriesBurned')}</p>
+                <p className="text-sm opacity-90">cal/day</p>
+              </div>
+            </div>
 
-            {/* Protein Card */}
-            <Card className="bg-gradient-to-br from-purple-50 to-violet-50 border-purple-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
-                  <Target className="mr-2 h-4 w-4 text-violet-500" />
-                  Avg Protein
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold text-violet-600">
-                    {calculateAvgMetric('protein')}g/day
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Protein Card - Purple Gradient */}
+            <div className="bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Protein</h3>
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Target className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-3xl font-bold">{calculateAvgMetric('protein')}</p>
+                <p className="text-sm opacity-90">g/day</p>
+              </div>
+            </div>
 
-            {/* Heart Rate Card */}
-            <Card className="bg-gradient-to-br from-red-50 to-pink-50 border-red-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
-                  <Heart className="mr-2 h-4 w-4 text-red-500" />
-                  Avg Heart Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <div className="text-2xl font-bold text-red-600">
-                    {calculateAvgMetric('heartRate') || '-'} {calculateAvgMetric('heartRate') ? 'bpm' : ''}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Heart Rate Card - Red Gradient */}
+            <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Heart Rate</h3>
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Heart className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-3xl font-bold">{calculateAvgMetric('heartRate') || '-'}</p>
+                <p className="text-sm opacity-90">{calculateAvgMetric('heartRate') ? 'bpm' : 'avg'}</p>
+              </div>
+            </div>
           </div>
         </section>
 
         {/* Combined Chart Section */}
         <section className="mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+          <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-500" />
+              <CardTitle className="text-xl font-semibold bg-gradient-to-r from-white to-indigo-100 bg-clip-text text-transparent flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-white" />
                 Health Trends (Last 7 Days)
               </CardTitle>
-              <p className="text-sm text-gray-600 mt-2">
+              <p className="text-sm text-white/80 mt-2">
                 Track your key health metrics over the past week. Toggle datasets using the legend.
               </p>
             </CardHeader>
@@ -772,7 +732,7 @@ const OverallJam = () => {
                   <Skeleton className="h-full w-full" />
                 </div>
               ) : (
-                <div className="h-80" id="combined-health-chart">
+                <div className="h-80 bg-white/10 backdrop-blur-sm rounded-lg p-4" id="combined-health-chart">
                   {/* Chart will be rendered here */}
                 </div>
               )}
