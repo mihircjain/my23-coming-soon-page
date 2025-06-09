@@ -334,8 +334,8 @@ const CombinedMealCard = ({ preset, onClick }) => {
   const foodCount = preset.foods?.length || 0;
 
   return (
-    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300 h-full">
-      <CardHeader className="pb-3">
+    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300 flex flex-col h-full">
+      <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex justify-between items-start mb-2">
           <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
             {preset.name}
@@ -353,7 +353,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0 flex flex-col justify-between min-h-[300px]">
+      <CardContent className="pt-0 flex flex-col flex-1">
         <div className="flex-1">
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
@@ -390,13 +390,15 @@ const CombinedMealCard = ({ preset, onClick }) => {
           </div>
         </div>
 
-        <Button 
-          onClick={onClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 mt-auto"
-        >
-          <Plus className="h-4 w-4" />
-          Add Meal to Today
-        </Button>
+        <div className="mt-auto pt-4">
+          <Button 
+            onClick={onClick}
+            className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Meal to Today
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -936,56 +938,61 @@ const NutritionJam = () => {
           </TabsContent>
 
           <TabsContent value="last7days" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-3">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5 text-green-600" />
-                      Last 7 Days Nutrition Overview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {lastXDaysData && lastXDaysData.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-                        {lastXDaysData.map((log, index) => (
-                          <DailyMacroBox
-                            key={log?.date || index}
-                            log={log}
-                            date={log?.date}
-                            isToday={log?.date === safeTodayString}
-                            onClick={() => {
-                              if (log?.date) {
-                                try {
-                                  const date = new Date(log.date);
-                                  if (!isNaN(date.getTime())) {
-                                    setSelectedDate(date);
-                                    setActiveTab("today");
-                                  }
-                                } catch (error) {
-                                  console.error('Error handling date click:', error);
-                                }
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-green-600" />
+                  Last 7 Days Nutrition Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {lastXDaysData && lastXDaysData.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+                    {lastXDaysData.map((log, index) => (
+                      <DailyMacroBox
+                        key={log?.date || index}
+                        log={log}
+                        date={log?.date}
+                        isToday={log?.date === safeTodayString}
+                        onClick={() => {
+                          if (log?.date) {
+                            try {
+                              const date = new Date(log.date);
+                              if (!isNaN(date.getTime())) {
+                                setSelectedDate(date);
+                                setActiveTab("today");
                               }
-                            }}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                        <p>No data available for the last 7 days</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="lg:col-span-1">
-                {weeklyAverages && (
-                  <MacroAveragesSummary averages={weeklyAverages} />
+                            } catch (error) {
+                              console.error('Error handling date click:', error);
+                            }
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Loading 7-day data...</p>
+                  </div>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+            
+            {/* Weekly Averages Below */}
+            {weeklyAverages && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-blue-600" />
+                    7-Day Average Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MacroAveragesSummary averages={weeklyAverages} />
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-6">
