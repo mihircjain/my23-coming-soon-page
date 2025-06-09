@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? safeFormatDateForDisplay(selectedDate) : <span>Pick a date</span>}import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -140,7 +142,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
       <CardContent className="p-4">
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <div className="text-sm font-medium text-gray-600">
+            <div className="text-sm font-medium text-gray-700">
               {formatDate(date)}
             </div>
             {isToday && (
@@ -156,51 +158,51 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-1">
                     <Flame className="h-4 w-4 text-orange-500" />
-                    <span className="text-lg font-bold text-gray-800">
+                    <span className="text-xl font-bold text-gray-800">
                       {Math.round(totals.calories)}
                     </span>
                     <span className="text-sm text-gray-500">cal</span>
                   </div>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 font-medium">
                     {Math.round(caloriePercent)}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
                   <div
-                    className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-orange-400 to-red-500 h-2.5 rounded-full transition-all duration-300"
                     style={{ width: `${caloriePercent}%` }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-1 text-xs">
-                <div className="text-center">
-                  <div className="font-semibold text-blue-600">{Math.round(totals.protein)}g</div>
-                  <div className="text-gray-500">Pro</div>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="text-center bg-blue-50 rounded-lg py-2">
+                  <div className="font-bold text-blue-600">{Math.round(totals.protein)}g</div>
+                  <div className="text-gray-500 text-[10px]">Protein</div>
                 </div>
-                <div className="text-center">
-                  <div className="font-semibold text-green-600">{Math.round(totals.carbs)}g</div>
-                  <div className="text-gray-500">Carb</div>
+                <div className="text-center bg-green-50 rounded-lg py-2">
+                  <div className="font-bold text-green-600">{Math.round(totals.carbs)}g</div>
+                  <div className="text-gray-500 text-[10px]">Carbs</div>
                 </div>
-                <div className="text-center">
-                  <div className="font-semibold text-purple-600">{Math.round(totals.fat)}g</div>
-                  <div className="text-gray-500">Fat</div>
+                <div className="text-center bg-purple-50 rounded-lg py-2">
+                  <div className="font-bold text-purple-600">{Math.round(totals.fat)}g</div>
+                  <div className="text-gray-500 text-[10px]">Fat</div>
                 </div>
-                <div className="text-center">
-                  <div className="font-semibold text-amber-600">{Math.round(totals.fiber || 0)}g</div>
-                  <div className="text-gray-500">Fib</div>
+                <div className="text-center bg-amber-50 rounded-lg py-2">
+                  <div className="font-bold text-amber-600">{Math.round(totals.fiber || 0)}g</div>
+                  <div className="text-gray-500 text-[10px]">Fiber</div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
+              <div className="flex items-center justify-center gap-1 text-xs text-gray-500 mt-2">
                 <Utensils className="h-3 w-3" />
-                <span>{log.entries.length} items</span>
+                <span>{log.entries.length} items logged</span>
               </div>
             </>
           ) : (
             <div className="text-center py-6">
               <div className="text-gray-400 text-sm mb-1">No data</div>
-              <div className="text-xs text-gray-400">Tap to log</div>
+              <div className="text-xs text-gray-400">Tap to log food</div>
               <Plus className="h-6 w-6 mx-auto mt-2 text-gray-300 group-hover:text-blue-500 transition-colors" />
             </div>
           )}
@@ -317,76 +319,70 @@ const CombinedMealCard = ({ preset, onClick }) => {
     sum + (food.fiber || 0) * (food.quantity || 1), 0) || 0;
 
   const foodCount = preset.foods?.length || 0;
-  const caloriesPerItem = foodCount > 0 ? Math.round(totalCalories / foodCount) : 0;
 
   return (
-    <Card 
-      className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-      onClick={onClick}
-    >
+    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300">
       <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start mb-2">
           <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
             {preset.name}
           </CardTitle>
-          <Badge variant="secondary" className="ml-2 shrink-0">
+          <Badge variant="secondary" className="ml-2 shrink-0 bg-blue-100 text-blue-700">
             Preset
           </Badge>
         </div>
-        <div className="flex items-center text-sm text-gray-600">
-          <CalendarIcon className="h-4 w-4 mr-2" />
-          Combined Meal
+        
+        {/* Food items description */}
+        <div className="text-sm text-gray-600 mb-3">
+          <div className="line-clamp-2">
+            {preset.foods?.slice(0, 3).map(food => food.foodId).join(", ")}
+            {foodCount > 3 && ` + ${foodCount - 3} more items`}
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="text-center p-3 bg-orange-50 rounded-lg">
+      
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
             <div className="text-2xl font-bold text-orange-600">
               {Math.round(totalCalories)}
             </div>
-            <div className="text-xs text-gray-600">calories</div>
+            <div className="text-xs text-orange-700 font-medium">calories</div>
           </div>
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
+          <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
             <div className="text-2xl font-bold text-blue-600">
               {foodCount}
             </div>
-            <div className="text-xs text-gray-600">items</div>
+            <div className="text-xs text-blue-700 font-medium">items</div>
           </div>
         </div>
         
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Avg per item:</span>
-            <span className="font-medium">{caloriesPerItem} cal</span>
+        <div className="grid grid-cols-4 gap-2 mb-4 text-xs">
+          <div className="text-center bg-blue-50 rounded-lg py-2 border border-blue-100">
+            <div className="font-bold text-blue-600">{Math.round(totalProtein)}g</div>
+            <div className="text-blue-700 text-[10px]">Protein</div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Protein:</span>
-            <span className="font-medium">{Math.round(totalProtein)}g</span>
+          <div className="text-center bg-green-50 rounded-lg py-2 border border-green-100">
+            <div className="font-bold text-green-600">{Math.round(totalCarbs)}g</div>
+            <div className="text-green-700 text-[10px]">Carbs</div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Carbs:</span>
-            <span className="font-medium flex items-center">
-              <Activity className="h-3 w-3 mr-1 text-green-500" />
-              {Math.round(totalCarbs)}g
-            </span>
+          <div className="text-center bg-purple-50 rounded-lg py-2 border border-purple-100">
+            <div className="font-bold text-purple-600">{Math.round(totalFat)}g</div>
+            <div className="text-purple-700 text-[10px]">Fat</div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Fat:</span>
-            <span className="font-medium flex items-center">
-              <Target className="h-3 w-3 mr-1 text-purple-500" />
-              {Math.round(totalFat)}g
-            </span>
+          <div className="text-center bg-amber-50 rounded-lg py-2 border border-amber-100">
+            <div className="font-bold text-amber-600">{Math.round(totalFiber)}g</div>
+            <div className="text-amber-700 text-[10px]">Fiber</div>
           </div>
-          {totalFiber > 0 && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Fiber:</span>
-              <span className="font-medium flex items-center">
-                <Flame className="h-3 w-3 mr-1 text-amber-500" />
-                {Math.round(totalFiber)}g
-              </span>
-            </div>
-          )}
         </div>
+
+        <Button 
+          onClick={onClick}
+          className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add Meal to Today
+        </Button>
       </CardContent>
     </Card>
   );
@@ -504,7 +500,30 @@ const NutritionJam = () => {
   const loadLastXDaysData = useCallback(async () => {
     try {
       const data = await getLastXDaysDataFirestore(7);
-      setLastXDaysData(data || []);
+      // Generate last 7 days data even if some days are missing
+      const last7Days = [];
+      const today = new Date();
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = safeFormatDateToYYYYMMDD(date);
+        
+        const existingLog = data?.find(log => log.date === dateString);
+        if (existingLog) {
+          last7Days.push(existingLog);
+        } else {
+          // Create empty log for missing days
+          last7Days.push({
+            date: dateString,
+            entries: [],
+            totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+            lastUpdated: null
+          });
+        }
+      }
+      
+      setLastXDaysData(last7Days);
     } catch (error) {
       console.error('Error loading last X days data:', error);
       setLastXDaysData([]);
@@ -698,7 +717,7 @@ const NutritionJam = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/overall')}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -820,57 +839,83 @@ const NutritionJam = () => {
                 </div>
 
                 <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
+                  <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-purple-800">
                         <BarChart3 className="h-5 w-5 text-purple-600" />
                         Daily Summary
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium">Calories</span>
-                            <span className="text-sm text-gray-600">
-                              {Math.round(currentLog?.totals?.calories || 0)} / 2000
-                            </span>
+                    <CardContent className="space-y-6">
+                      {/* Calories Progress */}
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Flame className="h-5 w-5 text-orange-500" />
+                            <span className="font-semibold text-gray-800">Calories</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full"
-                              style={{
-                                width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
-                              }}
-                            />
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-orange-600">
+                              {Math.round(currentLog?.totals?.calories || 0)}
+                            </div>
+                            <div className="text-sm text-gray-500">/ 2000 goal</div>
                           </div>
                         </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-gradient-to-r from-orange-400 to-red-500 h-3 rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
+                            }}
+                          />
+                        </div>
+                        <div className="text-center text-sm text-gray-600">
+                          {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
+                        </div>
+                      </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="text-center p-3 bg-blue-50 rounded-lg">
-                            <div className="text-lg font-bold text-blue-600">
-                              {Math.round(currentLog?.totals?.protein || 0)}g
-                            </div>
-                            <div className="text-xs text-gray-600">Protein</div>
+                      {/* Macros Grid */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                          <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
+                          <div className="text-2xl font-bold text-blue-600">
+                            {Math.round(currentLog?.totals?.protein || 0)}g
                           </div>
-                          <div className="text-center p-3 bg-green-50 rounded-lg">
-                            <div className="text-lg font-bold text-green-600">
-                              {Math.round(currentLog?.totals?.carbs || 0)}g
-                            </div>
-                            <div className="text-xs text-gray-600">Carbs</div>
+                          <div className="text-xs text-blue-700 font-medium">Protein</div>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                          <Activity className="h-5 w-5 mx-auto mb-2 text-green-500" />
+                          <div className="text-2xl font-bold text-green-600">
+                            {Math.round(currentLog?.totals?.carbs || 0)}g
                           </div>
-                          <div className="text-center p-3 bg-purple-50 rounded-lg">
-                            <div className="text-lg font-bold text-purple-600">
-                              {Math.round(currentLog?.totals?.fat || 0)}g
-                            </div>
-                            <div className="text-xs text-gray-600">Fat</div>
+                          <div className="text-xs text-green-700 font-medium">Carbs</div>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                          <div className="w-5 h-5 mx-auto mb-2 bg-purple-500 rounded-full"></div>
+                          <div className="text-2xl font-bold text-purple-600">
+                            {Math.round(currentLog?.totals?.fat || 0)}g
                           </div>
-                          <div className="text-center p-3 bg-amber-50 rounded-lg">
-                            <div className="text-lg font-bold text-amber-600">
-                              {Math.round(currentLog?.totals?.fiber || 0)}g
-                            </div>
-                            <div className="text-xs text-gray-600">Fiber</div>
+                          <div className="text-xs text-purple-700 font-medium">Fat</div>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
+                          <div className="w-5 h-5 mx-auto mb-2 bg-amber-500 rounded-sm"></div>
+                          <div className="text-2xl font-bold text-amber-600">
+                            {Math.round(currentLog?.totals?.fiber || 0)}g
                           </div>
+                          <div className="text-xs text-amber-700 font-medium">Fiber</div>
+                        </div>
+                      </div>
+
+                      {/* Quick Stats */}
+                      <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            <Utensils className="h-4 w-4" />
+                            Foods logged
+                          </span>
+                          <span className="font-semibold text-gray-800">
+                            {currentLog?.entries?.length || 0}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -885,48 +930,44 @@ const NutritionJam = () => {
           </TabsContent>
 
           <TabsContent value="last7days" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5 text-green-600" />
-                      Last 7 Days Nutrition
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {lastXDaysData && lastXDaysData.length > 0 ? lastXDaysData.map((log, index) => (
-                        <DailyMacroBox
-                          key={log?.date || index}
-                          log={log}
-                          date={log?.date}
-                          isToday={log?.date === safeTodayString}
-                          onClick={() => {
-                            if (log?.date) {
-                              try {
-                                const date = new Date(log.date);
-                                if (!isNaN(date.getTime())) {
-                                  setSelectedDate(date);
-                                  setActiveTab("today");
-                                }
-                              } catch (error) {
-                                console.error('Error handling date click:', error);
-                              }
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-green-600" />
+                  Last 7 Days Nutrition Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                  {lastXDaysData && lastXDaysData.length > 0 ? lastXDaysData.map((log, index) => (
+                    <DailyMacroBox
+                      key={log?.date || index}
+                      log={log}
+                      date={log?.date}
+                      isToday={log?.date === safeTodayString}
+                      onClick={() => {
+                        if (log?.date) {
+                          try {
+                            const date = new Date(log.date);
+                            if (!isNaN(date.getTime())) {
+                              setSelectedDate(date);
+                              setActiveTab("today");
                             }
-                          }}
-                        />
-                      )) : (
-                        <div className="col-span-full text-center py-8 text-gray-500">
-                          <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                          <p>No data available for the last 7 days</p>
-                        </div>
-                      )}
+                          } catch (error) {
+                            console.error('Error handling date click:', error);
+                          }
+                        }
+                      }}
+                    />
+                  )) : (
+                    <div className="col-span-full text-center py-8 text-gray-500">
+                      <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>No data available for the last 7 days</p>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-6">
