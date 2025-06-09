@@ -314,7 +314,7 @@ const HealthOverviewCard: React.FC = () => {
             📊 Last 7 Days Health Overview
           </CardTitle>
           <p className="text-sm text-gray-700 mt-2">
-            Your complete health overview for the last 7 days
+            Mihir's complete health overview for the last 7 days
           </p>
         </CardHeader>
         <CardContent>
@@ -458,7 +458,7 @@ const HealthOverviewCard: React.FC = () => {
 
               <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-800">Heart Rate</h3>
+                  <h3 className="text-sm font-semibold text-gray-800">Activity Heart Rate</h3>
                   <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
                     <Heart className="h-4 w-4 text-gray-700" />
                   </div>
