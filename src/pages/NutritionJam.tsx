@@ -761,26 +761,7 @@ const NutritionJam = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
       <Toaster position="top-right" />
       
-      <header className="pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/overall')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <Utensils className="h-8 w-8 text-green-600" />
-                Nutrition Jam
-              </h1>
-              <p className="text-gray-600 mt-1">Track your daily nutrition and meals</p>
-            </div>
-          </div>
+
 
           <div className="flex items-center gap-4">
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
