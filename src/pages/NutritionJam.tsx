@@ -38,10 +38,10 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   const hasData = log?.entries?.length > 0;
   
   // Calculate macro percentages for visual indicators
-  const calorieGoal = 2200;
-  const proteinGoal = 165;
-  const carbsGoal = 275;
-  const fatGoal = 73;
+  const calorieGoal = 2000;
+  const proteinGoal = 143;
+  const carbsGoal = 238;
+  const fatGoal = 30;
   
   const caloriePercent = Math.min((totals.calories / calorieGoal) * 100, 100);
   
@@ -137,10 +137,11 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   );
 };
 
-// Enhanced Food Item Card
+// Enhanced Food Item Card with hover tooltip showing macros
 const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [quantity, setQuantity] = useState(entry.quantity);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const handleSave = () => {
     onUpdateQuantity(index, quantity);
@@ -149,82 +150,137 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
 
   const totalCals = Math.round(entry.calories * entry.quantity);
   const totalProtein = Math.round(entry.protein * entry.quantity);
+  const totalCarbs = Math.round(entry.carbs * entry.quantity);
+  const totalFat = Math.round(entry.fat * entry.quantity);
+  const totalFiber = Math.round((entry.fiber || 0) * entry.quantity);
 
   return (
-    <Card className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex-1">
-            <div className="font-medium text-gray-800 mb-1">{entry.foodId}</div>
-            <div className="flex items-center gap-4 text-sm text-gray-600">
-              <span className="flex items-center gap-1">
-                <Flame className="h-3 w-3 text-orange-500" />
-                {totalCals} cal
-              </span>
-              <span className="flex items-center gap-1">
-                <Target className="h-3 w-3 text-blue-500" />
-                {totalProtein}g protein
-              </span>
+    <div className="relative">
+      <Card 
+        className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50 cursor-pointer"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        onClick={() => setShowTooltip(!showTooltip)}
+      >
+        <CardContent className="p-4">
+          <div className="flex justify-between items-center">
+            <div className="flex-1">
+              <div className="font-medium text-gray-800 mb-1">{entry.foodId}</div>
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <span className="flex items-center gap-1">
+                  <Flame className="h-3 w-3 text-orange-500" />
+                  {totalCals} cal
+                </span>
+                <span className="flex items-center gap-1">
+                  <Target className="h-3 w-3 text-blue-500" />
+                  {totalProtein}g protein
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+                    className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500"
+                    step="0.1"
+                    min="0"
+                  />
+                  <Button size="sm" onClick={handleSave}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateQuantity(index, Math.max(0.1, entry.quantity - 0.5));
+                      }}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-16 text-center text-sm font-medium">
+                      {entry.quantity} {entry.unit}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateQuantity(index, entry.quantity + 0.5);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditing(true);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove(index);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
-            {isEditing ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                  className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500"
-                  step="0.1"
-                  min="0"
-                />
-                <Button size="sm" onClick={handleSave}>Save</Button>
-                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+        </CardContent>
+      </Card>
+
+      {/* Tooltip showing detailed macros */}
+      {showTooltip && (
+        <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-64">
+          <div className="text-sm font-semibold text-gray-800 mb-2">{entry.foodId}</div>
+          <div className="text-xs text-gray-600 mb-3">{entry.quantity} {entry.unit}</div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Calories:</span>
+              <span className="font-medium text-orange-600">{totalCals}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Protein:</span>
+              <span className="font-medium text-blue-600">{totalProtein}g</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Carbs:</span>
+              <span className="font-medium text-green-600">{totalCarbs}g</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Fat:</span>
+              <span className="font-medium text-purple-600">{totalFat}g</span>
+            </div>
+            {totalFiber > 0 && (
+              <div className="flex justify-between col-span-2">
+                <span className="text-gray-600">Fiber:</span>
+                <span className="font-medium text-amber-600">{totalFiber}g</span>
               </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onUpdateQuantity(index, Math.max(0.1, entry.quantity - 0.5))}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-16 text-center text-sm font-medium">
-                    {entry.quantity} {entry.unit}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onUpdateQuantity(index, entry.quantity + 0.5)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onRemove(index)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </>
             )}
           </div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-white"></div>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 };
 
@@ -327,59 +383,99 @@ const EnhancedFoodLogger = ({ currentLog, currentDate, onAddFood, onRemoveFood, 
   );
 };
 
-// Enhanced Meal Preset Card
+// Enhanced Meal Preset Card - Interactive button style
 const MealPresetCard = ({ meal, onAddMeal }) => {
   const totalCalories = meal.foods?.reduce((sum, food) => sum + (food.calories * food.quantity), 0) || 0;
   const totalProtein = meal.foods?.reduce((sum, food) => sum + (food.protein * food.quantity), 0) || 0;
+  const totalCarbs = meal.foods?.reduce((sum, food) => sum + (food.carbs * food.quantity), 0) || 0;
+  const totalFat = meal.foods?.reduce((sum, food) => sum + (food.fat * food.quantity), 0) || 0;
   
   return (
-    <Card className="group hover:shadow-lg transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-white via-gray-50 to-blue-50 border-blue-200">
-      <CardContent className="p-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-600 transition-colors mb-2">
-              {meal.name}
-            </h3>
-            <p className="text-sm text-gray-500 mb-3">{meal.description}</p>
-            
-            {/* Macro Summary */}
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex items-center gap-1">
-                <Flame className="h-4 w-4 text-orange-500" />
-                <span className="font-semibold text-gray-800">{Math.round(totalCalories)} cal</span>
+    <Button
+      onClick={() => onAddMeal(meal.foods)}
+      variant="outline"
+      className="h-auto p-0 group hover:scale-[1.02] transition-all duration-200 border-2 hover:border-blue-300"
+    >
+      <Card className="w-full border-none shadow-none bg-gradient-to-br from-white via-blue-50/30 to-green-50/30 group-hover:from-blue-50 group-hover:via-indigo-50 group-hover:to-purple-50">
+        <CardContent className="p-6">
+          <div className="text-left space-y-4">
+            {/* Header */}
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-600 transition-colors mb-1">
+                  {meal.name}
+                </h3>
+                <p className="text-sm text-gray-500 mb-3">{meal.description}</p>
               </div>
-              <div className="flex items-center gap-1">
-                <Target className="h-4 w-4 text-blue-500" />
-                <span className="font-semibold text-blue-600">{Math.round(totalProtein)}g pro</span>
+              <div className="ml-4 opacity-60 group-hover:opacity-100 transition-opacity">
+                <Plus className="h-5 w-5 text-blue-500" />
+              </div>
+            </div>
+            
+            {/* Macro Summary - Interactive style */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/60 rounded-lg p-3 border border-orange-100 group-hover:border-orange-200 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  <span className="text-sm font-medium text-gray-600">Calories</span>
+                </div>
+                <div className="text-xl font-bold text-orange-600">{Math.round(totalCalories)}</div>
+              </div>
+              
+              <div className="bg-white/60 rounded-lg p-3 border border-blue-100 group-hover:border-blue-200 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-gray-600">Protein</span>
+                </div>
+                <div className="text-xl font-bold text-blue-600">{Math.round(totalProtein)}g</div>
+              </div>
+              
+              <div className="bg-white/60 rounded-lg p-3 border border-green-100 group-hover:border-green-200 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-gray-600">Carbs</span>
+                </div>
+                <div className="text-xl font-bold text-green-600">{Math.round(totalCarbs)}g</div>
+              </div>
+              
+              <div className="bg-white/60 rounded-lg p-3 border border-purple-100 group-hover:border-purple-200 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-4 w-4 text-purple-500" />
+                  <span className="text-sm font-medium text-gray-600">Fat</span>
+                </div>
+                <div className="text-xl font-bold text-purple-600">{Math.round(totalFat)}g</div>
+              </div>
+            </div>
+            
+            {/* Food Items Preview */}
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {meal.foods?.length || 0} Items
+              </div>
+              {meal.foods?.slice(0, 2).map((food, index) => (
+                <div key={index} className="flex justify-between items-center text-sm bg-white/40 p-2 rounded border">
+                  <span className="text-gray-700 font-medium">{food.foodId}</span>
+                  <span className="text-gray-500">{food.quantity} {food.unit}</span>
+                </div>
+              ))}
+              {meal.foods?.length > 2 && (
+                <div className="text-xs text-gray-400 text-center py-1 bg-white/20 rounded">
+                  +{meal.foods.length - 2} more items
+                </div>
+              )}
+            </div>
+
+            {/* Add button indicator */}
+            <div className="text-center pt-2">
+              <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 group-hover:text-blue-700 transition-colors">
+                <Plus className="h-4 w-4" />
+                Add to Today's Log
               </div>
             </div>
           </div>
-          <Button 
-            onClick={() => onAddMeal(meal.foods)}
-            size="sm"
-            className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Meal
-          </Button>
-        </div>
-        
-        {/* Food Items */}
-        <div className="space-y-2">
-          {meal.foods?.slice(0, 3).map((food, index) => (
-            <div key={index} className="flex justify-between items-center text-sm bg-white/50 p-2 rounded border">
-              <span className="text-gray-700 font-medium">{food.foodId}</span>
-              <span className="text-gray-500">{food.quantity} {food.unit}</span>
-            </div>
-          ))}
-          {meal.foods?.length > 3 && (
-            <div className="text-xs text-gray-400 text-center py-1">
-              +{meal.foods.length - 3} more items
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Button>
   );
 };
 
@@ -395,7 +491,7 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
             Quick Meal Presets
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Save time with pre-configured meals. Click "Add Meal" to log the entire meal to your current day.
+            Save time with pre-configured meals. Click to add the entire meal to your current day.
           </p>
         </CardHeader>
         <CardContent>
