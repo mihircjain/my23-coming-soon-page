@@ -196,7 +196,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
             </div>
 
             {/* Macros Grid */}
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-2 gap-6">
               <div className="text-center bg-white/60 rounded-lg py-3 border border-blue-200">
                 <div className="font-bold text-blue-600 text-lg">{Math.round(totals.protein)}g</div>
                 <div className="text-blue-700 text-xs">Protein</div>
@@ -867,8 +867,8 @@ const NutritionJam = () => {
                           {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
                         </div>
                       </div>
-
-                      {/* Macros Grid */}
+    {/* Stack Calories + Macros vertically */}
+    <div className="grid grid-cols-1 gap-6">
                       <div className="lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
                           <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
