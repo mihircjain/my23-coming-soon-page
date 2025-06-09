@@ -462,8 +462,69 @@ const OverallJam = () => {
           },
           y: {
             grid: { color: 'rgba(226, 232, 240, 0.5)' },
-            beginAtZero: true,
-            ticks: { font: { size: 11 } }
+            beginAtZero: false, // Don't start from zero to show variation
+            min: function(context) {
+              // Calculate dynamic min/max for better scaling
+              const datasets = context.chart.data.datasets;
+              let allValues = [];
+              
+              datasets.forEach(dataset => {
+                if (!dataset.hidden && dataset.data) {
+                  allValues = allValues.concat(dataset.data.filter(val => val !== null && val !== undefined));
+                }
+              });
+              
+              if (allValues.length === 0) return 0;
+              
+              const minVal = Math.min(...allValues);
+              const maxVal = Math.max(...allValues);
+              const range = maxVal - minVal;
+              
+              // Add 10% padding below minimum for better visualization
+              return Math.max(0, minVal - (range * 0.1));
+            },
+            max: function(context) {
+              const datasets = context.chart.data.datasets;
+              let allValues = [];
+              
+              datasets.forEach(dataset => {
+                if (!dataset.hidden && dataset.data) {
+                  allValues = allValues.concat(dataset.data.filter(val => val !== null && val !== undefined));
+                }
+              });
+              
+              if (allValues.length === 0) return 100;
+              
+              const minVal = Math.min(...allValues);
+              const maxVal = Math.max(...allValues);
+              const range = maxVal - minVal;
+              
+              // Add 10% padding above maximum for better visualization
+              return maxVal + (range * 0.1);
+            },
+            ticks: { 
+              font: { size: 11 },
+              stepSize: function(context) {
+                // Dynamic step size based on data range
+                const datasets = context.chart.data.datasets;
+                let allValues = [];
+                
+                datasets.forEach(dataset => {
+                  if (!dataset.hidden && dataset.data) {
+                    allValues = allValues.concat(dataset.data.filter(val => val !== null && val !== undefined));
+                  }
+                });
+                
+                if (allValues.length === 0) return 50;
+                
+                const minVal = Math.min(...allValues);
+                const maxVal = Math.max(...allValues);
+                const range = maxVal - minVal;
+                
+                // Create 8-10 tick marks for good granularity
+                return Math.max(1, Math.round(range / 8));
+              }
+            }
           }
         }
       }
