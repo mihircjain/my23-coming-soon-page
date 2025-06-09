@@ -800,10 +800,8 @@ const NutritionJam = () => {
             {loading ? (
               <div className="space-y-6">
                 <Skeleton className="h-[200px] w-full" />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Skeleton className="h-[200px] w-full" />
-                  <Skeleton className="h-[300px] w-full" />
-                </div>
+                <Skeleton className="h-[150px] w-full" />
+                <Skeleton className="h-[300px] w-full" />
               </div>
             ) : (
               <div className="space-y-6">
@@ -889,50 +887,49 @@ const NutritionJam = () => {
                   </CardContent>
                 </Card>
 
-                {/* Add Food and Today's Foods - Bottom Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Plus className="h-5 w-5 text-green-600" />
-                        Add Food
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FoodSelector onAddFood={handleAddFood} disabled={saving} />
-                    </CardContent>
-                  </Card>
+                {/* Add Food - Horizontal Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Plus className="h-5 w-5 text-green-600" />
+                      Add Food
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FoodSelector onAddFood={handleAddFood} disabled={saving} />
+                  </CardContent>
+                </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Utensils className="h-5 w-5 text-blue-600" />
-                        Today's Foods ({currentLog?.entries?.length || 0})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="max-h-[400px] overflow-y-auto">
-                      {currentLog?.entries?.length > 0 ? (
-                        <div className="space-y-3">
-                          {currentLog.entries.map((entry, index) => (
-                            <FoodItemCard
-                              key={index}
-                              entry={entry}
-                              index={index}
-                              onRemove={handleRemoveFood}
-                              onUpdateQuantity={handleUpdateQuantity}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Utensils className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                          <p>No foods logged yet</p>
-                          <p className="text-sm">Add your first food using the form on the left</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
+                {/* Today's Foods - Full Width Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Utensils className="h-5 w-5 text-blue-600" />
+                      Today's Foods ({currentLog?.entries?.length || 0})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="max-h-[500px] overflow-y-auto">
+                    {currentLog?.entries?.length > 0 ? (
+                      <div className="space-y-3">
+                        {currentLog.entries.map((entry, index) => (
+                          <FoodItemCard
+                            key={index}
+                            entry={entry}
+                            index={index}
+                            onRemove={handleRemoveFood}
+                            onUpdateQuantity={handleUpdateQuantity}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Utensils className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No foods logged yet</p>
+                        <p className="text-sm">Add your first food using the form above</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
           </TabsContent>
@@ -946,9 +943,9 @@ const NutritionJam = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {lastXDaysData && lastXDaysData.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-                    {lastXDaysData.map((log, index) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                  {lastXDaysData && lastXDaysData.length > 0 ? (
+                    lastXDaysData.map((log, index) => (
                       <DailyMacroBox
                         key={log?.date || index}
                         log={log}
@@ -968,14 +965,38 @@ const NutritionJam = () => {
                           }
                         }}
                       />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>Loading 7-day data...</p>
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    // Generate 7 placeholder boxes while loading
+                    Array.from({ length: 7 }, (_, index) => {
+                      const date = new Date();
+                      date.setDate(date.getDate() - (6 - index));
+                      const dateString = safeFormatDateToYYYYMMDD(date);
+                      
+                      return (
+                        <DailyMacroBox
+                          key={index}
+                          log={{
+                            date: dateString,
+                            entries: [],
+                            totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+                            lastUpdated: null
+                          }}
+                          date={dateString}
+                          isToday={dateString === safeTodayString}
+                          onClick={() => {
+                            try {
+                              setSelectedDate(date);
+                              setActiveTab("today");
+                            } catch (error) {
+                              console.error('Error handling date click:', error);
+                            }
+                          }}
+                        />
+                      );
+                    })
+                  )}
+                </div>
               </CardContent>
             </Card>
             
