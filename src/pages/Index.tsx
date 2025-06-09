@@ -521,35 +521,7 @@ const ChatbotCard: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSendMessage = async () => {
-    if (!input.trim()) return;
-
-    const userMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-    const currentInput = input;
-    setInput('');
-    setIsTyping(true);
-
-    try {
-      // Use your existing Gemini setup - adjust the endpoint as needed
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: currentInput,
-          context: 'health_assistant', // Add context for health-specific responses
-          messages: messages.slice(-5) // Send last 5 messages for context
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
-      }
-
-      const data = await response.json();
-      const aiResponse = { role: 'assistant', content: data.response || data.message || 'Sorry, I couldn\'t process that request.' };
+response || data.message || 'Sorry, I couldn\'t process that request.' };
       
       setMessages(prev => [...prev, aiResponse]);
     } catch (error) {
@@ -762,15 +734,7 @@ const Index = () => {
             </p>
           </div>
           
-          <div className="animate-slide-up delay-500 mb-8">
-            <Button 
-              onClick={handleEmailClick}
-              className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-            >
-              <Mail className="mr-3 h-5 w-5" />
-              mihir@my23.ai
-            </Button>
-          </div>
+
         </div>
 
         {/* Interactive Cards Grid - Updated layout */}
@@ -786,29 +750,62 @@ const Index = () => {
         </div>
 
         {/* Navigation Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
-          <Button 
-            onClick={() => window.location.href = '/activity-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            <Activity className="mr-3 h-5 w-5" />
-            Activity Jam
-          </Button>
+        <div className="space-y-4 mb-8">
+          {/* First row - Overall Jam and Lets Jam */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Button 
+              onClick={() => window.location.href = '/overall-jam'} 
+              className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <BarChart2 className="mr-3 h-5 w-5" />
+              Overall Jam
+            </Button>
+            
+            <Button 
+              onClick={() => window.location.href = '/lets-jam'} 
+              className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <MessageSquare className="mr-3 h-5 w-5" />
+              Lets Jam
+            </Button>
+          </div>
           
+          {/* Second row - Activity, Nutrition, Body */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Button 
+              onClick={() => window.location.href = '/activity-jam'} 
+              className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <Activity className="mr-3 h-5 w-5" />
+              Activity Jam
+            </Button>
+            
+            <Button 
+              onClick={() => window.location.href = '/nutrition-jam'} 
+              className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <Utensils className="mr-3 h-5 w-5" />
+              Nutrition Jam
+            </Button>
+            
+            <Button 
+              onClick={() => window.location.href = '/body-jam'} 
+              className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <Heart className="mr-3 h-5 w-5" />
+              Body Jam
+            </Button>
+          </div>
+        </div>
+
+        {/* Contact Email Button */}
+        <div className="text-center mb-12 animate-slide-up delay-500">
           <Button 
-            onClick={() => window.location.href = '/nutrition-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            onClick={handleEmailClick}
+            className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
-            <Utensils className="mr-3 h-5 w-5" />
-            Nutrition Jam
-          </Button>
-          
-          <Button 
-            onClick={() => window.location.href = '/body-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            <Heart className="mr-3 h-5 w-5" />
-            Body Jam
+            <Mail className="mr-3 h-5 w-5" />
+            mihir@my23.ai
           </Button>
         </div>
         
