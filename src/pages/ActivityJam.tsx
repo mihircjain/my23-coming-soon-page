@@ -8,8 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import LetsJamButton from "@/components/LetsJamButton";
-import { MessageCircle } from "lucide-react";
 
 interface Activity {
   id: string;
@@ -364,43 +362,7 @@ const ActivityJam = () => {
           </div>
         )}
 
-        {/* Let's Jam Section */}
-        <section className="mb-12">
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-green-50 rounded-2xl p-8 text-center border border-blue-200/30 shadow-lg">
-              <div className="mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mb-4">
-                  <MessageCircle className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                  Analyze Your Workouts
-                </h3>
-                <p className="text-gray-600 text-lg">
-                  Ask questions about your workouts, performance trends, and exercise patterns
-                </p>
-              </div>
-              
-              <LetsJamButton size="lg" />
-              
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                    Real-time data analysis
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                    Personalized recommendations
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
-                    Privacy-first AI
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+
       </main>
     </div>
   );
