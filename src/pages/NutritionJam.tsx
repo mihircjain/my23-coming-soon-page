@@ -496,14 +496,37 @@ const EnhancedMealPresets = ({ onAddMeal }) => {
           </p>
         </CardHeader>
         <CardContent>
-          {/* UPDATED: Grid layout: 4-5 cards per row depending on screen size */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <MealPresets onAddMeal={onAddMeal} renderAs="widget" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Rest of the component remains the same... */}
+      {/* Create Custom Meal Section */}
+      <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5 text-purple-500" />
+            Create Custom Meal
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="text-gray-500 mb-4">
+              <Utensils className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+              <p className="font-medium">Create your own meal presets</p>
+              <p className="text-sm">Combine multiple foods into reusable meals</p>
+            </div>
+            <Button
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+              onClick={() => toast.info("Custom meal creator coming soon!")}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Meal
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
