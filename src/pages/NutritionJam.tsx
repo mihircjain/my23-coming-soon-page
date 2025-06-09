@@ -1,4 +1,61 @@
-import { useState, useEffect, useCallback } from "react";
+const loadLastXDaysData = useCallback(async () => {
+    try {
+      // Always generate 7 days regardless of what's in Firestore
+      const last7Days = [];
+      const today = new Date();
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = safeFormatDateToYYYYMMDD(date);
+        
+        // Create a basic log structure for each day
+        const dayLog = {
+          date: dateString,
+          entries: [],
+          totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+          lastUpdated: null
+        };
+        
+        // Try to get actual data from Firestore if available
+        try {
+          const actualLog = await getOrCreateDailyLogFirestore(dateString);
+          if (actualLog && actualLog.entries && actualLog.entries.length > 0) {
+            dayLog.entries = actualLog.entries;
+            dayLog.totals = actualLog.totals || safeCalculateTotals(actualLog.entries);
+            dayLog.lastUpdated = actualLog.lastUpdated;
+          }
+        } catch (error) {
+          console.error(`Error loading data for ${dateString}:`, error);
+          // Keep the empty structure
+        }
+        
+        last7Days.push(dayLog);
+      }
+      
+      setLastXDaysData(last7Days);
+    } catch (error) {
+      console.error('Error loading last X days data:', error);
+      // Still create empty 7 days structure
+      const fallback7Days = [];
+      const today = new Date();
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = safeFormatDateToYYYYMMDD(date);
+        
+        fallback7Days.push({
+          date: dateString,
+          entries: [],
+          totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+          lastUpdated: null
+        });
+      }
+      
+      setLastXDaysData(fallback7Days);
+    }
+  }, []);import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Utensils, Calendar as CalendarIcon, BarChart3, Plus, Minus, Target, TrendingUp, Activity, Flame, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,14 +177,13 @@ const safeCalculateTotals = (entries) => {
 
 // Multi-line Chart Component for 7-day nutrition data with proper Y-axis scaling
 const MultiLineNutritionChart = ({ last7DaysData }) => {
-  // Transform data for recharts
+  // Transform data for recharts - excluding calories out
   const chartData = last7DaysData.map(dayLog => {
     const date = new Date(dayLog.date);
     return {
       date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       fullDate: dayLog.date,
       caloriesIn: Math.round(dayLog.totals?.calories || 0),
-      caloriesOut: Math.round(dayLog.totals?.caloriesBurned || 0), // Assuming you have this data
       protein: Math.round(dayLog.totals?.protein || 0),
       carbs: Math.round(dayLog.totals?.carbs || 0),
       fat: Math.round(dayLog.totals?.fat || 0),
@@ -162,7 +218,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
           </span>
         </CardTitle>
         <p className="text-sm text-gray-600">
-          All nutrition metrics tracked over the last 7 days with dual Y-axis scaling for better visibility
+          Nutrition metrics tracked over the last 7 days with dual Y-axis scaling for better visibility
         </p>
       </CardHeader>
       <CardContent>
@@ -199,7 +255,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
                 iconType="line"
               />
               
-              {/* Calories In - Green gradient stroke - Left axis */}
+              {/* Calories In - Green stroke - Left axis */}
               <Line 
                 yAxisId="calories"
                 type="monotone" 
@@ -209,18 +265,6 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
                 dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
                 activeDot={{ r: 7, fill: '#10b981' }}
                 name="Calories In"
-              />
-              
-              {/* Calories Out - Orange gradient stroke - Left axis */}
-              <Line 
-                yAxisId="calories"
-                type="monotone" 
-                dataKey="caloriesOut" 
-                stroke="#f59e0b"
-                strokeWidth={3}
-                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#f59e0b' }}
-                name="Calories Out"
               />
               
               {/* Protein - Purple gradient stroke - Right axis */}
@@ -281,7 +325,6 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
             <div>
               <div className="font-medium text-gray-700 mb-1">Left Axis (Calories):</div>
               <div>• <span className="text-green-600 font-medium">Calories In</span>: Daily food intake</div>
-              <div>• <span className="text-orange-600 font-medium">Calories Out</span>: Exercise calories burned</div>
             </div>
             <div>
               <div className="font-medium text-gray-700 mb-1">Right Axis (Grams):</div>
