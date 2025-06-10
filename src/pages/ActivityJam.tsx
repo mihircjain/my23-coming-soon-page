@@ -1,798 +1,1449 @@
-import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3 } from "lucide-react";
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Heart, 
+  Activity, 
+  Utensils, 
+  Plus, 
+  Send, 
+  Bot, 
+  User, 
+  Settings, 
+  MessageCircle,
+  X,
+  ChevronDown,
+  Target,
+  Zap,
+  TrendingUp,
+  Calendar,
+  Flame,
+  RefreshCw,
+  Mail,
+  BarChart2,
+  MessageSquare,
+  Info
+} from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
-import { Skeleton } from "@/components/ui/skeleton";
-import Chart from 'chart.js/auto';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast, Toaster } from 'sonner';
+import { db } from '@/lib/firebaseConfig';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc, addDoc } from 'firebase/firestore';
 
-interface ActivityData {
-  id: string;
-  name: string;
-  type: string;
-  start_date: string;
-  distance: number;
-  moving_time: number;
-  total_elevation_gain: number;
-  average_speed: number;
-  max_speed: number;
-  has_heartrate: boolean;
-  average_heartrate?: number;
-  max_heartrate?: number;
-  calories?: number;
-  caloriesBurned?: number;
+// Types (from your existing code)
+interface HealthData {
+  date: string;
+  heartRate: number | null;
+  caloriesBurned: number;
+  caloriesConsumed: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  workoutDuration: number;
+  activityTypes: string[];
 }
 
-const ActivityJam = () => {
-  const navigate = useNavigate();
-  const [activities, setActivities] = useState<ActivityData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string>('');
-  const [error, setError] = useState<string>('');
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
 
-  // Chart refs
-  const caloriesChartRef = useRef<HTMLCanvasElement>(null);
-  const distanceChartRef = useRef<HTMLCanvasElement>(null);
-  const weightTrainingChartRef = useRef<HTMLCanvasElement>(null);
-  const heartRateChartRef = useRef<HTMLCanvasElement>(null);
+interface UserData {
+  nutrition: {
+    avgCalories: number;
+    avgProtein: number;
+    avgFat: number;
+    avgCarbs: number;
+    avgFiber: number;
+  };
+  activity: {
+    workoutsPerWeek: number;
+    avgHeartRate: number;
+    avgCaloriesBurned: number;
+    avgDuration: number;
+  };
+  bloodMarkers: Record<string, any>;
+}
 
-  // Chart instances
-  const chartInstances = useRef<{ [key: string]: Chart }>({});
+interface EmailSignup {
+  email: string;
+  timestamp: string;
+  source: string;
+}
 
-  // Process activities data for charts
-  const processChartData = (activities: ActivityData[]) => {
-    // Sort activities by date
-    const sortedActivities = [...activities].sort((a, b) => 
-      new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+interface UserFeedback {
+  email?: string;
+  message: string;
+  type: 'suggestion' | 'feature_request' | 'feedback';
+  timestamp: string;
+}
+
+// Header Component - ActivityJam style
+const Header = () => (
+  <header className="h-16 bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 flex items-center justify-between px-6 sticky top-0 z-50">
+    <div className="flex items-center space-x-4">
+      <div className="text-2xl font-black text-white">
+        🧬 my23.ai
+      </div>
+    </div>
+    <div className="flex items-center space-x-3">
+      <button className="p-2 hover:bg-white/20 rounded-full">
+        <Settings className="h-4 w-4 text-white" />
+      </button>
+      <button className="p-2 hover:bg-white/20 rounded-full">
+        <User className="h-4 w-4 text-white" />
+      </button>
+    </div>
+  </header>
+);
+
+// Seven Day Strip Component
+const SevenDayStrip = ({ 
+  last7DaysData, 
+  selectedDay, 
+  setSelectedDay, 
+  showDetailDrawer, 
+  setShowDetailDrawer 
+}: {
+  last7DaysData: Record<string, HealthData>;
+  selectedDay: string | null;
+  setSelectedDay: (day: string | null) => void;
+  showDetailDrawer: boolean;
+  setShowDetailDrawer: (show: boolean) => void;
+}) => {
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    return date.toISOString().split('T')[0];
+  });
+
+  const calculateHealthScore = (data: HealthData) => {
+    const BMR = 1479;
+    const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
+    
+    let score = 0;
+    const burnedScore = Math.min(40, (data.caloriesBurned / 300) * 40);
+    const proteinScore = Math.min(30, (data.protein / 140) * 30);
+    
+    const deficitScore = (() => {
+      if (calorieDeficit <= 0) return 0;
+      if (calorieDeficit >= 500) return 30;
+      if (calorieDeficit >= 400) return 25;
+      if (calorieDeficit >= 300) return 20;
+      if (calorieDeficit >= 200) return 15;
+      if (calorieDeficit >= 100) return 10;
+      return 5;
+    })();
+    
+    score = burnedScore + proteinScore + deficitScore;
+    return Math.min(Math.round(score), 100);
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'bg-green-500';
+    if (score >= 60) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  const handleDayClick = (date: string) => {
+    if (selectedDay === date && showDetailDrawer) {
+      setShowDetailDrawer(false);
+      setSelectedDay(null);
+    } else {
+      setSelectedDay(date);
+      setShowDetailDrawer(true);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-700">Last 7 Days</h3>
+        <div className="text-xs text-gray-500">Click dots for details</div>
+      </div>
+      
+      <div className="flex space-x-3">
+        {last7Days.map((date) => {
+          const data = last7DaysData[date];
+          const hasData = data && (data.caloriesConsumed > 0 || data.caloriesBurned > 0);
+          const score = hasData ? calculateHealthScore(data) : 0;
+          const isToday = date === new Date().toISOString().split('T')[0];
+          
+          return (
+            <div key={date} className="flex flex-col items-center space-y-1">
+              <button
+                onClick={() => handleDayClick(date)}
+                className={`w-4 h-4 rounded-full transition-all duration-200 hover:scale-110 ${
+                  hasData ? getScoreColor(score) : 'bg-gray-200'
+                } ${selectedDay === date ? 'ring-2 ring-orange-400 ring-offset-1' : ''}`}
+              />
+              <div className="text-xs text-gray-500">
+                {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
+              </div>
+              {isToday && (
+                <div className="text-xs text-orange-600 font-medium">Today</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Detail Drawer */}
+      {showDetailDrawer && selectedDay && last7DaysData[selectedDay] && (
+        <div className="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-200 animate-slide-down">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium text-gray-800">
+              {new Date(selectedDay).toLocaleDateString('en-US', { 
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
+              })}
+            </h4>
+            <button 
+              onClick={() => setShowDetailDrawer(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Calories In:</span>
+                <span className="font-medium">{Math.round(last7DaysData[selectedDay].caloriesConsumed)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Calories Out:</span>
+                <span className="font-medium">{Math.round(last7DaysData[selectedDay].caloriesBurned)}</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Protein:</span>
+                <span className="font-medium">{Math.round(last7DaysData[selectedDay].protein)}g</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Activities:</span>
+                <span className="font-medium">{last7DaysData[selectedDay].activityTypes.length}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-orange-200">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Health Score:</span>
+              <span className="text-lg font-bold text-gray-800">
+                {calculateHealthScore(last7DaysData[selectedDay])}%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Health Score Explanation Component
+const HealthScoreExplanation = ({ score, data }: { score: number; data: HealthData | null }) => {
+  if (!data) return null;
+
+  const BMR = 1479;
+  const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
+  
+  const burnedScore = Math.min(40, (data.caloriesBurned / 300) * 40);
+  const proteinScore = Math.min(30, (data.protein / 140) * 30);
+  
+  const deficitScore = (() => {
+    if (calorieDeficit <= 0) return 0;
+    if (calorieDeficit >= 500) return 30;
+    if (calorieDeficit >= 400) return 25;
+    if (calorieDeficit >= 300) return 20;
+    if (calorieDeficit >= 200) return 15;
+    if (calorieDeficit >= 100) return 10;
+    return 5;
+  })();
+
+  return (
+    <Card className="bg-orange-50 border-orange-200 mt-4">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-gray-800 flex items-center">
+          <Info className="h-4 w-4 mr-2 text-orange-600" />
+          Health Score Breakdown
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">🔥 Calories Burned (40% max):</span>
+            <span className="font-medium">{Math.round(burnedScore)} pts</span>
+          </div>
+          <div className="text-xs text-gray-500 ml-4">
+            Target: 300+ calories = 40 pts | Current: {data.caloriesBurned} calories
+          </div>
+          
+          <div className="flex justify-between">
+            <span className="text-gray-600">🥩 Protein Intake (30% max):</span>
+            <span className="font-medium">{Math.round(proteinScore)} pts</span>
+          </div>
+          <div className="text-xs text-gray-500 ml-4">
+            Target: 140g+ protein = 30 pts | Current: {Math.round(data.protein)}g
+          </div>
+          
+          <div className="flex justify-between">
+            <span className="text-gray-600">📉 Calorie Deficit (30% max):</span>
+            <span className="font-medium">{Math.round(deficitScore)} pts</span>
+          </div>
+          <div className="text-xs text-gray-500 ml-4">
+            Current deficit: {calorieDeficit >= 0 ? '+' : ''}{Math.round(calorieDeficit)} calories
+          </div>
+        </div>
+        
+        <div className="pt-3 border-t border-orange-200">
+          <div className="flex justify-between font-semibold">
+            <span className="text-gray-800">Total Health Score:</span>
+            <span className="text-orange-600">{score}%</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Today's Health Card Component - ActivityJam style
+const TodayHealthCard = ({ todayData }: { todayData: HealthData | null }) => {
+  if (!todayData) {
+    return (
+      <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+        <CardContent className="p-6">
+          <div className="text-center py-8">
+            <Heart className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+            <h3 className="text-lg font-medium text-gray-500">No data for today</h3>
+            <p className="text-sm text-gray-400 mt-1">Start logging your health activities</p>
+          </div>
+        </CardContent>
+      </Card>
     );
+  }
 
-    // Group by date and aggregate data
-    const dailyData = new Map();
-
-    sortedActivities.forEach(activity => {
-      const date = activity.start_date.split('T')[0]; // Get YYYY-MM-DD
-      
-      if (!dailyData.has(date)) {
-        dailyData.set(date, {
-          calories: 0,
-          distance: 0,
-          weightTrainingTime: 0,
-          heartRateCount: 0,
-          totalHeartRate: 0
-        });
-      }
-
-      const dayData = dailyData.get(date);
-      dayData.calories += activity.calories || activity.caloriesBurned || 0;
-      dayData.distance += activity.distance || 0;
-      
-      // Weight training time
-      if (activity.type?.toLowerCase().includes('weight') || 
-          activity.type?.toLowerCase().includes('strength')) {
-        dayData.weightTrainingTime += Math.round(activity.moving_time / 60); // Convert to minutes
-      }
-
-      // Heart rate
-      if (activity.has_heartrate && activity.average_heartrate) {
-        dayData.totalHeartRate += activity.average_heartrate;
-        dayData.heartRateCount += 1;
-      }
-    });
-
-    // Convert to arrays for charts
-    const dates = Array.from(dailyData.keys()).sort();
-    const labels = dates.map(date => new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    }));
-
-    return {
-      labels: dates,
-      displayLabels: labels,
-      calories: dates.map(date => dailyData.get(date).calories),
-      distance: dates.map(date => Math.round(dailyData.get(date).distance * 100) / 100), // Round to 2 decimals
-      weightTraining: dates.map(date => dailyData.get(date).weightTrainingTime),
-      heartRate: dates.map(date => {
-        const dayData = dailyData.get(date);
-        return dayData.heartRateCount > 0 ? Math.round(dayData.totalHeartRate / dayData.heartRateCount) : 0;
-      })
-    };
-  };
-
-  // Destroy existing charts
-  const destroyCharts = () => {
-    Object.values(chartInstances.current).forEach(chart => {
-      if (chart) {
-        chart.destroy();
-      }
-    });
-    chartInstances.current = {};
-  };
-
-  // Create calories chart
-  const createCaloriesChart = (chartData: any) => {
-    if (!caloriesChartRef.current) return;
-
-    const ctx = caloriesChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(245, 158, 11, 0.8)');
-    gradient.addColorStop(1, 'rgba(245, 158, 11, 0.1)');
-
-    chartInstances.current.calories = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Calories Burned',
-          data: chartData.calories,
-          borderColor: 'rgba(245, 158, 11, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} calories`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Create distance chart
-  const createDistanceChart = (chartData: any) => {
-    if (!distanceChartRef.current) return;
-
-    const ctx = distanceChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
-    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.8)');
-
-    chartInstances.current.distance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Distance (km)',
-          data: chartData.distance,
-          backgroundColor: gradient,
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 0,
-          borderRadius: 4,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} km`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Create weight training chart
-  const createWeightTrainingChart = (chartData: any) => {
-    if (!weightTrainingChartRef.current) return;
-
-    const ctx = weightTrainingChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(139, 92, 246, 0.8)');
-    gradient.addColorStop(1, 'rgba(139, 92, 246, 0.1)');
-
-    chartInstances.current.weightTraining = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Weight Training (minutes)',
-          data: chartData.weightTraining,
-          borderColor: 'rgba(139, 92, 246, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(139, 92, 246, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} minutes`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Create heart rate chart
-  const createHeartRateChart = (chartData: any) => {
-    if (!heartRateChartRef.current) return;
-
-    const ctx = heartRateChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
-    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
-
-    chartInstances.current.heartRate = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Average Heart Rate (bpm)',
-          data: chartData.heartRate,
-          borderColor: 'rgba(239, 68, 68, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(239, 68, 68, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} bpm`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: false,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Create all charts
-  const createCharts = (activities: ActivityData[]) => {
-    if (activities.length === 0) return;
-
-    destroyCharts();
+  const BMR = 1479;
+  const calorieDeficit = todayData.caloriesBurned + BMR - todayData.caloriesConsumed;
+  
+  const calculateHealthScore = () => {
+    let score = 0;
+    const burnedScore = Math.min(40, (todayData.caloriesBurned / 300) * 40);
+    const proteinScore = Math.min(30, (todayData.protein / 140) * 30);
     
-    const chartData = processChartData(activities);
+    const deficitScore = (() => {
+      if (calorieDeficit <= 0) return 0;
+      if (calorieDeficit >= 500) return 30;
+      if (calorieDeficit >= 400) return 25;
+      if (calorieDeficit >= 300) return 20;
+      if (calorieDeficit >= 200) return 15;
+      if (calorieDeficit >= 100) return 10;
+      return 5;
+    })();
     
-    console.log('📊 Creating charts with data:', {
-      totalDays: chartData.labels.length,
-      totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
-      totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
-      totalWeightTraining: chartData.weightTraining.reduce((a, b) => a + b, 0)
-    });
+    score = burnedScore + proteinScore + deficitScore;
+    return Math.min(Math.round(score), 100);
+  };
 
-    // Small delay to ensure refs are ready
+  const healthScore = calculateHealthScore();
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">Today's Health</h3>
+            <Calendar className="h-5 w-5 text-orange-500" />
+          </div>
+          
+          {/* Health Score Circle */}
+          <div className="flex items-center justify-center mb-6">
+            <div className="relative w-24 h-24">
+              <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="#e5e7eb"
+                  strokeWidth="8"
+                  fill="none"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke={healthScore >= 80 ? '#10b981' : healthScore >= 60 ? '#f59e0b' : '#ef4444'}
+                  strokeWidth="8"
+                  fill="none"
+                  strokeDasharray={`${healthScore * 2.51} 251`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={`text-2xl font-bold ${getScoreColor(healthScore)}`}>
+                  {healthScore}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="text-center bg-white/60 rounded-lg p-3">
+              <div className="font-semibold text-green-600 text-lg">
+                {Math.round(todayData.caloriesConsumed)}
+              </div>
+              <div className="text-gray-600">Calories In</div>
+            </div>
+            
+            <div className="text-center bg-white/60 rounded-lg p-3">
+              <div className="font-semibold text-orange-600 text-lg">
+                {Math.round(todayData.caloriesBurned)}
+              </div>
+              <div className="text-gray-600">Calories Out</div>
+            </div>
+            
+            <div className="text-center bg-white/60 rounded-lg p-3">
+              <div className="font-semibold text-blue-600 text-lg">
+                {Math.round(todayData.protein)}g
+              </div>
+              <div className="text-gray-600">Protein</div>
+            </div>
+            
+            <div className="text-center bg-white/60 rounded-lg p-3">
+              <div className={`font-semibold text-lg ${calorieDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {calorieDeficit >= 0 ? '+' : ''}{Math.round(calorieDeficit)}
+              </div>
+              <div className="text-gray-600">Cal Deficit</div>
+            </div>
+          </div>
+
+          {/* Activity Types */}
+          {todayData.activityTypes.length > 0 && (
+            <div className="mt-4 text-center">
+              <div className="text-xs text-gray-600 mb-1">Today's Activities</div>
+              <div className="flex items-center justify-center gap-1 flex-wrap">
+                {todayData.activityTypes.map((activity, index) => (
+                  <span 
+                    key={index}
+                    className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full"
+                  >
+                    {activity}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* Health Score Explanation */}
+      <HealthScoreExplanation score={healthScore} data={todayData} />
+    </div>
+  );
+};
+
+// Quick Actions Component - ActivityJam style
+const QuickActions = () => (
+  <div className="space-y-3">
+    <h3 className="text-sm font-medium text-gray-700">Quick Actions</h3>
+    <div className="grid grid-cols-2 gap-3">
+      <Button 
+        onClick={() => window.location.href = '/nutrition-jam'} 
+        className="bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg"
+      >
+        <Utensils className="h-4 w-4 mr-2" />
+        Log Food
+      </Button>
+      
+      <Button 
+        onClick={() => window.location.href = '/activity-jam'} 
+        className="bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg"
+      >
+        <Activity className="h-4 w-4 mr-2" />
+        Log Workout
+      </Button>
+    </div>
+  </div>
+);
+
+// Chat Panel Component with proper data structure
+const ChatPanel = ({ 
+  userData, 
+  last7DaysData 
+}: { 
+  userData: UserData | null;
+  last7DaysData: Record<string, HealthData>;
+}) => {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hi Mihir! I can see your health data loading. How can I help you optimize your health today?',
+      timestamp: new Date()
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    const messageToSend = input.trim();
+    if (!messageToSend) return;
+    
+    try {
+      setSending(true);
+      
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: "user",
+        content: messageToSend,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, userMessage]);
+      setInput("");
+      
+      // Structure user data for API (exact same as LetsJam)
+      const structuredUserData = {
+        nutrition: {
+          type: "nutrition_averages_7_days",
+          avgCaloriesPerDay: userData?.nutrition?.avgCalories || 0,
+          avgProteinPerDay: userData?.nutrition?.avgProtein || 0,
+          avgCarbsPerDay: userData?.nutrition?.avgCarbs || 0,
+          avgFatPerDay: userData?.nutrition?.avgFat || 0,
+          avgFiberPerDay: userData?.nutrition?.avgFiber || 0
+        },
+        
+        activity: {
+          type: "activity_averages_7_days", 
+          workoutsPerWeek: userData?.activity?.workoutsPerWeek || 0,
+          avgHeartRatePerWorkout: userData?.activity?.avgHeartRate || 0,
+          avgCaloriesBurnedPerWorkout: userData?.activity?.avgCaloriesBurned || 0,
+          avgWorkoutDurationMinutes: userData?.activity?.avgDuration || 0
+        },
+        
+        bloodMarkers: {
+          type: "latest_blood_test_results",
+          testDate: userData?.bloodMarkers?.date || "unknown",
+          values: {
+            cholesterol: {
+              total: userData?.bloodMarkers?.total_cholesterol || "not available",
+              ldl: userData?.bloodMarkers?.ldl || "not available", 
+              hdl: userData?.bloodMarkers?.hdl || "not available"
+            },
+            metabolic: {
+              glucose: userData?.bloodMarkers?.glucose || "not available",
+              hba1c: userData?.bloodMarkers?.hba1c || "not available"
+            },
+            minerals: {
+              calcium: userData?.bloodMarkers?.calcium || "not available",
+              sodium: userData?.bloodMarkers?.sodium || "not available", 
+              potassium: userData?.bloodMarkers?.potassium || "not available"
+            },
+            kidneyFunction: {
+              creatinine: userData?.bloodMarkers?.creatinine || "not available"
+            },
+            bloodCells: {
+              hemoglobin: userData?.bloodMarkers?.hemoglobin || "not available",
+              rbc: userData?.bloodMarkers?.rbc || "not available",
+              plateletCount: userData?.bloodMarkers?.platelet_count || "not available"
+            },
+            hormones: {
+              tsh: userData?.bloodMarkers?.tsh || "not available"
+            }
+          }
+        },
+        
+        // Add 7-day data summary for context
+        last7DaysData: {
+          type: "daily_health_data_7_days",
+          summary: Object.entries(last7DaysData).map(([date, data]) => ({
+            date,
+            caloriesIn: data.caloriesConsumed,
+            caloriesOut: data.caloriesBurned,
+            protein: data.protein,
+            activityTypes: data.activityTypes,
+            heartRate: data.heartRate
+          }))
+        }
+      };
+      
+      console.log('📤 Sending structured data to API:', structuredUserData);
+      
+      // Build messages array with conversation history
+      const conversationMessages = [
+        ...messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: "user", content: messageToSend }
+      ];
+      
+      // Call chat API (same as Let's Jam)
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: "mihir_jain",
+          source: "split-screen-dashboard",
+          userData: structuredUserData,
+          messages: conversationMessages
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Chat API error: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      const assistantResponse = data.choices[0].message.content;
+      
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: assistantResponse,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
+      
+    } catch (error) {
+      console.error("Error sending message:", error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "Sorry, I encountered an error processing your request. Please try again later.",
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage();
+  };
+
+  const quickPrompts = [
+    "How's my nutrition this week?",
+    "Analyze my workout patterns",
+    "What's my calorie deficit trend?",
+    "Give me health recommendations"
+  ];
+
+  const handleQuickPrompt = (prompt: string) => {
+    setInput(prompt);
     setTimeout(() => {
-      createCaloriesChart(chartData);
-      createDistanceChart(chartData);
-      createWeightTrainingChart(chartData);
-      createHeartRateChart(chartData);
+      sendMessage();
     }, 100);
   };
 
-  // Fetch activities
-  const fetchActivities = async (forceRefresh = false) => {
-    try {
-      if (forceRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  return (
+    <Card className="h-full flex flex-col bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+      <CardHeader className="pb-3 border-b border-gray-200">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center">
+            <Bot className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-lg font-semibold text-gray-800">AI Health Assistant</CardTitle>
+            <p className="text-xs text-gray-500">Powered by your real health data</p>
+          </div>
+        </div>
+      </CardHeader>
 
-      setError('');
-      
-      const params = new URLSearchParams({
-        days: '30',
-        userId: 'mihir_jain'
+      <CardContent className="flex-1 flex flex-col p-4">
+        {/* Quick Prompts */}
+        {messages.length <= 1 && (
+          <div className="grid grid-cols-1 gap-2 mb-4">
+            {quickPrompts.map((prompt, index) => (
+              <button
+                key={index}
+                onClick={() => handleQuickPrompt(prompt)}
+                className="text-xs p-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded text-orange-700 transition-all duration-200 text-left"
+              >
+                "{prompt}"
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                  message.role === "user"
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p
+                  className={`text-xs mt-1 ${
+                    message.role === "user" ? "text-orange-100" : "text-gray-500"
+                  }`}
+                >
+                  {message.timestamp.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            </div>
+          ))}
+          
+          {sending && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 p-3 rounded-lg">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about your health..."
+            disabled={sending}
+            className="flex-1 text-sm border-orange-200 focus:border-orange-400"
+          />
+          <Button 
+            type="submit" 
+            disabled={sending || !input.trim()}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Email Signup Component (from your original)
+const EmailAndFeedbackCard: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [type, setType] = useState<'suggestion' | 'feature_request' | 'feedback'>('suggestion');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showFeedbackFields, setShowFeedbackFields] = useState(false);
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    const signupData: EmailSignup = {
+      email,
+      timestamp: new Date().toISOString(),
+      source: 'homepage_signup'
+    };
+
+    addDoc(collection(db, 'email_signups'), signupData)
+      .then(() => {
+        if (feedback.trim()) {
+          const feedbackData: UserFeedback = {
+            email,
+            message: feedback.trim(),
+            type,
+            timestamp: new Date().toISOString()
+          };
+          return addDoc(collection(db, 'user_feedback'), feedbackData);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        toast.success('🎉 Thanks for signing up! We\'ll keep you updated.');
+        setEmail('');
+        setFeedback('');
+        setShowFeedbackFields(false);
+      })
+      .catch((error) => {
+        console.error('Error saving data:', error);
+        toast.error('Failed to submit. Please try again.');
+      })
+      .finally(() => {
+        setIsSubmitting(false);
       });
+  };
+
+  return (
+    <Card className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-sm">
+      <CardHeader className="text-center pb-4">
+        <div className="mx-auto w-12 h-12 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center mb-3">
+          <Mail className="h-6 w-6 text-white" />
+        </div>
+        <CardTitle className="text-lg font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+          📬 Stay Updated
+        </CardTitle>
+        <p className="text-sm text-gray-600">
+          Get notified about new features & share your ideas
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
+          <Input
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-lg border-orange-200 focus:border-orange-400 focus:ring-orange-400 text-sm"
+            disabled={isSubmitting}
+            required
+          />
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFeedbackFields(!showFeedbackFields)}
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+            >
+              {showFeedbackFields ? '📬 Just email signup' : '💭 + Add feedback/suggestions'}
+            </button>
+          </div>
+
+          {showFeedbackFields && (
+            <div className="space-y-3 border-t border-orange-200 pt-3">
+              <div className="flex gap-1">
+                {[
+                  { value: 'suggestion', label: 'Idea', icon: '💡' },
+                  { value: 'feature_request', label: 'Feature', icon: '✨' },
+                  { value: 'feedback', label: 'Feedback', icon: '💬' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setType(option.value as any)}
+                    className={'flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ' + (
+                      type === option.value
+                        ? 'bg-orange-200 text-orange-700 border border-orange-300'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                    )}
+                  >
+                    {option.icon} {option.label}
+                  </button>
+                ))}
+              </div>
+              
+              <Textarea
+                placeholder="What would you like to see in My23.ai?"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                rows={3}
+                className="rounded-lg border-orange-200 focus:border-orange-400 focus:ring-orange-400 resize-none text-sm"
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isSubmitting || !email}
+            className="w-full bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+          >
+            {isSubmitting ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+            ) : (
+              <React.Fragment>
+                <Send className="h-4 w-4" />
+                {showFeedbackFields && feedback.trim() ? 'Subscribe + Send Feedback' : 'Subscribe'}
+              </React.Fragment>
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Mobile Chat Toggle Button
+const MobileChatButton = ({ onClick }: { onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className="fixed bottom-6 right-6 lg:hidden bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-full shadow-lg z-40"
+  >
+    <MessageCircle className="h-6 w-6" />
+  </button>
+);
+
+// Main Index Component
+const Index = () => {
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [last7DaysData, setLast7DaysData] = useState<Record<string, HealthData>>({});
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [showDetailDrawer, setShowDetailDrawer] = useState(false);
+  const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const userId = "mihir_jain";
+
+  // Fetch combined health data for last 7 days (from LetsJam)
+  const fetchLast7DaysData = async () => {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const dateString = sevenDaysAgo.toISOString().split('T')[0];
+
+      const tempData: Record<string, HealthData> = {};
       
-      if (forceRefresh) {
-        params.set('refresh', 'true');
-        params.set('timestamp', Date.now().toString());
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        tempData[dateStr] = {
+          date: dateStr,
+          heartRate: null,
+          caloriesBurned: 0,
+          caloriesConsumed: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+          workoutDuration: 0,
+          activityTypes: []
+        };
       }
-      
-      const response = await fetch(`/api/strava?${params.toString()}`);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch activities: ${response.status}`);
-      }
+      // Fetch nutrition data
+      const nutritionSnapshot = await getDocs(query(
+        collection(db, "nutritionLogs"),
+        where("date", ">=", dateString),
+        orderBy("date", "desc")
+      )).catch(() => ({ docs: [] }));
 
-      const data = await response.json();
-      
-      // Process activities
-      const processedActivities = data.map((activity: any) => ({
-        id: activity.id?.toString() || Math.random().toString(),
-        name: activity.name || 'Unnamed Activity',
-        type: activity.type || 'Activity',
-        start_date: activity.start_date,
-        distance: typeof activity.distance === 'number' 
-          ? activity.distance 
-          : (activity.distance || 0) / 1000,
-        moving_time: activity.moving_time || activity.duration * 60 || 0,
-        total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
-        average_speed: activity.average_speed || 0,
-        max_speed: activity.max_speed || 0,
-        has_heartrate: activity.has_heartrate || false,
-        average_heartrate: activity.average_heartrate || activity.heart_rate,
-        max_heartrate: activity.max_heartrate,
-        calories: activity.calories || activity.caloriesBurned || 0,
-        caloriesBurned: activity.caloriesBurned || activity.calories || 0
-      }));
+      nutritionSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (tempData[data.date]) {
+          tempData[data.date].caloriesConsumed = data.totals?.calories || 0;
+          tempData[data.date].protein = data.totals?.protein || 0;
+          tempData[data.date].carbs = data.totals?.carbs || 0;
+          tempData[data.date].fat = data.totals?.fat || 0;
+          tempData[data.date].fiber = data.totals?.fiber || 0;
+        }
+      });
 
-      const sortedActivities = processedActivities.sort((a: ActivityData, b: ActivityData) => 
-        new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-      );
+      // Fetch Strava data from Firestore
+      const stravaSnapshot = await getDocs(query(
+        collection(db, "strava_data"),
+        where("userId", "==", userId),
+        orderBy("start_date", "desc"),
+        limit(20)
+      )).catch(() => ({ docs: [] }));
 
-      setActivities(sortedActivities);
-      setLastUpdate(new Date().toLocaleTimeString());
+      stravaSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
+        
+        if (!activityDate || !tempData[activityDate]) return;
 
-      // Create charts after activities are set
-      createCharts(sortedActivities);
+        if (data.heart_rate != null) {
+          const curHR = tempData[activityDate].heartRate || 0;
+          const cnt = tempData[activityDate].activityTypes.length;
+          tempData[activityDate].heartRate = cnt === 0 ? data.heart_rate : ((curHR * cnt) + data.heart_rate) / (cnt + 1);
+        }
 
+        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
+        tempData[activityDate].caloriesBurned += activityCalories;
+        tempData[activityDate].workoutDuration += data.duration || 0;
+
+        if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
+          tempData[activityDate].activityTypes.push(data.type);
+        }
+      });
+
+      setLast7DaysData(tempData);
     } catch (error) {
-      console.error('❌ Error fetching activities:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch activities');
+      console.error("Error fetching 7-day data:", error);
+    }
+  };
+
+  // Fetch user data from Firebase (from LetsJam)
+  const fetchUserData = async () => {
+    try {
+      const [nutritionData, activityData, bloodMarkers] = await Promise.all([
+        fetchNutritionData(),
+        fetchActivityData(),
+        fetchBloodMarkers()
+      ]);
+
+      await fetchLast7DaysData();
+      
+      const newUserData = {
+        nutrition: nutritionData,
+        activity: activityData,
+        bloodMarkers: bloodMarkers
+      };
+
+      setUserData(newUserData);
+      console.log('📊 User data loaded:', newUserData);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const handleRefresh = async () => {
-    await fetchActivities(true);
+  // Fetch nutrition data from Firebase (from LetsJam)
+  const fetchNutritionData = async () => {
+    try {
+      const today = new Date();
+      const dates = [];
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(today.getDate() - i);
+        dates.push(date.toISOString().split('T')[0]);
+      }
+      
+      let totalCalories = 0;
+      let totalProtein = 0;
+      let totalFat = 0;
+      let totalCarbs = 0;
+      let totalFiber = 0;
+      let daysWithData = 0;
+      
+      for (const date of dates) {
+        try {
+          const logRef = doc(db, "nutritionLogs", date);
+          const logSnapshot = await getDoc(logRef);
+          
+          if (logSnapshot.exists()) {
+            const logData = logSnapshot.data();
+            
+            let dayCalories = 0;
+            let dayProtein = 0;
+            let dayFat = 0;
+            let dayCarbs = 0;
+            let dayFiber = 0;
+            
+            if (logData.totals) {
+              dayCalories = logData.totals.calories || 0;
+              dayProtein = logData.totals.protein || 0;
+              dayFat = logData.totals.fat || 0;
+              dayCarbs = logData.totals.carbs || 0;
+              dayFiber = logData.totals.fiber || 0;
+            } else if (Array.isArray(logData.entries) && logData.entries.length) {
+              logData.entries.forEach((e: any) => {
+                dayCalories += e.calories || 0;
+                dayProtein += e.protein || 0;
+                dayFat += e.fat || 0;
+                dayCarbs += e.carbs || 0;
+                dayFiber += e.fiber || 0;
+              });
+            }
+            
+            if (dayCalories > 0) {
+              daysWithData++;
+              totalCalories += dayCalories;
+              totalProtein += dayProtein;
+              totalFat += dayFat;
+              totalCarbs += dayCarbs;
+              totalFiber += dayFiber;
+            }
+          }
+        } catch (dayError) {
+          console.error(`Error fetching nutrition data for ${date}:`, dayError);
+        }
+      }
+      
+      const avgCalories = daysWithData > 0 ? Math.round(totalCalories / daysWithData) : 0;
+      const avgProtein = daysWithData > 0 ? Math.round(totalProtein / daysWithData) : 0;
+      const avgFat = daysWithData > 0 ? Math.round(totalFat / daysWithData) : 0;
+      const avgCarbs = daysWithData > 0 ? Math.round(totalCarbs / daysWithData) : 0;
+      const avgFiber = daysWithData > 0 ? Math.round(totalFiber / daysWithData) : 0;
+      
+      return {
+        avgCalories,
+        avgProtein,
+        avgFat,
+        avgCarbs,
+        avgFiber
+      };
+    } catch (error) {
+      console.error("Error fetching nutrition data:", error);
+      return {
+        avgCalories: 0,
+        avgProtein: 0,
+        avgFat: 0,
+        avgCarbs: 0,
+        avgFiber: 0
+      };
+    }
   };
 
-  // Load on mount
+  // Fetch activity data from Firestore (from LetsJam)
+  const fetchActivityData = async () => {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const stravaDataRef = collection(db, "strava_data");
+      const stravaQuery = query(
+        stravaDataRef,
+        where("userId", "==", userId),
+        where("start_date", ">=", sevenDaysAgo.toISOString()),
+        orderBy("start_date", "desc"),
+        limit(50)
+      );
+      
+      const stravaSnapshot = await getDocs(stravaQuery);
+      
+      if (!stravaSnapshot.empty) {
+        let totalHeartRate = 0;
+        let totalCaloriesBurned = 0;
+        let totalDuration = 0;
+        let activitiesWithHeartRate = 0;
+        let activityCount = 0;
+        
+        stravaSnapshot.forEach(doc => {
+          const activity = doc.data();
+          activityCount++;
+          
+          if (activity.heart_rate) {
+            totalHeartRate += activity.heart_rate;
+            activitiesWithHeartRate++;
+          }
+          
+          totalCaloriesBurned += activity.calories || 0;
+          totalDuration += activity.duration || 0;
+        });
+        
+        const avgHeartRate = activitiesWithHeartRate > 0 ? Math.round(totalHeartRate / activitiesWithHeartRate) : 0;
+        const avgCaloriesBurned = activityCount > 0 ? Math.round(totalCaloriesBurned / activityCount) : 0;
+        const avgDuration = activityCount > 0 ? Math.round(totalDuration / activityCount) : 0;
+        const workoutsPerWeek = Math.round(activityCount);
+        
+        return {
+          workoutsPerWeek,
+          avgHeartRate,
+          avgCaloriesBurned,
+          avgDuration
+        };
+      }
+      
+      return {
+        workoutsPerWeek: 0,
+        avgHeartRate: 0,
+        avgCaloriesBurned: 0,
+        avgDuration: 0
+      };
+    } catch (error) {
+      console.error("Error fetching activity data:", error);
+      return {
+        workoutsPerWeek: 0,
+        avgHeartRate: 0,
+        avgCaloriesBurned: 0,
+        avgDuration: 0
+      };
+    }
+  };
+
+  // Fetch blood markers from Firebase (from LetsJam)
+  const fetchBloodMarkers = async () => {
+    try {
+      const bloodMarkersRef = doc(db, "blood_markers", "mihir_jain");
+      const bloodMarkersSnapshot = await getDoc(bloodMarkersRef);
+      
+      if (bloodMarkersSnapshot.exists()) {
+        const data = bloodMarkersSnapshot.data();
+        
+        return {
+          calcium: data.Calcium || data.calcium,
+          creatinine: data.Creatinine || data.creatinine,
+          glucose: data["Glucose (Random)"] || data.glucose,
+          hdl: data["HDL Cholesterol"] || data.hdl,
+          hba1c: data.HbA1C || data.hba1c,
+          hemoglobin: data.Hemoglobin || data.hemoglobin,
+          ldl: data["LDL Cholesterol"] || data.ldl,
+          platelet_count: data["Platelet Count"] || data.platelet_count,
+          potassium: data.Potassium || data.potassium,
+          rbc: data.RBC || data.rbc,
+          sodium: data.Sodium || data.sodium,
+          tsh: data.TSH || data.tsh,
+          total_cholesterol: data["Total Cholesterol"] || data.total_cholesterol,
+          date: data.date || "unknown"
+        };
+      } else {
+        return {};
+      }
+    } catch (error) {
+      console.error("Error fetching blood markers:", error);
+      return {};
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserData();
+  };
+
+  const handleEmailClick = () => {
+    window.location.href = "mailto:mihir@my23.ai";
+  };
+
   useEffect(() => {
-    fetchActivities(false);
-    
-    // Cleanup charts on unmount
-    return () => {
-      destroyCharts();
-    };
+    fetchUserData();
   }, []);
 
-  // Helper functions
-  const formatDistance = (distance: number) => {
-    if (distance === 0) return '0.00';
-    if (distance < 0.1) return distance.toFixed(3);
-    return distance.toFixed(2);
-  };
-
-  const formatTime = (seconds: number) => {
-    if (!seconds) return '0m';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-  };
-
-  const formatPace = (distance: number, time: number) => {
-    if (distance === 0 || time === 0) return 'N/A';
-    const paceSeconds = time / distance;
-    const minutes = Math.floor(paceSeconds / 60);
-    const seconds = Math.floor(paceSeconds % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
-  };
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex flex-col">
-        <header className="pt-8 px-6 md:px-12">
-          <div className="flex items-center justify-between mb-6">
-            <Button onClick={() => navigate('/')} variant="ghost">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-            <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Try Again
-            </Button>
-          </div>
-        </header>
-        
-        <main className="flex-grow flex items-center justify-center px-6">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-6 text-center">
-              <div className="text-red-500 mb-4">⚠️</div>
-              <h3 className="text-lg font-semibold mb-2">Unable to Load Activities</h3>
-              <p className="text-gray-600 text-sm mb-4">{error}</p>
-              <Button onClick={handleRefresh} disabled={refreshing}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Retrying...' : 'Try Again'}
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  }
+  const todayData = last7DaysData[new Date().toISOString().split('T')[0]] || null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
-      {/* Background decoration */}
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 relative overflow-hidden">
+      <Toaster position="top-right" />
+      
+      {/* Background decoration - ActivityJam style */}
       <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
       <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
       <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-pink-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
       
-      {/* Header */}
-      <header className="relative z-10 pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-6">
-          <Button onClick={() => navigate('/')} variant="ghost" className="hover:bg-white/20">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-          
-          <Button 
-            onClick={handleRefresh}
-            variant="outline"
-            disabled={refreshing}
-            className="hover:bg-white/20"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Data'}
-          </Button>
+      <Header />
+      
+      {/* Mobile Chat Overlay */}
+      {mobileShowChat && (
+        <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+          <div className="absolute bottom-0 left-0 right-0 h-3/4 bg-white rounded-t-xl">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">AI Health Assistant</h3>
+              <button 
+                onClick={() => setMobileShowChat(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="h-full pb-16">
+              <ChatPanel userData={userData} last7DaysData={last7DaysData} />
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Hero Section */}
+      <div className="relative z-10 text-center py-12 px-6">
+        <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent animate-fade-in leading-tight mb-6">
+          🩺 MY HEALTH.<br />
+          🗄️ MY DATA.<br />
+          🧬 MY 23.
+        </h1>
         
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
-            Activity Jam
-          </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            Your recent workouts and activities from Strava
-          </p>
-          {lastUpdate && (
-            <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Showing last 30 days
-            </p>
-          )}
+        <p className="text-xl md:text-2xl font-medium text-orange-600 mb-4">
+          🚀 Live Dashboard
+        </p>
+        
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed mb-8">
+          Your complete genetic blueprint lives in 23 pairs of chromosomes. 
+          Take control of your health journey with AI-powered insights from your personal health data. 🔬✨
+        </p>
+      </div>
+
+      {/* Split Screen Dashboard - 50/50 Layout */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
+        <div className="flex flex-col lg:flex-row gap-8 h-auto lg:h-[800px]">
+          {/* Left Panel - Health Dashboard - 50% width */}
+          <div className="w-full lg:w-1/2 space-y-6">
+            {/* Refresh Button */}
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">Health Dashboard</h2>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/80 border border-orange-300 rounded-lg hover:bg-white transition-colors duration-200 shadow-sm"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="text-sm">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
+            </div>
+
+            {/* Seven Day Strip */}
+            <SevenDayStrip 
+              last7DaysData={last7DaysData}
+              selectedDay={selectedDay}
+              setSelectedDay={setSelectedDay}
+              showDetailDrawer={showDetailDrawer}
+              setShowDetailDrawer={setShowDetailDrawer}
+            />
+
+            {/* Today's Health Card */}
+            <TodayHealthCard todayData={todayData} />
+
+            {/* Quick Actions */}
+            <QuickActions />
+          </div>
+
+          {/* Right Panel - AI Chat - 50% width */}
+          <div className="w-full lg:w-1/2">
+            <div className="sticky top-20 h-full lg:h-[700px]">
+              <ChatPanel userData={userData} last7DaysData={last7DaysData} />
+            </div>
+          </div>
         </div>
-      </header>
-      
-      {/* Main content */}
-      <main className="relative z-10 px-6 md:px-12 py-8">
-        {loading ? (
-          <div className="space-y-8">
-            {/* Chart skeletons */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {[...Array(4)].map((_, i) => (
-                <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20">
-                  <CardHeader>
-                    <Skeleton className="h-6 w-32" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-64 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
+      </div>
+
+      {/* Navigation Section */}
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-8">
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-center text-gray-800 mb-8">
+            🚀 Explore Your Health Journey
+          </h2>
+          
+          {/* Navigation Buttons */}
+          <div className="space-y-4">
+            {/* First row - Overall Jam and Lets Jam */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Button 
+                onClick={() => window.location.href = '/overall-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-orange-200 hover:bg-white text-orange-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <BarChart2 className="mr-3 h-5 w-5" />
+                Overall Jam
+              </Button>
+              
+              <Button 
+                onClick={() => window.location.href = '/lets-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <MessageSquare className="mr-3 h-5 w-5" />
+                Lets Jam
+              </Button>
             </div>
             
-            {/* Activity card skeletons */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20">
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                      </div>
-                      <Skeleton className="h-4 w-full" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            {/* Second row - Activity, Nutrition, Body */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Button 
+                onClick={() => window.location.href = '/activity-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-orange-200 hover:bg-white text-orange-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Activity className="mr-3 h-5 w-5" />
+                Activity Jam
+              </Button>
+              
+              <Button 
+                onClick={() => window.location.href = '/nutrition-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Utensils className="mr-3 h-5 w-5" />
+                Nutrition Jam
+              </Button>
+              
+              <Button 
+                onClick={() => window.location.href = '/body-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Heart className="mr-3 h-5 w-5" />
+                Body Jam
+              </Button>
             </div>
           </div>
-        ) : activities.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <Calendar className="h-16 w-16 mx-auto" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Recent Activities</h3>
-            <p className="text-gray-600 mb-4">
-              No activities found in the last 30 days. Try refreshing or check your Strava connection.
-            </p>
-            <Button onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh Activities'}
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {/* Charts Section */}
-            <section>
-              <div className="flex items-center mb-6">
-                <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
-                <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Calories Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Zap className="h-5 w-5 mr-2 text-amber-500" />
-                      Calories Burned
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
+        </div>
+      </div>
 
-                {/* Distance Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Activity className="h-5 w-5 mr-2 text-blue-500" />
-                      Distance Covered
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
+      {/* Email Signup Section */}
+      <div className="relative z-10 max-w-2xl mx-auto px-6 py-8">
+        <EmailAndFeedbackCard />
+      </div>
 
-                {/* Weight Training Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Activity className="h-5 w-5 mr-2 text-purple-500" />
-                      Weight Training Time
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={weightTrainingChartRef} className="w-full h-full"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
+      {/* Contact Email Button */}
+      <div className="relative z-10 text-center py-8">
+        <Button 
+          onClick={handleEmailClick}
+          className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+        >
+          <Mail className="mr-3 h-5 w-5" />
+          mihir@my23.ai
+        </Button>
+      </div>
+      
+      {/* Coming soon indicator */}
+      <div className="relative z-10 text-center pb-12">
+        <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-sm text-gray-600 font-medium">📬 Building the future of personalized health</span>
+        </div>
+      </div>
 
-                {/* Heart Rate Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Heart className="h-5 w-5 mr-2 text-red-500" />
-                      Average Heart Rate
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={heartRateChartRef} className="w-full h-full"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
+      {/* Mobile Chat Button */}
+      <MobileChatButton onClick={() => setMobileShowChat(true)} />
 
-            {/* Activities List Section */}
-            <section>
-              <div className="flex items-center mb-6">
-                <Calendar className="h-6 w-6 mr-3 text-gray-600" />
-                <h2 className="text-2xl font-semibold text-gray-800">Recent Activities</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activities.map((activity) => (
-                  <Card key={activity.id} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200">
-                    <CardHeader className="pb-3">
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
-                          {activity.name}
-                        </CardTitle>
-                        <Badge variant="secondary" className="ml-2 shrink-0">
-                          {activity.type}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        {new Date(activity.start_date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="text-center p-3 bg-orange-50 rounded-lg">
-                          <div className="text-2xl font-bold text-orange-600">
-                            {formatDistance(activity.distance)}
-                          </div>
-                          <div className="text-xs text-gray-600">km</div>
-                        </div>
-                        <div className="text-center p-3 bg-blue-50 rounded-lg">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {formatTime(activity.moving_time)}
-                          </div>
-                          <div className="text-xs text-gray-600">duration</div>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Pace:</span>
-                          <span className="font-medium">{formatPace(activity.distance, activity.moving_time)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Elevation:</span>
-                          <span className="font-medium">{activity.total_elevation_gain}m</span>
-                        </div>
-                        {activity.has_heartrate && activity.average_heartrate && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Avg HR:</span>
-                            <span className="font-medium flex items-center">
-                              <Heart className="h-3 w-3 mr-1 text-red-500" />
-                              {activity.average_heartrate} bpm
-                            </span>
-                          </div>
-                        )}
-                        {(activity.calories || activity.caloriesBurned) && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Calories:</span>
-                            <span className="font-medium flex items-center">
-                              <Zap className="h-3 w-3 mr-1 text-yellow-500" />
-                              {activity.calories || activity.caloriesBurned}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </section>
-          </div>
-        )}
-      </main>
+      {/* Custom Styles */}
+      <style jsx>{`
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-slide-down {
+          animation: slide-down 0.2s ease-out;
+        }
+        
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 1s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
 
-export default ActivityJam;
+export default Index;
