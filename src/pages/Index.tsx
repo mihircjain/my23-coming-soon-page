@@ -103,13 +103,7 @@ const DailyHealthBox: React.FC<{
                 month: 'short', 
                 day: 'numeric' 
               })}
-            </div>
-            {isToday && (
-              <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">
-                Today
-              </span>
-            )}
-          </div>
+
 
           {hasData ? (
             <>
