@@ -145,7 +145,7 @@ const canRefreshData = async (userId) => {
     }
     
     const data = metadataDoc.data();
-    if (data.refreshCount < 2) {
+    if (data.refreshCount < 10) {
       // Second refresh allowed
       await metadataRef.update({ 
         refreshCount: data.refreshCount + 1, 
