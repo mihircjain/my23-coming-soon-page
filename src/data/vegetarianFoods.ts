@@ -365,7 +365,7 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Sambhar",
-    servingSize: "300",
+    servingSize: "300g",
     calories: 228,
     protein: 11,
     carbs: 32.4,
