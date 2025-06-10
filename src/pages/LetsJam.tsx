@@ -1,280 +1,4 @@
-{/* Main content */}
-      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
-        
-        {/* 7-Day Health Overview - Keep but no explanation */}
-        <section className="mb-6">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Heart className="h-4 w-4 text-red-500" />
-                Last 7 Days Health Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                {last7Days.map((date) => (
-                  <DailyHealthBox
-                    key={date}
-                    data={last7DaysData[date] || {
-                      date,
-                      heartRate: null,
-                      caloriesBurned: 0,
-                      caloriesConsumed: 0,
-                      protein: 0,
-                      carbs: 0,
-                      fat: 0,
-                      fiber: 0,
-                      workoutDuration: 0,
-                      activityTypes: []
-                    }}
-                    date={date}
-                    isToday={date === new Date().toISOString().split('T')[0]}
-                    onClick={() => {
-                      console.log(`Clicked on ${date}`);
-                    }}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* AI Chat Section - Free Flowing, Full Focus */}
-        <section className="flex-grow">
-          <Card className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center mb-3">
-                <Bot className="h-6 w-6 text-white" />
-              </div>
-              <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                🤖 AI Health Assistant
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-2">
-                Ask about your recent activities, food, and health patterns ✨
-              </p>
-            </CardHeader>
-            <CardContent>
-              {/* Messages - Free Flowing without scroll box */}
-              <div className="space-y-4 mb-6">
-                {messages.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <div className="mb-6">
-                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-3" />
-                      <p className="text-lg font-medium">Ask me about your health! 🌟</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-2xl mx-auto">
-                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                        <p className="font-medium text-purple-700 mb-2">📊 Data Analysis</p>
-                        <ul className="space-y-1 text-purple-600 text-left">
-                          <li>"How's my nutrition this week?"</li>
-                          <li>"Analyze my workout patterns"</li>
-                          <li>"What's my calorie deficit trend?"</li>
-                        </ul>
-                      </div>
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="font-medium text-blue-700 mb-2">🩸 Health Insights</p>
-                        <ul className="space-y-1 text-blue-600 text-left">
-                          <li>"Review my blood markers"</li>
-                          <li>"How's my protein intake?"</li>
-                          <li>"Health recommendations?"</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                          message.role === "user"
-                            ? "bg-indigo-500 text-white"
-                            : "bg-white text-gray-800 border border-gray-200 shadow-sm"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
-                        <p
-                          className={`text-xs mt-2 ${
-                            message.role === "user"
-                              ? "text-indigo-100"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {message.timestamp.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-                {sending && (
-                  <div className="flex justify-start">
-                    <div className="bg-white text-gray-800 border border-gray-200 p-3 rounded-lg">
-                      <div className="flex gap-2 items-center">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-100"></div>
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-200"></div>
-                        </div>
-                        <span className="text-sm text-gray-500">AI is thinking...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-              
-              {/* Input */}
-              <form onSubmit={handleSubmit} className="flex gap-3">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about your health data... 💬"
-                  disabled={sending}
-                  className="flex-grow border-indigo-200 focus:border-indigo-400 focus:ring-indigo-400"
-                />
-                <Button 
-                  type="submit" 
-                  disabled={sending || !input.trim()}
-                  className="bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white px-6"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  {sending ? "Sending..." : "Send"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Compact Health Summary for AI Context */}
-        <section className="mt-6">
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-blue-500" />
-                Health Data Summary (30-day averages)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Nutrition Summary */}
-                <div className="bg-white/50 p-3 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
-                    <Utensils className="h-3 w-3 text-green-500" />
-                    Nutrition
-                  </h3>
-                  {userData ? (
-                    <ul className="space-y-1 text-sm">
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Calories:</span>
-                        <span className="font-medium">{userData.nutrition.avgCalories}/day</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Protein:</span>
-                        <span className="font-medium">{userData.nutrition.avgProtein}g/day</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Carbs:</span>
-                        <span className="font-medium">{userData.nutrition.avgCarbs}g/day</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Fat:</span>
-                        <span className="font-medium">{userData.nutrition.avgFat}g/day</span>
-                      </li>
-                    </ul>
-                  ) : (
-                    <div className="space-y-1">
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                    </div>
-                  )}
-                </div>
-                
-                {/* Activity Summary */}
-                <div className="bg-white/50 p-3 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
-                    <Activity className="h-3 w-3 text-blue-500" />
-                    Activity
-                  </h3>
-                  {userData ? (
-                    <ul className="space-y-1 text-sm">
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Workouts:</span>
-                        <span className="font-medium">{userData.activity.workoutsPerWeek}/week</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Duration:</span>
-                        <span className="font-medium">{userData.activity.avgDuration} min</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Heart Rate:</span>
-                        <span className="font-medium">{userData.activity.avgHeartRate} bpm</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-gray-600">Calories:</span>
-                        <span className="font-medium">{userData.activity.avgCaloriesBurned}/workout</span>
-                      </li>
-                    </ul>
-                  ) : (
-                    <div className="space-y-1">
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                    </div>
-                  )}
-                </div>
-                
-                {/* Blood Markers Summary */}
-                <div className="bg-white/50 p-3 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
-                    <Heart className="h-3 w-3 text-red-500" />
-                    Blood Markers
-                  </h3>
-                  {userData && userData.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 ? (
-                    <ul className="space-y-1 text-sm">
-                      {userData.bloodMarkers.ldl && (
-                        <li className="flex justify-between">
-                          <span className="text-gray-600">LDL:</span>
-                          <span className="font-medium">{userData.bloodMarkers.ldl}</span>
-                        </li>
-                      )}
-                      {userData.bloodMarkers.hdl && (
-                        <li className="flex justify-between">
-                          <span className="text-gray-600">HDL:</span>
-                          <span className="font-medium">{userData.bloodMarkers.hdl}</span>
-                        </li>
-                      )}
-                      {userData.bloodMarkers.total_cholesterol && (
-                        <li className="flex justify-between">
-                          <span className="text-gray-600">Total Chol:</span>
-                          <span className="font-medium">{userData.bloodMarkers.total_cholesterol}</span>
-                        </li>
-                      )}
-                      {userData.bloodMarkers.calcium && (
-                        <li className="flex justify-between">
-                          <span className="text-gray-600">Calcium:</span>
-                          <span className="font-medium">{userData.bloodMarkers.calcium}</span>
-                        </li>
-                      )}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-500">No blood data available</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      </main>import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Send, RefreshCw, Heart, Activity, Utensils, Target, TrendingUp, Flame, Bot, Sparkles, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -805,23 +529,6 @@ const LetsJam = () => {
     }
   };
 
-  // Calculate averages from 7-day data
-  const calculateAvgMetric = (metric: keyof HealthData) => {
-    const validData = Object.values(last7DaysData).filter(d => d[metric] !== null && (d[metric] as number) > 0);
-    if (validData.length === 0) return 0;
-    const sum = validData.reduce((total, d) => total + ((d[metric] as number) || 0), 0);
-    return Math.round(sum / validData.length);
-  };
-
-  // Calculate average calorie deficit
-  const calculateAvgCalorieDeficit = () => {
-    const BMR = 1479;
-    const validData = Object.values(last7DaysData).filter(d => d.caloriesConsumed > 0 || d.caloriesBurned > 0);
-    if (validData.length === 0) return 0;
-    const sum = validData.reduce((total, d) => total + (d.caloriesBurned + BMR - d.caloriesConsumed), 0);
-    return Math.round(sum / validData.length);
-  };
-
   // Generate last 7 days dates for the daily boxes
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
@@ -1033,17 +740,17 @@ const LetsJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview */}
-        <section className="mb-8">
+        {/* 7-Day Health Overview - Keep but no explanation */}
+        <section className="mb-6">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-red-500" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Heart className="h-4 w-4 text-red-500" />
                 Last 7 Days Health Overview
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                 {last7Days.map((date) => (
                   <DailyHealthBox
                     key={date}
@@ -1067,150 +774,45 @@ const LetsJam = () => {
                   />
                 ))}
               </div>
-              
-              {/* Health Score Explanation Footer */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  Health Score Calculation (100 points total)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
-                  <div className="space-y-1">
-                    <div className="font-medium text-orange-600">Calories Burned (40 pts)</div>
-                    <div>🎯 Target: 300+ cal = 40 pts</div>
-                    <div>📈 Below: (burned/300) × 40</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
-                    <div>🎯 Target: 140g+ = 30 pts</div>
-                    <div>📈 Below: (protein/140) × 30</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-green-600">Calorie Deficit (30 pts)</div>
-                    <div>🎯 Progressive scoring:</div>
-                    <div>• 0 cal = 0 pts</div>
-                    <div>• 1-99 cal = 5 pts</div>
-                    <div>• 100+ cal = 10 pts</div>
-                    <div>• 200+ cal = 15 pts</div>
-                    <div>• 300+ cal = 20 pts</div>
-                    <div>• 400+ cal = 25 pts</div>
-                    <div>• 500+ cal = 30 pts</div>
-                  </div>
-                </div>
-                <div className="mt-3 text-xs text-gray-500 border-t pt-2">
-                  <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
-                  <br />
-                  <strong>Perfect Day Example:</strong> 300+ cal burned (40 pts) + 140g protein (30 pts) + 500+ cal deficit (30 pts) = 100 points 🎉
-                  <br />
-                  <strong>Deficit Formula:</strong> (Calories Burned + 1479 BMR) - Calories Consumed
-                </div>
-              </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Weekly Averages Section */}
-        <section className="mb-8">
-          <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Weekly Averages
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            
-            {/* Calories In Card */}
-            <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Calories In</h3>
-                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Utensils className="h-5 w-5 text-gray-700" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('caloriesConsumed')}</p>
-                <p className="text-sm text-gray-700">cal/day</p>
-              </div>
-            </div>
-
-            {/* Calories Out Card */}
-            <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Calories Out</h3>
-                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Flame className="h-5 w-5 text-gray-700" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('caloriesBurned')}</p>
-                <p className="text-sm text-gray-700">cal/day</p>
-              </div>
-            </div>
-
-            {/* Protein Card */}
-            <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Protein</h3>
-                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5 text-gray-700" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('protein')}</p>
-                <p className="text-sm text-gray-700">g/day</p>
-              </div>
-            </div>
-
-            {/* Calorie Deficit Card */}
-            <div className="bg-gradient-to-br from-emerald-200 to-blue-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Cal Deficit</h3>
-                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-gray-700" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className={`text-3xl font-bold ${calculateAvgCalorieDeficit() >= 0 ? 'text-gray-800' : 'text-red-700'}`}>
-                  {calculateAvgCalorieDeficit() >= 0 ? '+' : ''}{calculateAvgCalorieDeficit()}
-                </p>
-                <p className="text-sm text-gray-700">cal/day</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* AI Chat Section */}
-        <section className="mb-8">
+        {/* AI Chat Section - Free Flowing, Full Focus */}
+        <section className="flex-grow">
           <Card className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg">
             <CardHeader className="text-center pb-4">
-              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center mb-4">
-                <Bot className="h-8 w-8 text-white" />
+              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center mb-3">
+                <Bot className="h-6 w-6 text-white" />
               </div>
-              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 🤖 AI Health Assistant
               </CardTitle>
               <p className="text-sm text-gray-600 mt-2">
-                Ask about your recent activities, food, and health patterns based on real data ✨
+                Ask about your recent activities, food, and health patterns ✨
               </p>
             </CardHeader>
             <CardContent>
-              {/* Messages */}
-              <div className="bg-white/60 rounded-lg p-4 h-80 overflow-y-auto mb-4 space-y-4">
+              {/* Messages - Free Flowing without scroll box */}
+              <div className="space-y-4 mb-6">
                 {messages.length === 0 ? (
-                  <div className="text-center text-gray-500 my-8">
-                    <div className="mb-4">
-                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-2" />
+                  <div className="text-center text-gray-500 py-8">
+                    <div className="mb-6">
+                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-3" />
                       <p className="text-lg font-medium">Ask me about your health! 🌟</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                        <p className="font-medium text-purple-700 mb-1">📊 Data Analysis</p>
-                        <ul className="space-y-1 text-purple-600">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-2xl mx-auto">
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <p className="font-medium text-purple-700 mb-2">📊 Data Analysis</p>
+                        <ul className="space-y-1 text-purple-600 text-left">
                           <li>"How's my nutrition this week?"</li>
                           <li>"Analyze my workout patterns"</li>
                           <li>"What's my calorie deficit trend?"</li>
                         </ul>
                       </div>
-                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                        <p className="font-medium text-blue-700 mb-1">🩸 Health Insights</p>
-                        <ul className="space-y-1 text-blue-600">
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <p className="font-medium text-blue-700 mb-2">🩸 Health Insights</p>
+                        <ul className="space-y-1 text-blue-600 text-left">
                           <li>"Review my blood markers"</li>
                           <li>"How's my protein intake?"</li>
                           <li>"Health recommendations?"</li>
@@ -1289,26 +891,25 @@ const LetsJam = () => {
           </Card>
         </section>
 
-        {/* Health Stats Summary for AI Context */}
-        <section className="mb-8">
+        {/* Compact Health Summary for AI Context */}
+        <section className="mt-6">
           <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-blue-500" />
-                Your Health Summary (30-day averages)
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-blue-500" />
+                Health Data Summary (30-day averages)
               </CardTitle>
-              <p className="text-sm text-gray-600">This data powers your AI assistant's insights</p>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Nutrition Summary */}
-                <div className="bg-white/50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Utensils className="h-4 w-4 text-green-500" />
+                <div className="bg-white/50 p-3 rounded-lg">
+                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                    <Utensils className="h-3 w-3 text-green-500" />
                     Nutrition
                   </h3>
                   {userData ? (
-                    <ul className="space-y-2 text-sm">
+                    <ul className="space-y-1 text-sm">
                       <li className="flex justify-between">
                         <span className="text-gray-600">Calories:</span>
                         <span className="font-medium">{userData.nutrition.avgCalories}/day</span>
@@ -1327,23 +928,23 @@ const LetsJam = () => {
                       </li>
                     </ul>
                   ) : (
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
                     </div>
                   )}
                 </div>
                 
                 {/* Activity Summary */}
-                <div className="bg-white/50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-blue-500" />
+                <div className="bg-white/50 p-3 rounded-lg">
+                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                    <Activity className="h-3 w-3 text-blue-500" />
                     Activity
                   </h3>
                   {userData ? (
-                    <ul className="space-y-2 text-sm">
+                    <ul className="space-y-1 text-sm">
                       <li className="flex justify-between">
                         <span className="text-gray-600">Workouts:</span>
                         <span className="font-medium">{userData.activity.workoutsPerWeek}/week</span>
@@ -1362,23 +963,23 @@ const LetsJam = () => {
                       </li>
                     </ul>
                   ) : (
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-full" />
                     </div>
                   )}
                 </div>
                 
                 {/* Blood Markers Summary */}
-                <div className="bg-white/50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-red-500" />
+                <div className="bg-white/50 p-3 rounded-lg">
+                  <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                    <Heart className="h-3 w-3 text-red-500" />
                     Blood Markers
                   </h3>
                   {userData && userData.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 ? (
-                    <ul className="space-y-2 text-sm">
+                    <ul className="space-y-1 text-sm">
                       {userData.bloodMarkers.ldl && (
                         <li className="flex justify-between">
                           <span className="text-gray-600">LDL:</span>
@@ -1405,7 +1006,7 @@ const LetsJam = () => {
                       )}
                     </ul>
                   ) : (
-                    <p className="text-sm text-gray-500">No blood marker data available</p>
+                    <p className="text-sm text-gray-500">No blood data available</p>
                   )}
                 </div>
               </div>
