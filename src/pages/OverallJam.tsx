@@ -49,9 +49,17 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
   const calculateHealthScore = () => {
     let score = 0;
     
-    // Calorie Deficit Score (50% of total) - Target: 500+ calorie deficit
-    // Perfect score at 500+, proportional below that
-    const deficitScore = Math.min(50, Math.max(0, (calorieDeficit / 500) * 50));
+    // Calorie Deficit Score (50% of total) - New progressive scoring
+    // 0 cal = 5 pts, 100 cal = 10 pts, 200 cal = 20 pts, 300 cal = 30 pts, 400 cal = 40 pts, 500+ cal = 50 pts
+    const deficitScore = (() => {
+      if (calorieDeficit <= 0) return 0;
+      if (calorieDeficit >= 500) return 50;
+      if (calorieDeficit >= 400) return 40;
+      if (calorieDeficit >= 300) return 30;
+      if (calorieDeficit >= 200) return 20;
+      if (calorieDeficit >= 100) return 10;
+      return 5; // 0-99 calorie deficit gets 5 points
+    })();
     
     // Protein Score (50% of total) - Target: 140g+ 
     // Perfect score at 140g+, proportional below that
@@ -97,10 +105,10 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-1">
                     <Heart className="h-4 w-4 text-red-500" />
-                    <span className="text-lg font-bold text-gray-800">
+                    <span className="text-base font-bold text-gray-800">
                       {healthScore}%
                     </span>
-                    <span className="text-sm text-gray-500">health</span>
+                    <span className="text-xs text-gray-500">health</span>
                   </div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -694,9 +702,14 @@ const OverallJam = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
                   <div className="space-y-1">
                     <div className="font-medium text-green-600">Calorie Deficit (50 pts)</div>
-                    <div>🎯 Target: 500+ calorie deficit = 50 pts</div>
-                    <div>📈 Formula: Calories Burned + BMR - Calories Consumed</div>
-                    <div>📉 Below 500: Proportional scoring</div>
+                    <div>🎯 Progressive scoring:</div>
+                    <div>• 0 cal deficit = 0 pts</div>
+                    <div>• 1-99 cal = 5 pts</div>
+                    <div>• 100+ cal = 10 pts</div>
+                    <div>• 200+ cal = 20 pts</div>
+                    <div>• 300+ cal = 30 pts</div>
+                    <div>• 400+ cal = 40 pts</div>
+                    <div>• 500+ cal = 50 pts</div>
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-purple-600">Protein Intake (50 pts)</div>
