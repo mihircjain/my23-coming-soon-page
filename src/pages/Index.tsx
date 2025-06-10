@@ -41,8 +41,56 @@ interface UserFeedback {
   timestamp: string;
 }
 
-// Daily Health Box Component with Health Score (Calorie Deficit + Protein)
-const DailyHealthBox = ({ data, date, isToday, onClick }) => {
+import React, { useState, useEffect } from 'react';
+import { Mail, Activity, Utensils, Heart, BarChart2, MessageSquare, Send, TrendingUp, Flame, Target, Droplet, Bot, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast, Toaster } from 'sonner';
+import { db } from '@/lib/firebaseConfig';
+import { collection, addDoc, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+
+// Types
+interface HealthData {
+  date: string;
+  heartRate: number | null;
+  caloriesBurned: number;
+  caloriesConsumed: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  workoutDuration: number;
+  activityTypes: string[];
+}
+
+interface BloodMarkerData {
+  date: string;
+  markers: Record<string, number | string>;
+}
+
+interface EmailSignup {
+  email: string;
+  timestamp: string;
+  source: string;
+}
+
+interface UserFeedback {
+  email?: string;
+  message: string;
+  type: 'suggestion' | 'feature_request' | 'feedback';
+  timestamp: string;
+}
+
+// Daily Health Box Component with Health Score (Calorie Deficit + Protein + Calories Burned)
+const DailyHealthBox: React.FC<{
+  data: HealthData;
+  date: string;
+  isToday: boolean;
+  onClick: () => void;
+}> = ({ data, date, isToday, onClick }) => {
   const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRate > 0;
   
   // Calculate calorie deficit: calories burned + BMR - calories consumed
@@ -912,64 +960,68 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Interactive Cards Grid - Updated layout */}
+        {/* Interactive Cards Grid - Updated layout with new order */}
         <div className="space-y-8 mb-12">
-          {/* Health Overview - Full width */}
+          {/* 1. Health Overview - Full width */}
           <HealthOverviewCard />
           
-          {/* Other cards in a row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* 2. AI Chat Bot - Full width alone */}
+          <div className="grid grid-cols-1 gap-6">
             <ChatbotCard />
-            <EmailAndFeedbackCard />
-          </div>
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="space-y-4 mb-8">
-          {/* First row - Overall Jam and Lets Jam */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Button 
-              onClick={() => window.location.href = '/overall-jam'} 
-              className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              <BarChart2 className="mr-3 h-5 w-5" />
-              Overall Jam
-            </Button>
-            
-            <Button 
-              onClick={() => window.location.href = '/lets-jam'} 
-              className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              <MessageSquare className="mr-3 h-5 w-5" />
-              Lets Jam
-            </Button>
           </div>
           
-          {/* Second row - Activity, Nutrition, Body */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Button 
-              onClick={() => window.location.href = '/activity-jam'} 
-              className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              <Activity className="mr-3 h-5 w-5" />
-              Activity Jam
-            </Button>
+          {/* 3. Navigation Buttons - Overall Jam and other jams */}
+          <div className="space-y-4">
+            {/* First row - Overall Jam and Lets Jam */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Button 
+                onClick={() => window.location.href = '/overall-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <BarChart2 className="mr-3 h-5 w-5" />
+                Overall Jam
+              </Button>
+              
+              <Button 
+                onClick={() => window.location.href = '/lets-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-indigo-200 hover:bg-white text-indigo-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <MessageSquare className="mr-3 h-5 w-5" />
+                Lets Jam
+              </Button>
+            </div>
             
-            <Button 
-              onClick={() => window.location.href = '/nutrition-jam'} 
-              className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              <Utensils className="mr-3 h-5 w-5" />
-              Nutrition Jam
-            </Button>
-            
-            <Button 
-              onClick={() => window.location.href = '/body-jam'} 
-              className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              <Heart className="mr-3 h-5 w-5" />
-              Body Jam
-            </Button>
+            {/* Second row - Activity, Nutrition, Body */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Button 
+                onClick={() => window.location.href = '/activity-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Activity className="mr-3 h-5 w-5" />
+                Activity Jam
+              </Button>
+              
+              <Button 
+                onClick={() => window.location.href = '/nutrition-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Utensils className="mr-3 h-5 w-5" />
+                Nutrition Jam
+              </Button>
+              
+              <Button 
+                onClick={() => window.location.href = '/body-jam'} 
+                className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Heart className="mr-3 h-5 w-5" />
+                Body Jam
+              </Button>
+            </div>
+          </div>
+          
+          {/* 4. Stay Updated Card - Full width alone */}
+          <div className="grid grid-cols-1 gap-6">
+            <EmailAndFeedbackCard />
           </div>
         </div>
 
