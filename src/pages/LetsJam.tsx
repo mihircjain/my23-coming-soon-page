@@ -740,43 +740,7 @@ const LetsJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview - Keep but no explanation */}
-        <section className="mb-6">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Heart className="h-4 w-4 text-red-500" />
-                Last 7 Days Health Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                {last7Days.map((date) => (
-                  <DailyHealthBox
-                    key={date}
-                    data={last7DaysData[date] || {
-                      date,
-                      heartRate: null,
-                      caloriesBurned: 0,
-                      caloriesConsumed: 0,
-                      protein: 0,
-                      carbs: 0,
-                      fat: 0,
-                      fiber: 0,
-                      workoutDuration: 0,
-                      activityTypes: []
-                    }}
-                    date={date}
-                    isToday={date === new Date().toISOString().split('T')[0]}
-                    onClick={() => {
-                      console.log(`Clicked on ${date}`);
-                    }}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+       
 
         {/* AI Chat Section - Free Flowing, Full Focus */}
         <section className="flex-grow">
@@ -890,7 +854,43 @@ const LetsJam = () => {
             </CardContent>
           </Card>
         </section>
-
+         {/* 7-Day Health Overview - Keep but no explanation */}
+        <section className="mb-6">
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Heart className="h-4 w-4 text-red-500" />
+                Last 7 Days Health Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                {last7Days.map((date) => (
+                  <DailyHealthBox
+                    key={date}
+                    data={last7DaysData[date] || {
+                      date,
+                      heartRate: null,
+                      caloriesBurned: 0,
+                      caloriesConsumed: 0,
+                      protein: 0,
+                      carbs: 0,
+                      fat: 0,
+                      fiber: 0,
+                      workoutDuration: 0,
+                      activityTypes: []
+                    }}
+                    date={date}
+                    isToday={date === new Date().toISOString().split('T')[0]}
+                    onClick={() => {
+                      console.log(`Clicked on ${date}`);
+                    }}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
         {/* Compact Health Summary for AI Context */}
         <section className="mt-6">
           <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
