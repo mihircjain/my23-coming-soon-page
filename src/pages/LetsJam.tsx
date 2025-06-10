@@ -750,7 +750,7 @@ const LetsJam = () => {
                 <Bot className="h-6 w-6 text-white" />
               </div>
               <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                🤖 AI Health Assistant
+                🤖 Mihir's AI Health Assistant
               </CardTitle>
               <p className="text-sm text-gray-600 mt-2">
                 Ask about your recent activities, food, and health patterns ✨
@@ -825,7 +825,7 @@ const LetsJam = () => {
                           <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-100"></div>
                           <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-200"></div>
                         </div>
-                        <span className="text-sm text-gray-500">AI is thinking...</span>
+                        <span className="text-sm text-gray-500">Mihir's Personal AI is thinking...</span>
                       </div>
                     </div>
                   </div>
