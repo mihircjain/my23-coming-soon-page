@@ -1004,6 +1004,14 @@ const NutritionJam = () => {
       
       <header className="pt-8 px-6 md:px-12">
         <div className="flex items-center justify-between mb-8">
+                    <Button 
+            onClick={() => navigate('/')} 
+            variant="ghost" 
+            className="hover:bg-white/20"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Home
+          </Button>
           <div className="flex items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
