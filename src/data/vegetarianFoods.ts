@@ -365,12 +365,12 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Sambhar",
-    servingSize: "150g",
-    calories: 114,
-    protein: 5.5,
-    carbs: 16.2,
-    fat: 3.0,
-    fiber: 3.7
+    servingSize: "300",
+    calories: 228,
+    protein: 11,
+    carbs: 32.4,
+    fat: 6.0,
+    fiber: 7.4
   },
   {
     name: "Bhindi Fry",
