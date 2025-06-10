@@ -954,7 +954,7 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">{calculateAverage('caloriesConsumed')}</p>
+                      <p className="text-2xl font-bold text-gray-800">-</p>
                       <p className="text-xs text-gray-700">cal/day</p>
                     </div>
                   </div>
@@ -967,7 +967,7 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">{calculateAverage('caloriesBurned')}</p>
+                      <p className="text-2xl font-bold text-gray-800">-</p>
                       <p className="text-xs text-gray-700">cal/day</p>
                     </div>
                   </div>
@@ -980,7 +980,7 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">{calculateAverage('protein')}</p>
+                      <p className="text-2xl font-bold text-gray-800">-</p>
                       <p className="text-xs text-gray-700">g/day</p>
                     </div>
                   </div>
@@ -993,8 +993,8 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">{calculateAverage('heartRate') || '-'}</p>
-                      <p className="text-xs text-gray-700">{calculateAverage('heartRate') ? 'bpm' : 'avg'}</p>
+                      <p className="text-2xl font-bold text-gray-800">-</p>
+                      <p className="text-xs text-gray-700">bpm</p>
                     </div>
                   </div>
                 </div>
