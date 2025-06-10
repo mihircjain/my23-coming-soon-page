@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Send, RefreshCw, Heart, Activity, Utensils, Target, TrendingUp, Flame, Bot, Sparkles, MessageSquare } from "lucide-react";
+import { ArrowLeft, Send, RefreshCw, Heart, Activity, Utensils, Target, TrendingUp, Flame, Bot, Sparkles, MessageSquare, Calendar, Zap, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { db } from "@/lib/firebaseConfig";
@@ -50,6 +51,23 @@ interface UserData {
   bloodMarkers: Record<string, any>;
 }
 
+interface RecentActivity {
+  id: string;
+  name: string;
+  type: string;
+  start_date: string;
+  distance: number;
+  moving_time: number;
+  total_elevation_gain: number;
+  average_speed: number;
+  max_speed: number;
+  has_heartrate: boolean;
+  average_heartrate?: number;
+  max_heartrate?: number;
+  calories?: number;
+  caloriesBurned?: number;
+}
+
 // Daily Health Box Component with Health Score
 const DailyHealthBox: React.FC<{
   data: HealthData;
@@ -94,9 +112,9 @@ const DailyHealthBox: React.FC<{
     <Card 
       className={`cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group ${
         hasData 
-          ? "bg-gradient-to-br from-blue-50 to-green-50 border-blue-200 hover:shadow-blue-100" 
+          ? "bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 hover:shadow-purple-100" 
           : "bg-gray-50 border-gray-200 hover:shadow-gray-100"
-      } ${isToday ? "ring-2 ring-purple-500" : ""}`}
+      } ${isToday ? "ring-2 ring-orange-500" : ""}`}
       onClick={onClick}
     >
       <CardContent className="p-4">
@@ -111,7 +129,7 @@ const DailyHealthBox: React.FC<{
               })}
             </div>
             {isToday && (
-              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
                 Today
               </span>
             )}
@@ -132,7 +150,7 @@ const DailyHealthBox: React.FC<{
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-purple-400 to-pink-500 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${healthScore}%` }}
                   />
                 </div>
@@ -194,6 +212,7 @@ const LetsJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [userData, setUserData] = useState<UserData | null>(null);
   const [last7DaysData, setLast7DaysData] = useState<Record<string, HealthData>>({});
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -282,7 +301,59 @@ const LetsJam = () => {
     }
   };
 
-  // Fetch user data from Firebase
+  // Fetch recent activities for the activities section
+  const fetchRecentActivities = async () => {
+    try {
+      console.log('🏃 Fetching recent activities...');
+      
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const stravaDataRef = collection(db, "strava_data");
+      const stravaQuery = query(
+        stravaDataRef,
+        where("userId", "==", userId),
+        where("start_date", ">=", sevenDaysAgo.toISOString()),
+        orderBy("start_date", "desc"),
+        limit(10)
+      );
+      
+      const stravaSnapshot = await getDocs(stravaQuery);
+      
+      if (!stravaSnapshot.empty) {
+        const processedActivities = stravaSnapshot.docs.map(doc => {
+          const activity = doc.data();
+          return {
+            id: activity.id?.toString() || Math.random().toString(),
+            name: activity.name || 'Unnamed Activity',
+            type: activity.type || 'Activity',
+            start_date: activity.start_date,
+            distance: typeof activity.distance === 'number' 
+              ? activity.distance 
+              : (activity.distance || 0) / 1000,
+            moving_time: activity.moving_time || activity.duration * 60 || 0,
+            total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
+            average_speed: activity.average_speed || 0,
+            max_speed: activity.max_speed || 0,
+            has_heartrate: activity.has_heartrate || false,
+            average_heartrate: activity.average_heartrate || activity.heart_rate,
+            max_heartrate: activity.max_heartrate,
+            calories: activity.calories || activity.caloriesBurned || 0,
+            caloriesBurned: activity.caloriesBurned || activity.calories || 0
+          };
+        });
+
+        setRecentActivities(processedActivities);
+      } else {
+        setRecentActivities([]);
+      }
+    } catch (error) {
+      console.error("Error fetching recent activities:", error);
+      setRecentActivities([]);
+    }
+  };
+
+  // Fetch user data from Firebase (7-day averages)
   const fetchUserData = async (forceRefresh = false) => {
     try {
       setLoading(true);
@@ -299,8 +370,11 @@ const LetsJam = () => {
         fetchBloodMarkers()
       ]);
 
-      // Also fetch 7-day data
-      await fetchLast7DaysData();
+      // Also fetch 7-day data and recent activities
+      await Promise.all([
+        fetchLast7DaysData(),
+        fetchRecentActivities()
+      ]);
       
       // Set user data
       const newUserData = {
@@ -327,14 +401,14 @@ const LetsJam = () => {
     await fetchUserData(true);
   };
 
-  // Fetch nutrition data from Firebase
+  // Fetch nutrition data from Firebase (7 days instead of 30)
   const fetchNutritionData = async (): Promise<NutritionData> => {
     try {
-      // Get the last 30 days
+      // Get the last 7 days instead of 30
       const today = new Date();
       const dates = [];
       
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 7; i++) {
         const date = new Date();
         date.setDate(today.getDate() - i);
         dates.push(date.toISOString().split('T')[0]);
@@ -423,21 +497,21 @@ const LetsJam = () => {
     }
   };
 
-  // Fetch activity data from Strava API or cached data
+  // Fetch activity data from Strava API or cached data (7 days instead of 30)
   const fetchActivityData = async (): Promise<ActivityData> => {
     try {
-      console.log('🏃 Fetching activity data...');
+      console.log('🏃 Fetching activity data for last 7 days...');
       
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
       const stravaDataRef = collection(db, "strava_data");
       const stravaQuery = query(
         stravaDataRef,
         where("userId", "==", userId),
-        where("start_date", ">=", thirtyDaysAgo.toISOString()),
+        where("start_date", ">=", sevenDaysAgo.toISOString()),
         orderBy("start_date", "desc"),
-        limit(100)
+        limit(50)
       );
       
       const stravaSnapshot = await getDocs(stravaQuery);
@@ -462,11 +536,11 @@ const LetsJam = () => {
           totalDuration += activity.duration || 0;
         });
         
-        // Calculate averages and stats
+        // Calculate averages and stats for 7 days
         const avgHeartRate = activitiesWithHeartRate > 0 ? Math.round(totalHeartRate / activitiesWithHeartRate) : 0;
         const avgCaloriesBurned = activityCount > 0 ? Math.round(totalCaloriesBurned / activityCount) : 0;
         const avgDuration = activityCount > 0 ? Math.round(totalDuration / activityCount) : 0;
-        const workoutsPerWeek = Math.round((activityCount / 30) * 7);
+        const workoutsPerWeek = Math.round(activityCount); // Since we're looking at 7 days, this is workouts per week
         
         return {
           workoutsPerWeek,
@@ -555,10 +629,10 @@ const LetsJam = () => {
       const currentInput = input;
       setInput("");
       
-      // Structure user data for API
+      // Structure user data for API (now using 7-day averages)
       const structuredUserData = {
         nutrition: {
-          type: "nutrition_averages_30_days",
+          type: "nutrition_averages_7_days",
           avgCaloriesPerDay: userData?.nutrition?.avgCalories || 0,
           avgProteinPerDay: userData?.nutrition?.avgProtein || 0,
           avgCarbsPerDay: userData?.nutrition?.avgCarbs || 0,
@@ -567,7 +641,7 @@ const LetsJam = () => {
         },
         
         activity: {
-          type: "activity_averages_30_days", 
+          type: "activity_averages_7_days", 
           workoutsPerWeek: userData?.activity?.workoutsPerWeek || 0,
           avgHeartRatePerWorkout: userData?.activity?.avgHeartRate || 0,
           avgCaloriesBurnedPerWorkout: userData?.activity?.avgCaloriesBurned || 0,
@@ -665,6 +739,28 @@ const LetsJam = () => {
     }
   };
 
+  // Helper functions (same as ActivityJam)
+  const formatDistance = (distance: number) => {
+    if (distance === 0) return '0.00';
+    if (distance < 0.1) return distance.toFixed(3);
+    return distance.toFixed(2);
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!seconds) return '0m';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  };
+
+  const formatPace = (distance: number, time: number) => {
+    if (distance === 0 || time === 0) return 'N/A';
+    const paceSeconds = time / distance;
+    const minutes = Math.floor(paceSeconds / 60);
+    const seconds = Math.floor(paceSeconds % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+  };
+
   // Scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -692,11 +788,11 @@ const LetsJam = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-pink-50 flex flex-col">
+      {/* Background decoration - colorful like ActivityJam */}
+      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-pink-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-pink-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-purple-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
       
       {/* Header */}
@@ -723,7 +819,7 @@ const LetsJam = () => {
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
             🤖 Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
@@ -731,7 +827,7 @@ const LetsJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate}
+              Last updated: {lastUpdate} • Showing last 7 days
             </p>
           )}
         </div>
@@ -740,24 +836,169 @@ const LetsJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-       
+        {/* 7-Day Health Overview */}
+        <section className="mb-6">
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Heart className="h-4 w-4 text-red-500" />
+                Last 7 Days Health Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                  {[...Array(7)].map((_, i) => (
+                    <Skeleton key={i} className="h-32 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                  {last7Days.map((date) => (
+                    <DailyHealthBox
+                      key={date}
+                      data={last7DaysData[date] || {
+                        date,
+                        heartRate: null,
+                        caloriesBurned: 0,
+                        caloriesConsumed: 0,
+                        protein: 0,
+                        carbs: 0,
+                        fat: 0,
+                        fiber: 0,
+                        workoutDuration: 0,
+                        activityTypes: []
+                      }}
+                      date={date}
+                      isToday={date === new Date().toISOString().split('T')[0]}
+                      onClick={() => {
+                        console.log(`Clicked on ${date}`);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
-        {/* AI Chat Section - Free Flowing, Full Focus */}
+        {/* Recent Activities Section - exactly like ActivityJam */}
+        <section className="mb-6">
+          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Calendar className="h-4 w-4 text-orange-500" />
+                Recent Activities (Last 7 Days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-48 w-full" />
+                  ))}
+                </div>
+              ) : recentActivities.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <Calendar className="h-12 w-12 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">No Recent Activities</h3>
+                  <p className="text-gray-600">
+                    No activities found in the last 7 days.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recentActivities.map((activity) => (
+                    <Card key={activity.id} className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 shadow-sm hover:shadow-md transition-all duration-200">
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
+                            {activity.name}
+                          </CardTitle>
+                          <Badge variant="secondary" className="ml-2 shrink-0 bg-orange-100 text-orange-700">
+                            {activity.type}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-600">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {new Date(activity.start_date).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="text-center p-3 bg-orange-100 rounded-lg">
+                            <div className="text-2xl font-bold text-orange-600">
+                              {formatDistance(activity.distance)}
+                            </div>
+                            <div className="text-xs text-gray-600">km</div>
+                          </div>
+                          <div className="text-center p-3 bg-red-100 rounded-lg">
+                            <div className="text-2xl font-bold text-red-600">
+                              {formatTime(activity.moving_time)}
+                            </div>
+                            <div className="text-xs text-gray-600">duration</div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Pace:</span>
+                            <span className="font-medium">{formatPace(activity.distance, activity.moving_time)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Elevation:</span>
+                            <span className="font-medium">{activity.total_elevation_gain}m</span>
+                          </div>
+                          {activity.has_heartrate && activity.average_heartrate && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Avg HR:</span>
+                              <span className="font-medium flex items-center">
+                                <Heart className="h-3 w-3 mr-1 text-red-500" />
+                                {activity.average_heartrate} bpm
+                              </span>
+                            </div>
+                          )}
+                          {(activity.calories || activity.caloriesBurned) && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Calories:</span>
+                              <span className="font-medium flex items-center">
+                                <Zap className="h-3 w-3 mr-1 text-yellow-500" />
+                                {activity.calories || activity.caloriesBurned}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* AI Chat Section */}
         <section className="flex-grow">
-          <Card className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg">
+          <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg">
             <CardHeader className="text-center pb-4">
-              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center mb-3">
+              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-3">
                 <Bot className="h-6 w-6 text-white" />
               </div>
-              <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                🤖 Mihir's AI Health Assistant
+              <CardTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                🤖 AI Health Assistant
               </CardTitle>
               <p className="text-sm text-gray-600 mt-2">
                 Ask about your recent activities, food, and health patterns ✨
               </p>
             </CardHeader>
             <CardContent>
-              {/* Messages - Free Flowing without scroll box */}
+              {/* Messages */}
               <div className="space-y-4 mb-6">
                 {messages.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">
@@ -774,9 +1015,9 @@ const LetsJam = () => {
                           <li>"What's my calorie deficit trend?"</li>
                         </ul>
                       </div>
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="font-medium text-blue-700 mb-2">🩸 Health Insights</p>
-                        <ul className="space-y-1 text-blue-600 text-left">
+                      <div className="bg-pink-50 p-4 rounded-lg border border-pink-200">
+                        <p className="font-medium text-pink-700 mb-2">🩸 Health Insights</p>
+                        <ul className="space-y-1 text-pink-600 text-left">
                           <li>"Review my blood markers"</li>
                           <li>"How's my protein intake?"</li>
                           <li>"Health recommendations?"</li>
@@ -795,7 +1036,7 @@ const LetsJam = () => {
                       <div
                         className={`max-w-[80%] rounded-lg px-4 py-3 ${
                           message.role === "user"
-                            ? "bg-indigo-500 text-white"
+                            ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                             : "bg-white text-gray-800 border border-gray-200 shadow-sm"
                         }`}
                       >
@@ -803,7 +1044,7 @@ const LetsJam = () => {
                         <p
                           className={`text-xs mt-2 ${
                             message.role === "user"
-                              ? "text-indigo-100"
+                              ? "text-purple-100"
                               : "text-gray-500"
                           }`}
                         >
@@ -821,11 +1062,11 @@ const LetsJam = () => {
                     <div className="bg-white text-gray-800 border border-gray-200 p-3 rounded-lg">
                       <div className="flex gap-2 items-center">
                         <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-100"></div>
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-200"></div>
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
                         </div>
-                        <span className="text-sm text-gray-500">Mihir's Personal AI is thinking...</span>
+                        <span className="text-sm text-gray-500">AI is thinking...</span>
                       </div>
                     </div>
                   </div>
@@ -840,12 +1081,12 @@ const LetsJam = () => {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask about your health data... 💬"
                   disabled={sending}
-                  className="flex-grow border-indigo-200 focus:border-indigo-400 focus:ring-indigo-400"
+                  className="flex-grow border-purple-200 focus:border-purple-400 focus:ring-purple-400"
                 />
                 <Button 
                   type="submit" 
                   disabled={sending || !input.trim()}
-                  className="bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white px-6"
+                  className="bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white px-6"
                 >
                   <Send className="h-4 w-4 mr-2" />
                   {sending ? "Sending..." : "Send"}
@@ -854,50 +1095,14 @@ const LetsJam = () => {
             </CardContent>
           </Card>
         </section>
-         {/* 7-Day Health Overview - Keep but no explanation */}
-        <section className="mb-6">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Heart className="h-4 w-4 text-red-500" />
-                Last 7 Days Health Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                {last7Days.map((date) => (
-                  <DailyHealthBox
-                    key={date}
-                    data={last7DaysData[date] || {
-                      date,
-                      heartRate: null,
-                      caloriesBurned: 0,
-                      caloriesConsumed: 0,
-                      protein: 0,
-                      carbs: 0,
-                      fat: 0,
-                      fiber: 0,
-                      workoutDuration: 0,
-                      activityTypes: []
-                    }}
-                    date={date}
-                    isToday={date === new Date().toISOString().split('T')[0]}
-                    onClick={() => {
-                      console.log(`Clicked on ${date}`);
-                    }}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-        {/* Compact Health Summary for AI Context */}
+
+        {/* Compact Health Summary for AI Context (7-day averages) */}
         <section className="mt-6">
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <Card className="bg-gradient-to-r from-orange-50 to-pink-50 border-orange-200">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-blue-500" />
-                Health Data Summary (30-day averages)
+                <MessageSquare className="h-4 w-4 text-orange-500" />
+                Health Data Summary (7-day averages)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -906,7 +1111,7 @@ const LetsJam = () => {
                 <div className="bg-white/50 p-3 rounded-lg">
                   <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
                     <Utensils className="h-3 w-3 text-green-500" />
-                    Nutrition
+                    Nutrition (7-day avg)
                   </h3>
                   {userData ? (
                     <ul className="space-y-1 text-sm">
@@ -941,7 +1146,7 @@ const LetsJam = () => {
                 <div className="bg-white/50 p-3 rounded-lg">
                   <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2 text-sm">
                     <Activity className="h-3 w-3 text-blue-500" />
-                    Activity
+                    Activity (7-day avg)
                   </h3>
                   {userData ? (
                     <ul className="space-y-1 text-sm">
@@ -1023,7 +1228,7 @@ const LetsJam = () => {
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Bot className="h-4 w-4" />
-              Intelligent health insights
+              Intelligent health insights (7-day focus)
             </span>
           </div>
           <div className="flex items-center gap-4">
