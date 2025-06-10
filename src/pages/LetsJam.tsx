@@ -215,9 +215,17 @@ const LetsJam = () => {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
   
   // Hardcoded userId for consistency
   const userId = "mihir_jain";
+
+  // Scroll to top on mount
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
 
   // Fetch combined health data for last 7 days
   const fetchLast7DaysData = async () => {
@@ -266,7 +274,7 @@ const LetsJam = () => {
         }
       });
 
-      // Fetch Strava data
+      // Fetch Strava data from Firestore ONLY (cached data)
       const stravaSnapshot = await getDocs(query(
         collection(db, "strava_data"),
         where("userId", "==", userId),
@@ -301,10 +309,10 @@ const LetsJam = () => {
     }
   };
 
-  // Fetch recent activities for the activities section
+  // Fetch recent activities for the activities section (Firestore ONLY)
   const fetchRecentActivities = async () => {
     try {
-      console.log('🏃 Fetching recent activities...');
+      console.log('🏃 Fetching recent activities from Firestore cache...');
       
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -497,10 +505,10 @@ const LetsJam = () => {
     }
   };
 
-  // Fetch activity data from Strava API or cached data (7 days instead of 30)
+  // Fetch activity data from Firestore ONLY (7 days instead of 30)
   const fetchActivityData = async (): Promise<ActivityData> => {
     try {
-      console.log('🏃 Fetching activity data for last 7 days...');
+      console.log('🏃 Fetching activity data for last 7 days from Firestore cache...');
       
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -610,9 +618,19 @@ const LetsJam = () => {
     return date.toISOString().split('T')[0];
   }).reverse();
 
+  // Handle clicking example questions
+  const handleExampleClick = (exampleText: string) => {
+    setInput(exampleText);
+    // Auto-send the message
+    setTimeout(() => {
+      sendMessage(exampleText);
+    }, 100);
+  };
+
   // Send message to chat API
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  const sendMessage = async (messageText?: string) => {
+    const messageToSend = messageText || input.trim();
+    if (!messageToSend) return;
     
     try {
       setSending(true);
@@ -621,13 +639,12 @@ const LetsJam = () => {
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
-        content: input,
+        content: messageToSend,
         timestamp: new Date()
       };
       
       setMessages(prev => [...prev, userMessage]);
-      const currentInput = input;
-      setInput("");
+      if (!messageText) setInput(""); // Only clear input if not from example click
       
       // Structure user data for API (now using 7-day averages)
       const structuredUserData = {
@@ -687,7 +704,7 @@ const LetsJam = () => {
           role: msg.role,
           content: msg.content
         })),
-        { role: "user", content: currentInput }
+        { role: "user", content: messageToSend }
       ];
       
       // Call chat API
@@ -788,7 +805,7 @@ const LetsJam = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-pink-50 flex flex-col">
+    <div ref={topRef} className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-pink-50 flex flex-col">
       {/* Background decoration - colorful like ActivityJam */}
       <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-pink-400/10 animate-pulse"></div>
       <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
@@ -836,9 +853,8 @@ const LetsJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-      
-        {/* AI Chat Section */}
-        <section className="flex-grow">
+        {/* AI Chat Section - Move to top */}
+        <section className="mb-6">
           <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg">
             <CardHeader className="text-center pb-4">
               <div className="mx-auto w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-3">
@@ -864,17 +880,47 @@ const LetsJam = () => {
                       <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
                         <p className="font-medium text-purple-700 mb-2">📊 Data Analysis</p>
                         <ul className="space-y-1 text-purple-600 text-left">
-                          <li>"How's my nutrition this week?"</li>
-                          <li>"Analyze my workout patterns"</li>
-                          <li>"What's my calorie deficit trend?"</li>
+                          <li 
+                            className="cursor-pointer hover:bg-purple-100 p-2 rounded transition-colors"
+                            onClick={() => handleExampleClick("How's my nutrition this week?")}
+                          >
+                            "How's my nutrition this week?"
+                          </li>
+                          <li 
+                            className="cursor-pointer hover:bg-purple-100 p-2 rounded transition-colors"
+                            onClick={() => handleExampleClick("Analyze my workout patterns")}
+                          >
+                            "Analyze my workout patterns"
+                          </li>
+                          <li 
+                            className="cursor-pointer hover:bg-purple-100 p-2 rounded transition-colors"
+                            onClick={() => handleExampleClick("What's my calorie deficit trend?")}
+                          >
+                            "What's my calorie deficit trend?"
+                          </li>
                         </ul>
                       </div>
                       <div className="bg-pink-50 p-4 rounded-lg border border-pink-200">
                         <p className="font-medium text-pink-700 mb-2">🩸 Health Insights</p>
                         <ul className="space-y-1 text-pink-600 text-left">
-                          <li>"Review my blood markers"</li>
-                          <li>"How's my protein intake?"</li>
-                          <li>"Health recommendations?"</li>
+                          <li 
+                            className="cursor-pointer hover:bg-pink-100 p-2 rounded transition-colors"
+                            onClick={() => handleExampleClick("Review my blood markers")}
+                          >
+                            "Review my blood markers"
+                          </li>
+                          <li 
+                            className="cursor-pointer hover:bg-pink-100 p-2 rounded transition-colors"
+                            onClick={() => handleExampleClick("How's my protein intake?")}
+                          >
+                            "How's my protein intake?"
+                          </li>
+                          <li 
+                            className="cursor-pointer hover:bg-pink-100 p-2 rounded transition-colors"
+                            onClick={() => handleExampleClick("Give me health recommendations")}
+                          >
+                            "Give me health recommendations"
+                          </li>
                         </ul>
                       </div>
                     </div>
@@ -950,7 +996,7 @@ const LetsJam = () => {
           </Card>
         </section>
 
-          {/* 7-Day Health Overview */}
+        {/* 7-Day Health Overview */}
         <section className="mb-6">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
             <CardHeader className="pb-3">
