@@ -103,7 +103,8 @@ const DailyHealthBox: React.FC<{
                 month: 'short', 
                 day: 'numeric' 
               })}
-
+</div>
+            </div>
 
           {hasData ? (
             <>
