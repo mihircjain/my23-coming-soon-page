@@ -836,7 +836,121 @@ const LetsJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
-        {/* 7-Day Health Overview */}
+      
+        {/* AI Chat Section */}
+        <section className="flex-grow">
+          <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg">
+            <CardHeader className="text-center pb-4">
+              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-3">
+                <Bot className="h-6 w-6 text-white" />
+              </div>
+              <CardTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                🤖 AI Health Assistant
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-2">
+                Ask about your recent activities, food, and health patterns ✨
+              </p>
+            </CardHeader>
+            <CardContent>
+              {/* Messages */}
+              <div className="space-y-4 mb-6">
+                {messages.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <div className="mb-6">
+                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-3" />
+                      <p className="text-lg font-medium">Ask me about your health! 🌟</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-2xl mx-auto">
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <p className="font-medium text-purple-700 mb-2">📊 Data Analysis</p>
+                        <ul className="space-y-1 text-purple-600 text-left">
+                          <li>"How's my nutrition this week?"</li>
+                          <li>"Analyze my workout patterns"</li>
+                          <li>"What's my calorie deficit trend?"</li>
+                        </ul>
+                      </div>
+                      <div className="bg-pink-50 p-4 rounded-lg border border-pink-200">
+                        <p className="font-medium text-pink-700 mb-2">🩸 Health Insights</p>
+                        <ul className="space-y-1 text-pink-600 text-left">
+                          <li>"Review my blood markers"</li>
+                          <li>"How's my protein intake?"</li>
+                          <li>"Health recommendations?"</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${
+                        message.role === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                          message.role === "user"
+                            ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                            : "bg-white text-gray-800 border border-gray-200 shadow-sm"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <p
+                          className={`text-xs mt-2 ${
+                            message.role === "user"
+                              ? "text-purple-100"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {message.timestamp.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {sending && (
+                  <div className="flex justify-start">
+                    <div className="bg-white text-gray-800 border border-gray-200 p-3 rounded-lg">
+                      <div className="flex gap-2 items-center">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
+                        </div>
+                        <span className="text-sm text-gray-500">AI is thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              
+              {/* Input */}
+              <form onSubmit={handleSubmit} className="flex gap-3">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask about your health data... 💬"
+                  disabled={sending}
+                  className="flex-grow border-purple-200 focus:border-purple-400 focus:ring-purple-400"
+                />
+                <Button 
+                  type="submit" 
+                  disabled={sending || !input.trim()}
+                  className="bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white px-6"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {sending ? "Sending..." : "Send"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </section>
+
+          {/* 7-Day Health Overview */}
         <section className="mb-6">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
             <CardHeader className="pb-3">
@@ -979,119 +1093,6 @@ const LetsJam = () => {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* AI Chat Section */}
-        <section className="flex-grow">
-          <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg">
-            <CardHeader className="text-center pb-4">
-              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-3">
-                <Bot className="h-6 w-6 text-white" />
-              </div>
-              <CardTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                🤖 AI Health Assistant
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-2">
-                Ask about your recent activities, food, and health patterns ✨
-              </p>
-            </CardHeader>
-            <CardContent>
-              {/* Messages */}
-              <div className="space-y-4 mb-6">
-                {messages.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <div className="mb-6">
-                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-3" />
-                      <p className="text-lg font-medium">Ask me about your health! 🌟</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-2xl mx-auto">
-                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                        <p className="font-medium text-purple-700 mb-2">📊 Data Analysis</p>
-                        <ul className="space-y-1 text-purple-600 text-left">
-                          <li>"How's my nutrition this week?"</li>
-                          <li>"Analyze my workout patterns"</li>
-                          <li>"What's my calorie deficit trend?"</li>
-                        </ul>
-                      </div>
-                      <div className="bg-pink-50 p-4 rounded-lg border border-pink-200">
-                        <p className="font-medium text-pink-700 mb-2">🩸 Health Insights</p>
-                        <ul className="space-y-1 text-pink-600 text-left">
-                          <li>"Review my blood markers"</li>
-                          <li>"How's my protein intake?"</li>
-                          <li>"Health recommendations?"</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                          message.role === "user"
-                            ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                            : "bg-white text-gray-800 border border-gray-200 shadow-sm"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
-                        <p
-                          className={`text-xs mt-2 ${
-                            message.role === "user"
-                              ? "text-purple-100"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {message.timestamp.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-                {sending && (
-                  <div className="flex justify-start">
-                    <div className="bg-white text-gray-800 border border-gray-200 p-3 rounded-lg">
-                      <div className="flex gap-2 items-center">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
-                        </div>
-                        <span className="text-sm text-gray-500">AI is thinking...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-              
-              {/* Input */}
-              <form onSubmit={handleSubmit} className="flex gap-3">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about your health data... 💬"
-                  disabled={sending}
-                  className="flex-grow border-purple-200 focus:border-purple-400 focus:ring-purple-400"
-                />
-                <Button 
-                  type="submit" 
-                  disabled={sending || !input.trim()}
-                  className="bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white px-6"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  {sending ? "Sending..." : "Send"}
-                </Button>
-              </form>
             </CardContent>
           </Card>
         </section>
