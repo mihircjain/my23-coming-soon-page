@@ -93,17 +93,34 @@ const safeFormatDateForDisplay = (date) => {
 const safeCalculateTotals = (entries) => {
   try {
     if (typeof calculateTotals === 'function') {
-      return calculateTotals(entries);
+      const result = calculateTotals(entries);
+      console.log('calculateTotals function result:', result);
+      return result;
     }
     if (!Array.isArray(entries)) {
+      console.warn('Entries is not an array:', entries);
       return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
     }
-    return entries.reduce((totals, entry) => {
+    
+    console.log('Calculating totals for entries:', entries);
+    
+    const totals = entries.reduce((totals, entry, index) => {
+      console.log(`Processing entry ${index}:`, entry);
+      
       const calories = parseFloat(entry?.calories || 0) * parseFloat(entry?.quantity || 1);
       const protein = parseFloat(entry?.protein || 0) * parseFloat(entry?.quantity || 1);
       const carbs = parseFloat(entry?.carbs || 0) * parseFloat(entry?.quantity || 1);
       const fat = parseFloat(entry?.fat || 0) * parseFloat(entry?.quantity || 1);
       const fiber = parseFloat(entry?.fiber || 0) * parseFloat(entry?.quantity || 1);
+      
+      console.log(`Entry ${index} calculated values:`, {
+        calories: `${entry?.calories} * ${entry?.quantity} = ${calories}`,
+        protein: `${entry?.protein} * ${entry?.quantity} = ${protein}`,
+        carbs: `${entry?.carbs} * ${entry?.quantity} = ${carbs}`,
+        fat: `${entry?.fat} * ${entry?.quantity} = ${fat}`,
+        fiber: `${entry?.fiber} * ${entry?.quantity} = ${fiber}`
+      });
+      
       return {
         calories: totals.calories + (isNaN(calories) ? 0 : calories),
         protein: totals.protein + (isNaN(protein) ? 0 : protein),
@@ -112,6 +129,9 @@ const safeCalculateTotals = (entries) => {
         fiber: totals.fiber + (isNaN(fiber) ? 0 : fiber)
       };
     }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+    
+    console.log('Final calculated totals:', totals);
+    return totals;
   } catch (error) {
     console.error('Error calculating totals:', error);
     return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
@@ -413,6 +433,14 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
     return isNaN(num) || !isFinite(num) ? 0 : num;
   };
 
+  // Add logging to see what values we're working with
+  console.log(`FoodItemCard for entry ${index}:`, {
+    entry,
+    calories: entry.calories,
+    protein: entry.protein,
+    quantity: entry.quantity
+  });
+
   const totalCals = Math.round(safeNumber(entry.calories) * safeNumber(entry.quantity));
   const totalProtein = Math.round(safeNumber(entry.protein) * safeNumber(entry.quantity));
 
@@ -426,11 +454,23 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
               <span className="flex items-center gap-1">
                 <Flame className="h-3 w-3 text-orange-500" />
                 {totalCals} cal
+                {/* Debug info */}
+                <span className="text-xs text-gray-400">
+                  ({safeNumber(entry.calories)} × {safeNumber(entry.quantity)})
+                </span>
               </span>
               <span className="flex items-center gap-1">
                 <Target className="h-3 w-3 text-blue-500" />
                 {totalProtein}g protein
+                {/* Debug info */}
+                <span className="text-xs text-gray-400">
+                  ({safeNumber(entry.protein)} × {safeNumber(entry.quantity)})
+                </span>
               </span>
+            </div>
+            {/* Show raw entry data for debugging */}
+            <div className="text-xs text-gray-400 mt-1">
+              Raw: cal={entry.calories}, prot={entry.protein}, qty={entry.quantity}
             </div>
           </div>
 
@@ -788,8 +828,37 @@ const NutritionJam = () => {
 
     setSaving(true);
     try {
-      const updatedEntries = [...currentLog.entries, foodEntry];
+      // Log the incoming food entry to debug
+      console.log('Raw food entry received:', foodEntry);
+      
+      // Normalize the food entry data structure
+      const normalizedEntry = {
+        foodId: foodEntry.foodId || foodEntry.name || 'Unknown Food',
+        calories: Number(foodEntry.calories) || 0,
+        protein: Number(foodEntry.protein) || 0,
+        carbs: Number(foodEntry.carbs) || 0,
+        fat: Number(foodEntry.fat) || 0,
+        fiber: Number(foodEntry.fiber) || 0,
+        quantity: Number(foodEntry.quantity) || 1,
+        unit: foodEntry.unit || 'serving',
+        timestamp: new Date().toISOString()
+      };
+      
+      // Log the normalized entry
+      console.log('Normalized food entry:', normalizedEntry);
+      
+      // Validate that we have meaningful nutrition data
+      if (normalizedEntry.calories === 0 && normalizedEntry.protein === 0 && 
+          normalizedEntry.carbs === 0 && normalizedEntry.fat === 0) {
+        console.warn('Warning: Food entry has no nutrition data:', normalizedEntry);
+        toast.error('Warning: This food has no nutrition data');
+      }
+      
+      const updatedEntries = [...currentLog.entries, normalizedEntry];
       const updatedTotals = safeCalculateTotals(updatedEntries);
+      
+      // Log the calculated totals
+      console.log('Updated totals after adding food:', updatedTotals);
       
       const updatedLog: DailyLog = {
         ...currentLog,
