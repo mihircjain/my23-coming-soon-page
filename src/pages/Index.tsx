@@ -544,39 +544,13 @@ const HealthOverviewCard: React.FC = () => {
           <div className="mt-6 p-4 bg-white/50 rounded-lg border border-white/30">
             <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
               <Target className="h-4 w-4 text-blue-500" />
-              Health Score Calculation (100 points total)
+              Health Score Overview
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
-              <div className="space-y-1">
-                <div className="font-medium text-orange-600">Calories Burned (40 pts)</div>
-                <div>🎯 Target: 300+ cal = 40 pts</div>
-                <div>📈 Below: (burned/300) × 40</div>
+            <div className="text-xs text-gray-600">
+              <p>Health scores are calculated based on calories burned, protein intake, and calorie deficit.</p>
+              <div className="mt-2 text-xs text-gray-500 border-t pt-2">
+                <strong>For detailed scoring breakdown,</strong> visit the Overall Jam page 📊
               </div>
-              <div className="space-y-1">
-                <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
-                <div>🎯 Target: 140g+ = 30 pts</div>
-                <div>📈 Below: (protein/140) × 30</div>
-              </div>
-              <div className="space-y-1">
-                <div className="font-medium text-green-600">Calorie Deficit (30 pts)</div>
-                <div>🎯 Progressive scoring:</div>
-                <div>• 0 cal = 0 pts</div>
-                <div>• 1-99 cal = 5 pts</div>
-                <div>• 100+ cal = 10 pts</div>
-                <div>• 200+ cal = 15 pts</div>
-                <div>• 300+ cal = 20 pts</div>
-                <div>• 400+ cal = 25 pts</div>
-                <div>• 500+ cal = 30 pts</div>
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-gray-500 border-t pt-2">
-              <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
-              <br />
-              <strong>Perfect Day Example:</strong> 300+ cal burned (40 pts) + 140g protein (30 pts) + 500+ cal deficit (30 pts) = 100 points 🎉
-              <br />
-              <strong>Deficit Formula:</strong> (Calories Burned + 1479 BMR) - Calories Consumed
-              <br />
-              <strong>Example Scores:</strong> 200 cal burned (27 pts) + 100g protein (21 pts) + 250 cal deficit (15 pts) = 63% health score
             </div>
           </div>
         </CardContent>
@@ -770,7 +744,10 @@ const ChatbotCard: React.FC = () => {
 
   if (!isOpen) {
     return (
-      <Card className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" onClick={() => setIsOpen(true)}>
+      <Card 
+        className="bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
+        onClick={() => window.location.href = '/lets-jam'}
+      >
         <CardHeader className="text-center pb-4">
           <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full flex items-center justify-center mb-3">
             <Bot className="h-6 w-6 text-white" />
@@ -785,27 +762,16 @@ const ChatbotCard: React.FC = () => {
         <CardContent>
           <div className="space-y-3">
             <div className="bg-white/60 rounded-lg p-3 border border-indigo-200">
-       <div
-   onClick={(e) => {
-     e.stopPropagation();             // don't open the chat UI
-     window.location.href = '/lets-jam';
-   }}
-   className="text-xs text-gray-600 mb-1 cursor-pointer hover:underline"
- >
-   "How's my nutrition this week?"
- </div>
-
-</div>
-       <Button
-   onClick={(e) => {
-     e.stopPropagation();               // prevent the Card's onClick
-     window.location.href = '/lets-jam';
-   }}
-   className="w-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
- >
-   <MessageSquare className="h-4 w-4" />
-   Start Chatting
- </Button>
+              <div className="text-xs text-gray-600 mb-1">
+                "How's my nutrition this week?"
+              </div>
+            </div>
+            <Button
+              className="w-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Start Chatting
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -970,7 +936,81 @@ const Index = () => {
             <ChatbotCard />
           </div>
           
-          {/* 3. Navigation Buttons - Overall Jam and other jams */}
+          {/* 3. Weekly Averages - Full width alone */}
+          <div className="grid grid-cols-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  📈 Weekly Averages
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-24 w-full" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-gradient-to-br from-green-200 to-emerald-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-gray-800">Calories In</h3>
+                        <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                          <Utensils className="h-4 w-4 text-gray-700" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-2xl font-bold text-gray-800">{calculateAverage('caloriesConsumed')}</p>
+                        <p className="text-xs text-gray-700">cal/day</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-gray-800">Calories Out</h3>
+                        <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                          <Flame className="h-4 w-4 text-gray-700" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-2xl font-bold text-gray-800">{calculateAverage('caloriesBurned')}</p>
+                        <p className="text-xs text-gray-700">cal/day</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-gray-800">Protein</h3>
+                        <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                          <Target className="h-4 w-4 text-gray-700" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-2xl font-bold text-gray-800">{calculateAverage('protein')}</p>
+                        <p className="text-xs text-gray-700">g/day</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-gray-800">Activity Heart Rate</h3>
+                        <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                          <Heart className="h-4 w-4 text-gray-700" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-2xl font-bold text-gray-800">{calculateAverage('heartRate') || '-'}</p>
+                        <p className="text-xs text-gray-700">{calculateAverage('heartRate') ? 'bpm' : 'avg'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* 4. Navigation Buttons - Overall Jam and other jams */}
           <div className="space-y-4">
             {/* First row - Overall Jam and Lets Jam */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1019,7 +1059,7 @@ const Index = () => {
             </div>
           </div>
           
-          {/* 4. Stay Updated Card - Full width alone */}
+          {/* 5. Stay Updated Card - Full width alone */}
           <div className="grid grid-cols-1 gap-6">
             <EmailAndFeedbackCard />
           </div>
