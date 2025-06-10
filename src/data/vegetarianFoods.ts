@@ -596,7 +596,7 @@ export const mealPresets: MealPreset[] = [
     name: "Dosa Sambhar",
     foods: [
       { name: "Dosa", quantity: 1 }, // 120g
-      { name: "Sambhar", quantity: 1 } // 200g
+      { name: "Sambhar", quantity: 1 } // 300g
     ]
   }
 ];
