@@ -37,33 +37,27 @@ interface CombinedData {
   activityTypes: string[];
 }
 
-// Daily Health Box Component (ActivityJam style)
+// Daily Health Box Component with updated Health Score (Calorie Deficit + Protein)
 const DailyHealthBox = ({ data, date, isToday, onClick }) => {
   const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRate > 0;
   
-  // Calculate health score based on nutrition and fitness metrics
+  // Calculate calorie deficit: calories burned + BMR - calories consumed
+  const BMR = 1479;
+  const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
+  
+  // Calculate health score based on calorie deficit and protein
   const calculateHealthScore = () => {
     let score = 0;
     
-    // Calories Consumed Score (40% of total) - Target: under 2000 calories
-    // Perfect score at 1800-2000 cal, decreasing below 1500 and above 2200
-    const caloriesScore = (() => {
-      if (data.caloriesConsumed >= 1800 && data.caloriesConsumed <= 2000) return 40;
-      if (data.caloriesConsumed < 1500) return Math.max(0, (data.caloriesConsumed / 1500) * 40);
-      if (data.caloriesConsumed > 2000) return Math.max(0, 40 - ((data.caloriesConsumed - 2000) / 500) * 40);
-      // Between 1500-1800: gradual increase to 40
-      return ((data.caloriesConsumed - 1500) / 300) * 40;
-    })();
-    
-    // Protein Score (30% of total) - Target: 140g+ 
-    // Perfect score at 140g+, proportional below that
-    const proteinScore = Math.min(30, (data.protein / 140) * 30);
-    
-    // Calories Burned Score (30% of total) - Target: 500+ calories
+    // Calorie Deficit Score (50% of total) - Target: 500+ calorie deficit
     // Perfect score at 500+, proportional below that
-    const burnedScore = Math.min(30, (data.caloriesBurned / 500) * 30);
+    const deficitScore = Math.min(50, Math.max(0, (calorieDeficit / 500) * 50));
     
-    score = caloriesScore + proteinScore + burnedScore;
+    // Protein Score (50% of total) - Target: 140g+ 
+    // Perfect score at 140g+, proportional below that
+    const proteinScore = Math.min(50, (data.protein / 140) * 50);
+    
+    score = deficitScore + proteinScore;
     return Math.min(Math.round(score), 100);
   };
 
@@ -136,8 +130,10 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
                   <div className="text-gray-500">Protein</div>
                 </div>
                 <div className="text-center">
-                  <div className="font-semibold text-red-600">{data.heartRate ? Math.round(data.heartRate) : '-'}</div>
-                  <div className="text-gray-500">HR</div>
+                  <div className={`font-semibold ${calorieDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {calorieDeficit >= 0 ? '+' : ''}{Math.round(calorieDeficit)}
+                  </div>
+                  <div className="text-gray-500">Cal Deficit</div>
                 </div>
               </div>
 
@@ -357,6 +353,10 @@ const OverallJam = () => {
       return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     });
 
+    // Calculate calorie deficit for each day
+    const BMR = 1479;
+    const calorieDeficitData = data.map(d => d.caloriesBurned + BMR - d.caloriesConsumed);
+
     // Calculate data ranges for better scaling
     const proteinData = data.map(d => d.protein).filter(p => p > 0);
     const caloriesConsumedData = data.map(d => d.caloriesConsumed).filter(c => c > 0);
@@ -373,6 +373,11 @@ const OverallJam = () => {
     const caloriesMax = Math.max(...caloriesConsumedData, ...caloriesBurnedData);
     const caloriesRange = caloriesMax - caloriesMin;
     const caloriesPadding = Math.max(50, caloriesRange * 0.1); // At least 50 cal padding
+
+    const deficitMin = Math.min(...calorieDeficitData);
+    const deficitMax = Math.max(...calorieDeficitData);
+    const deficitRange = deficitMax - deficitMin;
+    const deficitPadding = Math.max(100, deficitRange * 0.1); // At least 100 cal padding
 
     new Chart(canvas, {
       type: 'line',
@@ -402,6 +407,18 @@ const OverallJam = () => {
             pointRadius: 5,
             pointHoverRadius: 8,
             yAxisID: 'y-calories'
+          },
+          {
+            label: 'Calorie Deficit',
+            data: calorieDeficitData,
+            borderColor: 'rgba(34, 197, 94, 0.8)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: false,
+            tension: 0.4,
+            borderWidth: 3,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            yAxisID: 'y-deficit'
           },
           {
             label: 'Protein (g)',
@@ -506,16 +523,37 @@ const OverallJam = () => {
               color: 'rgba(16, 185, 129, 0.8)'
             }
           },
-          'y-protein': {
+          'y-deficit': {
             type: 'linear',
             display: true,
             position: 'right',
-            grid: { display: false }, // Hide grid for secondary axis
+            grid: { display: false },
+            min: deficitMin - deficitPadding,
+            max: deficitMax + deficitPadding,
+            ticks: { 
+              font: { size: 11 },
+              stepSize: Math.max(100, Math.round(deficitRange / 6)),
+              callback: function(value) {
+                return (value >= 0 ? '+' : '') + Math.round(value) + ' cal';
+              }
+            },
+            title: {
+              display: true,
+              text: 'Calorie Deficit',
+              font: { size: 12, weight: 'bold' },
+              color: 'rgba(34, 197, 94, 0.8)'
+            }
+          },
+          'y-protein': {
+            type: 'linear',
+            display: false, // Hidden by default, can be toggled
+            position: 'right',
+            grid: { display: false },
             min: Math.max(0, proteinMin - proteinPadding),
             max: proteinMax + proteinPadding,
             ticks: { 
               font: { size: 11 },
-              stepSize: Math.max(2, Math.round(proteinRange / 8)), // More granular steps for protein
+              stepSize: Math.max(2, Math.round(proteinRange / 8)),
               callback: function(value) {
                 return Math.round(value) + 'g';
               }
@@ -529,7 +567,7 @@ const OverallJam = () => {
           },
           'y-heartrate': {
             type: 'linear',
-            display: false, // Hidden since heart rate is hidden by default
+            display: false,
             position: 'right',
             min: heartRateData.length > 0 ? Math.min(...heartRateData) - 10 : 60,
             max: heartRateData.length > 0 ? Math.max(...heartRateData) + 10 : 180,
@@ -550,6 +588,15 @@ const OverallJam = () => {
     const validData = combinedData.filter(d => d[metric] !== null && d[metric] > 0);
     if (validData.length === 0) return 0;
     const sum = validData.reduce((total, d) => total + (d[metric] || 0), 0);
+    return Math.round(sum / validData.length);
+  };
+
+  // Calculate average calorie deficit
+  const calculateAvgCalorieDeficit = () => {
+    const BMR = 1479;
+    const validData = combinedData.filter(d => d.caloriesConsumed > 0 || d.caloriesBurned > 0);
+    if (validData.length === 0) return 0;
+    const sum = validData.reduce((total, d) => total + (d.caloriesBurned + BMR - d.caloriesConsumed), 0);
     return Math.round(sum / validData.length);
   };
 
@@ -644,32 +691,32 @@ const OverallJam = () => {
                   <Target className="h-4 w-4 text-blue-500" />
                   Health Score Calculation (100 points total)
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
                   <div className="space-y-1">
-                    <div className="font-medium text-green-600">Calories Consumed (40 pts)</div>
-                    <div>🎯 Target: 1800-2000 cal = 40 pts</div>
-                    <div>📉 Below/Above: Proportional scoring</div>
+                    <div className="font-medium text-green-600">Calorie Deficit (50 pts)</div>
+                    <div>🎯 Target: 500+ calorie deficit = 50 pts</div>
+                    <div>📈 Formula: Calories Burned + BMR - Calories Consumed</div>
+                    <div>📉 Below 500: Proportional scoring</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
-                    <div>🎯 Target: 140g+ = 30 pts</div>
-                    <div>📈 Below: (protein/140) × 30</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-orange-600">Calories Burned (30 pts)</div>
-                    <div>🎯 Target: 500+ cal = 30 pts</div>
-                    <div>📈 Below: (burned/500) × 30</div>
+                    <div className="font-medium text-purple-600">Protein Intake (50 pts)</div>
+                    <div>🎯 Target: 140g+ = 50 pts</div>
+                    <div>📈 Below: (protein/140) × 50</div>
                   </div>
                 </div>
                 <div className="mt-3 text-xs text-gray-500 border-t pt-2">
-                  <strong>Perfect Day Example:</strong> 1900 cal consumed + 140g protein + 550 cal burned = 100 points 🎉
+                  <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
+                  <br />
+                  <strong>Perfect Day Example:</strong> 500+ cal deficit + 140g protein = 100 points 🎉
+                  <br />
+                  <strong>Deficit Formula:</strong> (Calories Burned + 1479 BMR) - Calories Consumed
                 </div>
               </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Weekly Averages Section - Updated with gradient text and individual card colors */}
+        {/* Weekly Averages Section - Updated with calorie deficit */}
         <section className="mb-8">
           <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             Weekly Averages
@@ -718,17 +765,19 @@ const OverallJam = () => {
               </div>
             </div>
 
-            {/* Heart Rate Card - Much Lighter Red Gradient */}
-            <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Calorie Deficit Card - New Green/Blue Gradient */}
+            <div className="bg-gradient-to-br from-emerald-200 to-blue-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Heart Rate</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Cal Deficit</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Heart className="h-5 w-5 text-gray-700" />
+                  <TrendingUp className="h-5 w-5 text-gray-700" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('heartRate') || '-'}</p>
-                <p className="text-sm text-gray-700">{calculateAvgMetric('heartRate') ? 'bpm' : 'avg'}</p>
+                <p className={`text-3xl font-bold ${calculateAvgCalorieDeficit() >= 0 ? 'text-gray-800' : 'text-red-700'}`}>
+                  {calculateAvgCalorieDeficit() >= 0 ? '+' : ''}{calculateAvgCalorieDeficit()}
+                </p>
+                <p className="text-sm text-gray-700">cal/day</p>
               </div>
             </div>
           </div>
