@@ -936,71 +936,7 @@ const Index = () => {
             <ChatbotCard />
           </div>
           
-          {/* 3. Weekly Averages - Full width alone */}
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  📈 Weekly Averages
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-gradient-to-br from-green-200 to-emerald-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-800">Calories In</h3>
-                      <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                        <Utensils className="h-4 w-4 text-gray-700" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">-</p>
-                      <p className="text-xs text-gray-700">cal/day</p>
-                    </div>
-                  </div>
 
-                  <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-800">Calories Out</h3>
-                      <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                        <Flame className="h-4 w-4 text-gray-700" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">-</p>
-                      <p className="text-xs text-gray-700">cal/day</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-800">Protein</h3>
-                      <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                        <Target className="h-4 w-4 text-gray-700" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">-</p>
-                      <p className="text-xs text-gray-700">g/day</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-4 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-800">Activity Heart Rate</h3>
-                      <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                        <Heart className="h-4 w-4 text-gray-700" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold text-gray-800">-</p>
-                      <p className="text-xs text-gray-700">bpm</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
           
           {/* 4. Navigation Buttons - Overall Jam and other jams */}
           <div className="space-y-4">
