@@ -49,27 +49,31 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
   const BMR = 1479;
   const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
   
-  // Calculate health score based on calorie deficit and protein
+  // Calculate health score based on calories burned, protein, and calorie deficit
   const calculateHealthScore = () => {
     let score = 0;
     
-    // Calorie Deficit Score (50% of total) - New progressive scoring
-    // 0 cal = 5 pts, 100 cal = 10 pts, 200 cal = 20 pts, 300 cal = 30 pts, 400 cal = 40 pts, 500+ cal = 50 pts
+    // Calories Burned Score (40% of total) - Target: 300+ calories burned
+    // Perfect score at 300+, proportional below that
+    const burnedScore = Math.min(40, (data.caloriesBurned / 300) * 40);
+    
+    // Protein Score (30% of total) - Target: 140g+ 
+    // Perfect score at 140g+, proportional below that
+    const proteinScore = Math.min(30, (data.protein / 140) * 30);
+    
+    // Calorie Deficit Score (30% of total) - New progressive scoring
+    // 0 cal = 5 pts, 100 cal = 10 pts, 200 cal = 15 pts, 300 cal = 20 pts, 400 cal = 25 pts, 500+ cal = 30 pts
     const deficitScore = (() => {
       if (calorieDeficit <= 0) return 0;
-      if (calorieDeficit >= 500) return 50;
-      if (calorieDeficit >= 400) return 40;
-      if (calorieDeficit >= 300) return 30;
-      if (calorieDeficit >= 200) return 20;
+      if (calorieDeficit >= 500) return 30;
+      if (calorieDeficit >= 400) return 25;
+      if (calorieDeficit >= 300) return 20;
+      if (calorieDeficit >= 200) return 15;
       if (calorieDeficit >= 100) return 10;
-      return 5; // 0-99 calorie deficit gets 5 points
+      return 5; // 1-99 calorie deficit gets 5 points
     })();
     
-    // Protein Score (50% of total) - Target: 140g+ 
-    // Perfect score at 140g+, proportional below that
-    const proteinScore = Math.min(50, (data.protein / 140) * 50);
-    
-    score = deficitScore + proteinScore;
+    score = burnedScore + proteinScore + deficitScore;
     return Math.min(Math.round(score), 100);
   };
 
@@ -494,32 +498,37 @@ const HealthOverviewCard: React.FC = () => {
               <Target className="h-4 w-4 text-blue-500" />
               Health Score Calculation (100 points total)
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
               <div className="space-y-1">
-                <div className="font-medium text-green-600">Calorie Deficit (50 pts)</div>
-                <div>🎯 Progressive scoring:</div>
-                <div>• 0 cal deficit = 0 pts</div>
-                <div>• 1-99 cal = 5 pts</div>
-                <div>• 100+ cal = 10 pts</div>
-                <div>• 200+ cal = 20 pts</div>
-                <div>• 300+ cal = 30 pts</div>
-                <div>• 400+ cal = 40 pts</div>
-                <div>• 500+ cal = 50 pts</div>
+                <div className="font-medium text-orange-600">Calories Burned (40 pts)</div>
+                <div>🎯 Target: 300+ cal = 40 pts</div>
+                <div>📈 Below: (burned/300) × 40</div>
               </div>
               <div className="space-y-1">
-                <div className="font-medium text-purple-600">Protein Intake (50 pts)</div>
-                <div>🎯 Target: 140g+ = 50 pts</div>
-                <div>📈 Below: (protein/140) × 50</div>
+                <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
+                <div>🎯 Target: 140g+ = 30 pts</div>
+                <div>📈 Below: (protein/140) × 30</div>
+              </div>
+              <div className="space-y-1">
+                <div className="font-medium text-green-600">Calorie Deficit (30 pts)</div>
+                <div>🎯 Progressive scoring:</div>
+                <div>• 0 cal = 0 pts</div>
+                <div>• 1-99 cal = 5 pts</div>
+                <div>• 100+ cal = 10 pts</div>
+                <div>• 200+ cal = 15 pts</div>
+                <div>• 300+ cal = 20 pts</div>
+                <div>• 400+ cal = 25 pts</div>
+                <div>• 500+ cal = 30 pts</div>
               </div>
             </div>
             <div className="mt-3 text-xs text-gray-500 border-t pt-2">
               <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
               <br />
-              <strong>Perfect Day Example:</strong> 500+ cal deficit + 140g protein = 100 points 🎉
+              <strong>Perfect Day Example:</strong> 300+ cal burned (40 pts) + 140g protein (30 pts) + 500+ cal deficit (30 pts) = 100 points 🎉
               <br />
               <strong>Deficit Formula:</strong> (Calories Burned + 1479 BMR) - Calories Consumed
               <br />
-              <strong>Example Scores:</strong> 250 cal deficit (20 pts) + 100g protein (36 pts) = 56% health score
+              <strong>Example Scores:</strong> 200 cal burned (27 pts) + 100g protein (21 pts) + 250 cal deficit (15 pts) = 63% health score
             </div>
           </div>
         </CardContent>
