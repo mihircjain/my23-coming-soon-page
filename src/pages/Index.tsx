@@ -41,6 +41,127 @@ interface UserFeedback {
   timestamp: string;
 }
 
+// Daily Health Box Component with Health Score (Calorie Deficit + Protein)
+const DailyHealthBox = ({ data, date, isToday, onClick }) => {
+  const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRate > 0;
+  
+  // Calculate calorie deficit: calories burned + BMR - calories consumed
+  const BMR = 1479;
+  const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
+  
+  // Calculate health score based on calorie deficit and protein
+  const calculateHealthScore = () => {
+    let score = 0;
+    
+    // Calorie Deficit Score (50% of total) - Target: 500+ calorie deficit
+    // Perfect score at 500+, proportional below that
+    const deficitScore = Math.min(50, Math.max(0, (calorieDeficit / 500) * 50));
+    
+    // Protein Score (50% of total) - Target: 140g+ 
+    // Perfect score at 140g+, proportional below that
+    const proteinScore = Math.min(50, (data.protein / 140) * 50);
+    
+    score = deficitScore + proteinScore;
+    return Math.min(Math.round(score), 100);
+  };
+
+  const healthScore = calculateHealthScore();
+
+  return (
+    <Card 
+      className={`cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group ${
+        hasData 
+          ? "bg-gradient-to-br from-blue-50 to-green-50 border-blue-200 hover:shadow-blue-100" 
+          : "bg-gray-50 border-gray-200 hover:shadow-gray-100"
+      } ${isToday ? "ring-2 ring-purple-500" : ""}`}
+      onClick={onClick}
+    >
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          {/* Date Header */}
+          <div className="flex justify-between items-center">
+            <div className="text-sm font-medium text-gray-600">
+              {new Date(date).toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </div>
+            {isToday && (
+              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-medium">
+                Today
+              </span>
+            )}
+          </div>
+
+          {hasData ? (
+            <>
+              {/* Health Score with progress bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1">
+                    <Heart className="h-4 w-4 text-red-500" />
+                    <span className="text-lg font-bold text-gray-800">
+                      {healthScore}%
+                    </span>
+                    <span className="text-sm text-gray-500">health</span>
+                  </div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${healthScore}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Key Metrics */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-center">
+                  <div className="font-semibold text-green-600">{Math.round(data.caloriesConsumed)}</div>
+                  <div className="text-gray-500">Cal In</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-semibold text-orange-600">{Math.round(data.caloriesBurned)}</div>
+                  <div className="text-gray-500">Cal Out</div>
+                </div>
+              </div>
+
+              {/* Additional metrics */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-center">
+                  <div className="font-semibold text-blue-600">{Math.round(data.protein)}g</div>
+                  <div className="text-gray-500">Protein</div>
+                </div>
+                <div className="text-center">
+                  <div className={`font-semibold ${calorieDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {calorieDeficit >= 0 ? '+' : ''}{Math.round(calorieDeficit)}
+                  </div>
+                  <div className="text-gray-500">Cal Deficit</div>
+                </div>
+              </div>
+
+              {/* Activity types */}
+              {data.activityTypes.length > 0 && (
+                <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
+                  <Activity className="h-3 w-3" />
+                  <span>{data.activityTypes.join(', ')}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-6">
+              <div className="text-gray-400 text-sm mb-1">No data</div>
+              <div className="text-xs text-gray-400">Rest day</div>
+              <Heart className="h-6 w-6 mx-auto mt-2 text-gray-300 group-hover:text-purple-500 transition-colors" />
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 // Combined Email Signup and Feedback Component
 const EmailAndFeedbackCard: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -181,11 +302,12 @@ const EmailAndFeedbackCard: React.FC = () => {
   );
 };
 
-// Health Overview Component
+// Health Overview Component with Health Score
 const HealthOverviewCard: React.FC = () => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarkerData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [last7DaysData, setLast7DaysData] = useState<Record<string, HealthData>>({});
 
   const fetchHealthData = () => {
     const sevenDaysAgo = new Date();
@@ -280,6 +402,7 @@ const HealthOverviewCard: React.FC = () => {
       );
 
       setHealthData(sortedData);
+      setLast7DaysData(tempData);
     }).catch((error) => {
       console.error("Error fetching health data:", error);
     }).finally(() => {
@@ -314,20 +437,20 @@ const HealthOverviewCard: React.FC = () => {
             📊 Last 7 Days Health Overview
           </CardTitle>
           <p className="text-sm text-gray-700 mt-2">
-            Mihir's complete health overview for the last 7 days
+            Mihir's complete health overview with health scores for the last 7 days
           </p>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
               {Array.from({ length: 7 }).map((_, i) => (
-                <Skeleton key={i} className="h-32 w-full" />
+                <Skeleton key={i} className="h-40 w-full" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
               {generateLast7Days().map((date) => {
-                const dayData = healthData.find(d => d.date === date) || {
+                const dayData = last7DaysData[date] || {
                   date,
                   heartRate: null,
                   caloriesBurned: 0,
@@ -343,62 +466,47 @@ const HealthOverviewCard: React.FC = () => {
                 const isToday = date === new Date().toISOString().split('T')[0];
                 
                 return (
-                  <div
+                  <DailyHealthBox
                     key={date}
-                    className="bg-white/40 backdrop-blur-sm rounded-lg p-4 border border-white/40 shadow-md"
-                  >
-                    <h3 className="font-semibold text-sm text-gray-700 mb-3 text-center">
-                      {new Date(date).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
-                      {isToday && (
-                        <span className="block text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-medium mt-1">
-                          Today
-                        </span>
-                      )}
-                    </h3>
-                    <div className="space-y-2 text-xs text-gray-700">
-                      <div className="flex justify-between">
-                        <span>Calories In:</span>
-                        <span className="font-medium">{Math.round(dayData.caloriesConsumed)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Calories Out:</span>
-                        <span className="font-medium">{Math.round(dayData.caloriesBurned)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Protein:</span>
-                        <span className="font-medium">{Math.round(dayData.protein)}g</span>
-                      </div>
-                      <div className="mt-2">
-                        <span className="text-gray-600">Activities:</span>
-                        <div className="mt-1 text-gray-800 font-medium min-h-[32px]">
-                          {dayData.activityTypes.length > 0 ? (
-                            <div className="space-y-1">
-                              {dayData.activityTypes.slice(0, 2).map((activity, index) => (
-                                <div key={index} className="truncate text-xs">
-                                  {activity}
-                                </div>
-                              ))}
-                              {dayData.activityTypes.length > 2 && (
-                                <div className="text-xs text-gray-500">
-                                  +{dayData.activityTypes.length - 2} more
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-gray-500">Rest</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    data={dayData}
+                    date={date}
+                    isToday={isToday}
+                    onClick={() => {
+                      console.log(`Clicked on ${date}`);
+                    }}
+                  />
                 );
               })}
             </div>
           )}
+          
+          {/* Health Score Explanation Footer */}
+          <div className="mt-6 p-4 bg-white/50 rounded-lg border border-white/30">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <Target className="h-4 w-4 text-blue-500" />
+              Health Score Calculation (100 points total)
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
+              <div className="space-y-1">
+                <div className="font-medium text-green-600">Calorie Deficit (50 pts)</div>
+                <div>🎯 Target: 500+ calorie deficit = 50 pts</div>
+                <div>📈 Formula: Calories Burned + BMR - Calories Consumed</div>
+                <div>📉 Below 500: Proportional scoring</div>
+              </div>
+              <div className="space-y-1">
+                <div className="font-medium text-purple-600">Protein Intake (50 pts)</div>
+                <div>🎯 Target: 140g+ = 50 pts</div>
+                <div>📈 Below: (protein/140) × 50</div>
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-gray-500 border-t pt-2">
+              <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
+              <br />
+              <strong>Perfect Day Example:</strong> 500+ cal deficit + 140g protein = 100 points 🎉
+              <br />
+              <strong>Deficit Formula:</strong> (Calories Burned + 1479 BMR) - Calories Consumed
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -607,7 +715,7 @@ const ChatbotCard: React.FC = () => {
             <div className="bg-white/60 rounded-lg p-3 border border-indigo-200">
        <div
    onClick={(e) => {
-     e.stopPropagation();             // don’t open the chat UI
+     e.stopPropagation();             // don't open the chat UI
      window.location.href = '/lets-jam';
    }}
    className="text-xs text-gray-600 mb-1 cursor-pointer hover:underline"
@@ -618,7 +726,7 @@ const ChatbotCard: React.FC = () => {
 </div>
        <Button
    onClick={(e) => {
-     e.stopPropagation();               // prevent the Card’s onClick
+     e.stopPropagation();               // prevent the Card's onClick
      window.location.href = '/lets-jam';
    }}
    className="w-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
@@ -778,8 +886,6 @@ const Index = () => {
               Take control of your health journey with AI-powered insights from your personal health data. 🔬✨
             </p>
           </div>
-          
-
         </div>
 
         {/* Interactive Cards Grid - Updated layout */}
