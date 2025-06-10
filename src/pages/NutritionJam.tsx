@@ -670,12 +670,11 @@ const NutritionJam = () => {
     },
     {
       id: 7,
-      name: "Matar Paneer + Dal",
+      name: "Matar Paneer",
       foods: [
         { foodId: "Mixed Vegetable Sabzi", calories: 28, protein: 0.7, carbs: 3.6, fat: 1.2, fiber: 1.4, quantity: 2, unit: "servings" },
         { foodId: "Low Fat Paneer, Milky Mist", calories: 204, protein: 25.0, carbs: 5.8, fat: 9.0, fiber: 0.0, quantity: 1, unit: "serving" },
-        { foodId: "Roti", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8, quantity: 1, unit: "serving" },
-        { foodId: "Dal", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8, quantity: 1, unit: "serving" }
+        { foodId: "Roti", calories: 122, protein: 4.3, carbs: 24.8, fat: 0.6, fiber: 3.8, quantity: 1, unit: "serving" }
       ]
     },
     {
@@ -683,7 +682,7 @@ const NutritionJam = () => {
       name: "Dosa Sambhar",
       foods: [
         { foodId: "Dosa", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9, quantity: 1, unit: "serving" },
-        { foodId: "Sambhar", calories: 114, protein: 5.5, carbs: 16.2, fat: 3.0, fiber: 3.7, quantity: 1, unit: "serving" }
+        { foodId: "Sambhar", calories: 228, protein: 11, carbs: 32.4, fat: 6.0, fiber: 7.4, quantity: 1, unit: "serving" }
       ]
     }
   ];
