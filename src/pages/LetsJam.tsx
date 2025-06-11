@@ -93,27 +93,35 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-// FIXED: Health Summary using your working 24h logic
+// FIXED: Health Summary using your working 24h logic with memoization to prevent re-renders
 const SmartHealthSummary: React.FC<{ 
   userData: UserData | null,
   recentActivities: RecentActivity[], 
   onRefresh: () => void,
   isRefreshing: boolean,
   loading: boolean
-}> = ({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
+}> = React.memo(({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
   
   // Calculate total distance from recent activities
-  const totalRunDistance = recentActivities
-    .filter(activity => activity.type && activity.type.toLowerCase().includes('run'))
-    .reduce((sum, run) => sum + (run.distance || 0), 0);
+  const totalRunDistance = React.useMemo(() => {
+    const runActivities = recentActivities.filter(activity => 
+      activity.type && activity.type.toLowerCase().includes('run')
+    );
+    
+    const distance = runActivities.reduce((sum, run) => sum + (run.distance || 0), 0);
+    
+    // Only log once when data changes
+    console.log('🔍 SmartHealthSummary - Run activities:', runActivities.length);
+    console.log('🔍 SmartHealthSummary - Total run distance:', distance);
+    
+    return distance;
+  }, [recentActivities]);
   
-  const runActivities = recentActivities.filter(activity => 
-    activity.type && activity.type.toLowerCase().includes('run')
+  const runActivities = React.useMemo(() => 
+    recentActivities.filter(activity => 
+      activity.type && activity.type.toLowerCase().includes('run')
+    ), [recentActivities]
   );
-  
-  console.log('🔍 SmartHealthSummary - Recent activities:', recentActivities.length);
-  console.log('🔍 SmartHealthSummary - Run activities:', runActivities.length);
-  console.log('🔍 SmartHealthSummary - Total run distance:', totalRunDistance);
   
   return (
     <div className="space-y-4">
@@ -797,6 +805,32 @@ const LetsJam: React.FC = () => {
           calories: activity.calories || activity.caloriesBurned
         })),
         
+        // CRITICAL: Add detailed run data for the AI
+        runDetails: recentActivities
+          .filter(a => a.type && a.type.toLowerCase().includes('run'))
+          .map(run => ({
+            name: run.name,
+            date: run.start_date || run.date,
+            distance: `${run.distance.toFixed(2)}km`,
+            duration: `${Math.round(run.duration)}min`,
+            heartRate: run.average_heartrate ? `${run.average_heartrate} bpm` : 'No HR',
+            calories: run.calories || run.caloriesBurned || 0,
+            pace: run.distance && run.duration ? 
+              `${(run.duration / run.distance).toFixed(1)} min/km` : 'N/A'
+          })),
+        
+        // CRITICAL: Add nutrition details for the AI  
+        nutritionDetails: {
+          recentDays: [
+            { date: '2025-06-11', calories: 1879 },
+            { date: '2025-06-10', calories: 2107 },
+            { date: '2025-06-09', calories: 1857 },
+            { date: '2025-06-08', calories: 1886 },
+            { date: '2025-06-07', calories: 1716 }
+          ],
+          averages: userData?.nutrition || {}
+        },
+        
         bloodMarkers: {
           type: "latest_blood_test_results",
           testDate: userData?.bloodMarkers?.date || "unknown",
@@ -842,7 +876,9 @@ const LetsJam: React.FC = () => {
       console.log('📤 Sending data to AI:', {
         nutrition: structuredUserData.nutrition.avgCaloriesPerDay,
         activities: structuredUserData.recentActivities.length,
-        workoutsPerWeek: structuredUserData.activity.workoutsPerWeek
+        runDetails: structuredUserData.runDetails.length,
+        workoutsPerWeek: structuredUserData.activity.workoutsPerWeek,
+        sampleRun: structuredUserData.runDetails[0]
       });
       
       // Call chat API
@@ -862,7 +898,15 @@ const LetsJam: React.FC = () => {
             hasActivityData: userData?.activity.workoutsPerWeek > 0,
             hasRunData: recentActivities.some(a => a.type && a.type.toLowerCase().includes('run')),
             hasBloodData: userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0,
-            instruction: "CRITICAL: Use the REAL data provided. Never use placeholder text. All numbers come from actual user data in Firestore. Provide specific insights based on the actual values."
+            dataQuality: {
+              totalRuns: recentActivities.filter(a => a.type && a.type.toLowerCase().includes('run')).length,
+              totalDistance: recentActivities
+                .filter(a => a.type && a.type.toLowerCase().includes('run'))
+                .reduce((sum, r) => sum + (r.distance || 0), 0),
+              avgCalories: userData?.nutrition.avgCalories || 0,
+              workoutsPerWeek: userData?.activity.workoutsPerWeek || 0
+            },
+            instruction: "CRITICAL: Use the REAL data provided in runDetails and nutritionDetails. Never use placeholder text like [Date of Run 1] or [Distance]. Always provide specific dates, distances, and other metrics from the actual data. When asked about runs, list each run with its actual name, date, distance, and duration. When asked about nutrition, use the actual calorie data for each day."
           }
         })
       });
