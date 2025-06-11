@@ -67,7 +67,7 @@ interface UserData {
   nutrition: NutritionData;
   activity: ActivityData;
   bloodMarkers: Record<string, any>;
-  nutritionDetails?: any[]; // Add this for daily nutrition details
+  nutritionDetails?: any[];
 }
 
 // Generate session ID
@@ -94,14 +94,14 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-// FIXED: Health Summary using your working 24h logic with memoization to prevent re-renders
+// FIXED: Health Summary - removed React.memo to fix syntax error
 const SmartHealthSummary: React.FC<{ 
   userData: UserData | null,
   recentActivities: RecentActivity[], 
   onRefresh: () => void,
   isRefreshing: boolean,
   loading: boolean
-}> = React.memo(({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
+}> = ({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
   
   // Calculate total distance from recent activities
   const totalRunDistance = React.useMemo(() => {
@@ -412,7 +412,6 @@ const SmartPromptSuggestions: React.FC<{
 const LetsJam: React.FC = () => {
   const navigate = useNavigate();
   const [userData, setUserData] = useState<UserData | null>(null);
-  // Add state for nutrition details
   const [nutritionDetails, setNutritionDetails] = useState<any[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -787,7 +786,7 @@ const LetsJam: React.FC = () => {
     await fetchUserData(true);
   };
 
-  // FIXED: Enhanced message sending with your working 24h structure
+  // FIXED: Enhanced message sending with proper system context
   const handleSendMessage = async () => {
     if (!input.trim() || isTyping) return;
     
@@ -802,96 +801,39 @@ const LetsJam: React.FC = () => {
     setIsTyping(true);
     
     try {
-      // Structure user data for API using your working 24h format
-      const structuredUserData = {
-        nutrition: {
-          type: "nutrition_averages_7_days",
-          avgCaloriesPerDay: userData?.nutrition?.avgCalories || 0,
-          avgProteinPerDay: userData?.nutrition?.avgProtein || 0,
-          avgCarbsPerDay: userData?.nutrition?.avgCarbs || 0,
-          avgFatPerDay: userData?.nutrition?.avgFat || 0,
-          avgFiberPerDay: userData?.nutrition?.avgFiber || 0
-        },
-        
-        activity: {
-          type: "activity_averages_7_days", 
-          workoutsPerWeek: userData?.activity?.workoutsPerWeek || 0,
-          avgHeartRatePerWorkout: userData?.activity?.avgHeartRate || 0,
-          avgCaloriesBurnedPerWorkout: userData?.activity?.avgCaloriesBurned || 0,
-          avgWorkoutDurationMinutes: userData?.activity?.avgDuration || 0
-        },
-        
-        recentActivities: recentActivities.map(activity => ({
-          name: activity.name,
-          type: activity.type,
-          date: activity.start_date || activity.date,
-          distance: activity.distance,
-          duration: activity.duration,
-          heartRate: activity.average_heartrate,
-          calories: activity.calories || activity.caloriesBurned
-        })),
-        
-        // CRITICAL: Add detailed run data for the AI
-        runDetails: recentActivities
-          .filter(a => a.type && a.type.toLowerCase().includes('run'))
-          .map(run => ({
-            name: run.name,
-            date: run.start_date || run.date,
-            distance: `${run.distance.toFixed(2)}km`,
-            duration: `${Math.round(run.duration)}min`,
-            heartRate: run.average_heartrate ? `${run.average_heartrate} bpm` : 'No HR',
-            calories: run.calories || run.caloriesBurned || 0,
-            pace: run.distance && run.duration ? 
-              `${(run.duration / run.distance).toFixed(1)} min/km` : 'N/A'
-          })),
-        
-        // CRITICAL: Add detailed nutrition data for the AI  
-        nutritionDetails: nutritionDetails.map(day => ({
-          date: new Date(day.date).toLocaleDateString('en-US', { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric' 
-          }),
-          calories: day.calories,
-          protein: day.protein,
-          carbs: day.carbs,
-          fat: day.fat,
-          fiber: day.fiber,
-          topFoods: day.entries?.slice(0, 3).map((entry: any) => entry.name || 'Food item') || []
-        })),
-        // CRITICAL: Add detailed blood marker data for the AI
-        bloodMarkersDetails: userData?.bloodMarkers ? {
-          testDate: userData.bloodMarkers.date,
-          cholesterolPanel: {
-            total: userData.bloodMarkers.total_cholesterol,
-            ldl: userData.bloodMarkers.ldl,
-            hdl: userData.bloodMarkers.hdl
-          },
-          metabolicMarkers: {
-            glucose: userData.bloodMarkers.glucose,
-            hba1c: userData.bloodMarkers.hba1c
-          },
-          minerals: {
-            calcium: userData.bloodMarkers.calcium,
-            sodium: userData.bloodMarkers.sodium,
-            potassium: userData.bloodMarkers.potassium
-          },
-          kidneyFunction: {
-            creatinine: userData.bloodMarkers.creatinine
-          },
-          bloodCells: {
-            hemoglobin: userData.bloodMarkers.hemoglobin,
-            rbc: userData.bloodMarkers.rbc,
-            plateletCount: userData.bloodMarkers.platelet_count
-          },
-          hormones: {
-            tsh: userData.bloodMarkers.tsh
-          }
-        } : null,
-      };
-      
-      // Build messages array with conversation history
+      // Build system context directly
+      const systemContext = `
+HEALTH DATA CONTEXT:
+You are a personal health assistant with access to real user health data. USE THIS ACTUAL DATA to answer questions.
+
+=== RECENT RUNS (Last 7 Days) ===
+${recentActivities
+  .filter(a => a.type && a.type.toLowerCase().includes('run'))
+  .map(run => `• ${run.name} (${new Date(run.start_date || run.date).toLocaleDateString()}) - ${run.distance.toFixed(2)}km in ${Math.round(run.duration)}min, Heart Rate: ${run.average_heartrate || 'N/A'} bpm, ${run.calories || run.caloriesBurned || 0} calories`)
+  .join('\n') || 'No runs recorded'}
+
+=== RECENT NUTRITION (Daily Intake) ===
+${nutritionDetails.map(day => `• ${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${day.calories} calories, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat`).join('\n') || 'No nutrition data'}
+
+=== WORKOUT SUMMARY (7 Days) ===
+• Total workouts: ${userData?.activity.workoutsPerWeek || 0}
+• Average heart rate: ${userData?.activity.avgHeartRate || 0} bpm
+• Average calories per workout: ${userData?.activity.avgCaloriesBurned || 0}
+
+=== BLOOD MARKERS (Latest Test) ===
+${userData?.bloodMarkers ? Object.entries(userData.bloodMarkers)
+  .filter(([key, value]) => key !== 'date' && value)
+  .map(([key, value]) => `• ${key}: ${value}`)
+  .join('\n') : 'No blood marker data available'}
+
+IMPORTANT: Use this REAL data above to answer questions. Never use placeholder text or say you don't have access to data.`;
+
+      // Build messages array with system context
       const conversationMessages = [
+        { 
+          role: "system", 
+          content: systemContext
+        },
         ...messages.map(msg => ({
           role: msg.role,
           content: msg.content
@@ -900,14 +842,12 @@ const LetsJam: React.FC = () => {
       ];
 
       console.log('📤 Sending data to AI:', {
-        nutrition: structuredUserData.nutrition.avgCaloriesPerDay,
-        nutritionDetails: structuredUserData.nutritionDetails.length,
-        activities: structuredUserData.recentActivities.length,
-        runDetails: structuredUserData.runDetails.length,
-        bloodMarkers: structuredUserData.bloodMarkersDetails ? 'Available' : 'None',
-        workoutsPerWeek: structuredUserData.activity.workoutsPerWeek,
-        sampleRun: structuredUserData.runDetails[0],
-        sampleNutrition: structuredUserData.nutritionDetails[0]
+        systemContextLength: systemContext.length,
+        totalMessages: conversationMessages.length,
+        nutrition: userData?.nutrition.avgCalories || 0,
+        workoutsPerWeek: userData?.activity.workoutsPerWeek || 0,
+        runCount: recentActivities.filter(a => a.type && a.type.toLowerCase().includes('run')).length,
+        nutritionDays: nutritionDetails.length
       });
       
       // Call chat API
@@ -918,11 +858,11 @@ const LetsJam: React.FC = () => {
         },
         body: JSON.stringify({
           userId: userId,
-          source: "smart_health_chat_v2",
-          userData: structuredUserData,
-          messages: conversationMessages.slice(-6), // Send last 6 messages including system context
+          source: "smart_health_chat_v3",
+          userData: { systemContext },
+          messages: conversationMessages.slice(-6),
           sessionId: sessionId,
-          useSystemContext: true // Flag to indicate system context is included
+          useSystemContext: true
         })
       });
       
@@ -1037,7 +977,7 @@ const LetsJam: React.FC = () => {
                 recentActivities={recentActivities}
               />
               
-              {/* FIXED: Bigger chat container that grows */}
+              {/* Chat Container */}
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <CardHeader className="border-b border-gray-100">
                   <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
@@ -1049,7 +989,6 @@ const LetsJam: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {/* FIXED: Dynamic height chat container */}
                   <div 
                     ref={messagesContainerRef}
                     className="min-h-[500px] max-h-[800px] overflow-y-auto p-4 space-y-4" 
@@ -1094,7 +1033,6 @@ const LetsJam: React.FC = () => {
                       </div>
                     )}
                     
-                    {/* FIXED: Scroll anchor */}
                     <div ref={messagesEndRef} />
                   </div>
                   
@@ -1118,7 +1056,6 @@ const LetsJam: React.FC = () => {
                       </Button>
                     </div>
                     
-                    {/* Message count and status */}
                     <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
                       <span>{messages.length} messages in this session</span>
                       <span className="flex items-center gap-1">
@@ -1228,7 +1165,6 @@ const LetsJam: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Data Source Accuracy Notice */}
                 <div className="mt-6 p-4 bg-white/60 rounded-lg border border-white/30">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <Target className="h-4 w-4 text-orange-500" />
