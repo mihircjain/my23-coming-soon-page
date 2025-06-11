@@ -258,15 +258,18 @@ async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
     
     systemContent += `=== RESPONSE FORMATTING GUIDELINES ===\n`;
     systemContent += `CRITICAL: Follow these formatting rules strictly:\n`;
+    systemContent += `- Write complete, comprehensive responses - don't cut off mid-thought\n`;
     systemContent += `- Use **bold text** SPARINGLY - only for key metrics, important findings, or section headers\n`;
-    systemContent += `- Write in clear, conversational paragraphs - avoid excessive bullet points\n`;
-    systemContent += `- Break long responses into digestible paragraphs with natural flow\n`;
-    systemContent += `- When listing items, use natural language like "Your key areas include: X, Y, and Z" rather than bullet points\n`;
-    systemContent += `- Use line breaks between main ideas for better readability\n`;
+    systemContent += `- Write in clear, conversational paragraphs with natural flow\n`;
+    systemContent += `- Provide thorough analysis and complete explanations\n`;
+    systemContent += `- When discussing multiple topics, address each one fully\n`;
+    systemContent += `- Use natural transitions between ideas\n`;
+    systemContent += `- Break information into digestible paragraphs but keep responses complete\n`;
     systemContent += `- Be warm, personal, and encouraging in tone\n`;
     systemContent += `- Reference previous conversation context when relevant\n`;
     systemContent += `- Provide specific, actionable insights based on the data\n`;
-    systemContent += `- Keep responses focused and concise while being thorough\n\n`;
+    systemContent += `- Always finish your thoughts completely - never end abruptly\n`;
+    systemContent += `- Aim for helpful, detailed responses that fully address the user's question\n\n`;
     
     systemContent += `=== IMPORTANT INSTRUCTIONS ===\n`;
     systemContent += `When answering questions about:\n`;
@@ -575,7 +578,7 @@ async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
       contents: contents,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 800, // Increased for more detailed responses
+        maxOutputTokens: 1200, // Increased for longer, more complete responses
         topP: 0.8,
         topK: 40
       },
