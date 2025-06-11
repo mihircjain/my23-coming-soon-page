@@ -498,6 +498,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 5.8,
     fiber: 1.7
   },
+    {
+    name: "White Rice",
+    servingSize: "100g",
+    calories: 97,
+    protein: 2.1,
+    carbs: 21.5,
+    fat: 0.3,
+    fiber: 0.4
+  },
   {
     name: "Dutch Chocolate Ice Cream",
     servingSize: "130ml",
