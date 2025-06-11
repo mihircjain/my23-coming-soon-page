@@ -52,6 +52,10 @@ const ActivityJam = () => {
   // Chart instances - restore these  
   const chartInstances = useRef<{ [key: string]: Chart }>({});
 
+  // Cache configuration - back to original key to use existing cache
+  const CACHE_KEY = 'activity_jam_data';
+  const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
   // Helper function to determine if activity is a run
   const isRunActivity = (activityType: string): boolean => {
     const runTypes = ['run', 'virtualrun', 'treadmill', 'trail'];
@@ -990,10 +994,18 @@ const ActivityJam = () => {
                 ))}
               </div>
 
-              {activities.length > 9 && (
+              {!showAllActivities && activities.length > 9 && (
                 <div className="text-center mt-6">
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => setShowAllActivities(true)}>
                     View All {activities.length} Activities
+                  </Button>
+                </div>
+              )}
+
+              {showAllActivities && (
+                <div className="text-center mt-6">
+                  <Button variant="outline" onClick={() => setShowAllActivities(false)}>
+                    Show Recent Only
                   </Button>
                 </div>
               )}
