@@ -459,6 +459,15 @@ const ActivityJam = () => {
         const activityType = activity.type || 'Activity';
         const isRun = isRunActivity(activityType);
         
+        // UPDATED: Use correct Strava calorie fields with proper fallback
+        const stravaCalories = activity.kilojoules || activity.calories || activity.activity?.calories || 0;
+        
+        if (stravaCalories > 0) {
+          console.log(`🔥 Found calories for ${activity.name}: ${stravaCalories} (from field: ${activity.kilojoules ? 'kilojoules' : activity.calories ? 'calories' : 'activity.calories'})`);
+        } else {
+          console.log(`⚠️ No calories found for ${activity.name} - fields checked: kilojoules(${activity.kilojoules}), calories(${activity.calories}), activity.calories(${activity.activity?.calories})`);
+        }
+
         return {
           id: activity.id?.toString() || Math.random().toString(),
           name: activity.name || 'Unnamed Activity',
@@ -474,7 +483,7 @@ const ActivityJam = () => {
           has_heartrate: activity.has_heartrate || false,
           average_heartrate: activity.average_heartrate || activity.heart_rate,
           max_heartrate: activity.max_heartrate,
-          calories: activity.calories || 0, // Direct from Strava API
+          calories: stravaCalories, // Use the correct Strava calories
           is_run_activity: isRun
         };
       });
