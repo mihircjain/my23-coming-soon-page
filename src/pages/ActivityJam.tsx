@@ -1,4 +1,4 @@
-// Fixed ActivityJam.tsx with correct calorie handling
+// Simplified ActivityJam.tsx - just use direct calories field
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3 } from "lucide-react";
@@ -22,8 +22,7 @@ interface ActivityData {
   has_heartrate: boolean;
   average_heartrate?: number;
   max_heartrate?: number;
-  calories?: number; // FIXED: Actual calories, not kilojoules
-  kilojoules?: number; // Add this for debugging
+  calories: number; // Simple direct field
   is_run_activity: boolean;
 }
 
@@ -52,43 +51,6 @@ const ActivityJam = () => {
     );
   };
 
-  // FIXED: Proper calorie extraction from Strava API
-  const extractCalories = (activity: any): number => {
-    // Priority 1: Direct calories field (this is what Strava shows in UI)
-    if (activity.calories && activity.calories > 0) {
-      console.log(`✅ Using direct calories: ${activity.calories} for ${activity.name}`);
-      return activity.calories;
-    }
-    
-    // Priority 2: Check nested activity.calories
-    if (activity.activity?.calories && activity.activity.calories > 0) {
-      console.log(`✅ Using activity.calories: ${activity.activity.calories} for ${activity.name}`);
-      return activity.activity.calories;
-    }
-    
-    // Priority 3: For cycling activities, convert kilojoules to calories using metabolic efficiency
-    if (activity.kilojoules && activity.kilojoules > 0) {
-      // Cycling: ~25% mechanical efficiency means calories ≈ kJ × 4
-      // But Strava typically uses kJ ≈ calories for cycling display
-      const activityType = (activity.type || '').toLowerCase();
-      if (activityType.includes('ride') || activityType.includes('cycling') || activityType.includes('bike')) {
-        // For cycling, Strava often shows kJ value as calories in UI
-        const estimatedCalories = Math.round(activity.kilojoules);
-        console.log(`🚴 Using kJ as calories for cycling: ${estimatedCalories} (kJ: ${activity.kilojoules}) for ${activity.name}`);
-        return estimatedCalories;
-      } else {
-        // For other activities with kJ, convert properly (rare case)
-        const estimatedCalories = Math.round(activity.kilojoules * 0.239); // 1 kJ = 0.239 kcal
-        console.log(`⚡ Converting kJ to calories: ${estimatedCalories} (kJ: ${activity.kilojoules}) for ${activity.name}`);
-        return estimatedCalories;
-      }
-    }
-    
-    // No calories found
-    console.log(`❌ No calories found for ${activity.name} - checked fields: calories(${activity.calories}), activity.calories(${activity.activity?.calories}), kilojoules(${activity.kilojoules})`);
-    return 0;
-  };
-
   // Process activities data for charts
   const processChartData = (activities: ActivityData[]) => {
     // Sort activities by date
@@ -114,7 +76,7 @@ const ActivityJam = () => {
 
       const dayData = dailyData.get(date);
       
-      // Use properly extracted calories
+      // Simple direct calories
       dayData.calories += activity.calories || 0;
       dayData.distance += activity.distance || 0;
       
@@ -128,10 +90,6 @@ const ActivityJam = () => {
       if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
         dayData.totalRunHeartRate += activity.average_heartrate;
         dayData.runHeartRateCount += 1;
-        
-        console.log(`💓 Added run HR: ${activity.average_heartrate} bpm from ${activity.type} on ${date}`);
-      } else if (activity.has_heartrate && activity.average_heartrate) {
-        console.log(`⏭️ Skipped non-run HR: ${activity.average_heartrate} bpm from ${activity.type} on ${date}`);
       }
     });
 
@@ -165,7 +123,7 @@ const ActivityJam = () => {
     chartInstances.current = {};
   };
 
-  // Create calories chart - UPDATED with better title
+  // Create calories chart
   const createCaloriesChart = (chartData: any) => {
     if (!caloriesChartRef.current) return;
 
@@ -235,7 +193,7 @@ const ActivityJam = () => {
     });
   };
 
-  // Create distance chart (unchanged)
+  // Create distance chart
   const createDistanceChart = (chartData: any) => {
     if (!distanceChartRef.current) return;
 
@@ -300,7 +258,7 @@ const ActivityJam = () => {
     });
   };
 
-  // Create weight training chart (unchanged)
+  // Create weight training chart
   const createWeightTrainingChart = (chartData: any) => {
     if (!weightTrainingChartRef.current) return;
 
@@ -370,7 +328,7 @@ const ActivityJam = () => {
     });
   };
 
-  // Create run heart rate chart (unchanged)
+  // Create run heart rate chart
   const createRunHeartRateChart = (chartData: any) => {
     if (!heartRateRunsChartRef.current) return;
 
@@ -448,7 +406,7 @@ const ActivityJam = () => {
     
     const chartData = processChartData(activities);
     
-    console.log('📊 Creating charts with corrected calorie data:', {
+    console.log('📊 Creating charts with simple calorie data:', {
       totalDays: chartData.labels.length,
       totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
       totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
@@ -465,7 +423,7 @@ const ActivityJam = () => {
     }, 100);
   };
 
-  // FIXED: Fetch activities with proper calorie extraction
+  // Fetch activities with simple calorie handling
   const fetchActivities = async (forceRefresh = false) => {
     try {
       if (forceRefresh) {
@@ -494,13 +452,10 @@ const ActivityJam = () => {
 
       const data = await response.json();
       
-      // FIXED: Process activities with proper calorie extraction
+      // Simple activity processing - just use direct calories field
       const processedActivities = data.map((activity: any) => {
         const activityType = activity.type || 'Activity';
         const isRun = isRunActivity(activityType);
-        
-        // FIXED: Use the proper calorie extraction function
-        const stravaCalories = extractCalories(activity);
 
         return {
           id: activity.id?.toString() || Math.random().toString(),
@@ -517,8 +472,7 @@ const ActivityJam = () => {
           has_heartrate: activity.has_heartrate || false,
           average_heartrate: activity.average_heartrate || activity.heart_rate,
           max_heartrate: activity.max_heartrate,
-          calories: stravaCalories, // Use properly extracted calories
-          kilojoules: activity.kilojoules, // Keep for debugging
+          calories: activity.calories || 0, // Simple and direct!
           is_run_activity: isRun
         };
       });
@@ -527,11 +481,10 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      console.log('🏃 FIXED Activity processing summary:', {
+      console.log('🏃 Simple activity processing summary:', {
         totalActivities: sortedActivities.length,
         runActivities: sortedActivities.filter(a => a.is_run_activity).length,
         runActivitiesWithHR: sortedActivities.filter(a => a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
-        nonRunActivitiesWithHR: sortedActivities.filter(a => !a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
         activitiesWithCalories: sortedActivities.filter(a => a.calories && a.calories > 0).length,
         totalCalories: sortedActivities.reduce((sum, a) => sum + (a.calories || 0), 0)
       });
@@ -565,7 +518,7 @@ const ActivityJam = () => {
     };
   }, []);
 
-  // Helper functions (unchanged)
+  // Helper functions
   const formatDistance = (distance: number) => {
     if (distance === 0) return '0.00';
     if (distance < 0.1) return distance.toFixed(3);
@@ -655,7 +608,7 @@ const ActivityJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • HR: Runs only • Calories: Fixed Strava values • Showing last 30 days
+              Last updated: {lastUpdate} • Calories: Direct from Strava • Showing last 30 days
             </p>
           )}
         </div>
@@ -714,27 +667,6 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* FIXED: Data Source Info Banner */}
-            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Heart className="h-4 w-4 text-red-500" />
-                      <span className="text-sm font-medium text-gray-700">Heart Rate: Runs Only</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-green-500" />
-                      <span className="text-sm font-medium text-gray-700">Calories: Fixed Strava Values</span>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                    ✅ Calorie Fix Applied
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Charts Section */}
             <section>
               <div className="flex items-center mb-6">
@@ -743,14 +675,14 @@ const ActivityJam = () => {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* FIXED: Calories Chart */}
+                {/* Calories Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                       <Zap className="h-5 w-5 mr-2 text-green-500" />
-                      Calories Burned (Fixed)
+                      Calories Burned
                     </CardTitle>
-                    <p className="text-xs text-gray-600">✅ Proper calories field - no longer using kilojoules</p>
+                    <p className="text-xs text-gray-600">Direct from Strava API</p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-64">
@@ -796,7 +728,7 @@ const ActivityJam = () => {
                       <Heart className="h-5 w-5 mr-2 text-red-500" />
                       Run Heart Rate
                     </CardTitle>
-                    <p className="text-xs text-gray-600">Only from running activities - excludes weight training, cycling, etc.</p>
+                    <p className="text-xs text-gray-600">Only from running activities</p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-64">
@@ -898,17 +830,9 @@ const ActivityJam = () => {
                               <Zap className="h-3 w-3 mr-1 text-green-500" />
                               {activity.calories}
                               <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-600">
-                                ✅ Fixed
+                                Strava
                               </Badge>
                             </span>
-                          </div>
-                        )}
-                        
-                        {/* Debug info for kilojoules if present */}
-                        {activity.kilojoules && activity.kilojoules > 0 && (
-                          <div className="flex justify-between text-xs text-gray-400">
-                            <span>kJ (debug):</span>
-                            <span>{activity.kilojoules}</span>
                           </div>
                         )}
                       </div>
@@ -918,13 +842,13 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* FIXED: Summary Stats */}
+            {/* Summary Stats */}
             <section>
               <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                     <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
-                    Fixed Data Summary
+                    Activity Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -961,11 +885,11 @@ const ActivityJam = () => {
         )}
       </main>
       
-      {/* FIXED: Footer */}
+      {/* Footer */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>✅ Calorie data fixed - now matches Strava</span>
+            <span>📊 Calories: Direct from Strava API</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4" />
@@ -976,7 +900,7 @@ const ActivityJam = () => {
             <span>Updated: {new Date().toLocaleDateString()}</span>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Fixed</span>
+              <span className="text-xs">Simplified</span>
             </div>
           </div>
         </div>
