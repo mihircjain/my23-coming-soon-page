@@ -80,18 +80,21 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
       // Process bold text **text** and handle bullet points
       let processedLine = line;
       
-      // Handle bullet points and lists
+      // Handle bullet points and lists - using regex properly
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
         processedLine = line.replace(/^[\s]*[-*]\s*/, '• ');
       }
       
-      // Process bold text **text**
-      const parts = processedLine.split(/(\*\*.*?\*\*)/g);
+      // Process bold text **text** - using proper regex
+      const boldRegex = /\*\*(.*?)\*\*/g;
+      const parts = processedLine.split(boldRegex);
+      
       const formattedParts = parts.map((part, partIndex) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
+        // Check if this part was inside ** ** by checking if it's at an odd index after split
+        if (partIndex % 2 === 1) {
           return (
             <strong key={partIndex} className="font-semibold text-gray-900">
-              {part.slice(2, -2)}
+              {part}
             </strong>
           );
         }
