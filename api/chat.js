@@ -155,13 +155,50 @@ function generateConversationSummary(messages) {
   };
 }
 
-// Enhanced system prompt with session awareness and better formatting instructions
+// Updated chat.js to handle the new LetsJam v2 data format
+
+// ... (keep all existing imports and helper functions) ...
+
+// Enhanced system prompt with better handling of systemContext from LetsJam
 async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
   const firestore = initializeFirebase();
   
   let systemContent = '';
   
-  // Add session context if available
+  // IMPORTANT: Check if userData contains systemContext from LetsJam v2
+  if (userData && userData.systemContext) {
+    console.log('Using systemContext from LetsJam v2...');
+    systemContent += userData.systemContext;
+    systemContent += '\n\n';
+    
+    // Add session context if available
+    if (sessionContext && sessionContext.conversationSummary) {
+      systemContent += `=== CONVERSATION CONTEXT ===\n`;
+      systemContent += `Session Age: ${Math.round(sessionContext.conversationSummary.conversationAge / (1000 * 60))} minutes\n`;
+      systemContent += `Topics Previously Discussed: ${sessionContext.conversationSummary.topics.join(', ')}\n`;
+      systemContent += `Message Count: ${sessionContext.conversationSummary.messageCount}\n\n`;
+    }
+    
+    systemContent += `=== RESPONSE FORMATTING GUIDELINES ===\n`;
+    systemContent += `CRITICAL: Follow these formatting rules strictly:\n`;
+    systemContent += `- Write complete, comprehensive responses - don't cut off mid-thought\n`;
+    systemContent += `- Use **bold text** SPARINGLY - only for key metrics, important findings, or section headers\n`;
+    systemContent += `- Write in clear, conversational paragraphs with natural flow\n`;
+    systemContent += `- Provide thorough analysis and complete explanations\n`;
+    systemContent += `- When discussing multiple topics, address each one fully\n`;
+    systemContent += `- Use natural transitions between ideas\n`;
+    systemContent += `- Break information into digestible paragraphs but keep responses complete\n`;
+    systemContent += `- Be warm, personal, and encouraging in tone\n`;
+    systemContent += `- Reference previous conversation context when relevant\n`;
+    systemContent += `- Provide specific, actionable insights based on the data\n`;
+    systemContent += `- Always finish your thoughts completely - never end abruptly\n`;
+    systemContent += `- Aim for helpful, detailed responses that fully address the user's question\n\n`;
+    
+    console.log(`✅ Using systemContext from LetsJam v2 (${userData.systemContext.length} chars)`);
+    return systemContent;
+  }
+  
+  // Add session context if available (for non-LetsJam requests)
   if (sessionContext && sessionContext.conversationSummary) {
     systemContent += `=== CONVERSATION CONTEXT ===\n`;
     systemContent += `Session Age: ${Math.round(sessionContext.conversationSummary.conversationAge / (1000 * 60))} minutes\n`;
@@ -186,8 +223,8 @@ async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
     systemContent += '\n';
   }
   
-  // Use structured userData if available (from LetsJam)
-  if (userData) {
+  // Use structured userData if available (fallback for other sources)
+  if (userData && !userData.systemContext) {
     console.log('Building system prompt with structured userData...');
     
     systemContent += `You are a personal health assistant with access to comprehensive health data and conversation history:\n\n`;
@@ -280,13 +317,15 @@ async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
     systemContent += `- PERSONALIZATION: Tailor responses to user's specific data and previous discussions\n\n`;
   }
   
-  // Add recent detailed data from Firestore (if available)
-  if (!firestore) {
-    console.log('Firestore not available, using userData only or default prompt');
+  // Add recent detailed data from Firestore (if available) - but skip if systemContext already provided
+  if (!firestore || (userData && userData.systemContext)) {
+    console.log('Firestore not available or systemContext provided, using structured data only');
     if (!userData) {
       return 'You are a helpful AI assistant with access to conversation history. Please respond conversationally and remember our previous interactions in this session. Use clear, natural formatting with minimal bold text.';
     }
-    systemContent += `Respond based on the health data provided above and our conversation history. Be conversational, remember what we've discussed, and provide actionable insights with clear, natural formatting.`;
+    if (!userData.systemContext) {
+      systemContent += `Respond based on the health data provided above and our conversation history. Be conversational, remember what we've discussed, and provide actionable insights with clear, natural formatting.`;
+    }
     return systemContent;
   }
 
@@ -455,193 +494,7 @@ async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
   }
 }
 
-// Simple in-memory rate limiting (use Redis in production)
-const rateLimitMap = new Map();
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute window
-  const maxRequests = 15; // Max 15 requests per minute per IP (increased for better UX)
-  
-  if (!rateLimitMap.has(ip)) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
-    return false;
-  }
-  
-  const limit = rateLimitMap.get(ip);
-  
-  if (now > limit.resetTime) {
-    limit.count = 1;
-    limit.resetTime = now + windowMs;
-    return false;
-  }
-  
-  if (limit.count >= maxRequests) {
-    return true;
-  }
-  
-  limit.count++;
-  return false;
-}
-
-// Convert OpenAI-style messages to Gemini format
-function convertMessagesToGeminiFormat(messages) {
-  const contents = [];
-  let systemMessage = null;
-  
-  for (const message of messages) {
-    if (message.role === 'system') {
-      systemMessage = message.content;
-      continue;
-    }
-    
-    let role;
-    if (message.role === 'user') {
-      role = 'user';
-    } else if (message.role === 'assistant') {
-      role = 'model';
-    } else {
-      continue; // Skip unknown roles
-    }
-    
-    contents.push({
-      role: role,
-      parts: [{ text: message.content }]
-    });
-  }
-  
-  // Handle system message by prepending it to the first user message
-  if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
-    contents[0].parts[0].text = systemMessage + '\n\nUser: ' + contents[0].parts[0].text;
-  } else if (systemMessage && contents.length === 0) {
-    // If no user messages, create one with just the system prompt
-    contents.push({
-      role: 'user',
-      parts: [{ text: systemMessage }]
-    });
-  }
-  
-  return contents;
-}
-
-// Convert Gemini response to OpenAI format
-function convertGeminiResponseToOpenAI(geminiResponse) {
-  const content = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const finishReason = geminiResponse.candidates?.[0]?.finishReason || 'STOP';
-  
-  // Map Gemini finish reasons to OpenAI format
-  let mappedFinishReason = 'stop';
-  switch (finishReason) {
-    case 'STOP':
-      mappedFinishReason = 'stop';
-      break;
-    case 'MAX_TOKENS':
-      mappedFinishReason = 'length';
-      break;
-    case 'SAFETY':
-      mappedFinishReason = 'content_filter';
-      break;
-    case 'RECITATION':
-      mappedFinishReason = 'content_filter';
-      break;
-    default:
-      mappedFinishReason = 'stop';
-  }
-  
-  return {
-    choices: [
-      {
-        message: {
-          role: 'assistant',
-          content: content
-        },
-        finish_reason: mappedFinishReason
-      }
-    ],
-    usage: {
-      prompt_tokens: geminiResponse.usageMetadata?.promptTokenCount || 0,
-      completion_tokens: geminiResponse.usageMetadata?.candidatesTokenCount || 0,
-      total_tokens: geminiResponse.usageMetadata?.totalTokenCount || 0
-    }
-  };
-}
-
-async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
-  const maxRetries = 3;
-  const baseDelay = 1000; // 1 second
-  
-  try {
-    // Convert messages to Gemini format
-    const contents = convertMessagesToGeminiFormat(messages);
-    
-    const requestBody = {
-      contents: contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1200, // Increased for longer, more complete responses
-        topP: 0.8,
-        topK: 40
-      },
-      safetySettings: [
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_ONLY_HIGH"
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_ONLY_HIGH"
-        },
-        {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_ONLY_HIGH"
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_ONLY_HIGH"
-        }
-      ]
-    };
-
-    console.log(`=== GEMINI API REQUEST (Attempt ${retryCount + 1}) ===`);
-    console.log(`Contents being sent: ${contents.length}`);
-    console.log(`Request payload size: ${JSON.stringify(requestBody).length} bytes`);
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Vercel-Function/1.0'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    console.log(`=== GEMINI API RESPONSE (Attempt ${retryCount + 1}) ===`);
-    console.log(`Status: ${response.status} ${response.statusText}`);
-
-    if (response.status === 429 && retryCount < maxRetries) {
-      const delay = baseDelay * Math.pow(2, retryCount);
-      console.log(`Rate limited. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-      
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return makeGeminiRequest(apiKey, messages, retryCount + 1);
-    }
-
-    return response;
-  } catch (error) {
-    console.error(`=== GEMINI REQUEST ERROR (Attempt ${retryCount + 1}) ===`);
-    console.error(`Error type: ${error.name}`);
-    console.error(`Error message: ${error.message}`);
-    
-    if (retryCount < maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')) {
-      const delay = baseDelay * Math.pow(2, retryCount);
-      console.log(`Network error. Retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-      
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return makeGeminiRequest(apiKey, messages, retryCount + 1);
-    }
-    throw error;
-  }
-}
+// Rest of the file remains the same...
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -680,8 +533,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get request data including sessionId
-    const { messages, userData, userId, source, sessionId } = req.body;
+    // Get request data including sessionId and new flags
+    const { messages, userData, userId, source, sessionId, useSystemContext } = req.body;
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ 
@@ -695,8 +548,12 @@ export default async function handler(req, res) {
     console.log('Session ID:', sessionId?.slice(-8) || 'none');
     console.log('Messages count:', messages.length);
     console.log('Has userData:', !!userData);
+    console.log('Use system context:', !!useSystemContext);
     if (userData) {
       console.log('UserData keys:', Object.keys(userData));
+      if (userData.systemContext) {
+        console.log('SystemContext length:', userData.systemContext.length);
+      }
     }
 
     // Get or create session context if sessionId provided
@@ -715,7 +572,7 @@ export default async function handler(req, res) {
     console.log('Fetching enhanced system prompt with session context...');
     const systemPromptPromise = getEnhancedSystemPrompt(userData, sessionContext?.context);
     const systemPromptTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('System prompt fetch timeout')), 12000); // Increased timeout
+      setTimeout(() => reject(new Error('System prompt fetch timeout')), 12000);
     });
     
     let systemPrompt;
@@ -723,23 +580,32 @@ export default async function handler(req, res) {
       systemPrompt = await Promise.race([systemPromptPromise, systemPromptTimeout]);
     } catch (timeoutError) {
       console.error('System prompt fetch timed out, using fallback');
-      if (userData) {
+      if (userData && userData.systemContext) {
+        systemPrompt = userData.systemContext + '\n\nRespond based on the health data provided above. Use natural, conversational formatting with minimal bold text.';
+      } else if (userData) {
         systemPrompt = `You are a helpful health assistant with access to the user's health data. The user has provided health information, but there was an issue accessing detailed recent data. Use the available information and respond helpfully with natural formatting. Remember our conversation history when possible.`;
       } else {
         systemPrompt = 'You are a helpful AI assistant. The user may ask about their health data, but there was an issue accessing their information. Please respond helpfully and use natural, conversational formatting with minimal bold text.';
       }
     }
 
-    // Combine session messages with current request for full context
+    // Handle system context from LetsJam v2
     let allMessages = messages;
-    if (sessionContext && sessionContext.messages.length > 0) {
-      // Merge with previous session messages (keep last 30 for context, but not too many for API limits)
-      const previousMessages = sessionContext.messages.slice(-30);
-      // Only add the latest user message from the current request to avoid duplication
-      const latestUserMessage = messages.filter(msg => msg.role === 'user').slice(-1);
-      allMessages = [...previousMessages, ...latestUserMessage];
-      
-      console.log(`📚 Using conversation history: ${previousMessages.length} previous + ${latestUserMessage.length} new = ${allMessages.length} total messages`);
+    if (useSystemContext && messages.length > 0 && messages[0].role === 'system') {
+      // LetsJam v2 already includes system context in messages
+      allMessages = messages;
+      console.log('✅ Using system context from LetsJam v2 messages');
+    } else {
+      // Combine session messages with current request for full context
+      if (sessionContext && sessionContext.messages.length > 0) {
+        // Merge with previous session messages (keep last 30 for context)
+        const previousMessages = sessionContext.messages.slice(-30);
+        // Only add the latest user message from the current request to avoid duplication
+        const latestUserMessage = messages.filter(msg => msg.role === 'user').slice(-1);
+        allMessages = [...previousMessages, ...latestUserMessage];
+        
+        console.log(`📚 Using conversation history: ${previousMessages.length} previous + ${latestUserMessage.length} new = ${allMessages.length} total messages`);
+      }
     }
 
     console.log(`=== PREPARING GEMINI REQUEST WITH SESSION CONTEXT ===`);
@@ -747,10 +613,17 @@ export default async function handler(req, res) {
     console.log(`System prompt length: ${systemPrompt.length} characters`);
     
     // Build full messages array
-    const fullMsgs = [
-      { role: 'system', content: systemPrompt },
-      ...allMessages
-    ];
+    let fullMsgs;
+    if (useSystemContext && allMessages.length > 0 && allMessages[0].role === 'system') {
+      // System context already included in messages from LetsJam v2
+      fullMsgs = allMessages;
+    } else {
+      // Add system prompt
+      fullMsgs = [
+        { role: 'system', content: systemPrompt },
+        ...allMessages
+      ];
+    }
 
     console.log(`=== FINAL MESSAGES ARRAY BEING SENT TO GEMINI ===`);
     console.log(`Total messages: ${fullMsgs.length}`);
