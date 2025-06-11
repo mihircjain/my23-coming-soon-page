@@ -32,8 +32,36 @@ function initializeFirebase() {
   }
 }
 
+// Rate limiting
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // Max requests per window
+
+function isRateLimited(clientIP) {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  if (!requestCounts.has(clientIP)) {
+    requestCounts.set(clientIP, []);
+  }
+  
+  const requests = requestCounts.get(clientIP);
+  
+  // Remove old requests outside the window
+  const recentRequests = requests.filter(timestamp => timestamp > windowStart);
+  requestCounts.set(clientIP, recentRequests);
+  
+  // Check if limit exceeded
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+  
+  // Add current request
+  recentRequests.push(now);
+  return false;
+}
+
 // Enhanced session storage for maintaining context across requests
-// In production, use Redis, DynamoDB, or a proper database
 const sessionStorage = new Map();
 
 // Session cleanup - remove sessions older than 24 hours
@@ -155,19 +183,15 @@ function generateConversationSummary(messages) {
   };
 }
 
-// Updated chat.js to handle the new LetsJam v2 data format
-
-// ... (keep all existing imports and helper functions) ...
-
-// Enhanced system prompt with better handling of systemContext from LetsJam
+// SIMPLIFIED: Enhanced system prompt with better handling of systemContext from LetsJam
 async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
   const firestore = initializeFirebase();
   
   let systemContent = '';
   
-  // IMPORTANT: Check if userData contains systemContext from LetsJam v2
+  // IMPORTANT: Check if userData contains systemContext from LetsJam v2 (SIMPLIFIED VERSION)
   if (userData && userData.systemContext) {
-    console.log('Using systemContext from LetsJam v2...');
+    console.log('✅ Using SIMPLIFIED systemContext from LetsJam...');
     systemContent += userData.systemContext;
     systemContent += '\n\n';
     
@@ -192,310 +216,174 @@ async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
     systemContent += `- Reference previous conversation context when relevant\n`;
     systemContent += `- Provide specific, actionable insights based on the data\n`;
     systemContent += `- Always finish your thoughts completely - never end abruptly\n`;
-    systemContent += `- Aim for helpful, detailed responses that fully address the user's question\n\n`;
+    systemContent += `- Aim for helpful, detailed responses that fully address the user's question\n`;
+    systemContent += `- CALORIES: All calorie data is now taken directly from Strava API - no conversions needed\n\n`;
     
-    console.log(`✅ Using systemContext from LetsJam v2 (${userData.systemContext.length} chars)`);
+    console.log(`✅ Using SIMPLIFIED systemContext from LetsJam (${userData.systemContext.length} chars)`);
     return systemContent;
   }
   
-  // Add session context if available (for non-LetsJam requests)
-  if (sessionContext && sessionContext.conversationSummary) {
-    systemContent += `=== CONVERSATION CONTEXT ===\n`;
-    systemContent += `Session Age: ${Math.round(sessionContext.conversationSummary.conversationAge / (1000 * 60))} minutes\n`;
-    systemContent += `Topics Previously Discussed: ${sessionContext.conversationSummary.topics.join(', ')}\n`;
-    systemContent += `Message Count: ${sessionContext.conversationSummary.messageCount}\n`;
-    
-    if (sessionContext.conversationSummary.recentQuestions.length > 0) {
-      systemContent += `Recent Questions:\n`;
-      sessionContext.conversationSummary.recentQuestions.forEach((q, i) => {
-        systemContent += `  ${i + 1}. ${q}\n`;
-      });
-    }
-    systemContent += '\n';
+  // Fallback system prompt if no systemContext provided
+  if (!userData) {
+    return 'You are a helpful AI health assistant. Please respond conversationally and remember our previous interactions in this session. Use clear, natural formatting with minimal bold text. All calorie data comes directly from Strava API.';
   }
   
-  // Add user preferences from session
-  if (sessionContext && sessionContext.userPreferences && Object.keys(sessionContext.userPreferences).length > 0) {
-    systemContent += `=== USER PREFERENCES ===\n`;
-    Object.entries(sessionContext.userPreferences).forEach(([key, value]) => {
-      systemContent += `${key}: ${value}\n`;
+  // Build basic system prompt for other sources
+  systemContent += `You are a personal health assistant with access to health data:\n\n`;
+  
+  // Add basic health data structure if available
+  if (userData.nutrition) {
+    systemContent += `=== NUTRITION (7-day averages) ===\n`;
+    systemContent += `Daily calories: ${userData.nutrition.avgCalories}\n`;
+    systemContent += `Daily protein: ${userData.nutrition.avgProtein}g\n`;
+    systemContent += `Daily carbs: ${userData.nutrition.avgCarbs}g\n`;
+    systemContent += `Daily fat: ${userData.nutrition.avgFat}g\n\n`;
+  }
+  
+  if (userData.activity) {
+    systemContent += `=== ACTIVITY (7-day summary) ===\n`;
+    systemContent += `Workouts per week: ${userData.activity.workoutsPerWeek}\n`;
+    systemContent += `Average heart rate: ${userData.activity.avgHeartRate} bpm\n`;
+    systemContent += `Average calories per workout: ${userData.activity.avgCaloriesBurned} (direct from Strava)\n\n`;
+  }
+  
+  if (userData.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0) {
+    systemContent += `=== BLOOD MARKERS (Latest) ===\n`;
+    Object.entries(userData.bloodMarkers).forEach(([key, value]) => {
+      if (key !== 'date' && value) {
+        systemContent += `${key}: ${value}\n`;
+      }
     });
     systemContent += '\n';
   }
   
-  // Use structured userData if available (fallback for other sources)
-  if (userData && !userData.systemContext) {
-    console.log('Building system prompt with structured userData...');
-    
-    systemContent += `You are a personal health assistant with access to comprehensive health data and conversation history:\n\n`;
-    
-    // Add structured nutrition data
-    if (userData.nutrition) {
-      systemContent += `=== NUTRITION AVERAGES (7-day) ===\n`;
-      systemContent += `- Daily calories: ${userData.nutrition.avgCaloriesPerDay}\n`;
-      systemContent += `- Daily protein: ${userData.nutrition.avgProteinPerDay}g\n`;
-      systemContent += `- Daily carbs: ${userData.nutrition.avgCarbsPerDay}g\n`;
-      systemContent += `- Daily fat: ${userData.nutrition.avgFatPerDay}g\n`;
-      systemContent += `- Daily fiber: ${userData.nutrition.avgFiberPerDay}g\n\n`;
-    }
-    
-    // Add structured activity data
-    if (userData.activity) {
-      systemContent += `=== ACTIVITY AVERAGES (7-day) ===\n`;
-      systemContent += `- Workouts per week: ${userData.activity.workoutsPerWeek}\n`;
-      systemContent += `- Average workout heart rate: ${userData.activity.avgHeartRatePerWorkout} bpm\n`;
-      systemContent += `- Average calories burned per workout: ${userData.activity.avgCaloriesBurnedPerWorkout}\n`;
-      systemContent += `- Average workout duration: ${userData.activity.avgWorkoutDurationMinutes} minutes\n\n`;
-    }
-    
-    // Add structured blood markers
-    if (userData.bloodMarkers && userData.bloodMarkers.values) {
-      systemContent += `=== BLOOD TEST RESULTS (Latest) ===\n`;
-      systemContent += `Test Date: ${userData.bloodMarkers.testDate}\n\n`;
-      
-      const values = userData.bloodMarkers.values;
-      
-      if (values.cholesterol) {
-        systemContent += `Cholesterol Panel:\n`;
-        systemContent += `- Total: ${values.cholesterol.total}\n`;
-        systemContent += `- LDL: ${values.cholesterol.ldl}\n`;
-        systemContent += `- HDL: ${values.cholesterol.hdl}\n\n`;
-      }
-      
-      if (values.metabolic) {
-        systemContent += `Metabolic Markers:\n`;
-        systemContent += `- Glucose: ${values.metabolic.glucose}\n`;
-        systemContent += `- HbA1C: ${values.metabolic.hba1c}\n\n`;
-      }
-      
-      if (values.minerals) {
-        systemContent += `Minerals:\n`;
-        systemContent += `- Calcium: ${values.minerals.calcium}\n`;
-        systemContent += `- Sodium: ${values.minerals.sodium}\n`;
-        systemContent += `- Potassium: ${values.minerals.potassium}\n\n`;
-      }
-      
-      if (values.kidneyFunction) {
-        systemContent += `Kidney Function:\n`;
-        systemContent += `- Creatinine: ${values.kidneyFunction.creatinine}\n\n`;
-      }
-      
-      if (values.bloodCells) {
-        systemContent += `Blood Cells:\n`;
-        systemContent += `- Hemoglobin: ${values.bloodCells.hemoglobin}\n`;
-        systemContent += `- RBC: ${values.bloodCells.rbc}\n`;
-        systemContent += `- Platelet Count: ${values.bloodCells.plateletCount}\n\n`;
-      }
-      
-      if (values.hormones) {
-        systemContent += `Hormones:\n`;
-        systemContent += `- TSH: ${values.hormones.tsh}\n\n`;
-      }
-    }
-    
-    systemContent += `=== RESPONSE FORMATTING GUIDELINES ===\n`;
-    systemContent += `CRITICAL: Follow these formatting rules strictly:\n`;
-    systemContent += `- Write complete, comprehensive responses - don't cut off mid-thought\n`;
-    systemContent += `- Use **bold text** SPARINGLY - only for key metrics, important findings, or section headers\n`;
-    systemContent += `- Write in clear, conversational paragraphs with natural flow\n`;
-    systemContent += `- Provide thorough analysis and complete explanations\n`;
-    systemContent += `- When discussing multiple topics, address each one fully\n`;
-    systemContent += `- Use natural transitions between ideas\n`;
-    systemContent += `- Break information into digestible paragraphs but keep responses complete\n`;
-    systemContent += `- Be warm, personal, and encouraging in tone\n`;
-    systemContent += `- Reference previous conversation context when relevant\n`;
-    systemContent += `- Provide specific, actionable insights based on the data\n`;
-    systemContent += `- Always finish your thoughts completely - never end abruptly\n`;
-    systemContent += `- Aim for helpful, detailed responses that fully address the user's question\n\n`;
-    
-    systemContent += `=== IMPORTANT INSTRUCTIONS ===\n`;
-    systemContent += `When answering questions about:\n`;
-    systemContent += `- BLOOD MARKERS: Use ONLY the blood test results above and provide context about normal ranges\n`;
-    systemContent += `- NUTRITION: Use ONLY the nutrition averages above and compare to recommended daily values\n`;
-    systemContent += `- ACTIVITY/WORKOUTS: Use ONLY the activity averages above and provide fitness context\n`;
-    systemContent += `- CONTEXT: Remember and build upon previous conversations in this session\n`;
-    systemContent += `- PERSONALIZATION: Tailor responses to user's specific data and previous discussions\n\n`;
-  }
+  systemContent += `Respond based on this health data. Use natural, conversational formatting. All calorie values come directly from Strava API. Remember our conversation history when possible.`;
   
-  // Add recent detailed data from Firestore (if available) - but skip if systemContext already provided
-  if (!firestore || (userData && userData.systemContext)) {
-    console.log('Firestore not available or systemContext provided, using structured data only');
-    if (!userData) {
-      return 'You are a helpful AI assistant with access to conversation history. Please respond conversationally and remember our previous interactions in this session. Use clear, natural formatting with minimal bold text.';
-    }
-    if (!userData.systemContext) {
-      systemContent += `Respond based on the health data provided above and our conversation history. Be conversational, remember what we've discussed, and provide actionable insights with clear, natural formatting.`;
-    }
-    return systemContent;
-  }
+  return systemContent;
+}
 
+// SIMPLIFIED: Gemini API request function with better error handling
+async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
+  const maxRetries = 2;
+  const timeout = 45000; // 45 seconds
+  
   try {
-    console.log('Fetching recent detailed data from Firestore...');
+    console.log(`🚀 Making Gemini request (attempt ${retryCount + 1}/${maxRetries + 1})`);
     
-    // Get last 10 days of detailed data
-    const tenDaysAgo = new Date();
-    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-    tenDaysAgo.setHours(0, 0, 0, 0);
-    
-    console.log(`Fetching detailed data from ${tenDaysAgo.toISOString()} onwards`);
-    
-    // Create timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Firestore query timeout')), 8000);
-    });
-    
-    let foodData = [];
-    let activityData = [];
-    
-    const queryPromise = (async () => {
-      // Fetch recent Strava activities for detailed view
-      try {
-        console.log('Fetching recent activities from strava_data collection...');
-        const stravaRef = collection(firestore, 'strava_data');
-        const stravaQuery = query(
-          stravaRef,
-          where('userId', '==', 'mihir_jain'),
-          where('start_date', '>=', tenDaysAgo.toISOString()),
-          orderBy('start_date', 'desc'),
-          limit(15)
-        );
-        
-        const stravaSnapshot = await getDocs(stravaQuery);
-        console.log(`Found ${stravaSnapshot.size} recent Strava activities`);
-        
-        stravaSnapshot.forEach(doc => {
-          const data = doc.data();
-          
-          console.log(`Activity: ${data.name} on ${data.start_date} - ${data.distance}km - ${data.caloriesBurned}cal`);
-          
-          const activity = {
-            id: doc.id,
-            date: new Date(data.start_date),
-            content: data.name || 'Workout',
-            type: data.type || 'activity',
-            details: {
-              duration: data.duration || (data.moving_time ? Math.round(data.moving_time / 60) : null),
-              distance: data.distance ? data.distance.toFixed(2) + ' km' : null,
-              calories: data.caloriesBurned || data.calories,
-              heartRate: data.heart_rate || data.average_heartrate,
-              elevationGain: data.elevation_gain
-            }
-          };
-          
-          activityData.push(activity);
-        });
-      } catch (stravaError) {
-        console.log('Error fetching Strava data:', stravaError.message);
-      }
-      
-      // Fetch recent nutrition data for detailed view
-      try {
-        console.log('Fetching recent nutrition data...');
-        
-        // Get date strings for last 5 days
-        const dates = [];
-        for (let i = 0; i < 5; i++) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          dates.push(date.toISOString().split('T')[0]);
+    // SIMPLIFIED: Basic request body with direct calorie context
+    const requestBody = {
+      contents: messages.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      })),
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048,
+        stopSequences: []
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH", 
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE"
         }
-        
-        console.log('Looking for recent nutrition dates:', dates);
-        
-        for (const dateStr of dates) {
-          try {
-            const nutritionRef = doc(firestore, 'nutritionLogs', dateStr);
-            const nutritionDoc = await getDoc(nutritionRef);
-            
-            if (nutritionDoc.exists()) {
-              const data = nutritionDoc.data();
-              
-              if (data.totals) {
-                const totals = data.totals;
-                
-                const nutritionDay = {
-                  date: new Date(dateStr),
-                  totals: {
-                    calories: Math.round(totals.calories || 0),
-                    protein: Math.round((totals.protein || 0) * 10) / 10,
-                    fat: Math.round((totals.fat || 0) * 10) / 10,
-                    carbs: Math.round((totals.carbs || 0) * 10) / 10,
-                    fiber: Math.round((totals.fiber || 0) * 10) / 10
-                  }
-                };
-                
-                console.log(`✅ Added recent nutrition: ${dateStr} = ${nutritionDay.totals.calories} cal`);
-                foodData.push(nutritionDay);
-              }
-            }
-          } catch (error) {
-            console.log(`Error fetching ${dateStr}:`, error.message);
-          }
-        }
-      } catch (nutritionError) {
-        console.log('Error fetching nutrition data:', nutritionError.message);
+      ]
+    };
+
+    console.log(`📤 Request body size: ${JSON.stringify(requestBody).length} characters`);
+    
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       }
-      
-      return { foodData, activityData };
-    })();
+    );
     
-    // Race between query and timeout
-    const { foodData: foods, activityData: activities } = await Promise.race([queryPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
     
-    console.log(`Successfully fetched ${foods.length} recent nutrition days and ${activities.length} recent activities`);
+    console.log(`📥 Gemini response: ${response.status} ${response.statusText}`);
     
-    // Add recent detailed data to system prompt
-    if (foods.length > 0 || activities.length > 0) {
-      systemContent += `=== RECENT DETAILED DATA (Last 10 days) ===\n\n`;
-      
-      if (activities.length > 0) {
-        systemContent += `RECENT ACTIVITIES:\n`;
-        activities.slice(0, 10).forEach(activity => {
-          const date = activity.date.toLocaleDateString();
-          const time = activity.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          const duration = activity.details.duration ? ` (${activity.details.duration} min)` : '';
-          const distance = activity.details.distance ? ` - ${activity.details.distance}` : '';
-          const calories = activity.details.calories ? ` - ${activity.details.calories} cal` : '';
-          const heartRate = activity.details.heartRate ? ` - HR: ${activity.details.heartRate} bpm` : '';
-          systemContent += `${date} ${time}: ${activity.content}${duration}${distance}${calories}${heartRate}\n`;
-        });
-        systemContent += '\n';
-      }
-      
-      if (foods.length > 0) {
-        systemContent += `RECENT NUTRITION (Daily totals):\n`;
-        foods.sort((a, b) => new Date(b.date) - new Date(a.date));
-        foods.forEach(nutritionDay => {
-          if (nutritionDay.totals) {
-            const date = nutritionDay.date.toLocaleDateString();
-            const totals = nutritionDay.totals;
-            systemContent += `${date}: ${totals.calories} cal | ${totals.protein}g protein | ${totals.fat}g fat | ${totals.carbs}g carbs | ${totals.fiber}g fiber\n`;
-          }
-        });
-        systemContent += '\n';
-      }
-    }
-    
-    systemContent += `Based on both the 7-day averages and recent detailed data above, along with our conversation history, provide personalized insights. When asked about blood markers, reference ONLY the blood test results. When asked about recent activities or food, you can reference both the averages and specific recent entries. Use natural, conversational formatting with minimal bold text. Remember and build upon previous discussions in this session.`;
-    
-    console.log(`=== BUILT ENHANCED SYSTEM PROMPT WITH SESSION CONTEXT (${systemContent.length} characters) ===`);
-    console.log(systemContent.substring(0, 500) + '...');
-    console.log(`=== END SYSTEM PROMPT ===`);
-    
-    return systemContent;
+    return response;
     
   } catch (error) {
-    console.error('Error fetching detailed data from Firestore:', error.message);
-    if (userData) {
-      systemContent += `Respond based on the health data provided above and our conversation history. There was an issue accessing recent detailed activity data, but the averages above are still available. Use natural formatting and remember our previous discussions.`;
-      return systemContent;
+    console.error(`❌ Gemini request failed (attempt ${retryCount + 1}):`, error.message);
+    
+    // Retry logic for specific errors
+    if (retryCount < maxRetries) {
+      if (error.name === 'AbortError') {
+        console.log('⏱️ Request timed out, retrying...');
+      } else if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+        console.log('🌐 Network error, retrying...');
+      } else {
+        console.log('🔄 Retrying request...');
+      }
+      
+      // Wait before retry (exponential backoff)
+      const waitTime = Math.pow(2, retryCount) * 1000;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      return makeGeminiRequest(apiKey, messages, retryCount + 1);
     }
-    return 'You are a helpful AI assistant. There was an issue accessing health data, but please continue our conversation based on what we\'ve discussed before. Use clear, natural formatting.';
+    
+    throw error;
   }
 }
 
-// Rest of the file remains the same...
+// Convert Gemini response to OpenAI-compatible format
+function convertGeminiResponseToOpenAI(geminiResponse) {
+  if (!geminiResponse.candidates || geminiResponse.candidates.length === 0) {
+    throw new Error('No response candidates from Gemini API');
+  }
 
+  const candidate = geminiResponse.candidates[0];
+  
+  if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+    throw new Error('Invalid response structure from Gemini API');
+  }
+
+  const content = candidate.content.parts[0].text || '';
+  
+  return {
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: content
+        },
+        finish_reason: candidate.finishReason || 'stop'
+      }
+    ],
+    usage: geminiResponse.usageMetadata || {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0
+    }
+  };
+}
+
+// MAIN HANDLER with enhanced error handling and SIMPLIFIED calorie processing
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
@@ -519,7 +407,7 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     
     if (!apiKey) {
-      console.error('Gemini API key is missing');
+      console.error('❌ Gemini API key is missing');
       return res.status(500).json({ 
         error: 'Server configuration error: Gemini API key not found' 
       });
@@ -527,7 +415,7 @@ export default async function handler(req, res) {
 
     // Validate API key format (Gemini keys start with AIza)
     if (!apiKey.startsWith('AIza') || apiKey.length < 35) {
-      console.error('Invalid Gemini API key format');
+      console.error('❌ Invalid Gemini API key format');
       return res.status(500).json({ 
         error: 'Server configuration error: Invalid API key format' 
       });
@@ -542,17 +430,19 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('=== INCOMING REQUEST ===');
+    console.log('=== INCOMING REQUEST (SIMPLIFIED) ===');
     console.log('Source:', source);
     console.log('User ID:', userId);
     console.log('Session ID:', sessionId?.slice(-8) || 'none');
     console.log('Messages count:', messages.length);
     console.log('Has userData:', !!userData);
     console.log('Use system context:', !!useSystemContext);
+    console.log('Calorie source: Direct from Strava API (simplified)');
     if (userData) {
       console.log('UserData keys:', Object.keys(userData));
       if (userData.systemContext) {
         console.log('SystemContext length:', userData.systemContext.length);
+        console.log('SystemContext preview:', userData.systemContext.substring(0, 200) + '...');
       }
     }
 
@@ -560,7 +450,7 @@ export default async function handler(req, res) {
     let sessionContext = null;
     if (sessionId) {
       sessionContext = getSessionContext(sessionId, userId);
-      console.log('Session context:', {
+      console.log('📚 Session context:', {
         messageCount: sessionContext.messages.length,
         topics: sessionContext.context.conversationSummary?.topics || [],
         lastActivity: new Date(sessionContext.lastActivity).toLocaleTimeString(),
@@ -568,39 +458,36 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get enhanced system prompt with session context
-    console.log('Fetching enhanced system prompt with session context...');
+    // Get enhanced system prompt with session context - SIMPLIFIED VERSION
+    console.log('🔄 Fetching SIMPLIFIED system prompt with session context...');
     const systemPromptPromise = getEnhancedSystemPrompt(userData, sessionContext?.context);
     const systemPromptTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('System prompt fetch timeout')), 12000);
+      setTimeout(() => reject(new Error('System prompt fetch timeout')), 8000); // Reduced timeout
     });
     
     let systemPrompt;
     try {
       systemPrompt = await Promise.race([systemPromptPromise, systemPromptTimeout]);
     } catch (timeoutError) {
-      console.error('System prompt fetch timed out, using fallback');
+      console.error('⏱️ System prompt fetch timed out, using fallback');
       if (userData && userData.systemContext) {
-        systemPrompt = userData.systemContext + '\n\nRespond based on the health data provided above. Use natural, conversational formatting with minimal bold text.';
-      } else if (userData) {
-        systemPrompt = `You are a helpful health assistant with access to the user's health data. The user has provided health information, but there was an issue accessing detailed recent data. Use the available information and respond helpfully with natural formatting. Remember our conversation history when possible.`;
+        systemPrompt = userData.systemContext + '\n\nRespond based on the health data provided above. Use natural, conversational formatting with minimal bold text. All calories are direct from Strava API.';
       } else {
-        systemPrompt = 'You are a helpful AI assistant. The user may ask about their health data, but there was an issue accessing their information. Please respond helpfully and use natural, conversational formatting with minimal bold text.';
+        systemPrompt = 'You are a helpful AI health assistant. All calorie data comes directly from Strava API. Use natural, conversational formatting with minimal bold text.';
       }
     }
 
-    // Handle system context from LetsJam v2
+    // Handle system context from LetsJam v2 (SIMPLIFIED)
     let allMessages = messages;
     if (useSystemContext && messages.length > 0 && messages[0].role === 'system') {
       // LetsJam v2 already includes system context in messages
       allMessages = messages;
-      console.log('✅ Using system context from LetsJam v2 messages');
+      console.log('✅ Using SIMPLIFIED system context from LetsJam messages');
     } else {
       // Combine session messages with current request for full context
       if (sessionContext && sessionContext.messages.length > 0) {
-        // Merge with previous session messages (keep last 30 for context)
-        const previousMessages = sessionContext.messages.slice(-30);
-        // Only add the latest user message from the current request to avoid duplication
+        // Merge with previous session messages (keep last 20 for context)
+        const previousMessages = sessionContext.messages.slice(-20); // Reduced context size
         const latestUserMessage = messages.filter(msg => msg.role === 'user').slice(-1);
         allMessages = [...previousMessages, ...latestUserMessage];
         
@@ -608,11 +495,12 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`=== PREPARING GEMINI REQUEST WITH SESSION CONTEXT ===`);
+    console.log(`=== PREPARING SIMPLIFIED GEMINI REQUEST ===`);
     console.log(`Total conversation messages: ${allMessages.length}`);
     console.log(`System prompt length: ${systemPrompt.length} characters`);
+    console.log(`Calorie data: Simplified - direct from Strava API`);
     
-    // Build full messages array
+    // Build full messages array - SIMPLIFIED VERSION
     let fullMsgs;
     if (useSystemContext && allMessages.length > 0 && allMessages[0].role === 'system') {
       // System context already included in messages from LetsJam v2
@@ -625,30 +513,27 @@ export default async function handler(req, res) {
       ];
     }
 
-    console.log(`=== FINAL MESSAGES ARRAY BEING SENT TO GEMINI ===`);
+    console.log(`=== FINAL SIMPLIFIED MESSAGES ARRAY ===`);
     console.log(`Total messages: ${fullMsgs.length}`);
     fullMsgs.forEach((msg, index) => {
-      console.log(`Message ${index}:`);
-      console.log(`  Role: ${msg.role}`);
-      console.log(`  Content length: ${msg.content?.length || 0} characters`);
+      console.log(`Message ${index}: ${msg.role} (${msg.content?.length || 0} chars)`);
       if (msg.role === 'system') {
-        console.log(`  System content preview: ${msg.content.substring(0, 200)}...`);
-      } else if (msg.content) {
-        console.log(`  Content preview: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`);
+        console.log(`  System content preview: ${msg.content.substring(0, 150)}...`);
       }
     });
     console.log(`=== END MESSAGES ARRAY ===`);
 
-    // Make request to Gemini API with retry logic
+    // Make request to Gemini API with retry logic - SIMPLIFIED
+    console.log('🚀 Making SIMPLIFIED Gemini request...');
     const geminiResponse = await makeGeminiRequest(apiKey, fullMsgs);
 
-    console.log(`=== GEMINI RESPONSE ===`);
+    console.log(`=== GEMINI RESPONSE (SIMPLIFIED) ===`);
     console.log(`Status: ${geminiResponse.status}`);
 
-    // Check if response is OK
+    // Enhanced error handling
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text();
-      console.error(`Gemini API error (${geminiResponse.status}):`, errorText);
+      console.error(`❌ Gemini API error (${geminiResponse.status}):`, errorText);
       
       // Parse error details if available
       let errorDetails = null;
@@ -658,40 +543,42 @@ export default async function handler(req, res) {
         // Error text is not JSON
       }
       
-      // Handle specific error codes
+      // Handle specific error codes with better messages
       switch (geminiResponse.status) {
         case 400:
           return res.status(400).json({ 
-            error: 'Bad request - check message format',
-            details: errorDetails?.error?.message || 'Invalid request format'
+            error: 'Invalid request format - please try a simpler question',
+            details: errorDetails?.error?.message || 'Bad request'
           });
         case 401:
           return res.status(500).json({ 
-            error: 'Authentication failed - check API key configuration' 
+            error: 'Authentication failed - server configuration issue' 
           });
         case 403:
           return res.status(403).json({ 
-            error: 'Access denied - check API key permissions',
+            error: 'Access denied - API key permissions issue',
             details: errorDetails?.error?.message || 'Forbidden'
           });
         case 429:
           return res.status(429).json({ 
             error: 'AI service is busy. Please try again in a moment.',
-            details: errorDetails?.error?.message || 'Rate limit exceeded',
+            details: 'Rate limit exceeded - too many requests',
             retryAfter: 30
           });
         case 500:
           return res.status(500).json({ 
-            error: 'AI service internal error - please try again' 
+            error: 'AI service internal error - please try again',
+            details: 'Gemini API server error'
           });
         case 503:
           return res.status(503).json({ 
-            error: 'AI service overloaded - please try again in a few minutes' 
+            error: 'AI service temporarily unavailable - please try again in a few minutes',
+            details: 'Service overloaded'
           });
         default:
           return res.status(500).json({ 
-            error: `AI service error: ${geminiResponse.status}`,
-            details: errorDetails?.error?.message || errorText
+            error: `AI service error (${geminiResponse.status}) - please try again`,
+            details: errorDetails?.error?.message || errorText.substring(0, 200)
           });
       }
     }
@@ -699,7 +586,7 @@ export default async function handler(req, res) {
     // Parse and return the response
     const responseData = await geminiResponse.json();
     
-    console.log(`=== GEMINI RESPONSE DATA ===`);
+    console.log(`=== SIMPLIFIED GEMINI RESPONSE DATA ===`);
     console.log(`Response object keys:`, Object.keys(responseData));
     if (responseData.candidates && responseData.candidates[0]) {
       const responseContent = responseData.candidates[0].content?.parts?.[0]?.text;
@@ -730,7 +617,7 @@ export default async function handler(req, res) {
       // Update user preferences based on conversation patterns
       const userPreferences = { ...sessionContext.context.userPreferences };
       
-      // Simple preference learning - could be enhanced
+      // Simple preference learning - enhanced for SIMPLIFIED version
       if (assistantContent.toLowerCase().includes('protein')) {
         userPreferences.interestedInProtein = true;
       }
@@ -740,51 +627,66 @@ export default async function handler(req, res) {
       if (assistantContent.toLowerCase().includes('blood') || assistantContent.toLowerCase().includes('cholesterol')) {
         userPreferences.interestedInBloodMarkers = true;
       }
+      if (assistantContent.toLowerCase().includes('calorie')) {
+        userPreferences.interestedInCalories = true;
+        userPreferences.prefersSimplifiedCalories = true; // New preference for simplified approach
+      }
       
       updateSessionContext(sessionId, updatedMessages, {
         conversationSummary,
         userPreferences,
         lastDataFetch: new Date().toISOString(),
-        questionCount: (sessionContext.context.questionCount || 0) + 1
+        questionCount: (sessionContext.context.questionCount || 0) + 1,
+        calorieDataSource: 'direct_strava_simplified' // Track data source
       });
       
-      console.log(`💾 Updated session ${sessionId.slice(-8)} with new conversation data`);
+      console.log(`💾 Updated SIMPLIFIED session ${sessionId.slice(-8)} with new conversation data`);
       console.log(`📊 Session stats: ${updatedMessages.length} messages, ${conversationSummary?.topics?.length || 0} topics discussed`);
     }
     
-    console.log('=== GEMINI API CALL SUCCESSFUL WITH SESSION CONTEXT ===');
+    console.log('=== SIMPLIFIED GEMINI API CALL SUCCESSFUL ===');
     console.log(`✅ Response delivered for session ${sessionId?.slice(-8) || 'none'}`);
+    console.log(`✅ Calorie data: Direct from Strava API (simplified approach)`);
     
     return res.status(200).json({
       ...convertedResponse,
       sessionId: sessionId,
+      dataSource: 'simplified_strava_calories',
       sessionInfo: sessionContext ? {
         messageCount: sessionContext.messages.length + 1, // +1 for the new message
         topics: sessionContext.context.conversationSummary?.topics || [],
         sessionAge: Math.round((Date.now() - sessionContext.createdAt) / (1000 * 60)),
-        preferences: Object.keys(sessionContext.context.userPreferences || {})
+        preferences: Object.keys(sessionContext.context.userPreferences || {}),
+        calorieSource: 'direct_strava_simplified'
       } : null
     });
 
   } catch (error) {
-    console.error('Handler error:', error);
+    console.error('❌ Handler error:', error);
     
-    // Handle specific fetch errors
+    // Handle specific fetch errors with better messages
     if (error.code === 'ENOTFOUND') {
       return res.status(500).json({ 
-        error: 'Network error: Could not reach AI service' 
+        error: 'Network error: Could not reach AI service. Please check your internet connection.' 
       });
     }
     
     if (error.name === 'AbortError') {
       return res.status(500).json({ 
-        error: 'Request timeout: AI service did not respond in time' 
+        error: 'Request timeout: AI service did not respond in time. Please try again.' 
+      });
+    }
+    
+    if (error.message && error.message.includes('fetch')) {
+      return res.status(500).json({ 
+        error: 'Network error: Failed to connect to AI service. Please try again.' 
       });
     }
     
     return res.status(500).json({ 
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
+      error: 'Internal server error - please try again',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred',
+      source: 'simplified_calorie_handler'
     });
   }
 }
