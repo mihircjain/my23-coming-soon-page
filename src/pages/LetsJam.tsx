@@ -303,13 +303,7 @@ const SmartHealthSummary: React.FC<{
       )}
     </div>
   );
-};ested' : 
-                 structuredData.trends.recoveryStatus === 'moderate' ? 'Moderate load' : 'High load'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+};
       
       {/* Recent Runs Timeline */}
       {recentRuns.length > 0 && (
