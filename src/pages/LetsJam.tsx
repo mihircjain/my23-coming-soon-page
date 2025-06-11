@@ -68,6 +68,39 @@ interface RecentActivity {
   caloriesBurned?: number;
 }
 
+// Enhanced Message Content Component with proper formatting
+const MessageContent: React.FC<{ content: string }> = ({ content }) => {
+  const formatContent = (text: string) => {
+    // Split by lines and process each line
+    return text.split('\n').map((line, lineIndex) => {
+      if (!line.trim()) {
+        return <div key={lineIndex} className="h-2" />; // Empty line spacing
+      }
+      
+      // Process bold text **text**
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+      const formattedParts = parts.map((part, partIndex) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return (
+            <strong key={partIndex} className="font-semibold text-gray-900">
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+        return part;
+      });
+      
+      return (
+        <div key={lineIndex} className="mb-1 last:mb-0">
+          {formattedParts}
+        </div>
+      );
+    });
+  };
+
+  return <div>{formatContent(content)}</div>;
+};
+
 // Daily Health Box Component with Health Score
 const DailyHealthBox: React.FC<{
   data: HealthData;
@@ -217,8 +250,81 @@ const LetsJam = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   
+  // Session management for context preservation
+  const [sessionId, setSessionId] = useState(() => {
+    // Only access localStorage on client side
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('letsJam-chat-session-id');
+      if (saved) {
+        console.log('🔄 Restored existing session:', saved.slice(-8));
+        return saved;
+      }
+      const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('letsJam-chat-session-id', newId);
+      console.log('🆕 Created new session:', newId.slice(-8));
+      return newId;
+    }
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  });
+  
   // Hardcoded userId for consistency
   const userId = "mihir_jain";
+
+  // Session management functions
+  const createNewSession = () => {
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setSessionId(newSessionId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('letsJam-chat-session-id', newSessionId);
+      // Clear old messages
+      localStorage.removeItem(`letsJam-chat-messages-${sessionId}`);
+    }
+    setMessages([]);
+    console.log('🆕 Created new session and cleared chat:', newSessionId.slice(-8));
+  };
+
+  const clearCurrentSession = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`letsJam-chat-messages-${sessionId}`);
+    }
+    setMessages([]);
+    console.log('🗑️ Cleared current session messages');
+  };
+
+  // Load previous messages on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionId) {
+      const loadPreviousMessages = () => {
+        try {
+          const saved = localStorage.getItem(`letsJam-chat-messages-${sessionId}`);
+          if (saved) {
+            const parsedMessages = JSON.parse(saved).map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            }));
+            setMessages(parsedMessages);
+            console.log(`💬 Loaded ${parsedMessages.length} previous messages for session ${sessionId.slice(-8)}`);
+          }
+        } catch (error) {
+          console.error('Failed to load previous messages:', error);
+        }
+      };
+
+      loadPreviousMessages();
+    }
+  }, [sessionId]);
+
+  // Save messages to localStorage whenever messages change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0 && sessionId) {
+      try {
+        localStorage.setItem(`letsJam-chat-messages-${sessionId}`, JSON.stringify(messages));
+        console.log(`💾 Saved ${messages.length} messages for session ${sessionId.slice(-8)}`);
+      } catch (error) {
+        console.error('Failed to save messages:', error);
+      }
+    }
+  }, [messages, sessionId]);
 
   // Scroll to top on mount
   useEffect(() => {
@@ -627,7 +733,7 @@ const LetsJam = () => {
     }, 100);
   };
 
-  // Send message to chat API
+  // Enhanced send message function with session context
   const sendMessage = async (messageText?: string) => {
     const messageToSend = messageText || input.trim();
     if (!messageToSend) return;
@@ -698,16 +804,18 @@ const LetsJam = () => {
         }
       };
       
-      // Build messages array with conversation history
+      // Build messages array with conversation history (limit to last 10 for API efficiency)
       const conversationMessages = [
-        ...messages.map(msg => ({
+        ...messages.slice(-10).map(msg => ({
           role: msg.role,
           content: msg.content
         })),
         { role: "user", content: messageToSend }
       ];
       
-      // Call chat API
+      console.log(`🤖 Sending message with session ${sessionId.slice(-8)}, ${conversationMessages.length} messages in context`);
+      
+      // Call chat API with session ID for context preservation
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -715,6 +823,7 @@ const LetsJam = () => {
         },
         body: JSON.stringify({
           userId: userId,
+          sessionId: sessionId, // Add session ID for context
           source: "lets-jam-chatbot",
           userData: structuredUserData,
           messages: conversationMessages
@@ -739,6 +848,8 @@ const LetsJam = () => {
       
       setMessages(prev => [...prev, assistantMessage]);
       
+      console.log(`✅ Received response for session ${sessionId.slice(-8)}`);
+      
     } catch (error) {
       console.error("Error sending message:", error);
       
@@ -756,7 +867,7 @@ const LetsJam = () => {
     }
   };
 
-  // Helper functions (same as ActivityJam)
+  // Helper functions for activity display
   const formatDistance = (distance: number) => {
     if (distance === 0) return '0.00';
     if (distance < 0.1) return distance.toFixed(3);
@@ -824,15 +935,26 @@ const LetsJam = () => {
             Back to Home
           </Button>
           
-          <Button 
-            onClick={handleRefresh}
-            variant="outline"
-            disabled={refreshing}
-            className="hover:bg-white/20"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Data'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => createNewSession()}
+              variant="outline"
+              className="hover:bg-white/20 text-sm"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              New Session
+            </Button>
+            
+            <Button 
+              onClick={handleRefresh}
+              variant="outline"
+              disabled={refreshing}
+              className="hover:bg-white/20"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh Data'}
+            </Button>
+          </div>
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
@@ -844,7 +966,7 @@ const LetsJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Showing last 7 days
+              Last updated: {lastUpdate} • Session: {sessionId.slice(-8)} • Showing last 7 days
             </p>
           )}
         </div>
@@ -857,8 +979,25 @@ const LetsJam = () => {
         <section className="mb-6">
           <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg">
             <CardHeader className="text-center pb-4">
-              <div className="mx-auto w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-3">
-                <Bot className="h-6 w-6 text-white" />
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
+                    <Bot className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-gray-600">Session: {sessionId.slice(-8)}</div>
+                    <div className="text-xs text-gray-400">{messages.length} messages</div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearCurrentSession}
+                  className="text-gray-500 hover:text-gray-700"
+                  title="Clear current chat (keep session)"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
               </div>
               <CardTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                 🤖 AI Health Assistant
@@ -869,12 +1008,13 @@ const LetsJam = () => {
             </CardHeader>
             <CardContent>
               {/* Messages */}
-              <div className="space-y-4 mb-6">
+              <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
                 {messages.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">
                     <div className="mb-6">
                       <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-3" />
                       <p className="text-lg font-medium">Ask me about your health! 🌟</p>
+                      <p className="text-sm text-gray-400 mt-1">Session {sessionId.slice(-8)} • Context preserved across visits</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-2xl mx-auto">
                       <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
@@ -934,13 +1074,13 @@ const LetsJam = () => {
                       }`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                        className={`max-w-[85%] rounded-lg px-4 py-3 ${
                           message.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                             : "bg-white text-gray-800 border border-gray-200 shadow-sm"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <MessageContent content={message.content} />
                         <p
                           className={`text-xs mt-2 ${
                             message.role === "user"
@@ -1042,7 +1182,7 @@ const LetsJam = () => {
           </Card>
         </section>
 
-        {/* Recent Activities Section - exactly like ActivityJam */}
+        {/* Recent Activities Section */}
         <section className="mb-6">
           <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
             <CardHeader className="pb-3">
@@ -1271,7 +1411,7 @@ const LetsJam = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>Powered by Groq AI with your real health data</span>
+            <span>Powered by Gemini AI with your real health data</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Bot className="h-4 w-4" />
@@ -1279,6 +1419,7 @@ const LetsJam = () => {
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <span>Session: {sessionId.slice(-8)}</span>
             <span>Last updated: {new Date().toLocaleDateString()}</span>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
