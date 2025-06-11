@@ -7,12 +7,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { db } from '@/lib/firebaseConfig';
-import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 
-// Types
+// Types matching your 24h code structure
 interface HealthData {
   date: string;
-  heartRateRuns: number | null;
+  heartRate: number | null;
   caloriesBurned: number;
   caloriesConsumed: number;
   protein: number;
@@ -21,18 +21,25 @@ interface HealthData {
   fiber: number;
   workoutDuration: number;
   activityTypes: string[];
-  runCount: number;
 }
 
-interface RunActivity {
+interface RecentActivity {
+  id: string;
+  name: string;
+  type: string;
+  start_date: string;
   date: string;
   distance: number;
+  moving_time: number;
   duration: number;
+  total_elevation_gain: number;
   average_speed: number;
-  average_heartrate: number | null;
-  type: string;
-  calories: number;
-  name: string;
+  max_speed: number;
+  has_heartrate: boolean;
+  average_heartrate?: number;
+  max_heartrate?: number;
+  calories?: number;
+  caloriesBurned?: number;
 }
 
 interface ChatMessage {
@@ -41,106 +48,30 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-interface StructuredHealthData {
-  nutrition: {
-    type: string;
-    avgCaloriesPerDay: number;
-    avgProteinPerDay: number;
-    avgCarbsPerDay: number;
-    avgFatPerDay: number;
-    avgFiberPerDay: number;
-    calorieDeficitAvg: number;
-  };
-  activity: {
-    type: string;
-    workoutsPerWeek: number;
-    avgHeartRateRuns: number | null;
-    avgCaloriesBurned: number;
-    avgDurationMin: number;
-    totalRunDistance: number;
-  };
-  recentRuns: RunActivity[];
-  bloodMarkers: Record<string, number | string> | null;
-  trends: {
-    weekOverWeek: string;
-    recoveryStatus: string;
-    trainingLoad: string;
-  };
+interface NutritionData {
+  avgCalories: number;
+  avgProtein: number;
+  avgFat: number;
+  avgCarbs: number;
+  avgFiber: number;
+}
+
+interface ActivityData {
+  workoutsPerWeek: number;
+  avgHeartRate: number;
+  avgCaloriesBurned: number;
+  avgDuration: number;
+}
+
+interface UserData {
+  nutrition: NutritionData;
+  activity: ActivityData;
+  bloodMarkers: Record<string, any>;
 }
 
 // Generate session ID
 const generateSessionId = () => {
   return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-};
-
-// FIXED: Better data processing with real validation
-const processHealthDataForAI = (healthData: HealthData[], recentRuns: RunActivity[], bloodMarkers: any): StructuredHealthData => {
-  console.log('🔍 Processing health data - Raw runs:', recentRuns.length);
-  console.log('🔍 Processing health data - Health data days:', healthData.length);
-  
-  const validDays = healthData.filter(d => d.caloriesConsumed > 0 || d.caloriesBurned > 0);
-  const workoutDays = healthData.filter(d => d.caloriesBurned > 0);
-  const runDays = healthData.filter(d => d.runCount > 0 && d.heartRateRuns);
-  
-  const BMR = 1479;
-  
-  // FIXED: Only calculate averages if we have actual data
-  const nutrition = {
-    type: 'nutrition_averages_7_days',
-    avgCaloriesPerDay: validDays.length > 0 ? validDays.reduce((sum, d) => sum + d.caloriesConsumed, 0) / validDays.length : 0,
-    avgProteinPerDay: validDays.length > 0 ? validDays.reduce((sum, d) => sum + d.protein, 0) / validDays.length : 0,
-    avgCarbsPerDay: validDays.length > 0 ? validDays.reduce((sum, d) => sum + d.carbs, 0) / validDays.length : 0,
-    avgFatPerDay: validDays.length > 0 ? validDays.reduce((sum, d) => sum + d.fat, 0) / validDays.length : 0,
-    avgFiberPerDay: validDays.length > 0 ? validDays.reduce((sum, d) => sum + d.fiber, 0) / validDays.length : 0,
-    calorieDeficitAvg: validDays.length > 0 ? validDays.reduce((sum, d) => sum + (d.caloriesBurned + BMR - d.caloriesConsumed), 0) / validDays.length : 0
-  };
-  
-  // FIXED: Calculate total distance properly
-  const totalRunDistance = recentRuns.reduce((sum, r) => {
-    const distance = r.distance || 0;
-    console.log(`🏃 Adding run distance: ${distance}km from "${r.name}"`);
-    return sum + distance;
-  }, 0);
-  
-  console.log(`📊 Total calculated distance: ${totalRunDistance}km from ${recentRuns.length} runs`);
-  
-  const activity = {
-    type: 'activity_summary_7_days',
-    workoutsPerWeek: (workoutDays.length / 7) * 7,
-    avgHeartRateRuns: runDays.length > 0 ? runDays.reduce((sum, d) => sum + (d.heartRateRuns || 0), 0) / runDays.length : null,
-    avgCaloriesBurned: workoutDays.length > 0 ? workoutDays.reduce((sum, d) => sum + d.caloriesBurned, 0) / workoutDays.length : 0,
-    avgDurationMin: workoutDays.length > 0 ? workoutDays.reduce((sum, d) => sum + d.workoutDuration, 0) / workoutDays.length / 60 : 0,
-    totalRunDistance: totalRunDistance
-  };
-  
-  const trends = {
-    weekOverWeek: nutrition.calorieDeficitAvg > 200 ? 'positive' : nutrition.calorieDeficitAvg < 0 ? 'concerning' : 'stable',
-    recoveryStatus: runDays.length > 3 ? 'high_load' : runDays.length > 1 ? 'moderate' : 'well_rested',
-    trainingLoad: activity.workoutsPerWeek > 5 ? 'high' : activity.workoutsPerWeek > 3 ? 'moderate' : 'light'
-  };
-  
-  return {
-    nutrition: {
-      ...nutrition,
-      avgCaloriesPerDay: Math.round(nutrition.avgCaloriesPerDay),
-      avgProteinPerDay: Math.round(nutrition.avgProteinPerDay * 10) / 10,
-      avgCarbsPerDay: Math.round(nutrition.avgCarbsPerDay),
-      avgFatPerDay: Math.round(nutrition.avgFatPerDay),
-      avgFiberPerDay: Math.round(nutrition.avgFiberPerDay),
-      calorieDeficitAvg: Math.round(nutrition.calorieDeficitAvg)
-    },
-    activity: {
-      ...activity,
-      workoutsPerWeek: Math.round(activity.workoutsPerWeek * 10) / 10,
-      avgHeartRateRuns: activity.avgHeartRateRuns ? Math.round(activity.avgHeartRateRuns) : null,
-      avgCaloriesBurned: Math.round(activity.avgCaloriesBurned),
-      avgDurationMin: Math.round(activity.avgDurationMin),
-      totalRunDistance: Math.round(activity.totalRunDistance * 10) / 10
-    },
-    recentRuns: recentRuns.slice(0, 5),
-    bloodMarkers,
-    trends
-  };
 };
 
 // FIXED: Message Component with better rendering
@@ -162,18 +93,27 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-// Health Summary Component - Display real data with fallbacks
+// FIXED: Health Summary using your working 24h logic
 const SmartHealthSummary: React.FC<{ 
-  healthData: HealthData[], 
-  recentRuns: RunActivity[], 
-  bloodMarkers: any,
+  userData: UserData | null,
+  recentActivities: RecentActivity[], 
   onRefresh: () => void,
-  isRefreshing: boolean 
-}> = ({ healthData, recentRuns, bloodMarkers, onRefresh, isRefreshing }) => {
-  const structuredData = processHealthDataForAI(healthData, recentRuns, bloodMarkers);
+  isRefreshing: boolean,
+  loading: boolean
+}> = ({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
   
-  console.log('🔍 SmartHealthSummary received runs:', recentRuns.length);
-  console.log('🔍 Structured data total distance:', structuredData.activity.totalRunDistance);
+  // Calculate total distance from recent activities
+  const totalRunDistance = recentActivities
+    .filter(activity => activity.type && activity.type.toLowerCase().includes('run'))
+    .reduce((sum, run) => sum + (run.distance || 0), 0);
+  
+  const runActivities = recentActivities.filter(activity => 
+    activity.type && activity.type.toLowerCase().includes('run')
+  );
+  
+  console.log('🔍 SmartHealthSummary - Recent activities:', recentActivities.length);
+  console.log('🔍 SmartHealthSummary - Run activities:', runActivities.length);
+  console.log('🔍 SmartHealthSummary - Total run distance:', totalRunDistance);
   
   return (
     <div className="space-y-4">
@@ -196,11 +136,11 @@ const SmartHealthSummary: React.FC<{
       
       <div className="flex items-center gap-2 mb-4">
         <Badge variant="secondary" className="text-xs">Real Data</Badge>
-        <Badge variant={structuredData.nutrition.avgCaloriesPerDay > 0 ? "default" : "secondary"} className="text-xs">
-          {structuredData.nutrition.avgCaloriesPerDay > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
+        <Badge variant={userData?.nutrition.avgCalories > 0 ? "default" : "secondary"} className="text-xs">
+          {userData?.nutrition.avgCalories > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
         </Badge>
-        <Badge variant={structuredData.activity.totalRunDistance > 0 ? "default" : "secondary"} className="text-xs">
-          {structuredData.activity.totalRunDistance > 0 ? 'Runs: Active' : 'Runs: No Data'}
+        <Badge variant={runActivities.length > 0 ? "default" : "secondary"} className="text-xs">
+          {runActivities.length > 0 ? 'Runs: Active' : 'Runs: No Data'}
         </Badge>
       </div>
       
@@ -213,13 +153,13 @@ const SmartHealthSummary: React.FC<{
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-green-800">
-                {structuredData.nutrition.avgCaloriesPerDay || 'No Data'}
+                {loading ? '...' : userData?.nutrition.avgCalories || 'No Data'}
               </div>
               <div className="text-xs text-green-600">
-                {structuredData.nutrition.avgCaloriesPerDay > 0 ? 'cal/day' : 'Add nutrition logs'}
+                {userData?.nutrition.avgCalories > 0 ? 'cal/day' : 'Add nutrition logs'}
               </div>
               <div className="text-xs text-gray-600 truncate">
-                {structuredData.nutrition.avgProteinPerDay > 0 ? `${structuredData.nutrition.avgProteinPerDay}g protein` : 'Track your meals'}
+                {userData?.nutrition.avgProtein > 0 ? `${userData.nutrition.avgProtein}g protein` : 'Track your meals'}
               </div>
             </div>
           </CardContent>
@@ -233,11 +173,11 @@ const SmartHealthSummary: React.FC<{
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-orange-800">
-                {structuredData.activity.workoutsPerWeek || '0'}
+                {loading ? '...' : userData?.activity.workoutsPerWeek || '0'}
               </div>
               <div className="text-xs text-orange-600">workouts/wk</div>
               <div className="text-xs text-gray-600 truncate">
-                {structuredData.activity.avgCaloriesBurned > 0 ? `${structuredData.activity.avgCaloriesBurned} cal avg` : 'No workouts yet'}
+                {userData?.activity.avgCaloriesBurned > 0 ? `${userData.activity.avgCaloriesBurned} cal avg` : 'No workouts yet'}
               </div>
             </div>
           </CardContent>
@@ -251,13 +191,13 @@ const SmartHealthSummary: React.FC<{
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-blue-800">
-                {structuredData.activity.totalRunDistance > 0 ? `${structuredData.activity.totalRunDistance}km` : 'No runs'}
+                {loading ? '...' : totalRunDistance > 0 ? `${totalRunDistance.toFixed(1)}km` : 'No runs'}
               </div>
               <div className="text-xs text-blue-600">
-                {structuredData.activity.totalRunDistance > 0 ? 'total distance' : 'Start running!'}
+                {totalRunDistance > 0 ? 'total distance' : 'Start running!'}
               </div>
               <div className="text-xs text-gray-600 truncate">
-                {structuredData.activity.avgHeartRateRuns ? `${structuredData.activity.avgHeartRateRuns} bpm avg` : 'Add heart rate data'}
+                {userData?.activity.avgHeartRate ? `${userData.activity.avgHeartRate} bpm avg` : 'Add heart rate data'}
               </div>
             </div>
           </CardContent>
@@ -270,44 +210,37 @@ const SmartHealthSummary: React.FC<{
               <span className="text-xs font-medium text-purple-700">Health</span>
             </div>
             <div className="space-y-1">
-              <div className={`text-lg font-bold ${
-                structuredData.nutrition.calorieDeficitAvg >= 0 ? 'text-green-800' : 
-                structuredData.nutrition.calorieDeficitAvg < -500 ? 'text-red-800' : 'text-orange-800'
-              }`}>
-                {structuredData.nutrition.avgCaloriesPerDay > 0 ? 
-                  (structuredData.nutrition.calorieDeficitAvg >= 0 ? '+' : '') + structuredData.nutrition.calorieDeficitAvg :
-                  'No Data'
-                }
+              <div className="text-lg font-bold text-green-800">
+                {loading ? '...' : userData?.nutrition.avgCalories > 0 ? 'Good' : 'No Data'}
               </div>
               <div className="text-xs text-purple-600">
-                {structuredData.nutrition.avgCaloriesPerDay > 0 ? 'cal deficit' : 'Track nutrition'}
+                {userData?.nutrition.avgCalories > 0 ? 'tracking active' : 'Track nutrition'}
               </div>
               <div className="text-xs text-gray-600 truncate">
-                {structuredData.trends.recoveryStatus === 'well_rested' ? 'Well rested' : 
-                 structuredData.trends.recoveryStatus === 'moderate' ? 'Moderate load' : 
-                 structuredData.trends.recoveryStatus === 'high_load' ? 'High load' : 'Unknown status'}
+                {userData?.activity.workoutsPerWeek > 3 ? 'High activity' : 
+                 userData?.activity.workoutsPerWeek > 1 ? 'Moderate activity' : 'Low activity'}
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
       
-      {recentRuns.length > 0 && (
+      {runActivities.length > 0 && (
         <Card className="bg-white/80 border-gray-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Recent Runs ({recentRuns.length})
+              Recent Runs ({runActivities.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
             <div className="space-y-2">
-              {recentRuns.slice(0, 3).map((run, index) => (
+              {runActivities.slice(0, 3).map((run, index) => (
                 <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-800 truncate">{run.name}</div>
                     <div className="text-xs text-gray-500">
-                      {new Date(run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
@@ -325,7 +258,7 @@ const SmartHealthSummary: React.FC<{
         </Card>
       )}
       
-      {bloodMarkers && Object.keys(bloodMarkers).length > 0 && (
+      {userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 && (
         <Card className="bg-white/80 border-gray-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
@@ -335,16 +268,16 @@ const SmartHealthSummary: React.FC<{
           </CardHeader>
           <CardContent className="p-3 pt-0">
             <div className="grid grid-cols-2 gap-2">
-              {Object.entries(bloodMarkers).slice(0, 4).map(([key, value]) => (
+              {Object.entries(userData.bloodMarkers).slice(0, 4).map(([key, value]) => (
                 <div key={key} className="text-center bg-gray-50 p-2 rounded">
                   <div className="text-xs font-medium text-gray-500 uppercase truncate">{key}</div>
                   <div className="text-sm font-semibold text-gray-800">{value}</div>
                 </div>
               ))}
             </div>
-            {Object.keys(bloodMarkers).length > 4 && (
+            {Object.keys(userData.bloodMarkers).length > 4 && (
               <div className="text-center mt-2">
-                <span className="text-xs text-gray-500">+{Object.keys(bloodMarkers).length - 4} more</span>
+                <span className="text-xs text-gray-500">+{Object.keys(userData.bloodMarkers).length - 4} more</span>
               </div>
             )}
           </CardContent>
@@ -357,11 +290,12 @@ const SmartHealthSummary: React.FC<{
 // Smart Prompt Suggestions Component
 const SmartPromptSuggestions: React.FC<{ 
   onPromptSelect: (prompt: string) => void,
-  healthData: StructuredHealthData 
-}> = ({ onPromptSelect, healthData }) => {
-  const hasNutritionData = healthData.nutrition.avgCaloriesPerDay > 0;
-  const hasRunData = healthData.activity.totalRunDistance > 0;
-  const hasActivityData = healthData.activity.workoutsPerWeek > 0;
+  userData: UserData | null,
+  recentActivities: RecentActivity[]
+}> = ({ onPromptSelect, userData, recentActivities }) => {
+  const hasNutritionData = userData?.nutrition.avgCalories > 0;
+  const hasRunData = recentActivities.some(a => a.type && a.type.toLowerCase().includes('run'));
+  const hasActivityData = userData?.activity.workoutsPerWeek > 0;
   
   const promptCategories = [
     {
@@ -416,7 +350,7 @@ const SmartPromptSuggestions: React.FC<{
       title: 'Health Analysis',
       icon: BarChart3,
       color: 'from-orange-100 to-orange-200 border-orange-300',
-      prompts: healthData.bloodMarkers ? [
+      prompts: userData?.bloodMarkers ? [
         'Any concerns in my blood markers?',
         'Compare this week to last week',
         'What are my biggest health risks?',
@@ -468,9 +402,8 @@ const SmartPromptSuggestions: React.FC<{
 // Main Component
 const LetsJam: React.FC = () => {
   const navigate = useNavigate();
-  const [healthData, setHealthData] = useState<HealthData[]>([]);
-  const [recentRuns, setRecentRuns] = useState<RunActivity[]>([]);
-  const [bloodMarkers, setBloodMarkers] = useState(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -490,6 +423,9 @@ const LetsJam: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
+  // Hardcoded userId for consistency
+  const userId = "mihir_jain";
+  
   // FIXED: More reliable auto-scroll
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -506,203 +442,318 @@ const LetsJam: React.FC = () => {
     return () => clearTimeout(timer);
   }, [messages, isTyping]);
 
-  // FIXED: Better data fetching with your actual Firestore structure
-  const fetchHealthData = async () => {
+  // FIXED: Fetch nutrition data using your working 24h logic
+  const fetchNutritionData = async (): Promise<NutritionData> => {
     try {
-      setLoading(true);
-      console.log('🔄 Starting health data fetch...');
+      // Get the last 7 days instead of 30
+      const today = new Date();
+      const dates = [];
       
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const dateString = sevenDaysAgo.toISOString().split('T')[0];
-
-      // Initialize empty data structure
-      const tempData: Record<string, HealthData> = {};
       for (let i = 0; i < 7; i++) {
         const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        tempData[dateStr] = {
-          date: dateStr,
-          heartRateRuns: null,
-          caloriesBurned: 0,
-          caloriesConsumed: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fiber: 0,
-          workoutDuration: 0,
-          activityTypes: [],
-          runCount: 0
-        };
+        date.setDate(today.getDate() - i);
+        dates.push(date.toISOString().split('T')[0]);
       }
-
-      const [nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot] = await Promise.all([
-        getDocs(query(
-          collection(db, "nutritionLogs"),
-          where("date", ">=", dateString),
-          orderBy("date", "desc")
-        )).catch((error) => {
-          console.log('Nutrition query failed:', error.message);
-          return { docs: [] };
-        }),
-        
-        getDocs(query(
-          collection(db, "strava_data"),
-          where("userId", "==", "mihir_jain"),
-          orderBy("start_date", "desc"),
-          limit(20)
-        )).catch((error) => {
-          console.log('Strava query failed:', error.message);
-          return { docs: [] };
-        }),
-        
-        getDocs(query(
-          collection(db, "blood_markers"),
-          where("userId", "==", "mihir_jain"),
-          orderBy("date", "desc"),
-          limit(1)
-        )).catch((error) => {
-          console.log('Blood markers query failed:', error.message);
-          return { docs: [] };
-        })
-      ]);
-
-      console.log('📊 Raw data counts:', {
-        nutrition: nutritionSnapshot.docs.length,
-        strava: stravaSnapshot.docs.length,
-        bloodMarkers: bloodMarkersSnapshot.docs.length
-      });
-
-      // Process nutrition data
-      nutritionSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (tempData[data.date] && data.totals) {
-          tempData[data.date].caloriesConsumed = data.totals.calories || 0;
-          tempData[data.date].protein = data.totals.protein || 0;
-          tempData[data.date].carbs = data.totals.carbs || 0;
-          tempData[data.date].fat = data.totals.fat || 0;
-          tempData[data.date].fiber = data.totals.fiber || 0;
-          console.log(`✅ Nutrition data for ${data.date}:`, data.totals.calories, 'cal');
-        }
-      });
-
-      const runs: RunActivity[] = [];
-
-      // FIXED: Handle your actual Firestore structure
-      stravaSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
-        
-        if (!activityDate) {
-          console.log('⚠️ Skipping activity with no date:', data.name || 'Unknown activity');
-          return;
-        }
-
-        const isRunActivity = data.type && (
-          data.type.toLowerCase().includes('run') || 
-          data.type === 'Run' || 
-          data.type === 'VirtualRun'
-        );
-
-        if (isRunActivity) {
-          // FIXED: Handle your actual Firestore structure where distance is already in km
-          const distance = data.distance || 0; // Distance is already in km in your DB
-          const duration = data.duration || 0; // Duration in minutes
-          const heartRate = data.average_heartrate || null;
-          const calories = data.calories || data.caloriesBurned || 0;
-          const activityName = data.name || data.activity_name || `${data.type || 'Run'}`;
-
-          // Only add runs with valid distance
-          if (distance > 0) {
-            const run = {
-              date: activityDate,
-              name: activityName,
-              distance: distance, // Already in km
-              duration: duration * 60, // Convert minutes to seconds for consistency
-              average_speed: data.average_speed || 0,
-              average_heartrate: heartRate,
-              type: data.type || 'Run',
-              calories: calories
-            };
+      
+      // Initialize totals
+      let totalCalories = 0;
+      let totalProtein = 0;
+      let totalFat = 0;
+      let totalCarbs = 0;
+      let totalFiber = 0;
+      let daysWithData = 0;
+      
+      console.log(`🥗 Fetching nutrition data for ${dates.length} days...`);
+      
+      // Fetch data for each day
+      for (const date of dates) {
+        try {
+          const logRef = doc(db, "nutritionLogs", date);
+          const logSnapshot = await getDoc(logRef);
+          
+          if (logSnapshot.exists()) {
+            const logData = logSnapshot.data();
             
-            runs.push(run);
-            console.log(`🏃 Added run: ${run.name} - ${run.distance.toFixed(2)}km on ${activityDate} (HR: ${heartRate || 'N/A'})`);
-          } else {
-            console.log(`⚠️ Skipping run with no distance: ${activityName}`);
+            // Check if we have actual nutrition data (not just empty entries)
+            let dayCalories = 0;
+            let dayProtein = 0;
+            let dayFat = 0;
+            let dayCarbs = 0;
+            let dayFiber = 0;
+            
+            if (logData.totals) {
+              dayCalories = logData.totals.calories || 0;
+              dayProtein = logData.totals.protein || 0;
+              dayFat = logData.totals.fat || 0;
+              dayCarbs = logData.totals.carbs || 0;
+              dayFiber = logData.totals.fiber || 0;
+            } else if (Array.isArray(logData.entries) && logData.entries.length) {
+              logData.entries.forEach((e: any) => {
+                dayCalories += e.calories || 0;
+                dayProtein += e.protein || 0;
+                dayFat += e.fat || 0;
+                dayCarbs += e.carbs || 0;
+                dayFiber += e.fiber || 0;
+              });
+            }
+            
+            // Only count days with actual food data (calories > 0)
+            if (dayCalories > 0) {
+              daysWithData++;
+              totalCalories += dayCalories;
+              totalProtein += dayProtein;
+              totalFat += dayFat;
+              totalCarbs += dayCarbs;
+              totalFiber += dayFiber;
+              
+              console.log(`✅ Nutrition data for ${date}: ${dayCalories} cal`);
+            }
           }
+        } catch (dayError) {
+          console.error(`Error fetching nutrition data for ${date}:`, dayError);
         }
-
-        // Process all activities for daily summaries
-        if (tempData[activityDate]) {
-          // Add heart rate data for runs only
-          if (isRunActivity && heartRate != null) {
-            const currentHR = tempData[activityDate].heartRateRuns || 0;
-            const currentRunCount = tempData[activityDate].runCount;
-            tempData[activityDate].heartRateRuns = currentRunCount === 0 
-              ? heartRate 
-              : ((currentHR * currentRunCount) + heartRate) / (currentRunCount + 1);
-            tempData[activityDate].runCount += 1;
-          }
-
-          // Add calories from any activity
-          const activityCalories = data.calories || data.caloriesBurned || 0;
-          tempData[activityDate].caloriesBurned += activityCalories;
-          
-          // Add duration (convert to seconds if needed)
-          const activityDuration = data.duration || 0;
-          tempData[activityDate].workoutDuration += (activityDuration * 60); // Convert minutes to seconds
-
-          // Track activity types
-          if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
-            tempData[activityDate].activityTypes.push(data.type);
-          }
-          
-          console.log(`📊 Updated ${activityDate}: +${activityCalories} cal, +${activityDuration} min`);
-        }
-      });
-
-      // Process blood markers
-      if (bloodMarkersSnapshot.docs.length > 0) {
-        const latestDoc = bloodMarkersSnapshot.docs[0];
-        const markersData = latestDoc.data().markers || {};
-        setBloodMarkers(markersData);
-        console.log('🩸 Blood markers loaded:', Object.keys(markersData));
       }
-
-      // Final data processing
-      const sortedData = Object.values(tempData).sort((a, b) =>
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-
-      const sortedRuns = runs.sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-
-      console.log(`📊 Final data summary:`);
-      console.log(`  - Health data days: ${sortedData.length}`);
-      console.log(`  - Total runs: ${sortedRuns.length}`);
-      console.log(`  - Total run distance: ${sortedRuns.reduce((sum, r) => sum + r.distance, 0).toFixed(2)}km`);
-      console.log(`  - Recent runs:`, sortedRuns.slice(0, 3).map(r => `${r.name} (${r.distance}km)`));
-
-      setHealthData(sortedData);
-      setRecentRuns(sortedRuns.slice(0, 10)); // Keep more runs for context
-
+      
+      // Calculate averages - ONLY divide by days that actually had food data
+      const avgCalories = daysWithData > 0 ? Math.round(totalCalories / daysWithData) : 0;
+      const avgProtein = daysWithData > 0 ? Math.round(totalProtein / daysWithData) : 0;
+      const avgFat = daysWithData > 0 ? Math.round(totalFat / daysWithData) : 0;
+      const avgCarbs = daysWithData > 0 ? Math.round(totalCarbs / daysWithData) : 0;
+      const avgFiber = daysWithData > 0 ? Math.round(totalFiber / daysWithData) : 0;
+      
+      console.log(`📊 Nutrition averages: ${avgCalories} cal, ${avgProtein}g protein from ${daysWithData} days`);
+      
+      return {
+        avgCalories,
+        avgProtein,
+        avgFat,
+        avgCarbs,
+        avgFiber
+      };
     } catch (error) {
-      console.error("❌ Error fetching health data:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching nutrition data:", error);
+      return {
+        avgCalories: 0,
+        avgProtein: 0,
+        avgFat: 0,
+        avgCarbs: 0,
+        avgFiber: 0
+      };
     }
   };
 
-  useEffect(() => {
-    fetchHealthData();
-  }, []);
-  
-  const structuredHealthData = processHealthDataForAI(healthData, recentRuns, bloodMarkers);
-  
-  // FIXED: Enhanced message sending with REAL data validation
+  // FIXED: Fetch activity data using your working 24h logic
+  const fetchActivityData = async (): Promise<ActivityData> => {
+    try {
+      console.log('🏃 Fetching activity data for last 7 days from Firestore cache...');
+      
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const stravaDataRef = collection(db, "strava_data");
+      const stravaQuery = query(
+        stravaDataRef,
+        where("userId", "==", userId),
+        where("start_date", ">=", sevenDaysAgo.toISOString()),
+        orderBy("start_date", "desc"),
+        limit(50)
+      );
+      
+      const stravaSnapshot = await getDocs(stravaQuery);
+      
+      if (!stravaSnapshot.empty) {
+        let totalHeartRate = 0;
+        let totalCaloriesBurned = 0;
+        let totalDuration = 0;
+        let activitiesWithHeartRate = 0;
+        let activityCount = 0;
+        
+        stravaSnapshot.forEach(doc => {
+          const activity = doc.data();
+          activityCount++;
+          
+          if (activity.average_heartrate || activity.heart_rate) {
+            totalHeartRate += activity.average_heartrate || activity.heart_rate;
+            activitiesWithHeartRate++;
+          }
+          
+          totalCaloriesBurned += activity.calories || activity.caloriesBurned || 0;
+          totalDuration += activity.duration || 0;
+          
+          console.log(`📊 Activity: ${activity.name} - ${activity.calories || activity.caloriesBurned || 0} cal`);
+        });
+        
+        // Calculate averages and stats for 7 days
+        const avgHeartRate = activitiesWithHeartRate > 0 ? Math.round(totalHeartRate / activitiesWithHeartRate) : 0;
+        const avgCaloriesBurned = activityCount > 0 ? Math.round(totalCaloriesBurned / activityCount) : 0;
+        const avgDuration = activityCount > 0 ? Math.round(totalDuration / activityCount) : 0;
+        const workoutsPerWeek = Math.round(activityCount); // Since we're looking at 7 days, this is workouts per week
+        
+        console.log(`📊 Activity averages: ${workoutsPerWeek} workouts, ${avgHeartRate} bpm, ${avgCaloriesBurned} cal`);
+        
+        return {
+          workoutsPerWeek,
+          avgHeartRate,
+          avgCaloriesBurned,
+          avgDuration
+        };
+      }
+      
+      return {
+        workoutsPerWeek: 0,
+        avgHeartRate: 0,
+        avgCaloriesBurned: 0,
+        avgDuration: 0
+      };
+    } catch (error) {
+      console.error("Error fetching activity data:", error);
+      return {
+        workoutsPerWeek: 0,
+        avgHeartRate: 0,
+        avgCaloriesBurned: 0,
+        avgDuration: 0
+      };
+    }
+  };
+
+  // FIXED: Fetch recent activities using your working 24h logic
+  const fetchRecentActivities = async () => {
+    try {
+      console.log('🏃 Fetching recent activities from Firestore cache...');
+      
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const stravaDataRef = collection(db, "strava_data");
+      const stravaQuery = query(
+        stravaDataRef,
+        where("userId", "==", userId),
+        where("start_date", ">=", sevenDaysAgo.toISOString()),
+        orderBy("start_date", "desc"),
+        limit(10)
+      );
+      
+      const stravaSnapshot = await getDocs(stravaQuery);
+      
+      if (!stravaSnapshot.empty) {
+        const processedActivities = stravaSnapshot.docs.map(doc => {
+          const activity = doc.data();
+          
+          console.log(`📊 Processing activity: ${activity.name} - Distance: ${activity.distance}`);
+          
+          return {
+            id: activity.id?.toString() || Math.random().toString(),
+            name: activity.name || 'Unnamed Activity',
+            type: activity.type || 'Activity',
+            start_date: activity.start_date,
+            date: activity.date || activity.start_date?.substring(0, 10),
+            distance: activity.distance || 0, // Your distance is already in km
+            moving_time: activity.moving_time || activity.duration * 60 || 0,
+            duration: activity.duration || 0,
+            total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
+            average_speed: activity.average_speed || 0,
+            max_speed: activity.max_speed || 0,
+            has_heartrate: activity.has_heartrate || false,
+            average_heartrate: activity.average_heartrate || activity.heart_rate,
+            max_heartrate: activity.max_heartrate,
+            calories: activity.calories || activity.caloriesBurned || 0,
+            caloriesBurned: activity.caloriesBurned || activity.calories || 0
+          };
+        });
+
+        console.log(`📊 Processed ${processedActivities.length} activities`);
+        setRecentActivities(processedActivities);
+      } else {
+        console.log('📊 No recent activities found');
+        setRecentActivities([]);
+      }
+    } catch (error) {
+      console.error("Error fetching recent activities:", error);
+      setRecentActivities([]);
+    }
+  };
+
+  // FIXED: Fetch blood markers using your working 24h logic
+  const fetchBloodMarkers = async () => {
+    try {
+      console.log('🩸 Fetching blood markers...');
+      
+      const bloodMarkersRef = doc(db, "blood_markers", "mihir_jain");
+      const bloodMarkersSnapshot = await getDoc(bloodMarkersRef);
+      
+      if (bloodMarkersSnapshot.exists()) {
+        const data = bloodMarkersSnapshot.data();
+        
+        return {
+          calcium: data.Calcium || data.calcium,
+          creatinine: data.Creatinine || data.creatinine,
+          glucose: data["Glucose (Random)"] || data.glucose,
+          hdl: data["HDL Cholesterol"] || data.hdl,
+          hba1c: data.HbA1C || data.hba1c,
+          hemoglobin: data.Hemoglobin || data.hemoglobin,
+          ldl: data["LDL Cholesterol"] || data.ldl,
+          platelet_count: data["Platelet Count"] || data.platelet_count,
+          potassium: data.Potassium || data.potassium,
+          rbc: data.RBC || data.rbc,
+          sodium: data.Sodium || data.sodium,
+          tsh: data.TSH || data.tsh,
+          total_cholesterol: data["Total Cholesterol"] || data.total_cholesterol,
+          date: data.date || "unknown"
+        };
+      } else {
+        return {};
+      }
+    } catch (error) {
+      console.error("Error fetching blood markers:", error);
+      return {};
+    }
+  };
+
+  // FIXED: Main fetch function using your working 24h logic
+  const fetchUserData = async (forceRefresh = false) => {
+    try {
+      setLoading(true);
+      if (forceRefresh) {
+        setIsRefreshing(true);
+      }
+
+      console.log(`🔄 Fetching user data (forceRefresh: ${forceRefresh})...`);
+      
+      // Fetch both summary data and recent activities in parallel
+      const [nutritionData, activityData, bloodMarkers] = await Promise.all([
+        fetchNutritionData(),
+        fetchActivityData(),
+        fetchBloodMarkers()
+      ]);
+
+      // Also fetch recent activities
+      await fetchRecentActivities();
+      
+      // Set user data
+      const newUserData = {
+        nutrition: nutritionData,
+        activity: activityData,
+        bloodMarkers: bloodMarkers
+      };
+
+      setUserData(newUserData);
+
+      console.log('📊 Updated user data:', newUserData);
+      
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    await fetchUserData(true);
+  };
+
+  // FIXED: Enhanced message sending with your working 24h structure
   const handleSendMessage = async () => {
     if (!input.trim() || isTyping) return;
     
@@ -717,106 +768,103 @@ const LetsJam: React.FC = () => {
     setIsTyping(true);
     
     try {
-      // ENHANCED: Build comprehensive real data context
-      const enhancedData = {
-        ...structuredHealthData,
-        rawHealthData: healthData.map(day => ({
-          date: day.date,
-          nutrition: {
-            calories: day.caloriesConsumed,
-            protein: day.protein,
-            carbs: day.carbs,
-            fat: day.fat,
-            fiber: day.fiber
-          },
-          activity: {
-            caloriesBurned: day.caloriesBurned,
-            workoutDuration: Math.round(day.workoutDuration / 60), // Convert to minutes
-            heartRateRuns: day.heartRateRuns,
-            runCount: day.runCount,
-            activityTypes: day.activityTypes
-          }
-        })),
-        
-        // REAL run data with actual values
-        actualRunData: recentRuns.map(run => ({
-          name: run.name,
-          date: run.date,
-          distance: run.distance,
-          duration: Math.round(run.duration / 60), // Convert to minutes
-          heartRate: run.average_heartrate,
-          calories: run.calories,
-          type: run.type,
-          pace: run.duration > 0 ? (run.duration / 60) / run.distance : null // min/km
-        })),
-        
-        userProfile: {
-          name: "Mihir",
-          BMR: 1479,
-          goals: "weight_loss_and_fitness",
-          dataQuality: {
-            nutritionDays: healthData.filter(d => d.caloriesConsumed > 0).length,
-            activityDays: healthData.filter(d => d.caloriesBurned > 0).length,
-            runDays: recentRuns.length,
-            heartRateDays: healthData.filter(d => d.heartRateRuns > 0).length,
-            hasBloodMarkers: bloodMarkers !== null && Object.keys(bloodMarkers).length > 0
-          }
+      // Structure user data for API using your working 24h format
+      const structuredUserData = {
+        nutrition: {
+          type: "nutrition_averages_7_days",
+          avgCaloriesPerDay: userData?.nutrition?.avgCalories || 0,
+          avgProteinPerDay: userData?.nutrition?.avgProtein || 0,
+          avgCarbsPerDay: userData?.nutrition?.avgCarbs || 0,
+          avgFatPerDay: userData?.nutrition?.avgFat || 0,
+          avgFiberPerDay: userData?.nutrition?.avgFiber || 0
         },
         
-        // Comprehensive run summary with REAL calculations
-        runSummary: {
-          totalRuns: recentRuns.length,
-          totalDistance: Math.round(recentRuns.reduce((sum, run) => sum + run.distance, 0) * 10) / 10,
-          averageDistance: recentRuns.length > 0 ? Math.round((recentRuns.reduce((sum, run) => sum + run.distance, 0) / recentRuns.length) * 10) / 10 : 0,
-          averageHeartRate: recentRuns.filter(r => r.average_heartrate > 0).length > 0 
-            ? Math.round(recentRuns.filter(r => r.average_heartrate > 0).reduce((sum, run) => sum + run.average_heartrate, 0) / recentRuns.filter(r => r.average_heartrate > 0).length) 
-            : null,
-          lastRunDate: recentRuns.length > 0 ? recentRuns[0].date : null,
-          weeklyDistance: Math.round(recentRuns.filter(run => {
-            const runDate = new Date(run.date);
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            return runDate >= weekAgo;
-          }).reduce((sum, run) => sum + run.distance, 0) * 10) / 10
+        activity: {
+          type: "activity_averages_7_days", 
+          workoutsPerWeek: userData?.activity?.workoutsPerWeek || 0,
+          avgHeartRatePerWorkout: userData?.activity?.avgHeartRate || 0,
+          avgCaloriesBurnedPerWorkout: userData?.activity?.avgCaloriesBurned || 0,
+          avgWorkoutDurationMinutes: userData?.activity?.avgDuration || 0
         },
         
-        // Nutrition summary with REAL data
-        nutritionSummary: {
-          avgDailyCalories: structuredHealthData.nutrition.avgCaloriesPerDay,
-          avgDailyProtein: structuredHealthData.nutrition.avgProteinPerDay,
-          avgDailyCarbs: structuredHealthData.nutrition.avgCarbsPerDay,
-          avgDailyFat: structuredHealthData.nutrition.avgFatPerDay,
-          avgCalorieDeficit: structuredHealthData.nutrition.calorieDeficitAvg,
-          daysWithData: healthData.filter(d => d.caloriesConsumed > 0).length,
-          proteinPercentage: structuredHealthData.nutrition.avgCaloriesPerDay > 0 ? 
-            Math.round((structuredHealthData.nutrition.avgProteinPerDay * 4 / structuredHealthData.nutrition.avgCaloriesPerDay) * 100) : 0
+        recentActivities: recentActivities.map(activity => ({
+          name: activity.name,
+          type: activity.type,
+          date: activity.start_date || activity.date,
+          distance: activity.distance,
+          duration: activity.duration,
+          heartRate: activity.average_heartrate,
+          calories: activity.calories || activity.caloriesBurned
+        })),
+        
+        bloodMarkers: {
+          type: "latest_blood_test_results",
+          testDate: userData?.bloodMarkers?.date || "unknown",
+          values: {
+            cholesterol: {
+              total: userData?.bloodMarkers?.total_cholesterol || "not available",
+              ldl: userData?.bloodMarkers?.ldl || "not available", 
+              hdl: userData?.bloodMarkers?.hdl || "not available"
+            },
+            metabolic: {
+              glucose: userData?.bloodMarkers?.glucose || "not available",
+              hba1c: userData?.bloodMarkers?.hba1c || "not available"
+            },
+            minerals: {
+              calcium: userData?.bloodMarkers?.calcium || "not available",
+              sodium: userData?.bloodMarkers?.sodium || "not available", 
+              potassium: userData?.bloodMarkers?.potassium || "not available"
+            },
+            kidneyFunction: {
+              creatinine: userData?.bloodMarkers?.creatinine || "not available"
+            },
+            bloodCells: {
+              hemoglobin: userData?.bloodMarkers?.hemoglobin || "not available",
+              rbc: userData?.bloodMarkers?.rbc || "not available",
+              plateletCount: userData?.bloodMarkers?.platelet_count || "not available"
+            },
+            hormones: {
+              tsh: userData?.bloodMarkers?.tsh || "not available"
+            }
+          }
         }
       };
+      
+      // Build messages array with conversation history
+      const conversationMessages = [
+        ...messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: "user", content: input.trim() }
+      ];
 
-      console.log('📤 Sending enhanced data to AI:', {
-        totalRuns: enhancedData.runSummary.totalRuns,
-        totalDistance: enhancedData.runSummary.totalDistance,
-        nutritionDays: enhancedData.userProfile.dataQuality.nutritionDays,
-        avgCalories: enhancedData.nutritionSummary.avgDailyCalories
+      console.log('📤 Sending data to AI:', {
+        nutrition: structuredUserData.nutrition.avgCaloriesPerDay,
+        activities: structuredUserData.recentActivities.length,
+        workoutsPerWeek: structuredUserData.activity.workoutsPerWeek
       });
-
+      
+      // Call chat API
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage].slice(-10),
-          userData: enhancedData,
-          userId: 'mihir_jain',
-          source: 'smart_health_chat',
+          userId: userId,
+          source: "smart_health_chat",
+          userData: structuredUserData,
+          messages: conversationMessages.slice(-10),
           sessionId: sessionId,
           context: {
-            hasRealData: true,
-            dataQuality: enhancedData.userProfile.dataQuality,
+            hasNutritionData: userData?.nutrition.avgCalories > 0,
+            hasActivityData: userData?.activity.workoutsPerWeek > 0,
+            hasRunData: recentActivities.some(a => a.type && a.type.toLowerCase().includes('run')),
+            hasBloodData: userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0,
             instruction: "CRITICAL: Use the REAL data provided. Never use placeholder text. All numbers come from actual user data in Firestore. Provide specific insights based on the actual values."
           }
-        }),
+        })
       });
       
       if (!response.ok) {
@@ -861,13 +909,21 @@ const LetsJam: React.FC = () => {
       handleSendMessage();
     }
   };
-  
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchHealthData().finally(() => {
-      setIsRefreshing(false);
-    });
-  };
+
+  // Fetch user data on component mount
+  useEffect(() => {
+    fetchUserData(false);
+    
+    const handleFocus = () => {
+      fetchUserData(false);
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -918,7 +974,8 @@ const LetsJam: React.FC = () => {
               {/* Smart Prompt Suggestions */}
               <SmartPromptSuggestions 
                 onPromptSelect={handlePromptSelect}
-                healthData={structuredHealthData}
+                userData={userData}
+                recentActivities={recentActivities}
               />
               
               {/* FIXED: Bigger chat container that grows */}
@@ -1019,25 +1076,13 @@ const LetsJam: React.FC = () => {
             <div className="lg:col-span-1">
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm sticky top-6">
                 <CardContent className="p-4">
-                  {loading ? (
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-32" />
-                      <div className="grid grid-cols-1 gap-3">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                          <Skeleton key={i} className="h-20 w-full" />
-                        ))}
-                      </div>
-                      <Skeleton className="h-32 w-full" />
-                    </div>
-                  ) : (
-                    <SmartHealthSummary
-                      healthData={healthData}
-                      recentRuns={recentRuns}
-                      bloodMarkers={bloodMarkers}
-                      onRefresh={handleRefresh}
-                      isRefreshing={isRefreshing}
-                    />
-                  )}
+                  <SmartHealthSummary
+                    userData={userData}
+                    recentActivities={recentActivities}
+                    onRefresh={handleRefresh}
+                    isRefreshing={isRefreshing}
+                    loading={loading}
+                  />
                 </CardContent>
               </Card>
             </div>
