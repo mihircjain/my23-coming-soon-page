@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+// Hardcoded userId for consistency
+  const userId = "mihir_jain";import React, { useState, useEffect, useRef } from 'react';
 import { Bot, Send, RefreshCw, Activity, Utensils, Heart, TrendingUp, Target, Zap, Calendar, BarChart3, ArrowLeft, User, MessageSquare, Flame, Droplet, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,6 +74,52 @@ interface UserData {
 // Generate session ID
 const generateSessionId = () => {
   return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+};
+
+// Session storage utilities
+const SESSION_STORAGE_KEY = 'letsJam_chatSession';
+const MESSAGES_STORAGE_KEY = 'letsJam_messages';
+
+const saveSessionToStorage = (sessionId: string, messages: ChatMessage[]) => {
+  try {
+    localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+    console.log('💾 Saved session to localStorage:', sessionId.slice(-8));
+  } catch (error) {
+    console.error('Failed to save session:', error);
+  }
+};
+
+const loadSessionFromStorage = (): { sessionId: string | null, messages: ChatMessage[] } => {
+  try {
+    const savedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+    const savedMessages = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    
+    if (savedSessionId && savedMessages) {
+      const parsedMessages = JSON.parse(savedMessages);
+      // Convert timestamp strings back to Date objects
+      const messagesWithDates = parsedMessages.map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+      console.log('📂 Loaded session from localStorage:', savedSessionId.slice(-8), 'with', messagesWithDates.length, 'messages');
+      return { sessionId: savedSessionId, messages: messagesWithDates };
+    }
+  } catch (error) {
+    console.error('Failed to load session:', error);
+  }
+  
+  return { sessionId: null, messages: [] };
+};
+
+const clearSessionStorage = () => {
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(MESSAGES_STORAGE_KEY);
+    console.log('🗑️ Cleared session storage');
+  } catch (error) {
+    console.error('Failed to clear session:', error);
+  }
 };
 
 // Message Component with better rendering
@@ -423,25 +470,78 @@ const LetsJam: React.FC = () => {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: 'Hi! I\'m your AI health coach with access to your complete health data. I can analyze your running performance, nutrition trends, and Strava activity data to provide personalized insights. What would you like to explore today?',
-      timestamp: new Date()
+  // Initialize with saved session or default welcome message
+  const initializeSession = () => {
+    const { sessionId: savedSessionId, messages: savedMessages } = loadSessionFromStorage();
+    
+    if (savedSessionId && savedMessages.length > 0) {
+      // Restore previous session
+      return {
+        sessionId: savedSessionId,
+        messages: savedMessages
+      };
+    } else {
+      // Create new session
+      const newSessionId = generateSessionId();
+      const welcomeMessages = [
+        {
+          role: 'assistant' as const,
+          content: 'Hi! I\'m your AI health coach with access to your complete health data. I can analyze your running performance, nutrition trends, and Strava activity data to provide personalized insights. What would you like to explore today?',
+          timestamp: new Date()
+        }
+      ];
+      
+      // Save new session immediately
+      saveSessionToStorage(newSessionId, welcomeMessages);
+      
+      return {
+        sessionId: newSessionId,
+        messages: welcomeMessages
+      };
     }
-  ]);
+  };
+  
+  const initialSession = initializeSession();
+  const [messages, setMessages] = useState<ChatMessage[]>(initialSession.messages);
+  const [sessionId, setSessionId] = useState<string>(initialSession.sessionId);
   
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId] = useState(() => generateSessionId());
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Better scroll refs and behavior
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
-  // Hardcoded userId for consistency
-  const userId = "mihir_jain";
+  // Save messages to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveSessionToStorage(sessionId, messages);
+    }
+  }, [messages, sessionId]);
+
+  // Function to start a new session
+  const startNewSession = () => {
+    const newSessionId = generateSessionId();
+    const welcomeMessages = [
+      {
+        role: 'assistant' as const,
+        content: 'Hi! I\'m your AI health coach with access to your complete health data. I can analyze your running performance, nutrition trends, and Strava activity data to provide personalized insights. What would you like to explore today?',
+        timestamp: new Date()
+      }
+    ];
+    
+    setSessionId(newSessionId);
+    setMessages(welcomeMessages);
+    setInput('');
+    setIsTyping(false);
+    
+    // Clear old session and save new one
+    clearSessionStorage();
+    saveSessionToStorage(newSessionId, welcomeMessages);
+    
+    console.log('🆕 Started new session:', newSessionId.slice(-8));
+  };
   
   // Scroll to show START of new AI message instead of bottom
   const scrollToLatestMessage = () => {
@@ -962,9 +1062,9 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       };
       setMessages(prev => [...prev, errorMessage]);
       
-      // Force scroll after error message
+      // Force scroll after error message - show START  
       setTimeout(() => {
-        scrollToBottom();
+        scrollToLatestMessage();
       }, 150);
     } finally {
       setIsTyping(false);
@@ -1072,6 +1172,11 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
             <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
               {nutritionDetails.length} Nutrition Days
             </Badge>
+            {messages.length > 1 && (
+              <Badge variant="outline" className="text-xs">
+                {messages.length} Messages Restored
+              </Badge>
+            )}
           </div>
         </div>
       </header>
@@ -1079,10 +1184,10 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       {/* Main content */}
       <main className="relative z-10 px-6 md:px-12 py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            {/* Left Column - Chat Interface */}
-            <div className="lg:col-span-2 space-y-4">
+            {/* Left Column - Chat Interface (Larger) */}
+            <div className="lg:col-span-3 space-y-4">
               
               {/* Smart Prompt Suggestions */}
               <SmartPromptSuggestions 
@@ -1094,16 +1199,33 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
               {/* Chat Container - Dynamic Full Height */}
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <CardHeader className="border-b border-gray-100">
-                  <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-orange-500" />
-                    AI Health Coach
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      Session Active
-                    </Badge>
-                    <Badge variant={userData ? "default" : "secondary"} className="text-xs">
-                      {userData ? 'Data Loaded' : 'Loading Data'}
-                    </Badge>
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-orange-500" />
+                      AI Health Coach
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        Session Active
+                      </Badge>
+                      <Badge variant={userData ? "default" : "secondary"} className="text-xs">
+                        {userData ? 'Data Loaded' : 'Loading Data'}
+                      </Badge>
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        Session: {sessionId.slice(-8)}
+                      </Badge>
+                      <Button
+                        onClick={startNewSession}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        disabled={isTyping}
+                      >
+                        <Bot className="h-3 w-3 mr-1" />
+                        New Session
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div 
@@ -1177,10 +1299,15 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                     
                     <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
                       <span>{messages.length} messages in this session</span>
-                      <span className="flex items-center gap-1">
-                        <div className={`w-2 h-2 rounded-full ${userData ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
-                        {userData ? 'Real data connected' : 'Loading data...'}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1">
+                          <div className={`w-2 h-2 rounded-full ${userData ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+                          {userData ? 'Real data connected' : 'Loading data...'}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {messages.length > 1 ? 'Session restored' : 'New session'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -1325,6 +1452,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                     <p>✅ The AI can see ALL your real data: {recentActivities.length} activities, {nutritionDetails.length} nutrition days, {userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0} blood markers</p>
                     <p>✅ Specific numbers, dates, and metrics are passed to the AI</p>
                     <p>✅ Ask specific questions about your performance, nutrition, or health trends</p>
+                    <p>💾 Your conversation is automatically saved and restored when you return</p>
                   </div>
                 </div>
               </CardContent>
