@@ -1,4 +1,4 @@
-// ActivityJam.tsx - Ultra-fast loading with minimal chart rendering
+// Simplified ActivityJam.tsx - just use direct calories field
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3 } from "lucide-react";
@@ -22,15 +22,8 @@ interface ActivityData {
   has_heartrate: boolean;
   average_heartrate?: number;
   max_heartrate?: number;
-  calories: number;
+  calories: number; // Simple direct field
   is_run_activity: boolean;
-}
-
-interface CachedData {
-  activities: ActivityData[];
-  summaryStats?: any; // Make this optional to handle old cache
-  timestamp: number;
-  lastUpdate: string;
 }
 
 const ActivityJam = () => {
@@ -40,21 +33,15 @@ const ActivityJam = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [usingCache, setUsingCache] = useState(false);
-  const [showAllActivities, setShowAllActivities] = useState(false);
 
-  // Chart refs - restore these
+  // Chart refs
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
   const distanceChartRef = useRef<HTMLCanvasElement>(null);
   const weightTrainingChartRef = useRef<HTMLCanvasElement>(null);
   const heartRateRunsChartRef = useRef<HTMLCanvasElement>(null);
 
-  // Chart instances - restore these  
+  // Chart instances
   const chartInstances = useRef<{ [key: string]: Chart }>({});
-
-  // Cache configuration - back to original key to use existing cache
-  const CACHE_KEY = 'activity_jam_data';
-  const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
 
   // Helper function to determine if activity is a run
   const isRunActivity = (activityType: string): boolean => {
@@ -62,114 +49,6 @@ const ActivityJam = () => {
     return runTypes.some(type => 
       activityType.toLowerCase().includes(type.toLowerCase())
     );
-  };
-
-  // Process activities data for charts
-  const generateMiniChartData = (activities: ActivityData[]) => {
-    // Group by week for mini charts (much faster than daily)
-    const weeklyData = new Map();
-    
-    activities.forEach(activity => {
-      const date = new Date(activity.start_date);
-      const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
-      const weekKey = weekStart.toISOString().split('T')[0];
-      
-      if (!weeklyData.has(weekKey)) {
-        weeklyData.set(weekKey, {
-          calories: 0,
-          distance: 0,
-          activities: 0,
-          runHR: []
-        });
-      }
-
-      const week = weeklyData.get(weekKey);
-      week.calories += activity.calories || 0;
-      week.distance += activity.distance || 0;
-      week.activities += 1;
-      
-      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
-        week.runHR.push(activity.average_heartrate);
-      }
-    });
-
-    // Convert to simple arrays (last 8 weeks max)
-    const weeks = Array.from(weeklyData.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-8);
-
-    return {
-      weeks: weeks.map(([date]) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-      calories: weeks.map(([, data]) => data.calories),
-      distance: weeks.map(([, data]) => Math.round(data.distance * 10) / 10),
-      activities: weeks.map(([, data]) => data.activities),
-      avgHR: weeks.map(([, data]) => data.runHR.length > 0 
-        ? Math.round(data.runHR.reduce((a, b) => a + b) / data.runHR.length) 
-        : 0
-      )
-    };
-  };
-
-  // Pre-calculate summary stats for instant display
-  const calculateSummaryStats = (activities: ActivityData[]) => {
-    console.log('📊 Pre-calculating summary stats...');
-    
-    const stats = {
-      totalActivities: activities.length,
-      activitiesWithCalories: activities.filter(a => a.calories && a.calories > 0).length,
-      totalCalories: activities.reduce((sum, a) => sum + (a.calories || 0), 0),
-      runActivities: activities.filter(a => a.is_run_activity).length,
-      runsWithHR: activities.filter(a => a.is_run_activity && a.has_heartrate).length,
-      totalDistance: activities.reduce((sum, a) => sum + (a.distance || 0), 0),
-      totalTime: activities.reduce((sum, a) => sum + (a.moving_time || 0), 0),
-      avgHeartRate: 0,
-      recentActivities: activities.slice(0, 6), // First 6 for quick display
-      chartData: generateMiniChartData(activities)
-    };
-
-    // Calculate average heart rate from runs only
-    const runsWithHR = activities.filter(a => 
-      a.is_run_activity && a.has_heartrate && a.average_heartrate
-    );
-    if (runsWithHR.length > 0) {
-      stats.avgHeartRate = Math.round(
-        runsWithHR.reduce((sum, a) => sum + a.average_heartrate!, 0) / runsWithHR.length
-      );
-    }
-
-    console.log('✅ Summary stats calculated:', stats);
-    return stats;
-  };
-
-  // Pre-calculate summary stats for instant display
-  const calculateSummaryStats = (activities: ActivityData[]) => {
-    console.log('📊 Pre-calculating summary stats...');
-    
-    const stats = {
-      totalActivities: activities.length,
-      activitiesWithCalories: activities.filter(a => a.calories && a.calories > 0).length,
-      totalCalories: activities.reduce((sum, a) => sum + (a.calories || 0), 0),
-      runActivities: activities.filter(a => a.is_run_activity).length,
-      runsWithHR: activities.filter(a => a.is_run_activity && a.has_heartrate).length,
-      totalDistance: activities.reduce((sum, a) => sum + (a.distance || 0), 0),
-      totalTime: activities.reduce((sum, a) => sum + (a.moving_time || 0), 0),
-      avgHeartRate: 0,
-      recentActivities: activities.slice(0, 6), // First 6 for quick display
-      chartData: generateMiniChartData(activities)
-    };
-
-    // Calculate average heart rate from runs only
-    const runsWithHR = activities.filter(a => 
-      a.is_run_activity && a.has_heartrate && a.average_heartrate
-    );
-    if (runsWithHR.length > 0) {
-      stats.avgHeartRate = Math.round(
-        runsWithHR.reduce((sum, a) => sum + a.average_heartrate!, 0) / runsWithHR.length
-      );
-    }
-
-    console.log('✅ Summary stats calculated:', stats);
-    return stats;
   };
 
   // Process activities data for charts
@@ -244,7 +123,282 @@ const ActivityJam = () => {
     chartInstances.current = {};
   };
 
-  // Create charts quickly with cached data
+  // Create calories chart
+  const createCaloriesChart = (chartData: any) => {
+    if (!caloriesChartRef.current) return;
+
+    const ctx = caloriesChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(245, 158, 11, 0.8)');
+    gradient.addColorStop(1, 'rgba(245, 158, 11, 0.1)');
+
+    chartInstances.current.calories = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Calories Burned',
+          data: chartData.calories,
+          borderColor: 'rgba(245, 158, 11, 1)',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} calories`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: true,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create distance chart
+  const createDistanceChart = (chartData: any) => {
+    if (!distanceChartRef.current) return;
+
+    const ctx = distanceChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
+    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.8)');
+
+    chartInstances.current.distance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Distance (km)',
+          data: chartData.distance,
+          backgroundColor: gradient,
+          borderColor: 'rgba(59, 130, 246, 1)',
+          borderWidth: 0,
+          borderRadius: 4,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} km`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: true,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create weight training chart
+  const createWeightTrainingChart = (chartData: any) => {
+    if (!weightTrainingChartRef.current) return;
+
+    const ctx = weightTrainingChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(139, 92, 246, 0.8)');
+    gradient.addColorStop(1, 'rgba(139, 92, 246, 0.1)');
+
+    chartInstances.current.weightTraining = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Weight Training (minutes)',
+          data: chartData.weightTraining,
+          borderColor: 'rgba(139, 92, 246, 1)',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(139, 92, 246, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} minutes`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: true,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create run heart rate chart
+  const createRunHeartRateChart = (chartData: any) => {
+    if (!heartRateRunsChartRef.current) return;
+
+    const ctx = heartRateRunsChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
+    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
+
+    chartInstances.current.runHeartRate = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Run Heart Rate (bpm)',
+          data: chartData.runHeartRate,
+          borderColor: 'rgba(239, 68, 68, 1)',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} bpm (runs only)`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: false,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create all charts
   const createCharts = (activities: ActivityData[]) => {
     if (activities.length === 0) return;
 
@@ -252,7 +406,7 @@ const ActivityJam = () => {
     
     const chartData = processChartData(activities);
     
-    console.log('📊 Creating charts with data:', {
+    console.log('📊 Creating charts with simple calorie data:', {
       totalDays: chartData.labels.length,
       totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
       totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
@@ -266,255 +420,14 @@ const ActivityJam = () => {
       createDistanceChart(chartData);
       createWeightTrainingChart(chartData);
       createRunHeartRateChart(chartData);
-    }, 50); // Reduced delay for faster rendering
+    }, 100);
   };
 
-  // Simple chart creation functions
-  const createCaloriesChart = (chartData: any) => {
-    if (!caloriesChartRef.current) return;
-    const ctx = caloriesChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    chartInstances.current.calories = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Calories',
-          data: chartData.calories,
-          borderColor: 'rgba(245, 158, 11, 1)',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 3,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
-        }
-      }
-    });
-  };
-
-  const createDistanceChart = (chartData: any) => {
-    if (!distanceChartRef.current) return;
-    const ctx = distanceChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    chartInstances.current.distance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Distance',
-          data: chartData.distance,
-          backgroundColor: 'rgba(59, 130, 246, 0.7)',
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 1,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
-        }
-      }
-    });
-  };
-
-  const createWeightTrainingChart = (chartData: any) => {
-    if (!weightTrainingChartRef.current) return;
-    const ctx = weightTrainingChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    chartInstances.current.weightTraining = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Weight Training',
-          data: chartData.weightTraining,
-          borderColor: 'rgba(139, 92, 246, 1)',
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 3,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
-        }
-      }
-    });
-  };
-
-  const createRunHeartRateChart = (chartData: any) => {
-    if (!heartRateRunsChartRef.current) return;
-    const ctx = heartRateRunsChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    chartInstances.current.runHeartRate = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Run Heart Rate',
-          data: chartData.runHeartRate,
-          borderColor: 'rgba(239, 68, 68, 1)',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 3,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y: { beginAtZero: false, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
-        }
-      }
-    });
-  };
-  const generateMiniChartData = (activities: ActivityData[]) => {
-    // Group by week for mini charts (much faster than daily)
-    const weeklyData = new Map();
-    
-    activities.forEach(activity => {
-      const date = new Date(activity.start_date);
-      const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
-      const weekKey = weekStart.toISOString().split('T')[0];
-      
-      if (!weeklyData.has(weekKey)) {
-        weeklyData.set(weekKey, {
-          calories: 0,
-          distance: 0,
-          activities: 0,
-          runHR: []
-        });
-      }
-
-      const week = weeklyData.get(weekKey);
-      week.calories += activity.calories || 0;
-      week.distance += activity.distance || 0;
-      week.activities += 1;
-      
-      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
-        week.runHR.push(activity.average_heartrate);
-      }
-    });
-
-    // Convert to simple arrays (last 8 weeks max)
-    const weeks = Array.from(weeklyData.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-8);
-
-    return {
-      weeks: weeks.map(([date]) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-      calories: weeks.map(([, data]) => data.calories),
-      distance: weeks.map(([, data]) => Math.round(data.distance * 10) / 10),
-      activities: weeks.map(([, data]) => data.activities),
-      avgHR: weeks.map(([, data]) => data.runHR.length > 0 
-        ? Math.round(data.runHR.reduce((a, b) => a + b) / data.runHR.length) 
-        : 0
-      )
-    };
-  };
-
-  // Cache management - now caches everything including stats
-  const getCachedData = (): CachedData | null => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (!cached) return null;
-      
-      const data: CachedData = JSON.parse(cached);
-      const now = Date.now();
-      
-      if (now - data.timestamp > CACHE_DURATION) {
-        localStorage.removeItem(CACHE_KEY);
-        return null;
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('Error reading cache:', error);
-      localStorage.removeItem(CACHE_KEY);
-      return null;
-    }
-  };
-
-  const setCachedData = (activities: ActivityData[], summaryStats: any, lastUpdate: string) => {
-    try {
-      const cacheData: CachedData = {
-        activities,
-        summaryStats,
-        timestamp: Date.now(),
-        lastUpdate
-      };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-      console.log('⚡ Ultra-fast cache saved');
-    } catch (error) {
-      console.error('Error caching data:', error);
-    }
-  };
-
-  const clearCache = () => {
-    localStorage.removeItem(CACHE_KEY);
-    console.log('🗑️ Cache cleared');
-  };
-
-  // Ultra-fast cache loading
-  const loadFromCache = (): boolean => {
-    const cached = getCachedData();
-    if (cached) {
-      console.log('⚡⚡⚡ INSTANT LOAD FROM CACHE');
-      setActivities(cached.activities);
-      
-      // Handle cases where summaryStats might not exist in old cache
-      if (cached.summaryStats) {
-        setSummaryStats(cached.summaryStats);
-      } else {
-        // Calculate stats from cached activities
-        const stats = calculateSummaryStats(cached.activities);
-        setSummaryStats(stats);
-      }
-      
-      setLastUpdate(cached.lastUpdate);
-      setUsingCache(true);
-      setLoading(false);
-      
-      // Create charts with cached data
-      createCharts(cached.activities);
-      return true;
-    }
-    return false;
-  };
-
-  // Simplified fetch without heavy chart processing
+  // Fetch activities with simple calorie handling
   const fetchActivities = async (forceRefresh = false) => {
     try {
       if (forceRefresh) {
         setRefreshing(true);
-        setUsingCache(false);
-        clearCache();
       } else {
         setLoading(true);
       }
@@ -531,9 +444,6 @@ const ActivityJam = () => {
         params.set('timestamp', Date.now().toString());
       }
       
-      console.log('🌐 Fetching from API...');
-      const startTime = performance.now();
-      
       const response = await fetch(`/api/strava?${params.toString()}`);
 
       if (!response.ok) {
@@ -541,11 +451,8 @@ const ActivityJam = () => {
       }
 
       const data = await response.json();
-      const apiTime = performance.now() - startTime;
-      console.log(`📡 API took: ${apiTime.toFixed(0)}ms`);
       
-      // Quick processing without heavy chart calculations
-      const processStart = performance.now();
+      // Simple activity processing - just use direct calories field
       const processedActivities = data.map((activity: any) => {
         const activityType = activity.type || 'Activity';
         const isRun = isRunActivity(activityType);
@@ -565,7 +472,7 @@ const ActivityJam = () => {
           has_heartrate: activity.has_heartrate || false,
           average_heartrate: activity.average_heartrate || activity.heart_rate,
           max_heartrate: activity.max_heartrate,
-          calories: activity.calories || 0,
+          calories: activity.calories || 0, // Simple and direct!
           is_run_activity: isRun
         };
       });
@@ -574,30 +481,19 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      const processTime = performance.now() - processStart;
-      console.log(`⚙️ Processing took: ${processTime.toFixed(0)}ms`);
-
-      // Pre-calculate stats
-      const statsStart = performance.now();
-      const stats = calculateSummaryStats(sortedActivities);
-      const statsTime = performance.now() - statsStart;
-      console.log(`📊 Stats calculation took: ${statsTime.toFixed(0)}ms`);
-
-      const updateTime = new Date().toLocaleTimeString();
+      console.log('🏃 Simple activity processing summary:', {
+        totalActivities: sortedActivities.length,
+        runActivities: sortedActivities.filter(a => a.is_run_activity).length,
+        runActivitiesWithHR: sortedActivities.filter(a => a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
+        activitiesWithCalories: sortedActivities.filter(a => a.calories && a.calories > 0).length,
+        totalCalories: sortedActivities.reduce((sum, a) => sum + (a.calories || 0), 0)
+      });
 
       setActivities(sortedActivities);
-      setSummaryStats(stats);
-      setLastUpdate(updateTime);
-      setUsingCache(false);
-
-      // Cache everything for next time
-      setCachedData(sortedActivities, stats, updateTime);
+      setLastUpdate(new Date().toLocaleTimeString());
 
       // Create charts after activities are set
       createCharts(sortedActivities);
-
-      const totalTime = performance.now() - startTime;
-      console.log(`🎯 Total load time: ${totalTime.toFixed(0)}ms`);
 
     } catch (error) {
       console.error('❌ Error fetching activities:', error);
@@ -612,19 +508,9 @@ const ActivityJam = () => {
     await fetchActivities(true);
   };
 
-  // Ultra-fast initial load
+  // Load on mount
   useEffect(() => {
-    const loadStart = performance.now();
-    
-    // Try cache first
-    const cacheLoaded = loadFromCache();
-    
-    if (cacheLoaded) {
-      const cacheTime = performance.now() - loadStart;
-      console.log(`⚡ Cache load time: ${cacheTime.toFixed(0)}ms`);
-    } else {
-      fetchActivities(false);
-    }
+    fetchActivities(false);
     
     // Cleanup charts on unmount
     return () => {
@@ -652,29 +538,6 @@ const ActivityJam = () => {
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
-  };
-
-  // Mini chart component (super simple bars)
-  const MiniChart = ({ data, color, max }: { data: number[], color: string, max?: number }) => {
-    if (!data || data.length === 0) return <div className="h-8 bg-gray-100 rounded"></div>;
-    
-    const maxValue = max || Math.max(...data);
-    if (maxValue === 0) return <div className="h-8 bg-gray-100 rounded"></div>;
-    
-    return (
-      <div className="flex items-end h-8 gap-1">
-        {data.slice(-8).map((value, i) => (
-          <div
-            key={i}
-            className="flex-1 rounded-sm opacity-80 hover:opacity-100 transition-opacity"
-            style={{
-              backgroundColor: color,
-              height: `${Math.max(2, (value / maxValue) * 100)}%`
-            }}
-          />
-        ))}
-      </div>
-    );
   };
 
   if (error) {
@@ -725,22 +588,15 @@ const ActivityJam = () => {
             Back to Home
           </Button>
           
-          <div className="flex items-center gap-3">
-            {usingCache && (
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                ⚡ Instant Load
-              </Badge>
-            )}
-            <Button 
-              onClick={handleRefresh}
-              variant="outline"
-              disabled={refreshing}
-              className="hover:bg-white/20"
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh Data'}
-            </Button>
-          </div>
+          <Button 
+            onClick={handleRefresh}
+            variant="outline"
+            disabled={refreshing}
+            className="hover:bg-white/20"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
@@ -749,13 +605,10 @@ const ActivityJam = () => {
           </h1>
           <p className="mt-3 text-lg text-gray-600">
             Your recent workouts and activities from Strava
-            {usingCache && <span className="text-green-600"> (ultra-fast cached)</span>}
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • 
-              {usingCache && <span className="text-green-600"> ⚡ Cached</span>} • 
-              Showing last 30 days
+              Last updated: {lastUpdate} • Calories: Direct from Strava • Showing last 30 days
             </p>
           )}
         </div>
@@ -765,13 +618,15 @@ const ActivityJam = () => {
       <main className="relative z-10 px-6 md:px-12 py-8">
         {loading ? (
           <div className="space-y-8">
-            {/* Quick summary skeleton */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* Chart skeletons */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {[...Array(4)].map((_, i) => (
                 <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20">
-                  <CardContent className="p-6">
-                    <Skeleton className="h-8 w-16 mb-2" />
-                    <Skeleton className="h-4 w-24" />
+                  <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-64 w-full" />
                   </CardContent>
                 </Card>
               ))}
@@ -812,117 +667,11 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Quick Summary with Mini Charts */}
-            {summaryStats && (
-              <section>
-                <div className="flex items-center mb-6">
-                  <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
-                  <h2 className="text-2xl font-semibold text-gray-800">Quick Overview</h2>
-                  {usingCache && (
-                    <Badge variant="outline" className="ml-3 bg-green-50 text-green-700 border-green-300 text-xs">
-                      ⚡ Pre-calculated
-                    </Badge>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {/* Calories with mini chart */}
-                  <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <Zap className="h-5 w-5 mr-2 text-orange-500" />
-                          <span className="text-sm font-medium text-gray-600">Calories</span>
-                        </div>
-                        <Badge variant="outline" className="text-xs border-orange-300 text-orange-600">
-                          Strava
-                        </Badge>
-                      </div>
-                      <div className="text-2xl font-bold text-orange-600 mb-3">
-                        {summaryStats.totalCalories.toLocaleString()}
-                      </div>
-                      <MiniChart 
-                        data={summaryStats.chartData.calories} 
-                        color="rgba(245, 158, 11, 0.7)"
-                      />
-                    </CardContent>
-                  </Card>
-
-                  {/* Distance with mini chart */}
-                  <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <Activity className="h-5 w-5 mr-2 text-blue-500" />
-                          <span className="text-sm font-medium text-gray-600">Distance</span>
-                        </div>
-                      </div>
-                      <div className="text-2xl font-bold text-blue-600 mb-3">
-                        {summaryStats.totalDistance.toFixed(1)} km
-                      </div>
-                      <MiniChart 
-                        data={summaryStats.chartData.distance} 
-                        color="rgba(59, 130, 246, 0.7)"
-                      />
-                    </CardContent>
-                  </Card>
-
-                  {/* Run HR with mini chart */}
-                  <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <Heart className="h-5 w-5 mr-2 text-red-500" />
-                          <span className="text-sm font-medium text-gray-600">Run HR</span>
-                        </div>
-                        <Badge variant="outline" className="text-xs border-red-300 text-red-600">
-                          Runs only
-                        </Badge>
-                      </div>
-                      <div className="text-2xl font-bold text-red-600 mb-3">
-                        {summaryStats.avgHeartRate || 'N/A'} 
-                        {summaryStats.avgHeartRate && <span className="text-sm font-normal"> bpm</span>}
-                      </div>
-                      <MiniChart 
-                        data={summaryStats.chartData.avgHR} 
-                        color="rgba(239, 68, 68, 0.7)"
-                        max={200}
-                      />
-                    </CardContent>
-                  </Card>
-
-                  {/* Activities count */}
-                  <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <Calendar className="h-5 w-5 mr-2 text-purple-500" />
-                          <span className="text-sm font-medium text-gray-600">Activities</span>
-                        </div>
-                      </div>
-                      <div className="text-2xl font-bold text-purple-600 mb-3">
-                        {summaryStats.totalActivities}
-                      </div>
-                      <MiniChart 
-                        data={summaryStats.chartData.activities} 
-                        color="rgba(139, 92, 246, 0.7)"
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              </section>
-            )}
-
-            {/* Charts Section - RESTORED */}
+            {/* Charts Section */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
                 <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
-                {usingCache && (
-                  <Badge variant="outline" className="ml-3 bg-green-50 text-green-700 border-green-300 text-xs">
-                    ⚡ Fast Load
-                  </Badge>
-                )}
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -990,7 +739,7 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* Recent Activities List */}
+            {/* Activities List Section */}
             <section>
               <div className="flex items-center mb-6">
                 <Calendar className="h-6 w-6 mr-3 text-gray-600" />
@@ -998,7 +747,7 @@ const ActivityJam = () => {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(showAllActivities ? activities : (summaryStats?.recentActivities || activities.slice(0, 9))).map((activity) => (
+                {activities.map((activity) => (
                   <Card key={activity.id} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200">
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
@@ -1009,7 +758,7 @@ const ActivityJam = () => {
                           <Badge variant="secondary" className="ml-2 shrink-0">
                             {activity.type}
                           </Badge>
-                          {activity.is_run_activity && activity.type.toLowerCase() !== 'run' && (
+                          {activity.is_run_activity && (
                             <Badge variant="outline" className="ml-2 shrink-0 text-xs border-red-300 text-red-600">
                               Run
                             </Badge>
@@ -1062,6 +811,18 @@ const ActivityJam = () => {
                             </span>
                           </div>
                         )}
+                        {!activity.is_run_activity && activity.has_heartrate && activity.average_heartrate && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Avg HR:</span>
+                            <span className="font-medium flex items-center text-gray-500">
+                              <Heart className="h-3 w-3 mr-1 text-gray-400" />
+                              {activity.average_heartrate} bpm
+                              <Badge variant="outline" className="ml-1 text-xs border-gray-300 text-gray-500">
+                                Not tracked
+                              </Badge>
+                            </span>
+                          </div>
+                        )}
                         {activity.calories && activity.calories > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Calories:</span>
@@ -1079,80 +840,47 @@ const ActivityJam = () => {
                   </Card>
                 ))}
               </div>
-
-              {!showAllActivities && activities.length > 9 && (
-                <div className="text-center mt-6">
-                  <Button variant="outline" onClick={() => setShowAllActivities(true)}>
-                    View All {activities.length} Activities
-                  </Button>
-                </div>
-              )}
-
-              {showAllActivities && (
-                <div className="text-center mt-6">
-                  <Button variant="outline" onClick={() => setShowAllActivities(false)}>
-                    Show Recent Only
-                  </Button>
-                </div>
-              )}
             </section>
 
             {/* Summary Stats */}
-            {summaryStats && (
-              <section>
-                <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
-                      30-Day Summary
-                      {usingCache && (
-                        <Badge variant="outline" className="ml-3 bg-green-50 text-green-700 border-green-300 text-xs">
-                          ⚡ Instant
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      <div className="p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">
-                          {summaryStats.activitiesWithCalories}
-                        </div>
-                        <div className="text-xs text-gray-600">Activities with calories</div>
+            <section>
+              <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                    <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
+                    Activity Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                    <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">
+                        {activities.filter(a => a.calories && a.calories > 0).length}
                       </div>
-                      <div className="p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">
-                          {summaryStats.totalCalories.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-gray-600">Total calories burned</div>
-                      </div>
-                      <div className="p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {summaryStats.runActivities}
-                        </div>
-                        <div className="text-xs text-gray-600">Running activities</div>
-                      </div>
-                      <div className="p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600">
-                          {summaryStats.runsWithHR}
-                        </div>
-                        <div className="text-xs text-gray-600">Runs with HR data</div>
-                      </div>
+                      <div className="text-xs text-gray-600">Activities with calories</div>
                     </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-white/40">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Total Distance: <strong>{summaryStats.totalDistance.toFixed(1)} km</strong></span>
-                        <span>Total Time: <strong>{formatTime(summaryStats.totalTime)}</strong></span>
-                        {summaryStats.avgHeartRate > 0 && (
-                          <span>Avg Run HR: <strong>{summaryStats.avgHeartRate} bpm</strong></span>
-                        )}
+                    <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
                       </div>
+                      <div className="text-xs text-gray-600">Total calories burned</div>
                     </div>
-                  </CardContent>
-                </Card>
-              </section>
-            )}
+                    <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {activities.filter(a => a.is_run_activity).length}
+                      </div>
+                      <div className="text-xs text-gray-600">Running activities</div>
+                    </div>
+                    <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">
+                        {activities.filter(a => a.is_run_activity && a.has_heartrate).length}
+                      </div>
+                      <div className="text-xs text-gray-600">Runs with HR data</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
           </div>
         )}
       </main>
@@ -1161,26 +889,18 @@ const ActivityJam = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>⚡ Ultra-fast loading with smart caching</span>
+            <span>📊 Calories: Direct from Strava API</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4" />
-              HR from runs only
+              HR from runs only for accuracy
             </span>
-            {usingCache && (
-              <>
-                <span className="hidden md:inline">•</span>
-                <span className="flex items-center gap-1 text-green-600">
-                  📊 Pre-calculated charts
-                </span>
-              </>
-            )}
           </div>
           <div className="flex items-center gap-4">
-            <span>Cache: {usingCache ? '15min' : 'Fresh'}</span>
+            <span>Updated: {new Date().toLocaleDateString()}</span>
             <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${usingCache ? 'bg-green-500' : 'bg-blue-500'}`}></div>
-              <span className="text-xs">{usingCache ? 'Cached' : 'Live'}</span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs">Simplified</span>
             </div>
           </div>
         </div>
