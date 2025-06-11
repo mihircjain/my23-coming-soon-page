@@ -411,7 +411,6 @@ export default async function handler(req, res) {
         average_heartrate: activity.average_heartrate,
         max_heartrate: activity.max_heartrate,
         calories: calories,
-        caloriesBurned: calories,
         achievement_count: activity.achievement_count,
         kudos_count: activity.kudos_count,
         comment_count: activity.comment_count,
