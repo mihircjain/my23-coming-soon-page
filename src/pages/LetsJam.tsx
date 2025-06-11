@@ -68,17 +68,25 @@ interface RecentActivity {
   caloriesBurned?: number;
 }
 
-// Enhanced Message Content Component with proper formatting
+// Enhanced Message Content Component with proper formatting and better spacing
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   const formatContent = (text: string) => {
     // Split by lines and process each line
     return text.split('\n').map((line, lineIndex) => {
       if (!line.trim()) {
-        return <div key={lineIndex} className="h-2" />; // Empty line spacing
+        return <div key={lineIndex} className="h-3" />; // Increased empty line spacing
+      }
+      
+      // Process bold text **text** and handle bullet points
+      let processedLine = line;
+      
+      // Handle bullet points and lists
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        processedLine = line.replace(/^[\s]*[-*]\s*/, '• ');
       }
       
       // Process bold text **text**
-      const parts = line.split(/(\*\*.*?\*\*)/g);
+      const parts = processedLine.split(/(\*\*.*?\*\*)/g);
       const formattedParts = parts.map((part, partIndex) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
@@ -91,14 +99,14 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
       });
       
       return (
-        <div key={lineIndex} className="mb-1 last:mb-0">
+        <div key={lineIndex} className="mb-2 last:mb-0 leading-relaxed">
           {formattedParts}
         </div>
       );
     });
   };
 
-  return <div>{formatContent(content)}</div>;
+  return <div className="text-sm leading-relaxed">{formatContent(content)}</div>;
 };
 
 // Daily Health Box Component with Health Score
@@ -326,12 +334,12 @@ const LetsJam = () => {
     }
   }, [messages, sessionId]);
 
-  // Scroll to top on mount
-  useEffect(() => {
-    if (topRef.current) {
-      topRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
+  // Remove auto-scroll to top on mount - let user stay where they are
+  // useEffect(() => {
+  //   if (topRef.current) {
+  //     topRef.current.scrollIntoView({ behavior: "smooth" });
+  //   }
+  // }, []);
 
   // Fetch combined health data for last 7 days
   const fetchLast7DaysData = async () => {
@@ -889,10 +897,22 @@ const LetsJam = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
   };
 
-  // Scroll to bottom of messages
+  // Only scroll to bottom when new messages are added, but don't force it during initial load
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    // Only auto-scroll if user is near the bottom or if it's a new message
+    if (messagesEndRef.current && messages.length > 0) {
+      const container = messagesEndRef.current.closest('.overflow-y-auto');
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        
+        // Only scroll if user is already near bottom or if this is the first message load
+        if (isNearBottom || messages.length === 1) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    }
+  }, [messages.length]); // Only trigger when message count changes
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -972,11 +992,11 @@ const LetsJam = () => {
         </div>
       </header>
       
-      {/* Main content */}
-      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
+      {/* Main content - Remove excessive padding and make more spacious */}
+      <main className="flex-grow relative z-10 px-4 md:px-8 py-6">
         
-        {/* AI Chat Section - Move to top */}
-        <section className="mb-6">
+        {/* AI Chat Section - Make it more prominent and spacious */}
+        <section className="mb-8">
           <Card className="bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 shadow-lg">
             <CardHeader className="text-center pb-4">
               <div className="flex justify-between items-start mb-3">
@@ -1006,17 +1026,17 @@ const LetsJam = () => {
                 Ask about your recent activities, food, and health patterns ✨
               </p>
             </CardHeader>
-            <CardContent>
-              {/* Messages */}
-              <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
+            <CardContent className="px-6 pb-6">
+              {/* Messages - Free-flowing with better spacing */}
+              <div className="space-y-6 mb-8">{/* Increased spacing between messages */}
                 {messages.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <div className="mb-6">
-                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-3" />
+                  <div className="text-center text-gray-500 py-12">{/* Increased padding */}
+                    <div className="mb-8">{/* Increased margin */}
+                      <Sparkles className="h-12 w-12 mx-auto text-purple-400 mb-4" />
                       <p className="text-lg font-medium">Ask me about your health! 🌟</p>
-                      <p className="text-sm text-gray-400 mt-1">Session {sessionId.slice(-8)} • Context preserved across visits</p>
+                      <p className="text-sm text-gray-400 mt-2">Session {sessionId.slice(-8)} • Context preserved across visits</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-2xl mx-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm max-w-3xl mx-auto">{/* Increased gap and max width */}
                       <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
                         <p className="font-medium text-purple-700 mb-2">📊 Data Analysis</p>
                         <ul className="space-y-1 text-purple-600 text-left">
@@ -1066,52 +1086,55 @@ const LetsJam = () => {
                     </div>
                   </div>
                 ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
+                  <div className="space-y-6">{/* Increased spacing between messages */}
+                    {messages.map((message) => (
                       <div
-                        className={`max-w-[85%] rounded-lg px-4 py-3 ${
-                          message.role === "user"
-                            ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                            : "bg-white text-gray-800 border border-gray-200 shadow-sm"
+                        key={message.id}
+                        className={`flex ${
+                          message.role === "user" ? "justify-end" : "justify-start"
                         }`}
                       >
-                        <MessageContent content={message.content} />
-                        <p
-                          className={`text-xs mt-2 ${
+                        <div
+                          className={`max-w-[95%] rounded-lg px-5 py-4 ${/* Increased padding and max width */
                             message.role === "user"
-                              ? "text-purple-100"
-                              : "text-gray-500"
+                              ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                              : "bg-white text-gray-800 border border-gray-200 shadow-sm"
                           }`}
                         >
-                          {message.timestamp.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-                {sending && (
-                  <div className="flex justify-start">
-                    <div className="bg-white text-gray-800 border border-gray-200 p-3 rounded-lg">
-                      <div className="flex gap-2 items-center">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
+                          <MessageContent content={message.content} />
+                          <p
+                            className={`text-xs mt-3 ${/* Increased margin top */
+                              message.role === "user"
+                                ? "text-purple-100"
+                                : "text-gray-500"
+                            }`}
+                          >
+                            {message.timestamp.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
                         </div>
-                        <span className="text-sm text-gray-500">AI is thinking...</span>
                       </div>
-                    </div>
+                    ))}
+                    
+                    {sending && (
+                      <div className="flex justify-start">
+                        <div className="bg-white text-gray-800 border border-gray-200 p-4 rounded-lg">{/* Increased padding */}
+                          <div className="flex gap-3 items-center">{/* Increased gap */}
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
+                            </div>
+                            <span className="text-sm text-gray-500">AI is thinking...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div ref={messagesEndRef} />
                   </div>
-                )}
-                <div ref={messagesEndRef} />
               </div>
               
               {/* Input */}
