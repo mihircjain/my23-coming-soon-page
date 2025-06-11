@@ -390,10 +390,7 @@ export default async function handler(req, res) {
     for (const activity of activitiesData) {
       const minutes = Math.round(activity.moving_time / 60);
       //const calories = typeof activity.calories === 'number' ? activity.calories : estimateCalories(activity);
-      const calories =
-  typeof activity.calories === 'number' && !isNaN(activity.calories)
-    ? activity.calories
-    : estimateCalories(activity);
+      const calories  = activity.calories;
       const summary = {
         userId,
         id: activity.id.toString(), // ENSURE activity ID is stored
