@@ -757,12 +757,7 @@ const ActivityJam = () => {
                         <div className="flex flex-col gap-1">
                           <Badge variant="secondary" className="ml-2 shrink-0">
                             {activity.type}
-                          </Badge>
-                          {activity.is_run_activity && (
-                            <Badge variant="outline" className="ml-2 shrink-0 text-xs border-red-300 text-red-600">
-                              Run
-                            </Badge>
-                          )}
+     
                         </div>
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
