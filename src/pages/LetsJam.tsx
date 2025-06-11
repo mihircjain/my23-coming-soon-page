@@ -101,7 +101,7 @@ const SmartHealthSummary: React.FC<{
   onRefresh: () => void,
   isRefreshing: boolean,
   loading: boolean
-}> = React.memo(({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
+}> = ({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
   
   // Calculate total distance from recent activities
   const totalRunDistance = React.useMemo(() => {
