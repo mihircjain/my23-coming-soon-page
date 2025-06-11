@@ -443,7 +443,7 @@ const LetsJam: React.FC = () => {
   // Hardcoded userId for consistency
   const userId = "mihir_jain";
   
-  // More reliable auto-scroll
+  // More reliable auto-scroll that forces scroll to bottom
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ 
@@ -451,13 +451,35 @@ const LetsJam: React.FC = () => {
         block: 'end'
       });
     }
+    // Backup scroll method
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
   
-  // Scroll on message changes with delay to ensure DOM updates
+  // Scroll on message changes with multiple attempts to ensure it works
   useEffect(() => {
-    const timer = setTimeout(scrollToBottom, 100);
-    return () => clearTimeout(timer);
+    // Immediate scroll
+    scrollToBottom();
+    
+    // Delayed scroll to ensure DOM updates
+    const timer1 = setTimeout(scrollToBottom, 100);
+    const timer2 = setTimeout(scrollToBottom, 300);
+    const timer3 = setTimeout(scrollToBottom, 500);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
   }, [messages, isTyping]);
+
+  // Force scroll when typing stops (message received)
+  useEffect(() => {
+    if (!isTyping && messages.length > 1) {
+      setTimeout(scrollToBottom, 200);
+    }
+  }, [isTyping]);
 
   // Fetch nutrition data with daily details for AI
   const fetchNutritionData = async (): Promise<{ data: NutritionData, dailyDetails: any[] }> => {
@@ -915,6 +937,11 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       
       setMessages(prev => [...prev, assistantMessage]);
       
+      // Force scroll after message is added
+      setTimeout(() => {
+        scrollToBottom();
+      }, 150);
+      
     } catch (error) {
       console.error('❌ Error getting AI response:', error);
       const errorMessage: ChatMessage = {
@@ -923,6 +950,11 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
+      
+      // Force scroll after error message
+      setTimeout(() => {
+        scrollToBottom();
+      }, 150);
     } finally {
       setIsTyping(false);
     }
@@ -1067,7 +1099,8 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                     ref={messagesContainerRef}
                     className="overflow-y-auto p-4 space-y-4" 
                     style={{
-                      height: `${Math.min(700, Math.max(400, (messages.length * 60) + 250))}px`
+                      height: `${Math.min(800, Math.max(450, (messages.length * 80) + 300))}px`,
+                      maxHeight: '80vh'
                     }}
                   >
                     {messages.map((message, index) => (
