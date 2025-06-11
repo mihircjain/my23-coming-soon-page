@@ -410,7 +410,7 @@ export default async function handler(req, res) {
         heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
         average_heartrate: activity.average_heartrate,
         max_heartrate: activity.max_heartrate,
-        calories: calories,
+        calories: activity.calories,
         achievement_count: activity.achievement_count,
         kudos_count: activity.kudos_count,
         comment_count: activity.comment_count,
