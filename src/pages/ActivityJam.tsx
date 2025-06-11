@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import Chart from 'chart.js/auto';
 
 interface ActivityData {
   id: string;
@@ -40,11 +41,16 @@ const ActivityJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [usingCache, setUsingCache] = useState(false);
-  const [summaryStats, setSummaryStats] = useState<any>(null);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
-  // Cache configuration
-  const CACHE_KEY = 'activity_jam_ultra_fast';
-  const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+  // Chart refs - restore these
+  const caloriesChartRef = useRef<HTMLCanvasElement>(null);
+  const distanceChartRef = useRef<HTMLCanvasElement>(null);
+  const weightTrainingChartRef = useRef<HTMLCanvasElement>(null);
+  const heartRateRunsChartRef = useRef<HTMLCanvasElement>(null);
+
+  // Chart instances - restore these  
+  const chartInstances = useRef<{ [key: string]: Chart }>({});
 
   // Helper function to determine if activity is a run
   const isRunActivity = (activityType: string): boolean => {
@@ -85,7 +91,228 @@ const ActivityJam = () => {
     return stats;
   };
 
-  // Generate minimal chart data for tiny visualizations
+  // Process activities data for charts
+  const processChartData = (activities: ActivityData[]) => {
+    // Sort activities by date
+    const sortedActivities = [...activities].sort((a, b) => 
+      new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+
+    // Group by date and aggregate data
+    const dailyData = new Map();
+
+    sortedActivities.forEach(activity => {
+      const date = activity.start_date.split('T')[0]; // Get YYYY-MM-DD
+      
+      if (!dailyData.has(date)) {
+        dailyData.set(date, {
+          calories: 0,
+          distance: 0,
+          weightTrainingTime: 0,
+          runHeartRateCount: 0,
+          totalRunHeartRate: 0
+        });
+      }
+
+      const dayData = dailyData.get(date);
+      
+      // Simple direct calories
+      dayData.calories += activity.calories || 0;
+      dayData.distance += activity.distance || 0;
+      
+      // Weight training time
+      if (activity.type?.toLowerCase().includes('weight') || 
+          activity.type?.toLowerCase().includes('strength')) {
+        dayData.weightTrainingTime += Math.round(activity.moving_time / 60); // Convert to minutes
+      }
+
+      // Heart rate ONLY from runs
+      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
+        dayData.totalRunHeartRate += activity.average_heartrate;
+        dayData.runHeartRateCount += 1;
+      }
+    });
+
+    // Convert to arrays for charts
+    const dates = Array.from(dailyData.keys()).sort();
+    const labels = dates.map(date => new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    }));
+
+    return {
+      labels: dates,
+      displayLabels: labels,
+      calories: dates.map(date => dailyData.get(date).calories),
+      distance: dates.map(date => Math.round(dailyData.get(date).distance * 100) / 100),
+      weightTraining: dates.map(date => dailyData.get(date).weightTrainingTime),
+      runHeartRate: dates.map(date => {
+        const dayData = dailyData.get(date);
+        return dayData.runHeartRateCount > 0 ? Math.round(dayData.totalRunHeartRate / dayData.runHeartRateCount) : 0;
+      })
+    };
+  };
+
+  // Destroy existing charts
+  const destroyCharts = () => {
+    Object.values(chartInstances.current).forEach(chart => {
+      if (chart) {
+        chart.destroy();
+      }
+    });
+    chartInstances.current = {};
+  };
+
+  // Create charts quickly with cached data
+  const createCharts = (activities: ActivityData[]) => {
+    if (activities.length === 0) return;
+
+    destroyCharts();
+    
+    const chartData = processChartData(activities);
+    
+    console.log('📊 Creating charts with data:', {
+      totalDays: chartData.labels.length,
+      totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
+      totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
+      totalWeightTraining: chartData.weightTraining.reduce((a, b) => a + b, 0),
+      runHeartRateDays: chartData.runHeartRate.filter(hr => hr > 0).length
+    });
+
+    // Small delay to ensure refs are ready
+    setTimeout(() => {
+      createCaloriesChart(chartData);
+      createDistanceChart(chartData);
+      createWeightTrainingChart(chartData);
+      createRunHeartRateChart(chartData);
+    }, 50); // Reduced delay for faster rendering
+  };
+
+  // Simple chart creation functions
+  const createCaloriesChart = (chartData: any) => {
+    if (!caloriesChartRef.current) return;
+    const ctx = caloriesChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    chartInstances.current.calories = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Calories',
+          data: chartData.calories,
+          borderColor: 'rgba(245, 158, 11, 1)',
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
+        }
+      }
+    });
+  };
+
+  const createDistanceChart = (chartData: any) => {
+    if (!distanceChartRef.current) return;
+    const ctx = distanceChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    chartInstances.current.distance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Distance',
+          data: chartData.distance,
+          backgroundColor: 'rgba(59, 130, 246, 0.7)',
+          borderColor: 'rgba(59, 130, 246, 1)',
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
+        }
+      }
+    });
+  };
+
+  const createWeightTrainingChart = (chartData: any) => {
+    if (!weightTrainingChartRef.current) return;
+    const ctx = weightTrainingChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    chartInstances.current.weightTraining = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Weight Training',
+          data: chartData.weightTraining,
+          borderColor: 'rgba(139, 92, 246, 1)',
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
+        }
+      }
+    });
+  };
+
+  const createRunHeartRateChart = (chartData: any) => {
+    if (!heartRateRunsChartRef.current) return;
+    const ctx = heartRateRunsChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    chartInstances.current.runHeartRate = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Run Heart Rate',
+          data: chartData.runHeartRate,
+          borderColor: 'rgba(239, 68, 68, 1)',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: false, grid: { color: 'rgba(156, 163, 175, 0.2)' } }
+        }
+      }
+    });
+  };
   const generateMiniChartData = (activities: ActivityData[]) => {
     // Group by week for mini charts (much faster than daily)
     const weeklyData = new Map();
@@ -183,6 +410,9 @@ const ActivityJam = () => {
       setLastUpdate(cached.lastUpdate);
       setUsingCache(true);
       setLoading(false);
+      
+      // Create charts with cached data
+      createCharts(cached.activities);
       return true;
     }
     return false;
@@ -273,6 +503,9 @@ const ActivityJam = () => {
       // Cache everything for next time
       setCachedData(sortedActivities, stats, updateTime);
 
+      // Create charts after activities are set
+      createCharts(sortedActivities);
+
       const totalTime = performance.now() - startTime;
       console.log(`🎯 Total load time: ${totalTime.toFixed(0)}ms`);
 
@@ -302,6 +535,11 @@ const ActivityJam = () => {
     } else {
       fetchActivities(false);
     }
+    
+    // Cleanup charts on unmount
+    return () => {
+      destroyCharts();
+    };
   }, []);
 
   // Helper functions
@@ -585,6 +823,83 @@ const ActivityJam = () => {
               </section>
             )}
 
+            {/* Charts Section - RESTORED */}
+            <section>
+              <div className="flex items-center mb-6">
+                <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
+                {usingCache && (
+                  <Badge variant="outline" className="ml-3 bg-green-50 text-green-700 border-green-300 text-xs">
+                    ⚡ Fast Load
+                  </Badge>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Calories Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Zap className="h-5 w-5 mr-2 text-green-500" />
+                      Calories Burned
+                    </CardTitle>
+                    <p className="text-xs text-gray-600">Direct from Strava API</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Distance Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Activity className="h-5 w-5 mr-2 text-blue-500" />
+                      Distance Covered
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Weight Training Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Activity className="h-5 w-5 mr-2 text-purple-500" />
+                      Weight Training Time
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={weightTrainingChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Run Heart Rate Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Heart className="h-5 w-5 mr-2 text-red-500" />
+                      Run Heart Rate
+                    </CardTitle>
+                    <p className="text-xs text-gray-600">Only from running activities</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={heartRateRunsChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
             {/* Recent Activities List */}
             <section>
               <div className="flex items-center mb-6">
@@ -593,7 +908,7 @@ const ActivityJam = () => {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(summaryStats?.recentActivities || activities.slice(0, 9)).map((activity) => (
+                {(showAllActivities ? activities : (summaryStats?.recentActivities || activities.slice(0, 9))).map((activity) => (
                   <Card key={activity.id} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200">
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
@@ -604,7 +919,7 @@ const ActivityJam = () => {
                           <Badge variant="secondary" className="ml-2 shrink-0">
                             {activity.type}
                           </Badge>
-                          {activity.is_run_activity && (
+                          {activity.is_run_activity && activity.type.toLowerCase() !== 'run' && (
                             <Badge variant="outline" className="ml-2 shrink-0 text-xs border-red-300 text-red-600">
                               Run
                             </Badge>
