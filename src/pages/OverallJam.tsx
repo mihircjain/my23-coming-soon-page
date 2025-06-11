@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Drumstick, Leaf, RefreshCw, BarChart3, Target, TrendingUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import Chart from 'chart.js/auto';
@@ -321,12 +322,14 @@ const OverallJam = () => {
           console.log(`⏭️ Skipping HR for non-run activity: ${data.type} on ${activityDate}`);
         }
 
-        // Use actual Strava calories field (not estimated)
-        const stravaCalories = data.calories || 0; // Direct from Strava API
-        tempData[activityDate].caloriesBurned += stravaCalories;
-        tempData[activityDate].workoutDuration += data.duration || 0;
-
-        console.log(`🔥 Strava calories for ${activityDate}: ${stravaCalories} (type: ${data.type})`);
+        // UPDATED: Use actual Strava calories field and better field mapping
+        const stravaCalories = data.kilojoules || data.calories || data.activity?.calories || 0;
+        if (stravaCalories > 0) {
+          tempData[activityDate].caloriesBurned += stravaCalories;
+          console.log(`🔥 Strava calories for ${activityDate}: ${stravaCalories} (from field: ${data.kilojoules ? 'kilojoules' : data.calories ? 'calories' : 'activity.calories'}) (type: ${data.type})`);
+        } else {
+          console.log(`⚠️ No calories found for ${activityDate} (type: ${data.type}) - fields checked: kilojoules, calories, activity.calories`);
+        }
 
         // Activity type list
         if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
