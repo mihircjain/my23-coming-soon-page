@@ -75,7 +75,7 @@ const generateSessionId = () => {
   return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 };
 
-// FIXED: Message Component with better rendering
+// Message Component with better rendering
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   const formatContent = (text: string) => {
     return text
@@ -94,7 +94,7 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-// FIXED: Health Summary - removed React.memo to fix syntax error
+// Health Summary with enhanced colors
 const SmartHealthSummary: React.FC<{ 
   userData: UserData | null,
   recentActivities: RecentActivity[], 
@@ -111,7 +111,6 @@ const SmartHealthSummary: React.FC<{
     
     const distance = runActivities.reduce((sum, run) => sum + (run.distance || 0), 0);
     
-    // Only log once when data changes
     console.log('🔍 SmartHealthSummary - Run activities:', runActivities.length);
     console.log('🔍 SmartHealthSummary - Total run distance:', distance);
     
@@ -232,46 +231,6 @@ const SmartHealthSummary: React.FC<{
             </div>
           </CardContent>
         </Card>
-      </div>="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-4 w-4 text-blue-600" />
-              <span className="text-xs font-medium text-blue-700">Running</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-lg font-bold text-blue-800">
-                {loading ? '...' : totalRunDistance > 0 ? `${totalRunDistance.toFixed(1)}km` : 'No runs'}
-              </div>
-              <div className="text-xs text-blue-600">
-                {totalRunDistance > 0 ? 'total distance' : 'Start running!'}
-              </div>
-              <div className="text-xs text-gray-600 truncate">
-                {userData?.activity.avgHeartRate ? `${userData.activity.avgHeartRate} bpm avg` : 'Add heart rate data'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Heart className="h-4 w-4 text-purple-600" />
-              <span className="text-xs font-medium text-purple-700">Health</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-lg font-bold text-green-800">
-                {loading ? '...' : userData?.nutrition.avgCalories > 0 ? 'Good' : 'No Data'}
-              </div>
-              <div className="text-xs text-purple-600">
-                {userData?.nutrition.avgCalories > 0 ? 'tracking active' : 'Track nutrition'}
-              </div>
-              <div className="text-xs text-gray-600 truncate">
-                {userData?.activity.workoutsPerWeek > 3 ? 'High activity' : 
-                 userData?.activity.workoutsPerWeek > 1 ? 'Moderate activity' : 'Low activity'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
       
       {runActivities.length > 0 && (
@@ -336,7 +295,7 @@ const SmartHealthSummary: React.FC<{
   );
 };
 
-// Smart Prompt Suggestions Component
+// Smart Prompt Suggestions Component with enhanced colors
 const SmartPromptSuggestions: React.FC<{ 
   onPromptSelect: (prompt: string) => void,
   userData: UserData | null,
@@ -477,14 +436,14 @@ const LetsJam: React.FC = () => {
   const [sessionId] = useState(() => generateSessionId());
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // FIXED: Better scroll refs and behavior
+  // Better scroll refs and behavior
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   // Hardcoded userId for consistency
   const userId = "mihir_jain";
   
-  // FIXED: More reliable auto-scroll
+  // More reliable auto-scroll
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ 
@@ -494,13 +453,13 @@ const LetsJam: React.FC = () => {
     }
   };
   
-  // FIXED: Scroll on message changes with delay to ensure DOM updates
+  // Scroll on message changes with delay to ensure DOM updates
   useEffect(() => {
     const timer = setTimeout(scrollToBottom, 100);
     return () => clearTimeout(timer);
   }, [messages, isTyping]);
 
-  // FIXED: Fetch nutrition data with daily details for AI
+  // Fetch nutrition data with daily details for AI
   const fetchNutritionData = async (): Promise<{ data: NutritionData, dailyDetails: any[] }> => {
     try {
       // Get the last 7 days instead of 30
@@ -619,7 +578,7 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // FIXED: Fetch activity data using your working 24h logic
+  // Fetch activity data using your working 24h logic
   const fetchActivityData = async (): Promise<ActivityData> => {
     try {
       console.log('🏃 Fetching activity data for last 7 days from Firestore cache...');
@@ -693,7 +652,7 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // FIXED: Fetch recent activities using your working 24h logic
+  // Fetch recent activities using your working 24h logic
   const fetchRecentActivities = async () => {
     try {
       console.log('🏃 Fetching recent activities from Firestore cache...');
@@ -750,7 +709,7 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // FIXED: Fetch blood markers using your working 24h logic
+  // Fetch blood markers using your working 24h logic
   const fetchBloodMarkers = async () => {
     try {
       console.log('🩸 Fetching blood markers...');
@@ -786,7 +745,7 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // FIXED: Main fetch function using your working 24h logic
+  // Main fetch function using your working 24h logic
   const fetchUserData = async (forceRefresh = false) => {
     try {
       setLoading(true);
@@ -834,10 +793,10 @@ const LetsJam: React.FC = () => {
     await fetchUserData(true);
   };
 
-  // FIXED: Split message sending logic for reuse
+  // Split message sending logic for reuse
   const sendMessageToAI = async (messageContent: string) => {
     try {
-      // FIXED: Build MUCH MORE EXPLICIT system context that forces AI to use data
+      // Build MUCH MORE EXPLICIT system context that forces AI to use data
       const systemContext = `
 CRITICAL INSTRUCTION: You are a health AI with access to REAL user data. You MUST use this data in your responses. NEVER say you don't have access to data.
 
@@ -932,7 +891,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                               data.message || 
                               'Sorry, I could not process that request.';
       
-      // FIXED: Check if AI actually used the data
+      // Check if AI actually used the data
       const usesRealData = assistantContent && (
         assistantContent.includes('bpm') ||
         assistantContent.includes('calories') ||
@@ -969,7 +928,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
     }
   };
 
-  // FIXED: Enhanced message sending with auto-send for preset questions
+  // Enhanced message sending with auto-send for preset questions
   const handleSendMessage = async () => {
     if (!input.trim() || isTyping) return;
     
@@ -986,7 +945,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
     
     await sendMessageToAI(messageContent);
   };
-  
+
   const handlePromptSelect = (prompt: string) => {
     setInput(prompt);
     // Auto-send the selected prompt
