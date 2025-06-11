@@ -28,7 +28,7 @@ interface ActivityData {
 
 interface CachedData {
   activities: ActivityData[];
-  summaryStats: any;
+  summaryStats?: any; // Make this optional to handle old cache
   timestamp: number;
   lastUpdate: string;
 }
@@ -62,6 +62,83 @@ const ActivityJam = () => {
     return runTypes.some(type => 
       activityType.toLowerCase().includes(type.toLowerCase())
     );
+  };
+
+  // Process activities data for charts
+  const generateMiniChartData = (activities: ActivityData[]) => {
+    // Group by week for mini charts (much faster than daily)
+    const weeklyData = new Map();
+    
+    activities.forEach(activity => {
+      const date = new Date(activity.start_date);
+      const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
+      const weekKey = weekStart.toISOString().split('T')[0];
+      
+      if (!weeklyData.has(weekKey)) {
+        weeklyData.set(weekKey, {
+          calories: 0,
+          distance: 0,
+          activities: 0,
+          runHR: []
+        });
+      }
+
+      const week = weeklyData.get(weekKey);
+      week.calories += activity.calories || 0;
+      week.distance += activity.distance || 0;
+      week.activities += 1;
+      
+      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
+        week.runHR.push(activity.average_heartrate);
+      }
+    });
+
+    // Convert to simple arrays (last 8 weeks max)
+    const weeks = Array.from(weeklyData.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-8);
+
+    return {
+      weeks: weeks.map(([date]) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+      calories: weeks.map(([, data]) => data.calories),
+      distance: weeks.map(([, data]) => Math.round(data.distance * 10) / 10),
+      activities: weeks.map(([, data]) => data.activities),
+      avgHR: weeks.map(([, data]) => data.runHR.length > 0 
+        ? Math.round(data.runHR.reduce((a, b) => a + b) / data.runHR.length) 
+        : 0
+      )
+    };
+  };
+
+  // Pre-calculate summary stats for instant display
+  const calculateSummaryStats = (activities: ActivityData[]) => {
+    console.log('📊 Pre-calculating summary stats...');
+    
+    const stats = {
+      totalActivities: activities.length,
+      activitiesWithCalories: activities.filter(a => a.calories && a.calories > 0).length,
+      totalCalories: activities.reduce((sum, a) => sum + (a.calories || 0), 0),
+      runActivities: activities.filter(a => a.is_run_activity).length,
+      runsWithHR: activities.filter(a => a.is_run_activity && a.has_heartrate).length,
+      totalDistance: activities.reduce((sum, a) => sum + (a.distance || 0), 0),
+      totalTime: activities.reduce((sum, a) => sum + (a.moving_time || 0), 0),
+      avgHeartRate: 0,
+      recentActivities: activities.slice(0, 6), // First 6 for quick display
+      chartData: generateMiniChartData(activities)
+    };
+
+    // Calculate average heart rate from runs only
+    const runsWithHR = activities.filter(a => 
+      a.is_run_activity && a.has_heartrate && a.average_heartrate
+    );
+    if (runsWithHR.length > 0) {
+      stats.avgHeartRate = Math.round(
+        runsWithHR.reduce((sum, a) => sum + a.average_heartrate!, 0) / runsWithHR.length
+      );
+    }
+
+    console.log('✅ Summary stats calculated:', stats);
+    return stats;
   };
 
   // Pre-calculate summary stats for instant display
@@ -410,7 +487,16 @@ const ActivityJam = () => {
     if (cached) {
       console.log('⚡⚡⚡ INSTANT LOAD FROM CACHE');
       setActivities(cached.activities);
-      setSummaryStats(cached.summaryStats);
+      
+      // Handle cases where summaryStats might not exist in old cache
+      if (cached.summaryStats) {
+        setSummaryStats(cached.summaryStats);
+      } else {
+        // Calculate stats from cached activities
+        const stats = calculateSummaryStats(cached.activities);
+        setSummaryStats(stats);
+      }
+      
       setLastUpdate(cached.lastUpdate);
       setUsingCache(true);
       setLoading(false);
