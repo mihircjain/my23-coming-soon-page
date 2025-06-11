@@ -20,8 +20,8 @@ interface ActivityData {
   has_heartrate: boolean;
   average_heartrate?: number;
   max_heartrate?: number;
-  calories?: number;
-  caloriesBurned?: number;
+  calories?: number; // Direct from Strava API
+  is_run_activity: boolean; // Track if this is a run for HR purposes
 }
 
 const ActivityJam = () => {
@@ -36,12 +36,20 @@ const ActivityJam = () => {
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
   const distanceChartRef = useRef<HTMLCanvasElement>(null);
   const weightTrainingChartRef = useRef<HTMLCanvasElement>(null);
-  const heartRateChartRef = useRef<HTMLCanvasElement>(null);
+  const heartRateRunsChartRef = useRef<HTMLCanvasElement>(null);
 
   // Chart instances
   const chartInstances = useRef<{ [key: string]: Chart }>({});
 
-  // Process activities data for charts
+  // Helper function to determine if activity is a run
+  const isRunActivity = (activityType: string): boolean => {
+    const runTypes = ['run', 'virtualrun', 'treadmill', 'trail'];
+    return runTypes.some(type => 
+      activityType.toLowerCase().includes(type.toLowerCase())
+    );
+  };
+
+  // Process activities data for charts - UPDATED to only use HR from runs
   const processChartData = (activities: ActivityData[]) => {
     // Sort activities by date
     const sortedActivities = [...activities].sort((a, b) => 
@@ -59,13 +67,15 @@ const ActivityJam = () => {
           calories: 0,
           distance: 0,
           weightTrainingTime: 0,
-          heartRateCount: 0,
-          totalHeartRate: 0
+          runHeartRateCount: 0,
+          totalRunHeartRate: 0
         });
       }
 
       const dayData = dailyData.get(date);
-      dayData.calories += activity.calories || activity.caloriesBurned || 0;
+      
+      // Use actual Strava calories
+      dayData.calories += activity.calories || 0;
       dayData.distance += activity.distance || 0;
       
       // Weight training time
@@ -74,10 +84,14 @@ const ActivityJam = () => {
         dayData.weightTrainingTime += Math.round(activity.moving_time / 60); // Convert to minutes
       }
 
-      // Heart rate
-      if (activity.has_heartrate && activity.average_heartrate) {
-        dayData.totalHeartRate += activity.average_heartrate;
-        dayData.heartRateCount += 1;
+      // Heart rate ONLY from runs
+      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
+        dayData.totalRunHeartRate += activity.average_heartrate;
+        dayData.runHeartRateCount += 1;
+        
+        console.log(`💓 Added run HR: ${activity.average_heartrate} bpm from ${activity.type} on ${date}`);
+      } else if (activity.has_heartrate && activity.average_heartrate) {
+        console.log(`⏭️ Skipped non-run HR: ${activity.average_heartrate} bpm from ${activity.type} on ${date}`);
       }
     });
 
@@ -92,11 +106,11 @@ const ActivityJam = () => {
       labels: dates,
       displayLabels: labels,
       calories: dates.map(date => dailyData.get(date).calories),
-      distance: dates.map(date => Math.round(dailyData.get(date).distance * 100) / 100), // Round to 2 decimals
+      distance: dates.map(date => Math.round(dailyData.get(date).distance * 100) / 100),
       weightTraining: dates.map(date => dailyData.get(date).weightTrainingTime),
-      heartRate: dates.map(date => {
+      runHeartRate: dates.map(date => {
         const dayData = dailyData.get(date);
-        return dayData.heartRateCount > 0 ? Math.round(dayData.totalHeartRate / dayData.heartRateCount) : 0;
+        return dayData.runHeartRateCount > 0 ? Math.round(dayData.totalRunHeartRate / dayData.runHeartRateCount) : 0;
       })
     };
   };
@@ -111,7 +125,7 @@ const ActivityJam = () => {
     chartInstances.current = {};
   };
 
-  // Create calories chart
+  // Create calories chart - UPDATED title to reflect Strava source
   const createCaloriesChart = (chartData: any) => {
     if (!caloriesChartRef.current) return;
 
@@ -128,7 +142,7 @@ const ActivityJam = () => {
       data: {
         labels: chartData.displayLabels,
         datasets: [{
-          label: 'Calories Burned',
+          label: 'Calories Burned (Strava)',
           data: chartData.calories,
           borderColor: 'rgba(245, 158, 11, 1)',
           backgroundColor: gradient,
@@ -157,7 +171,7 @@ const ActivityJam = () => {
             padding: 12,
             displayColors: false,
             callbacks: {
-              label: (context) => `${context.parsed.y} calories`
+              label: (context) => `${context.parsed.y} calories (Strava)`
             }
           }
         },
@@ -316,11 +330,11 @@ const ActivityJam = () => {
     });
   };
 
-  // Create heart rate chart
-  const createHeartRateChart = (chartData: any) => {
-    if (!heartRateChartRef.current) return;
+  // Create run heart rate chart - UPDATED to only show runs
+  const createRunHeartRateChart = (chartData: any) => {
+    if (!heartRateRunsChartRef.current) return;
 
-    const ctx = heartRateChartRef.current.getContext('2d');
+    const ctx = heartRateRunsChartRef.current.getContext('2d');
     if (!ctx) return;
 
     // Create gradient
@@ -328,13 +342,13 @@ const ActivityJam = () => {
     gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
     gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
 
-    chartInstances.current.heartRate = new Chart(ctx, {
+    chartInstances.current.runHeartRate = new Chart(ctx, {
       type: 'line',
       data: {
         labels: chartData.displayLabels,
         datasets: [{
-          label: 'Average Heart Rate (bpm)',
-          data: chartData.heartRate,
+          label: 'Run Heart Rate (bpm)',
+          data: chartData.runHeartRate,
           borderColor: 'rgba(239, 68, 68, 1)',
           backgroundColor: gradient,
           borderWidth: 3,
@@ -362,7 +376,7 @@ const ActivityJam = () => {
             padding: 12,
             displayColors: false,
             callbacks: {
-              label: (context) => `${context.parsed.y} bpm`
+              label: (context) => `${context.parsed.y} bpm (runs only)`
             }
           }
         },
@@ -394,11 +408,12 @@ const ActivityJam = () => {
     
     const chartData = processChartData(activities);
     
-    console.log('📊 Creating charts with data:', {
+    console.log('📊 Creating charts with updated data sources:', {
       totalDays: chartData.labels.length,
       totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
       totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
-      totalWeightTraining: chartData.weightTraining.reduce((a, b) => a + b, 0)
+      totalWeightTraining: chartData.weightTraining.reduce((a, b) => a + b, 0),
+      runHeartRateDays: chartData.runHeartRate.filter(hr => hr > 0).length
     });
 
     // Small delay to ensure refs are ready
@@ -406,11 +421,11 @@ const ActivityJam = () => {
       createCaloriesChart(chartData);
       createDistanceChart(chartData);
       createWeightTrainingChart(chartData);
-      createHeartRateChart(chartData);
+      createRunHeartRateChart(chartData);
     }, 100);
   };
 
-  // Fetch activities
+  // Fetch activities - UPDATED to process run detection and Strava calories
   const fetchActivities = async (forceRefresh = false) => {
     try {
       if (forceRefresh) {
@@ -439,29 +454,42 @@ const ActivityJam = () => {
 
       const data = await response.json();
       
-      // Process activities
-      const processedActivities = data.map((activity: any) => ({
-        id: activity.id?.toString() || Math.random().toString(),
-        name: activity.name || 'Unnamed Activity',
-        type: activity.type || 'Activity',
-        start_date: activity.start_date,
-        distance: typeof activity.distance === 'number' 
-          ? activity.distance 
-          : (activity.distance || 0) / 1000,
-        moving_time: activity.moving_time || activity.duration * 60 || 0,
-        total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
-        average_speed: activity.average_speed || 0,
-        max_speed: activity.max_speed || 0,
-        has_heartrate: activity.has_heartrate || false,
-        average_heartrate: activity.average_heartrate || activity.heart_rate,
-        max_heartrate: activity.max_heartrate,
-        calories: activity.calories || activity.caloriesBurned || 0,
-        caloriesBurned: activity.caloriesBurned || activity.calories || 0
-      }));
+      // Process activities with proper run detection and Strava calories
+      const processedActivities = data.map((activity: any) => {
+        const activityType = activity.type || 'Activity';
+        const isRun = isRunActivity(activityType);
+        
+        return {
+          id: activity.id?.toString() || Math.random().toString(),
+          name: activity.name || 'Unnamed Activity',
+          type: activityType,
+          start_date: activity.start_date,
+          distance: typeof activity.distance === 'number' 
+            ? activity.distance 
+            : (activity.distance || 0) / 1000,
+          moving_time: activity.moving_time || activity.duration * 60 || 0,
+          total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
+          average_speed: activity.average_speed || 0,
+          max_speed: activity.max_speed || 0,
+          has_heartrate: activity.has_heartrate || false,
+          average_heartrate: activity.average_heartrate || activity.heart_rate,
+          max_heartrate: activity.max_heartrate,
+          calories: activity.calories || 0, // Direct from Strava API
+          is_run_activity: isRun
+        };
+      });
 
       const sortedActivities = processedActivities.sort((a: ActivityData, b: ActivityData) => 
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
+
+      console.log('🏃 Activity processing summary:', {
+        totalActivities: sortedActivities.length,
+        runActivities: sortedActivities.filter(a => a.is_run_activity).length,
+        runActivitiesWithHR: sortedActivities.filter(a => a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
+        nonRunActivitiesWithHR: sortedActivities.filter(a => !a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
+        activitiesWithCalories: sortedActivities.filter(a => a.calories > 0).length
+      });
 
       setActivities(sortedActivities);
       setLastUpdate(new Date().toLocaleTimeString());
@@ -582,7 +610,7 @@ const ActivityJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Showing last 30 days
+              Last updated: {lastUpdate} • HR: Runs only • Calories: Strava direct • Showing last 30 days
             </p>
           )}
         </div>
@@ -641,6 +669,27 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
+            {/* Data Source Info Banner */}
+            <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-red-500" />
+                      <span className="text-sm font-medium text-gray-700">Heart Rate: Runs Only</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm font-medium text-gray-700">Calories: Direct from Strava</span>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    Updated Data Sources
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Charts Section */}
             <section>
               <div className="flex items-center mb-6">
@@ -654,8 +703,9 @@ const ActivityJam = () => {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                       <Zap className="h-5 w-5 mr-2 text-amber-500" />
-                      Calories Burned
+                      Calories Burned (Strava)
                     </CardTitle>
+                    <p className="text-xs text-gray-600">Direct from Strava API - no estimates</p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-64">
@@ -694,17 +744,18 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                {/* Heart Rate Chart */}
+                {/* Run Heart Rate Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                       <Heart className="h-5 w-5 mr-2 text-red-500" />
-                      Average Heart Rate
+                      Run Heart Rate
                     </CardTitle>
+                    <p className="text-xs text-gray-600">Only from running activities - excludes weight training, cycling, etc.</p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-64">
-                      <canvas ref={heartRateChartRef} className="w-full h-full"></canvas>
+                      <canvas ref={heartRateRunsChartRef} className="w-full h-full"></canvas>
                     </div>
                   </CardContent>
                 </Card>
@@ -726,9 +777,16 @@ const ActivityJam = () => {
                         <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
                           {activity.name}
                         </CardTitle>
-                        <Badge variant="secondary" className="ml-2 shrink-0">
-                          {activity.type}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="secondary" className="ml-2 shrink-0">
+                            {activity.type}
+                          </Badge>
+                          {activity.is_run_activity && (
+                            <Badge variant="outline" className="ml-2 shrink-0 text-xs border-red-300 text-red-600">
+                              Run
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
                         <Calendar className="h-4 w-4 mr-2" />
@@ -764,21 +822,39 @@ const ActivityJam = () => {
                           <span className="text-gray-600">Elevation:</span>
                           <span className="font-medium">{activity.total_elevation_gain}m</span>
                         </div>
-                        {activity.has_heartrate && activity.average_heartrate && (
+                        {activity.is_run_activity && activity.has_heartrate && activity.average_heartrate && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Avg HR:</span>
                             <span className="font-medium flex items-center">
                               <Heart className="h-3 w-3 mr-1 text-red-500" />
                               {activity.average_heartrate} bpm
+                              <Badge variant="outline" className="ml-1 text-xs border-red-300 text-red-600">
+                                Run
+                              </Badge>
                             </span>
                           </div>
                         )}
-                        {(activity.calories || activity.caloriesBurned) && (
+                        {!activity.is_run_activity && activity.has_heartrate && activity.average_heartrate && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Avg HR:</span>
+                            <span className="font-medium flex items-center text-gray-500">
+                              <Heart className="h-3 w-3 mr-1 text-gray-400" />
+                              {activity.average_heartrate} bpm
+                              <Badge variant="outline" className="ml-1 text-xs border-gray-300 text-gray-500">
+                                Not tracked
+                              </Badge>
+                            </span>
+                          </div>
+                        )}
+                        {activity.calories && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Calories:</span>
                             <span className="font-medium flex items-center">
                               <Zap className="h-3 w-3 mr-1 text-yellow-500" />
-                              {activity.calories || activity.caloriesBurned}
+                              {activity.calories}
+                              <Badge variant="outline" className="ml-1 text-xs border-orange-300 text-orange-600">
+                                Strava
+                              </Badge>
                             </span>
                           </div>
                         )}
