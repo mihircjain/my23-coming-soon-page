@@ -389,8 +389,8 @@ export default async function handler(req, res) {
 
     for (const activity of activitiesData) {
       const minutes = Math.round(activity.moving_time / 60);
-      //const calories = typeof activity.calories === 'number' ? activity.calories : estimateCalories(activity);
-      const calories  = activity.calories;
+      const calories = typeof activity.calories === 'number' ? activity.calories : 0;
+      //const calories  = activity.calories;
       const summary = {
         userId,
         id: activity.id.toString(), // ENSURE activity ID is stored
@@ -410,7 +410,7 @@ export default async function handler(req, res) {
         heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
         average_heartrate: activity.average_heartrate,
         max_heartrate: activity.max_heartrate,
-        calories: activity.calories,
+        calories: typeof activity.calories === 'number' ? activity.calories : 0,
         achievement_count: activity.achievement_count,
         kudos_count: activity.kudos_count,
         comment_count: activity.comment_count,
