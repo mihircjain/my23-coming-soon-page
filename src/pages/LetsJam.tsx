@@ -305,62 +305,7 @@ const SmartHealthSummary: React.FC<{
   );
 };
       
-      {/* Recent Runs Timeline */}
-      {recentRuns.length > 0 && (
-        <Card className="bg-white/80 border-gray-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Recent Runs
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="space-y-2">
-              {recentRuns.slice(0, 3).map((run, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-800">{run.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-blue-600">{run.distance}km</div>
-                    <div className="text-xs text-gray-500">
-                      {run.average_heartrate ? `${run.average_heartrate} bpm` : 'No HR'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Blood Markers */}
-      {bloodMarkers && (
-        <Card className="bg-white/80 border-gray-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <Droplet className="h-4 w-4 text-red-500" />
-              Latest Blood Markers
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              {Object.entries(bloodMarkers).slice(0, 6).map(([key, value]) => (
-                <div key={key} className="text-center bg-gray-50 p-2 rounded">
-                  <div className="text-xs font-medium text-gray-500 uppercase">{key}</div>
-                  <div className="text-sm font-semibold text-gray-800">{value}</div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
+    
 
 // Smart Prompt Suggestions Component
 const SmartPromptSuggestions: React.FC<{ 
