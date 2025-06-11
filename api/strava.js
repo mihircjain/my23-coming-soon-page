@@ -389,7 +389,25 @@ export default async function handler(req, res) {
 
     for (const activity of activitiesData) {
       const minutes = Math.round(activity.moving_time / 60);
-      const calories = typeof activity.calories === 'number' ? activity.calories : 0;
+      //const calories = typeof activity.calories === 'number' ? activity.calories : 0;
+      let calories = typeof activity.calories === 'number' && activity.calories > 0 ? activity.calories : null;
+
+if (calories === null) {
+  const detailedResp = await fetch(`https://www.strava.com/api/v3/activities/${activity.id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (detailedResp.ok) {
+    const detailed = await detailedResp.json();
+    calories = typeof detailed.calories === 'number' && detailed.calories > 0
+      ? detailed.calories
+      : 0;
+  } else {
+    console.warn(`⚠️ Could not fetch details for ${activity.id}, estimating calories`);
+    calories = 0;
+  }
+}
+
       //const calories  = activity.calories;
       const summary = {
         userId,
@@ -410,7 +428,7 @@ export default async function handler(req, res) {
         heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
         average_heartrate: activity.average_heartrate,
         max_heartrate: activity.max_heartrate,
-        calories: typeof activity.calories === 'number' ? activity.calories : 0,
+        calories: calories,
         achievement_count: activity.achievement_count,
         kudos_count: activity.kudos_count,
         comment_count: activity.comment_count,
