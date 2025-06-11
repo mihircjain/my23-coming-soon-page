@@ -12,8 +12,8 @@ import { collection, query, where, orderBy, getDocs, limit } from 'firebase/fire
 // Types
 interface HealthData {
   date: string;
-  heartRateRuns: number | null; // Only from runs
-  caloriesBurned: number; // From Strava direct
+  heartRateRuns: number | null;
+  caloriesBurned: number;
   caloriesConsumed: number;
   protein: number;
   carbs: number;
@@ -79,9 +79,8 @@ const processHealthDataForAI = (healthData: HealthData[], recentRuns: RunActivit
   const workoutDays = healthData.filter(d => d.caloriesBurned > 0);
   const runDays = healthData.filter(d => d.runCount > 0 && d.heartRateRuns);
   
-  const BMR = 1479; // Base metabolic rate
+  const BMR = 1479;
   
-  // Calculate nutrition averages
   const nutrition = {
     type: 'nutrition_averages_7_days',
     avgCaloriesPerDay: validDays.reduce((sum, d) => sum + d.caloriesConsumed, 0) / Math.max(validDays.length, 1),
@@ -92,17 +91,15 @@ const processHealthDataForAI = (healthData: HealthData[], recentRuns: RunActivit
     calorieDeficitAvg: validDays.reduce((sum, d) => sum + (d.caloriesBurned + BMR - d.caloriesConsumed), 0) / Math.max(validDays.length, 1)
   };
   
-  // Calculate activity averages (only for runs regarding heart rate)
   const activity = {
     type: 'activity_summary_7_days',
-    workoutsPerWeek: (workoutDays.length / 7) * 7, // Normalize to weekly
+    workoutsPerWeek: (workoutDays.length / 7) * 7,
     avgHeartRateRuns: runDays.length > 0 ? runDays.reduce((sum, d) => sum + (d.heartRateRuns || 0), 0) / runDays.length : null,
     avgCaloriesBurned: workoutDays.length > 0 ? workoutDays.reduce((sum, d) => sum + d.caloriesBurned, 0) / workoutDays.length : 0,
     avgDurationMin: workoutDays.length > 0 ? workoutDays.reduce((sum, d) => sum + d.workoutDuration, 0) / workoutDays.length / 60 : 0,
     totalRunDistance: recentRuns.reduce((sum, r) => sum + r.distance, 0)
   };
   
-  // Generate trends analysis
   const trends = {
     weekOverWeek: nutrition.calorieDeficitAvg > 200 ? 'positive' : nutrition.calorieDeficitAvg < 0 ? 'concerning' : 'stable',
     recoveryStatus: runDays.length > 3 ? 'high_load' : runDays.length > 1 ? 'moderate' : 'well_rested',
@@ -127,10 +124,30 @@ const processHealthDataForAI = (healthData: HealthData[], recentRuns: RunActivit
       avgDurationMin: Math.round(activity.avgDurationMin),
       totalRunDistance: Math.round(activity.totalRunDistance * 10) / 10
     },
-    recentRuns: recentRuns.slice(0, 5), // Last 5 runs
+    recentRuns: recentRuns.slice(0, 5),
     bloodMarkers,
     trends
   };
+};
+
+// FIXED: Message Component with better markdown formatting
+const MessageContent: React.FC<{ content: string }> = ({ content }) => {
+  const formatContent = (text: string) => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/^\d+\.\s+(.*)$/gm, '<li>$1</li>')
+      .replace(/^[-•]\s+(.*)$/gm, '<li>$1</li>')
+      .replace(/\n/g, '<br>');
+  };
+
+  return (
+    <div 
+      className="text-sm whitespace-pre-wrap"
+      dangerouslySetInnerHTML={{ __html: formatContent(content) }}
+      style={{ lineHeight: '1.5' }}
+    />
+  );
 };
 
 // Smart Health Summary Component - FIXED units and data overflow
@@ -145,7 +162,6 @@ const SmartHealthSummary: React.FC<{
   
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-orange-500" />
@@ -163,19 +179,12 @@ const SmartHealthSummary: React.FC<{
         </Button>
       </div>
       
-      {/* Data Source Info */}
       <div className="flex items-center gap-2 mb-4">
-        <Badge variant="secondary" className="text-xs">
-          HR: Runs Only
-        </Badge>
-        <Badge variant="secondary" className="text-xs">
-          Cal: Strava Direct
-        </Badge>
+        <Badge variant="secondary" className="text-xs">HR: Runs Only</Badge>
+        <Badge variant="secondary" className="text-xs">Cal: Strava Direct</Badge>
       </div>
       
-      {/* Quick Stats Grid - FIXED: Better responsive layout */}
       <div className="grid grid-cols-1 gap-3">
-        {/* Nutrition Card */}
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -190,7 +199,6 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        {/* Activity Card */}
         <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -205,7 +213,6 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        {/* Running Card */}
         <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -222,7 +229,6 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        {/* Health Score Card */}
         <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -243,7 +249,6 @@ const SmartHealthSummary: React.FC<{
         </Card>
       </div>
       
-      {/* Recent Runs Timeline - FIXED: Better spacing and truncation */}
       {recentRuns.length > 0 && (
         <Card className="bg-white/80 border-gray-200">
           <CardHeader className="pb-2">
@@ -275,7 +280,6 @@ const SmartHealthSummary: React.FC<{
         </Card>
       )}
       
-      {/* Blood Markers - FIXED: Better responsive grid */}
       {bloodMarkers && (
         <Card className="bg-white/80 border-gray-200">
           <CardHeader className="pb-2">
@@ -304,8 +308,6 @@ const SmartHealthSummary: React.FC<{
     </div>
   );
 };
-      
-    
 
 // Smart Prompt Suggestions Component
 const SmartPromptSuggestions: React.FC<{ 
@@ -316,7 +318,7 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Performance',
       icon: Target,
-      color: 'from-blue-100 to-blue-200 border-blue-300',
+      color: 'from-orange-100 to-red-100 border-orange-300',
       prompts: [
         'Give me a running plan for this week',
         'Should I do a long run tomorrow?',
@@ -394,7 +396,7 @@ const SmartPromptSuggestions: React.FC<{
   );
 };
 
-// Main Smart Health Chatbot Component
+// Main Component
 const LetsJam: React.FC = () => {
   const navigate = useNavigate();
   const [healthData, setHealthData] = useState<HealthData[]>([]);
@@ -422,9 +424,9 @@ const LetsJam: React.FC = () => {
   
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping]);
 
-  // Fetch health data from Firebase
+  // FIXED: Fetch health data with proper distance calculation
   const fetchHealthData = async () => {
     try {
       setLoading(true);
@@ -433,7 +435,6 @@ const LetsJam: React.FC = () => {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const dateString = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Initialize data structure
       const tempData: Record<string, HealthData> = {};
       for (let i = 0; i < 7; i++) {
         const date = new Date();
@@ -455,7 +456,6 @@ const LetsJam: React.FC = () => {
         };
       }
 
-      // Fetch data in parallel
       const [nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot] = await Promise.all([
         getDocs(query(
           collection(db, "nutritionLogs"),
@@ -490,29 +490,36 @@ const LetsJam: React.FC = () => {
         }
       });
 
-      // Process runs for recent runs list
       const runs: RunActivity[] = [];
 
-      // Process Strava data - HR only from runs, use Strava calories
+      // FIXED: Process Strava data with proper distance handling
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
         
         if (!activityDate) return;
 
-        // Check if this is a run activity
         const isRunActivity = data.type && (
           data.type.toLowerCase().includes('run') || 
           data.type === 'Run' || 
           data.type === 'VirtualRun'
         );
 
-        // Add to runs list
         if (isRunActivity) {
+          // FIXED: Proper distance conversion
+          let distance = 0;
+          if (data.distance && typeof data.distance === 'number') {
+            distance = data.distance / 1000;
+          } else if (data.distance && typeof data.distance === 'string') {
+            distance = parseFloat(data.distance) / 1000;
+          }
+
+          console.log(`🏃 Processing run: ${data.name}, distance: ${distance}km (raw: ${data.distance})`);
+
           runs.push({
             date: activityDate,
             name: data.name || 'Run',
-            distance: (data.distance || 0) / 1000, // Convert to km
+            distance: distance,
             duration: data.moving_time || data.duration * 60 || 0,
             average_speed: data.average_speed || 0,
             average_heartrate: data.heart_rate || data.average_heartrate,
@@ -522,7 +529,6 @@ const LetsJam: React.FC = () => {
         }
 
         if (tempData[activityDate]) {
-          // Heart rate only from runs
           if (isRunActivity && data.heart_rate != null) {
             const currentHR = tempData[activityDate].heartRateRuns || 0;
             const currentRunCount = tempData[activityDate].runCount;
@@ -532,7 +538,6 @@ const LetsJam: React.FC = () => {
             tempData[activityDate].runCount += 1;
           }
 
-          // Use Strava calories
           const stravaCalories = data.kilojoules || data.calories || data.activity?.calories || 0;
           tempData[activityDate].caloriesBurned += stravaCalories;
           tempData[activityDate].workoutDuration += data.duration || 0;
@@ -543,13 +548,11 @@ const LetsJam: React.FC = () => {
         }
       });
 
-      // Process blood markers
       if (bloodMarkersSnapshot.docs.length > 0) {
         const latestDoc = bloodMarkersSnapshot.docs[0];
         setBloodMarkers(latestDoc.data().markers || {});
       }
 
-      // Sort and set data
       const sortedData = Object.values(tempData).sort((a, b) =>
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
@@ -557,6 +560,8 @@ const LetsJam: React.FC = () => {
       const sortedRuns = runs.sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
+
+      console.log(`📊 Final runs data:`, sortedRuns.slice(0, 3));
 
       setHealthData(sortedData);
       setRecentRuns(sortedRuns.slice(0, 5));
@@ -574,6 +579,7 @@ const LetsJam: React.FC = () => {
   
   const structuredHealthData = processHealthDataForAI(healthData, recentRuns, bloodMarkers);
   
+  // FIXED: Enhanced message sending with data context
   const handleSendMessage = async () => {
     if (!input.trim() || isTyping) return;
     
@@ -588,17 +594,41 @@ const LetsJam: React.FC = () => {
     setIsTyping(true);
     
     try {
+      const enhancedData = {
+        ...structuredHealthData,
+        rawHealthData: healthData,
+        userProfile: {
+          name: "Mihir",
+          BMR: 1479,
+          goals: "weight_loss_and_fitness",
+          dataAvailable: {
+            nutrition: healthData.some(d => d.caloriesConsumed > 0),
+            activity: healthData.some(d => d.caloriesBurned > 0),
+            runs: recentRuns.length > 0,
+            heartRate: healthData.some(d => d.heartRateRuns > 0),
+            bloodMarkers: bloodMarkers !== null
+          }
+        }
+      };
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage].slice(-10), // Keep last 10 for context
-          userData: structuredHealthData,
+          messages: [...messages, userMessage].slice(-10),
+          userData: enhancedData,
           userId: 'mihir_jain',
           source: 'smart_health_chat',
-          sessionId: sessionId
+          sessionId: sessionId,
+          context: {
+            hasNutritionData: enhancedData.userProfile.dataAvailable.nutrition,
+            hasActivityData: enhancedData.userProfile.dataAvailable.activity,
+            hasRunData: enhancedData.userProfile.dataAvailable.runs,
+            hasHeartRateData: enhancedData.userProfile.dataAvailable.heartRate,
+            hasBloodData: enhancedData.userProfile.dataAvailable.bloodMarkers
+          }
         }),
       });
       
@@ -719,8 +749,8 @@ const LetsJam: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {/* Messages Container */}
-                  <div className="h-80 overflow-y-auto p-4 space-y-4">
+                  {/* Messages Container - FIXED: Auto-scroll during typing */}
+                  <div className="h-80 overflow-y-auto p-4 space-y-4" id="messages-container">
                     {messages.map((message, index) => (
                       <div
                         key={index}
@@ -731,7 +761,8 @@ const LetsJam: React.FC = () => {
                             ? 'bg-orange-500 text-white' 
                             : 'bg-gray-100 text-gray-800 border border-gray-200'
                         } rounded-lg p-3`}>
-                          <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                          {/* FIXED: Use MessageContent component for better formatting */}
+                          <MessageContent content={message.content} />
                           <div className={`text-xs mt-1 ${
                             message.role === 'user' ? 'text-orange-100' : 'text-gray-500'
                           }`}>
@@ -801,7 +832,7 @@ const LetsJam: React.FC = () => {
                   {loading ? (
                     <div className="space-y-4">
                       <Skeleton className="h-6 w-32" />
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
                         {Array.from({ length: 4 }).map((_, i) => (
                           <Skeleton key={i} className="h-20 w-full" />
                         ))}
@@ -839,7 +870,7 @@ const LetsJam: React.FC = () => {
             <Button 
               onClick={() => navigate('/activity-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-orange-200 hover:bg-orange-50 text-orange-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-red-200 hover:bg-red-50 text-red-700 px-6 py-4 h-auto flex-col gap-2"
             >
               <Activity className="h-6 w-6" />
               <div>
