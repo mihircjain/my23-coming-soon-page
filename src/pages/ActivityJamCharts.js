@@ -1,5 +1,5 @@
-// ActivityJamCharts.js - IMPROVED with uniform date spacing
-// This file contains the chart rendering logic for the CurrentJam page
+// ActivityJamCharts.js - UPDATED with HR from runs only & Strava calories
+// This file contains the chart rendering logic for the ActivityJam page
 
 import Chart from 'chart.js/auto';
 
@@ -213,16 +213,16 @@ class ChartConfigFactory {
   }
 }
 
-// Debug function to log chart data
-export function debugChartData(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData) {
-  console.log('=== 📊 CHART DATA DEBUG ===');
+// Debug function to log chart data with updated data sources
+export function debugChartData(runHeartRateData, distanceData, activityTypeData, weightTrainingData, stravaCaloriesData) {
+  console.log('=== 📊 CHART DATA DEBUG (UPDATED SOURCES) ===');
   
   const datasets = {
-    'Heart Rate': heartRateData,
+    'Run Heart Rate (Runs Only)': runHeartRateData,
     'Distance': distanceData,
     'Activity Type': activityTypeData,
     'Weight Training': weightTrainingData,
-    'Calories': caloriesData
+    'Strava Calories (Direct)': stravaCaloriesData
   };
 
   Object.entries(datasets).forEach(([name, data]) => {
@@ -231,6 +231,19 @@ export function debugChartData(heartRateData, distanceData, activityTypeData, we
       console.log(`  📏 Labels: ${data.labels?.length || 0} points`);
       console.log(`  📅 Range: ${data.labels?.[0]} → ${data.labels?.[data.labels.length - 1]}`);
       console.log(`  📈 Data: ${data.datasets?.[0]?.data?.length || 0} points`);
+      
+      // Log data source specifics
+      if (name.includes('Heart Rate')) {
+        console.log(`  💓 Data Source: Only from running activities (excludes weight training, cycling)`);
+        const validHRPoints = data.datasets?.[0]?.data?.filter(hr => hr > 0).length || 0;
+        console.log(`  💓 Valid HR Points: ${validHRPoints} (non-zero values)`);
+      }
+      
+      if (name.includes('Calories')) {
+        console.log(`  🔥 Data Source: Direct from Strava API (no estimates)`);
+        const totalCalories = data.datasets?.[0]?.data?.reduce((sum, cal) => sum + (cal || 0), 0) || 0;
+        console.log(`  🔥 Total Calories: ${totalCalories.toLocaleString()}`);
+      }
       
       // Check for date consistency
       if (data.labels?.length > 1) {
@@ -249,22 +262,23 @@ export function debugChartData(heartRateData, distanceData, activityTypeData, we
   console.log('=== ✅ END DEBUG ===');
 }
 
-// Enhanced chart initialization
-export function initializeCharts(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData) {
-  console.log('🚀 Initializing ActivityJam charts with uniform date spacing...');
+// Enhanced chart initialization with updated data sources
+export function initializeCharts(runHeartRateData, distanceData, activityTypeData, weightTrainingData, stravaCaloriesData) {
+  console.log('🚀 Initializing ActivityJam charts with updated data sources...');
+  console.log('💓 Heart Rate: Runs only | 🔥 Calories: Strava direct');
   
-  debugChartData(heartRateData, distanceData, activityTypeData, weightTrainingData, caloriesData);
+  debugChartData(runHeartRateData, distanceData, activityTypeData, weightTrainingData, stravaCaloriesData);
   
   // Destroy existing charts
   destroyCharts();
   
-  // Render charts with improved date handling
+  // Render charts with updated data sources
   const chartConfigs = [
-    { data: heartRateData, id: 'heart-rate-chart', renderer: renderHeartRateChart },
+    { data: runHeartRateData, id: 'run-heart-rate-chart', renderer: renderRunHeartRateChart },
     { data: distanceData, id: 'distance-chart', renderer: renderDistanceChart },
     { data: activityTypeData, id: 'activity-type-chart', renderer: renderActivityTypeChart },
     { data: weightTrainingData, id: 'weight-training-chart', renderer: renderWeightTrainingChart },
-    { data: caloriesData, id: 'calories-chart', renderer: renderCaloriesBurnedChart }
+    { data: stravaCaloriesData, id: 'strava-calories-chart', renderer: renderStravaCaloriesChart }
   ];
 
   chartConfigs.forEach(({ data, id, renderer }) => {
@@ -281,7 +295,16 @@ export function initializeCharts(heartRateData, distanceData, activityTypeData, 
 
 // Destroy existing charts to prevent memory leaks
 function destroyCharts() {
-  const chartIds = ['heart-rate-chart', 'distance-chart', 'activity-type-chart', 'weight-training-chart', 'calories-chart'];
+  const chartIds = [
+    'run-heart-rate-chart', 
+    'distance-chart', 
+    'activity-type-chart', 
+    'weight-training-chart', 
+    'strava-calories-chart',
+    // Legacy IDs for backwards compatibility
+    'heart-rate-chart',
+    'calories-chart'
+  ];
   
   chartIds.forEach(id => {
     const canvas = document.getElementById(id)?.querySelector('canvas');
@@ -294,10 +317,11 @@ function destroyCharts() {
   });
 }
 
-// Enhanced chart renderers with uniform date spacing
-
-function renderHeartRateChart(data) {
-  const container = document.getElementById('heart-rate-chart');
+// UPDATED: Run Heart Rate Chart (runs only)
+function renderRunHeartRateChart(data) {
+  const container = document.getElementById('run-heart-rate-chart') || document.getElementById('heart-rate-chart');
+  if (!container) return;
+  
   let canvas = container.querySelector('canvas');
   if (!canvas) {
     canvas = document.createElement('canvas');
@@ -307,19 +331,38 @@ function renderHeartRateChart(data) {
   const simplifiedData = DataSimplifier.simplifyChartData(data, 30);
   const config = ChartConfigFactory.getCommonConfig('line');
   
-  // Apply heart rate specific styling
+  // Apply run heart rate specific styling
   simplifiedData.datasets[0] = {
     ...simplifiedData.datasets[0],
     ...ChartConfigFactory.getLineStyle('rgba(239, 68, 68, 0.8)', 0.15)
   };
 
   config.plugins.tooltip.callbacks.label = function(context) {
-    return `Heart Rate: ${context.parsed.y} bpm`;
+    return `Run Heart Rate: ${context.parsed.y} bpm (runs only)`;
   };
 
   config.scales.y.title = {
     display: true,
-    text: 'BPM'
+    text: 'BPM (Runs Only)',
+    color: '#ef4444',
+    font: { weight: 'bold' }
+  };
+
+  // Add note about data source
+  config.plugins.annotation = {
+    annotations: {
+      dataSource: {
+        type: 'label',
+        xValue: 0,
+        yValue: 'max',
+        content: 'Only from running activities',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderColor: 'rgba(239, 68, 68, 0.3)',
+        borderWidth: 1,
+        borderRadius: 4,
+        font: { size: 10 }
+      }
+    }
   };
 
   new Chart(canvas, {
@@ -331,6 +374,8 @@ function renderHeartRateChart(data) {
 
 function renderDistanceChart(data) {
   const container = document.getElementById('distance-chart');
+  if (!container) return;
+  
   let canvas = container.querySelector('canvas');
   if (!canvas) {
     canvas = document.createElement('canvas');
@@ -369,6 +414,8 @@ function renderDistanceChart(data) {
 
 function renderActivityTypeChart(data) {
   const container = document.getElementById('activity-type-chart');
+  if (!container) return;
+  
   let canvas = container.querySelector('canvas');
   if (!canvas) {
     canvas = document.createElement('canvas');
@@ -420,6 +467,8 @@ function renderActivityTypeChart(data) {
 
 function renderWeightTrainingChart(data) {
   const container = document.getElementById('weight-training-chart');
+  if (!container) return;
+  
   let canvas = container.querySelector('canvas');
   if (!canvas) {
     canvas = document.createElement('canvas');
@@ -450,8 +499,11 @@ function renderWeightTrainingChart(data) {
   });
 }
 
-function renderCaloriesBurnedChart(data) {
-  const container = document.getElementById('calories-chart');
+// UPDATED: Strava Calories Chart (direct from Strava)
+function renderStravaCaloriesChart(data) {
+  const container = document.getElementById('strava-calories-chart') || document.getElementById('calories-chart');
+  if (!container) return;
+  
   let canvas = container.querySelector('canvas');
   if (!canvas) {
     canvas = document.createElement('canvas');
@@ -467,12 +519,14 @@ function renderCaloriesBurnedChart(data) {
   };
 
   config.plugins.tooltip.callbacks.label = function(context) {
-    return `Calories: ${Math.round(context.parsed.y).toLocaleString()}`;
+    return `Calories: ${Math.round(context.parsed.y).toLocaleString()} (Strava direct)`;
   };
 
   config.scales.y.title = {
     display: true,
-    text: 'Calories'
+    text: 'Calories (Strava)',
+    color: '#f59e0b',
+    font: { weight: 'bold' }
   };
 
   // Add thousands separator for y-axis
@@ -486,3 +540,7 @@ function renderCaloriesBurnedChart(data) {
     options: config
   });
 }
+
+// Legacy function names for backwards compatibility
+export const renderHeartRateChart = renderRunHeartRateChart;
+export const renderCaloriesBurnedChart = renderStravaCaloriesChart;
