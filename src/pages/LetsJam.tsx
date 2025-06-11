@@ -133,7 +133,7 @@ const processHealthDataForAI = (healthData: HealthData[], recentRuns: RunActivit
   };
 };
 
-// Smart Health Summary Component
+// Smart Health Summary Component - FIXED units and data overflow
 const SmartHealthSummary: React.FC<{ 
   healthData: HealthData[], 
   recentRuns: RunActivity[], 
@@ -148,7 +148,7 @@ const SmartHealthSummary: React.FC<{
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-blue-500" />
+          <BarChart3 className="h-5 w-5 text-orange-500" />
           Last 7 Days Summary
         </h3>
         <Button 
@@ -173,8 +173,8 @@ const SmartHealthSummary: React.FC<{
         </Badge>
       </div>
       
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Quick Stats Grid - FIXED: Better responsive layout */}
+      <div className="grid grid-cols-1 gap-3">
         {/* Nutrition Card */}
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
           <CardContent className="p-3">
@@ -184,8 +184,8 @@ const SmartHealthSummary: React.FC<{
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-green-800">{structuredData.nutrition.avgCaloriesPerDay}</div>
-              <div className="text-xs text-green-600">cal/day avg</div>
-              <div className="text-xs text-gray-600">{structuredData.nutrition.avgProteinPerDay}g protein</div>
+              <div className="text-xs text-green-600">cal/day</div>
+              <div className="text-xs text-gray-600 truncate">{structuredData.nutrition.avgProteinPerDay}g protein</div>
             </div>
           </CardContent>
         </Card>
@@ -199,8 +199,8 @@ const SmartHealthSummary: React.FC<{
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-orange-800">{structuredData.activity.workoutsPerWeek}</div>
-              <div className="text-xs text-orange-600">workouts/week</div>
-              <div className="text-xs text-gray-600">{structuredData.activity.avgCaloriesBurned} cal avg</div>
+              <div className="text-xs text-orange-600">workouts/wk</div>
+              <div className="text-xs text-gray-600 truncate">{structuredData.activity.avgCaloriesBurned} cal</div>
             </div>
           </CardContent>
         </Card>
@@ -214,9 +214,9 @@ const SmartHealthSummary: React.FC<{
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-blue-800">{structuredData.activity.totalRunDistance}km</div>
-              <div className="text-xs text-blue-600">total distance</div>
-              <div className="text-xs text-gray-600">
-                {structuredData.activity.avgHeartRateRuns ? `${structuredData.activity.avgHeartRateRuns} bpm avg` : 'No HR data'}
+              <div className="text-xs text-blue-600">total</div>
+              <div className="text-xs text-gray-600 truncate">
+                {structuredData.activity.avgHeartRateRuns ? `${structuredData.activity.avgHeartRateRuns} bpm` : 'No HR'}
               </div>
             </div>
           </CardContent>
@@ -233,9 +233,77 @@ const SmartHealthSummary: React.FC<{
               <div className={`text-lg font-bold ${structuredData.nutrition.calorieDeficitAvg >= 0 ? 'text-green-800' : 'text-red-800'}`}>
                 {structuredData.nutrition.calorieDeficitAvg >= 0 ? '+' : ''}{structuredData.nutrition.calorieDeficitAvg}
               </div>
-              <div className="text-xs text-purple-600">cal deficit avg</div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-purple-600">cal deficit</div>
+              <div className="text-xs text-gray-600 truncate">
                 {structuredData.trends.recoveryStatus === 'well_rested' ? 'Well rested' : 
+                 structuredData.trends.recoveryStatus === 'moderate' ? 'Moderate' : 'High load'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Recent Runs Timeline - FIXED: Better spacing and truncation */}
+      {recentRuns.length > 0 && (
+        <Card className="bg-white/80 border-gray-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Recent Runs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="space-y-2">
+              {recentRuns.slice(0, 3).map((run, index) => (
+                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-800 truncate">{run.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <div className="text-sm font-semibold text-blue-600">{run.distance.toFixed(1)}km</div>
+                    <div className="text-xs text-gray-500">
+                      {run.average_heartrate ? `${run.average_heartrate} bpm` : 'No HR'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Blood Markers - FIXED: Better responsive grid */}
+      {bloodMarkers && (
+        <Card className="bg-white/80 border-gray-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Droplet className="h-4 w-4 text-red-500" />
+              Blood Markers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(bloodMarkers).slice(0, 4).map(([key, value]) => (
+                <div key={key} className="text-center bg-gray-50 p-2 rounded">
+                  <div className="text-xs font-medium text-gray-500 uppercase truncate">{key}</div>
+                  <div className="text-sm font-semibold text-gray-800">{value}</div>
+                </div>
+              ))}
+            </div>
+            {Object.keys(bloodMarkers).length > 4 && (
+              <div className="text-center mt-2">
+                <span className="text-xs text-gray-500">+{Object.keys(bloodMarkers).length - 4} more</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};ested' : 
                  structuredData.trends.recoveryStatus === 'moderate' ? 'Moderate load' : 'High load'}
               </div>
             </div>
@@ -646,11 +714,11 @@ const LetsJam: React.FC = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
       {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/5 to-green-400/5"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/20 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/20 rounded-full blur-xl animate-bounce delay-1000"></div>
+      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
@@ -666,7 +734,7 @@ const LetsJam: React.FC = () => {
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
             🤖 Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
@@ -694,11 +762,17 @@ const LetsJam: React.FC = () => {
             {/* Left Column - Chat Interface */}
             <div className="lg:col-span-2 space-y-4">
               
+              {/* Smart Prompt Suggestions - MOVED ABOVE CHAT */}
+              <SmartPromptSuggestions 
+                onPromptSelect={handlePromptSelect}
+                healthData={structuredHealthData}
+              />
+              
               {/* Chat Messages */}
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <CardHeader className="border-b border-gray-100">
                   <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-blue-500" />
+                    <Bot className="h-5 w-5 text-orange-500" />
                     AI Health Coach
                     <Badge variant="secondary" className="ml-2 text-xs">
                       Session Active
@@ -707,7 +781,7 @@ const LetsJam: React.FC = () => {
                 </CardHeader>
                 <CardContent className="p-0">
                   {/* Messages Container */}
-                  <div className="h-96 overflow-y-auto p-4 space-y-4">
+                  <div className="h-80 overflow-y-auto p-4 space-y-4">
                     {messages.map((message, index) => (
                       <div
                         key={index}
@@ -715,12 +789,12 @@ const LetsJam: React.FC = () => {
                       >
                         <div className={`max-w-[85%] ${
                           message.role === 'user' 
-                            ? 'bg-blue-500 text-white' 
+                            ? 'bg-orange-500 text-white' 
                             : 'bg-gray-100 text-gray-800 border border-gray-200'
                         } rounded-lg p-3`}>
                           <div className="text-sm whitespace-pre-wrap">{message.content}</div>
                           <div className={`text-xs mt-1 ${
-                            message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                            message.role === 'user' ? 'text-orange-100' : 'text-gray-500'
                           }`}>
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
@@ -733,12 +807,12 @@ const LetsJam: React.FC = () => {
                       <div className="flex justify-start">
                         <div className="bg-gray-100 border border-gray-200 rounded-lg p-3">
                           <div className="flex items-center gap-1">
-                            <Bot className="h-4 w-4 text-blue-500" />
+                            <Bot className="h-4 w-4 text-orange-500" />
                             <span className="text-sm text-gray-600">AI is thinking</span>
                             <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-200"></div>
+                              <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce delay-200"></div>
                             </div>
                           </div>
                         </div>
@@ -756,13 +830,13 @@ const LetsJam: React.FC = () => {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        className="flex-1 border-gray-200 focus:border-blue-400 focus:ring-blue-400"
+                        className="flex-1 border-gray-200 focus:border-orange-400 focus:ring-orange-400"
                         disabled={isTyping}
                       />
                       <Button
                         onClick={handleSendMessage}
                         disabled={!input.trim() || isTyping}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4"
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-4"
                       >
                         <Send className="h-4 w-4" />
                       </Button>
@@ -779,12 +853,6 @@ const LetsJam: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
-              
-              {/* Smart Prompt Suggestions */}
-              <SmartPromptSuggestions 
-                onPromptSelect={handlePromptSelect}
-                healthData={structuredHealthData}
-              />
             </div>
             
             {/* Right Column - Health Summary */}
@@ -820,7 +888,7 @@ const LetsJam: React.FC = () => {
             <Button 
               onClick={() => navigate('/overall-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-blue-200 hover:bg-blue-50 text-blue-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-orange-200 hover:bg-orange-50 text-orange-700 px-6 py-4 h-auto flex-col gap-2"
             >
               <BarChart3 className="h-6 w-6" />
               <div>
@@ -844,7 +912,7 @@ const LetsJam: React.FC = () => {
             <Button 
               onClick={() => navigate('/nutrition-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-green-200 hover:bg-green-50 text-green-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-orange-200 hover:bg-orange-50 text-orange-700 px-6 py-4 h-auto flex-col gap-2"
             >
               <Utensils className="h-6 w-6" />
               <div>
@@ -856,10 +924,10 @@ const LetsJam: React.FC = () => {
           
           {/* Feature Highlights */}
           <div className="mt-8">
-            <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200">
+            <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-blue-500" />
+                  <Zap className="h-5 w-5 text-orange-500" />
                   What Your AI Health Coach Can Do
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -899,7 +967,7 @@ const LetsJam: React.FC = () => {
                 {/* Data Source Accuracy Notice */}
                 <div className="mt-6 p-4 bg-white/60 rounded-lg border border-white/30">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    <Target className="h-4 w-4 text-blue-500" />
+                    <Target className="h-4 w-4 text-orange-500" />
                     Accurate Data Sources
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
