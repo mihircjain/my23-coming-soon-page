@@ -154,17 +154,17 @@ const SmartHealthSummary: React.FC<{
       </div>
       
       <div className="grid grid-cols-1 gap-3">
-        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+        <Card className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-emerald-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Utensils className="h-4 w-4 text-green-600" />
-              <span className="text-xs font-medium text-green-700">Nutrition</span>
+              <Utensils className="h-4 w-4 text-emerald-600" />
+              <span className="text-xs font-medium text-emerald-700">Nutrition</span>
             </div>
             <div className="space-y-1">
-              <div className="text-lg font-bold text-green-800">
+              <div className="text-lg font-bold text-emerald-800">
                 {loading ? '...' : userData?.nutrition.avgCalories || 'No Data'}
               </div>
-              <div className="text-xs text-green-600">
+              <div className="text-xs text-emerald-600">
                 {userData?.nutrition.avgCalories > 0 ? 'cal/day' : 'Add nutrition logs'}
               </div>
               <div className="text-xs text-gray-600 truncate">
@@ -174,7 +174,7 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
+        <Card className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 border-orange-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
               <Activity className="h-4 w-4 text-orange-600" />
@@ -192,7 +192,47 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="h-4 w-4 text-blue-600" />
+              <span className="text-xs font-medium text-blue-700">Running</span>
+            </div>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-blue-800">
+                {loading ? '...' : totalRunDistance > 0 ? `${totalRunDistance.toFixed(1)}km` : 'No runs'}
+              </div>
+              <div className="text-xs text-blue-600">
+                {totalRunDistance > 0 ? 'total distance' : 'Start running!'}
+              </div>
+              <div className="text-xs text-gray-600 truncate">
+                {userData?.activity.avgHeartRate ? `${userData.activity.avgHeartRate} bpm avg` : 'Add heart rate data'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 border-purple-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className="h-4 w-4 text-purple-600" />
+              <span className="text-xs font-medium text-purple-700">Health</span>
+            </div>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-green-800">
+                {loading ? '...' : userData?.nutrition.avgCalories > 0 ? 'Good' : 'No Data'}
+              </div>
+              <div className="text-xs text-purple-600">
+                {userData?.nutrition.avgCalories > 0 ? 'tracking active' : 'Track nutrition'}
+              </div>
+              <div className="text-xs text-gray-600 truncate">
+                {userData?.activity.workoutsPerWeek > 3 ? 'High activity' : 
+                 userData?.activity.workoutsPerWeek > 1 ? 'Moderate activity' : 'Low activity'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
               <Zap className="h-4 w-4 text-blue-600" />
@@ -235,9 +275,9 @@ const SmartHealthSummary: React.FC<{
       </div>
       
       {runActivities.length > 0 && (
-        <Card className="bg-white/80 border-gray-200">
+        <Card className="bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 border-cyan-200 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-cyan-700 flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Recent Runs ({runActivities.length})
             </CardTitle>
@@ -245,10 +285,10 @@ const SmartHealthSummary: React.FC<{
           <CardContent className="p-3 pt-0">
             <div className="space-y-2">
               {runActivities.slice(0, 3).map((run, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div key={index} className="flex items-center justify-between py-2 border-b border-cyan-100 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-800 truncate">{run.name}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-sm font-medium text-cyan-800 truncate">{run.name}</div>
+                    <div className="text-xs text-cyan-600">
                       {new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </div>
                   </div>
@@ -256,7 +296,7 @@ const SmartHealthSummary: React.FC<{
                     <div className="text-sm font-semibold text-blue-600">
                       {run.distance ? `${run.distance.toFixed(1)}km` : 'No distance'}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-cyan-500">
                       {run.average_heartrate ? `${run.average_heartrate} bpm` : 'No HR'}
                     </div>
                   </div>
@@ -268,9 +308,9 @@ const SmartHealthSummary: React.FC<{
       )}
       
       {userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 && (
-        <Card className="bg-white/80 border-gray-200">
+        <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-rose-50 border-red-200 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-red-700 flex items-center gap-2">
               <Droplet className="h-4 w-4 text-red-500" />
               Blood Markers
             </CardTitle>
@@ -278,15 +318,15 @@ const SmartHealthSummary: React.FC<{
           <CardContent className="p-3 pt-0">
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(userData.bloodMarkers).slice(0, 4).map(([key, value]) => (
-                <div key={key} className="text-center bg-gray-50 p-2 rounded">
-                  <div className="text-xs font-medium text-gray-500 uppercase truncate">{key}</div>
-                  <div className="text-sm font-semibold text-gray-800">{value}</div>
+                <div key={key} className="text-center bg-red-50/50 p-2 rounded border border-red-100">
+                  <div className="text-xs font-medium text-red-600 uppercase truncate">{key}</div>
+                  <div className="text-sm font-semibold text-red-800">{value}</div>
                 </div>
               ))}
             </div>
             {Object.keys(userData.bloodMarkers).length > 4 && (
               <div className="text-center mt-2">
-                <span className="text-xs text-gray-500">+{Object.keys(userData.bloodMarkers).length - 4} more</span>
+                <span className="text-xs text-red-500">+{Object.keys(userData.bloodMarkers).length - 4} more</span>
               </div>
             )}
           </CardContent>
@@ -310,7 +350,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Performance',
       icon: Target,
-      color: 'from-orange-100 to-red-100 border-orange-300',
+      color: 'from-orange-100 via-amber-100 to-yellow-100 border-orange-300',
+      textColor: 'text-orange-700',
+      iconColor: 'text-orange-600',
       prompts: hasRunData ? [
         'Analyze my running performance this week',
         'Should I do a long run tomorrow?',
@@ -326,7 +368,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Nutrition',
       icon: Utensils,
-      color: 'from-green-100 to-green-200 border-green-300',
+      color: 'from-emerald-100 via-green-100 to-teal-100 border-emerald-300',
+      textColor: 'text-emerald-700',
+      iconColor: 'text-emerald-600',
       prompts: hasNutritionData ? [
         'Is my protein intake adequate?',
         'Am I eating enough for my workouts?',
@@ -342,7 +386,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Recovery',
       icon: Heart,
-      color: 'from-purple-100 to-purple-200 border-purple-300',
+      color: 'from-purple-100 via-pink-100 to-rose-100 border-purple-300',
+      textColor: 'text-purple-700',
+      iconColor: 'text-purple-600',
       prompts: hasActivityData ? [
         'Am I recovering well from my workouts?',
         'Did I overtrain last week?',
@@ -358,7 +404,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Health Analysis',
       icon: BarChart3,
-      color: 'from-orange-100 to-orange-200 border-orange-300',
+      color: 'from-blue-100 via-indigo-100 to-cyan-100 border-blue-300',
+      textColor: 'text-blue-700',
+      iconColor: 'text-blue-600',
       prompts: userData?.bloodMarkers ? [
         'Any concerns in my blood markers?',
         'Compare this week to last week',
@@ -381,10 +429,10 @@ const SmartPromptSuggestions: React.FC<{
       </h4>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {promptCategories.map((category, categoryIndex) => (
-          <Card key={categoryIndex} className={`bg-gradient-to-br ${category.color} cursor-pointer hover:shadow-md transition-all duration-200`}>
+          <Card key={categoryIndex} className={`bg-gradient-to-br ${category.color} cursor-pointer hover:shadow-md transition-all duration-200 shadow-sm`}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                <category.icon className="h-4 w-4" />
+              <CardTitle className={`text-sm font-medium ${category.textColor} flex items-center gap-2`}>
+                <category.icon className={`h-4 w-4 ${category.iconColor}`} />
                 {category.title}
               </CardTitle>
             </CardHeader>
@@ -394,7 +442,7 @@ const SmartPromptSuggestions: React.FC<{
                   <button
                     key={promptIndex}
                     onClick={() => onPromptSelect(prompt)}
-                    className="w-full text-left text-xs p-2 bg-white/60 hover:bg-white/90 rounded border transition-all duration-150 text-gray-700 hover:text-gray-900"
+                    className={`w-full text-left text-xs p-2 bg-white/60 hover:bg-white/90 rounded border transition-all duration-150 ${category.textColor} hover:text-gray-900 hover:shadow-sm`}
                   >
                     "{prompt}"
                   </button>
@@ -786,20 +834,8 @@ const LetsJam: React.FC = () => {
     await fetchUserData(true);
   };
 
-  // FIXED: Enhanced message sending with MUCH MORE EXPLICIT system context
-  const handleSendMessage = async () => {
-    if (!input.trim() || isTyping) return;
-    
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date()
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsTyping(true);
-    
+  // FIXED: Split message sending logic for reuse
+  const sendMessageToAI = async (messageContent: string) => {
     try {
       // FIXED: Build MUCH MORE EXPLICIT system context that forces AI to use data
       const systemContext = `
@@ -855,7 +891,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
           role: msg.role,
           content: msg.content
         })),
-        { role: "user", content: input.trim() }
+        { role: "user", content: messageContent }
       ];
 
       console.log('📤 Sending EXPLICIT data to AI:', {
@@ -932,9 +968,44 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       setIsTyping(false);
     }
   };
+
+  // FIXED: Enhanced message sending with auto-send for preset questions
+  const handleSendMessage = async () => {
+    if (!input.trim() || isTyping) return;
+    
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    const messageContent = input.trim();
+    setInput('');
+    setIsTyping(true);
+    
+    await sendMessageToAI(messageContent);
+  };
   
   const handlePromptSelect = (prompt: string) => {
     setInput(prompt);
+    // Auto-send the selected prompt
+    setTimeout(() => {
+      if (!isTyping) {
+        const userMessage: ChatMessage = {
+          role: 'user',
+          content: prompt,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsTyping(true);
+        
+        // Send to AI
+        sendMessageToAI(prompt);
+      }
+    }, 100);
   };
   
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -1035,9 +1106,9 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                 <CardContent className="p-0">
                   <div 
                     ref={messagesContainerRef}
-                    className="min-h-[500px] max-h-[800px] overflow-y-auto p-4 space-y-4" 
+                    className="overflow-y-auto p-4 space-y-4" 
                     style={{
-                      height: `${Math.min(800, Math.max(500, messages.length * 80 + 200))}px`
+                      height: `${Math.min(700, Math.max(400, (messages.length * 60) + 250))}px`
                     }}
                   >
                     {messages.map((message, index) => (
@@ -1047,12 +1118,12 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                       >
                         <div className={`max-w-[85%] ${
                           message.role === 'user' 
-                            ? 'bg-orange-500 text-white' 
-                            : 'bg-gray-100 text-gray-800 border border-gray-200'
+                            ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' 
+                            : 'bg-gradient-to-r from-blue-50 to-indigo-50 text-gray-800 border border-blue-200 shadow-sm'
                         } rounded-lg p-4`}>
                           <MessageContent content={message.content} />
                           <div className={`text-xs mt-2 ${
-                            message.role === 'user' ? 'text-orange-100' : 'text-gray-500'
+                            message.role === 'user' ? 'text-orange-100' : 'text-blue-500'
                           }`}>
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
@@ -1063,14 +1134,14 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                     {/* Typing indicator */}
                     {isTyping && (
                       <div className="flex justify-start">
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 shadow-sm">
                           <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4 text-orange-500" />
-                            <span className="text-sm text-gray-600">AI is analyzing your data</span>
+                            <Bot className="h-4 w-4 text-purple-500" />
+                            <span className="text-sm text-purple-700">AI is analyzing your data</span>
                             <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce delay-200"></div>
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
                             </div>
                           </div>
                         </div>
