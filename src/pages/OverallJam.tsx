@@ -26,8 +26,8 @@ interface BloodMarkerData {
 
 interface CombinedData {
   date: string;
-  heartRate: number | null;
-  caloriesBurned: number;
+  heartRateRuns: number | null; // Only from runs
+  caloriesBurned: number; // From Strava calories field
   caloriesConsumed: number;
   protein: number;
   carbs: number;
@@ -35,11 +35,12 @@ interface CombinedData {
   fiber: number;
   workoutDuration: number;
   activityTypes: string[];
+  runCount: number; // Track number of runs for proper averaging
 }
 
 // Daily Health Box Component with updated Health Score (Calorie Deficit + Protein)
 const DailyHealthBox = ({ data, date, isToday, onClick }) => {
-  const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRate > 0;
+  const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRateRuns > 0;
   
   // Calculate calorie deficit: calories burned + BMR - calories consumed
   const BMR = 1479;
@@ -50,15 +51,12 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
     let score = 0;
     
     // Calories Burned Score (40% of total) - Target: 300+ calories burned
-    // Perfect score at 300+, proportional below that
     const burnedScore = Math.min(40, (data.caloriesBurned / 300) * 40);
     
     // Protein Score (30% of total) - Target: 140g+ 
-    // Perfect score at 140g+, proportional below that
     const proteinScore = Math.min(30, (data.protein / 140) * 30);
     
-    // Calorie Deficit Score (30% of total) - New progressive scoring
-    // 0 cal = 5 pts, 100 cal = 10 pts, 200 cal = 15 pts, 300 cal = 20 pts, 400 cal = 25 pts, 500+ cal = 30 pts
+    // Calorie Deficit Score (30% of total) - Progressive scoring
     const deficitScore = (() => {
       if (calorieDeficit <= 0) return 0;
       if (calorieDeficit >= 500) return 30;
@@ -149,6 +147,17 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
                 </div>
               </div>
 
+              {/* Heart Rate for Runs Only */}
+              {data.heartRateRuns && (
+                <div className="text-center text-xs">
+                  <div className="font-semibold text-red-600 flex items-center justify-center gap-1">
+                    <Heart className="h-3 w-3" />
+                    {Math.round(data.heartRateRuns)} bpm
+                  </div>
+                  <div className="text-gray-500">Run HR Avg</div>
+                </div>
+              )}
+
               {/* Activity types */}
               {data.activityTypes.length > 0 && (
                 <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
@@ -179,7 +188,7 @@ const OverallJam = () => {
   const [last7DaysData, setLast7DaysData] = useState({});
   const [latestBloodMarkers, setLatestBloodMarkers] = useState(null);
 
-  // Fetch combined data from Firebase - FIXED with proper activity calories
+  // Fetch combined data from Firebase - UPDATED with proper run-only HR and Strava calories
   const fetchCombinedData = async (forceRefresh = false) => {
     try {
       setLoading(true);
@@ -203,15 +212,16 @@ const OverallJam = () => {
         
         const dayData = {
           date: dateStr,
-          heartRate: null,
-          caloriesBurned: 0,
+          heartRateRuns: null, // Only from runs
+          caloriesBurned: 0, // From Strava calories field
           caloriesConsumed: 0,
           protein: 0,
           carbs: 0,
           fat: 0,
           fiber: 0,
           workoutDuration: 0,
-          activityTypes: []
+          activityTypes: [],
+          runCount: 0 // Track runs for proper HR averaging
         };
         
         tempData[dateStr] = dayData;
@@ -280,7 +290,7 @@ const OverallJam = () => {
         }
       });
 
-      // Process Strava data - FIXED: Use proper calories field from activity data
+      // Process Strava data - UPDATED: HR only from runs, use actual Strava calories
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data();
         
@@ -288,19 +298,35 @@ const OverallJam = () => {
         
         if (!activityDate || !tempData[activityDate]) return;
 
-        // Heart rate (average across multiple activities)
-        if (data.heart_rate != null) {
-          const curHR = tempData[activityDate].heartRate || 0;
-          const cnt = tempData[activityDate].activityTypes.length;
-          tempData[activityDate].heartRate = cnt === 0 ? data.heart_rate : ((curHR * cnt) + data.heart_rate) / (cnt + 1);
+        // Heart rate ONLY from runs (not weight training or other activities)
+        const isRunActivity = data.type && (
+          data.type.toLowerCase().includes('run') || 
+          data.type === 'Run' || 
+          data.type === 'VirtualRun'
+        );
+        
+        if (isRunActivity && data.heart_rate != null) {
+          const currentHR = tempData[activityDate].heartRateRuns || 0;
+          const currentRunCount = tempData[activityDate].runCount;
+          
+          // Calculate weighted average for multiple runs in a day
+          tempData[activityDate].heartRateRuns = currentRunCount === 0 
+            ? data.heart_rate 
+            : ((currentHR * currentRunCount) + data.heart_rate) / (currentRunCount + 1);
+          
+          tempData[activityDate].runCount += 1;
+          
+          console.log(`💓 Run HR for ${activityDate}: ${data.heart_rate} bpm (type: ${data.type})`);
+        } else if (data.heart_rate != null) {
+          console.log(`⏭️ Skipping HR for non-run activity: ${data.type} on ${activityDate}`);
         }
 
-        // FIXED: Use the correct calories field from Strava activity data
-        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
-        tempData[activityDate].caloriesBurned += activityCalories;
+        // Use actual Strava calories field (not estimated)
+        const stravaCalories = data.calories || 0; // Direct from Strava API
+        tempData[activityDate].caloriesBurned += stravaCalories;
         tempData[activityDate].workoutDuration += data.duration || 0;
 
-        console.log(`🔥 Activity calories for ${activityDate}: ${activityCalories} (type: ${data.type})`);
+        console.log(`🔥 Strava calories for ${activityDate}: ${stravaCalories} (type: ${data.type})`);
 
         // Activity type list
         if (data.type && !tempData[activityDate].activityTypes.includes(data.type)) {
@@ -344,7 +370,7 @@ const OverallJam = () => {
     await fetchCombinedData(true);
   };
 
-  // FIXED: Enhanced chart rendering with better Y-axis scaling for protein variability
+  // UPDATED: Enhanced chart rendering with run-only heart rate
   const renderCombinedChart = (data) => {
     const container = document.getElementById('combined-health-chart');
     if (!container) return;
@@ -373,23 +399,23 @@ const OverallJam = () => {
     const proteinData = data.map(d => d.protein).filter(p => p > 0);
     const caloriesConsumedData = data.map(d => d.caloriesConsumed).filter(c => c > 0);
     const caloriesBurnedData = data.map(d => d.caloriesBurned).filter(c => c > 0);
-    const heartRateData = data.map(d => d.heartRate).filter(hr => hr !== null && hr > 0);
+    const heartRateRunsData = data.map(d => d.heartRateRuns).filter(hr => hr !== null && hr > 0);
 
     // Calculate separate Y-axis scales for better visibility
     const proteinMin = proteinData.length > 0 ? Math.min(...proteinData) : 0;
     const proteinMax = proteinData.length > 0 ? Math.max(...proteinData) : 100;
     const proteinRange = proteinMax - proteinMin;
-    const proteinPadding = Math.max(5, proteinRange * 0.1); // At least 5g padding
+    const proteinPadding = Math.max(5, proteinRange * 0.1);
 
     const caloriesMin = Math.min(...caloriesConsumedData, ...caloriesBurnedData);
     const caloriesMax = Math.max(...caloriesConsumedData, ...caloriesBurnedData);
     const caloriesRange = caloriesMax - caloriesMin;
-    const caloriesPadding = Math.max(50, caloriesRange * 0.1); // At least 50 cal padding
+    const caloriesPadding = Math.max(50, caloriesRange * 0.1);
 
     const deficitMin = Math.min(...calorieDeficitData);
     const deficitMax = Math.max(...calorieDeficitData);
     const deficitRange = deficitMax - deficitMin;
-    const deficitPadding = Math.max(100, deficitRange * 0.1); // At least 100 cal padding
+    const deficitPadding = Math.max(100, deficitRange * 0.1);
 
     new Chart(canvas, {
       type: 'line',
@@ -409,7 +435,7 @@ const OverallJam = () => {
             yAxisID: 'y-calories'
           },
           {
-            label: 'Calories Burned',
+            label: 'Calories Burned (Strava)',
             data: data.map(d => d.caloriesBurned),
             borderColor: 'rgba(245, 158, 11, 0.8)',
             backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -445,8 +471,8 @@ const OverallJam = () => {
             yAxisID: 'y-protein'
           },
           {
-            label: 'Heart Rate (bpm)',
-            data: data.map(d => d.heartRate),
+            label: 'Run Heart Rate (bpm)',
+            data: data.map(d => d.heartRateRuns),
             borderColor: 'rgba(239, 68, 68, 0.8)',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
             fill: false,
@@ -490,6 +516,7 @@ const OverallJam = () => {
                 if (dateIndex !== undefined && data[dateIndex]) {
                   const dateStr = data[dateIndex].date;
                   const activityTypes = data[dateIndex].activityTypes;
+                  const runCount = data[dateIndex].runCount;
                   let title = new Date(dateStr).toLocaleDateString('en-US', { 
                     weekday: 'long', 
                     month: 'short', 
@@ -497,6 +524,9 @@ const OverallJam = () => {
                   });
                   if (activityTypes.length > 0) {
                     title += ` (${activityTypes.join(', ')})`;
+                  }
+                  if (runCount > 0) {
+                    title += ` - ${runCount} run${runCount > 1 ? 's' : ''}`;
                   }
                   return title;
                 }
@@ -513,7 +543,6 @@ const OverallJam = () => {
               font: { size: 11 }
             }
           },
-          // FIXED: Separate Y-axes for different data types
           'y-calories': {
             type: 'linear',
             display: true,
@@ -558,7 +587,7 @@ const OverallJam = () => {
           },
           'y-protein': {
             type: 'linear',
-            display: false, // Hidden by default, can be toggled
+            display: false,
             position: 'right',
             grid: { display: false },
             min: Math.max(0, proteinMin - proteinPadding),
@@ -581,13 +610,19 @@ const OverallJam = () => {
             type: 'linear',
             display: false,
             position: 'right',
-            min: heartRateData.length > 0 ? Math.min(...heartRateData) - 10 : 60,
-            max: heartRateData.length > 0 ? Math.max(...heartRateData) + 10 : 180,
+            min: heartRateRunsData.length > 0 ? Math.min(...heartRateRunsData) - 10 : 60,
+            max: heartRateRunsData.length > 0 ? Math.max(...heartRateRunsData) + 10 : 180,
             ticks: { 
               font: { size: 11 },
               callback: function(value) {
                 return Math.round(value) + ' bpm';
               }
+            },
+            title: {
+              display: true,
+              text: 'Run Heart Rate (bpm)',
+              font: { size: 12, weight: 'bold' },
+              color: 'rgba(239, 68, 68, 0.8)'
             }
           }
         }
@@ -595,8 +630,15 @@ const OverallJam = () => {
     });
   };
 
-  // Calculate averages from actual data
+  // Calculate averages from actual data - UPDATED for run-only HR
   const calculateAvgMetric = (metric) => {
+    if (metric === 'heartRateRuns') {
+      const validData = combinedData.filter(d => d.heartRateRuns !== null && d.heartRateRuns > 0);
+      if (validData.length === 0) return 0;
+      const sum = validData.reduce((total, d) => total + (d.heartRateRuns || 0), 0);
+      return Math.round(sum / validData.length);
+    }
+    
     const validData = combinedData.filter(d => d[metric] !== null && d[metric] > 0);
     if (validData.length === 0) return 0;
     const sum = validData.reduce((total, d) => total + (d[metric] || 0), 0);
@@ -663,7 +705,7 @@ const OverallJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate}
+              Last updated: {lastUpdate} • Heart rate from runs only • Calories from Strava
             </p>
           )}
         </div>
@@ -679,6 +721,9 @@ const OverallJam = () => {
               <CardTitle className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-red-500" />
                 Last 7 Days Health Overview
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  HR: Runs Only | Cal: Strava Direct
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -690,7 +735,6 @@ const OverallJam = () => {
                     date={date}
                     isToday={date === new Date().toISOString().split('T')[0]}
                     onClick={() => {
-                      // Could navigate to detailed view for that day
                       console.log(`Clicked on ${date}`);
                     }}
                   />
@@ -708,6 +752,7 @@ const OverallJam = () => {
                     <div className="font-medium text-orange-600">Calories Burned (40 pts)</div>
                     <div>🎯 Target: 300+ cal = 40 pts</div>
                     <div>📈 Below: (burned/300) × 40</div>
+                    <div className="text-blue-600">✅ Uses actual Strava calories</div>
                   </div>
                   <div className="space-y-1">
                     <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
@@ -729,23 +774,25 @@ const OverallJam = () => {
                 <div className="mt-3 text-xs text-gray-500 border-t pt-2">
                   <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
                   <br />
-                  <strong>Perfect Day Example:</strong> 500+ cal deficit + 140g protein = 100 points 🎉
+                  <strong>Heart Rate Data:</strong> Only from running activities (excludes weight training, cycling, etc.)
                   <br />
-                  <strong>Deficit Formula:</strong> (Calories Burned + 1479 BMR) - Calories Consumed
+                  <strong>Calorie Data:</strong> Direct from Strava API (not estimated)
+                  <br />
+                  <strong>Deficit Formula:</strong> (Strava Calories Burned + 1479 BMR) - Calories Consumed
                 </div>
               </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Weekly Averages Section - Updated with calorie deficit */}
+        {/* Weekly Averages Section - Updated with run-specific HR */}
         <section className="mb-8">
           <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             Weekly Averages
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
             
-            {/* Calories In Card - Green Gradient */}
+            {/* Calories In Card */}
             <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Calories In</h3>
@@ -759,7 +806,7 @@ const OverallJam = () => {
               </div>
             </div>
 
-            {/* Calories Out Card - Much Lighter Amber/Orange Gradient */}
+            {/* Calories Out Card */}
             <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Calories Out</h3>
@@ -770,10 +817,11 @@ const OverallJam = () => {
               <div className="space-y-2">
                 <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('caloriesBurned')}</p>
                 <p className="text-sm text-gray-700">cal/day</p>
+                <p className="text-xs text-gray-600">From Strava</p>
               </div>
             </div>
 
-            {/* Protein Card - Much Lighter Purple Gradient */}
+            {/* Protein Card */}
             <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Protein</h3>
@@ -787,7 +835,7 @@ const OverallJam = () => {
               </div>
             </div>
 
-            {/* Calorie Deficit Card - New Green/Blue Gradient */}
+            {/* Calorie Deficit Card */}
             <div className="bg-gradient-to-br from-emerald-200 to-blue-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Cal Deficit</h3>
@@ -802,19 +850,39 @@ const OverallJam = () => {
                 <p className="text-sm text-gray-700">cal/day</p>
               </div>
             </div>
+
+            {/* Run Heart Rate Card - NEW */}
+            <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Run HR</h3>
+                <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
+                  <Heart className="h-5 w-5 text-gray-700" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-3xl font-bold text-gray-800">
+                  {calculateAvgMetric('heartRateRuns') || '--'}
+                </p>
+                <p className="text-sm text-gray-700">bpm avg</p>
+                <p className="text-xs text-gray-600">Runs only</p>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Combined Chart Section - Much lighter gradient background */}
+        {/* Combined Chart Section */}
         <section className="mb-8">
           <Card className="bg-gradient-to-r from-indigo-200 to-purple-300 rounded-2xl p-6 text-gray-800 shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-gray-700" />
                 Health Trends (Last 7 Days)
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Updated Data Sources
+                </Badge>
               </CardTitle>
               <p className="text-sm text-gray-700 mt-2">
-                Track your key health metrics over the past week. Toggle datasets using the legend.
+                Track your key health metrics with accurate data: HR from runs only, calories direct from Strava.
               </p>
             </CardHeader>
             <CardContent>
@@ -874,6 +942,13 @@ const OverallJam = () => {
             <Utensils className="mr-2 h-5 w-5" />
             View Nutrition Details
           </Button>
+          <Button
+            onClick={() => navigate('/lets-jam')}
+            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3"
+          >
+            <Heart className="mr-2 h-5 w-5" />
+            AI Health Coach
+          </Button>
         </section>
       </main>
 
@@ -884,8 +959,13 @@ const OverallJam = () => {
             <span>Comprehensive health data from the last 7 days</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Heart className="h-4 w-4" />
-              Your health, tracked intelligently
+              <Heart className="h-4 w-4 text-red-500" />
+              HR: Runs only
+            </span>
+            <span className="hidden md:inline">•</span>
+            <span className="flex items-center gap-1">
+              <Flame className="h-4 w-4 text-orange-500" />
+              Cal: Strava direct
             </span>
           </div>
           <div className="flex items-center gap-4">
