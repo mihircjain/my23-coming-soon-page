@@ -101,7 +101,7 @@ const SmartHealthSummary: React.FC<{
   onRefresh: () => void,
   isRefreshing: boolean,
   loading: boolean
-}> = ({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
+}> = React.memo(({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
   
   // Calculate total distance from recent activities
   const totalRunDistance = React.useMemo(() => {
@@ -918,25 +918,11 @@ const LetsJam: React.FC = () => {
         },
         body: JSON.stringify({
           userId: userId,
-          source: "smart_health_chat",
+          source: "smart_health_chat_v2",
           userData: structuredUserData,
-          messages: conversationMessages.slice(-10),
+          messages: conversationMessages.slice(-6), // Send last 6 messages including system context
           sessionId: sessionId,
-          context: {
-            hasNutritionData: userData?.nutrition.avgCalories > 0,
-            hasActivityData: userData?.activity.workoutsPerWeek > 0,
-            hasRunData: recentActivities.some(a => a.type && a.type.toLowerCase().includes('run')),
-            hasBloodData: userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0,
-            dataQuality: {
-              totalRuns: recentActivities.filter(a => a.type && a.type.toLowerCase().includes('run')).length,
-              totalDistance: recentActivities
-                .filter(a => a.type && a.type.toLowerCase().includes('run'))
-                .reduce((sum, r) => sum + (r.distance || 0), 0),
-              avgCalories: userData?.nutrition.avgCalories || 0,
-              workoutsPerWeek: userData?.activity.workoutsPerWeek || 0
-            },
-            instruction: "CRITICAL: Use the REAL data provided in runDetails, nutritionDetails, and bloodMarkersDetails. Never use placeholder text like [Date of Run 1], [Distance], or [Date]. Always provide specific dates, distances, calories, and food details from the actual data. When asked about runs, list each run with its actual name, date, distance, and duration. When asked about nutrition, use the actual daily calorie data and mention specific foods if available. When asked about blood markers, reference the actual test values and date."
-          }
+          useSystemContext: true // Flag to indicate system context is included
         })
       });
       
