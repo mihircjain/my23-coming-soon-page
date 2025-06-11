@@ -1,5 +1,7 @@
 // Hardcoded userId for consistency
-  const userId = "mihir_jain";import React, { useState, useEffect, useRef } from 'react';
+const userId = "mihir_jain";
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Bot, Send, RefreshCw, Activity, Utensils, Heart, TrendingUp, Target, Zap, Calendar, BarChart3, ArrowLeft, User, MessageSquare, Flame, Droplet, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -141,7 +143,7 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-// Health Summary with enhanced colors
+// Health Summary with enhanced colors - FIXED HEART RATE CALCULATION
 const SmartHealthSummary: React.FC<{ 
   userData: UserData | null,
   recentActivities: RecentActivity[], 
@@ -162,6 +164,35 @@ const SmartHealthSummary: React.FC<{
     console.log('🔍 SmartHealthSummary - Total run distance:', distance);
     
     return distance;
+  }, [recentActivities]);
+  
+  // NEW: Calculate average heart rate specifically for running activities
+  const averageRunningHeartRate = React.useMemo(() => {
+    const runActivities = recentActivities.filter(activity => 
+      activity.type && activity.type.toLowerCase().includes('run')
+    );
+    
+    const runActivitiesWithHR = runActivities.filter(run => 
+      run.average_heartrate && run.average_heartrate > 0
+    );
+    
+    if (runActivitiesWithHR.length === 0) {
+      return 0;
+    }
+    
+    const totalHR = runActivitiesWithHR.reduce((sum, run) => 
+      sum + (run.average_heartrate || 0), 0
+    );
+    
+    const avgHR = Math.round(totalHR / runActivitiesWithHR.length);
+    
+    console.log('🔍 SmartHealthSummary - Running HR calculation:', {
+      totalRunActivities: runActivities.length,
+      runActivitiesWithHR: runActivitiesWithHR.length,
+      averageHR: avgHR
+    });
+    
+    return avgHR;
   }, [recentActivities]);
   
   const runActivities = React.useMemo(() => 
@@ -238,6 +269,7 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
+        {/* FIXED: Running card with running-specific heart rate */}
         <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -252,7 +284,11 @@ const SmartHealthSummary: React.FC<{
                 {totalRunDistance > 0 ? 'total distance' : 'Start running!'}
               </div>
               <div className="text-xs text-gray-600 truncate">
-                {userData?.activity.avgHeartRate ? `${userData.activity.avgHeartRate} bpm avg` : 'Add heart rate data'}
+                {averageRunningHeartRate > 0 
+                  ? `${averageRunningHeartRate} bpm avg (runs only)` 
+                  : totalRunDistance > 0 
+                    ? 'No heart rate data for runs'
+                    : 'Add heart rate data'}
               </div>
             </div>
           </CardContent>
