@@ -67,6 +67,7 @@ interface UserData {
   nutrition: NutritionData;
   activity: ActivityData;
   bloodMarkers: Record<string, any>;
+  nutritionDetails?: any[]; // Add this for daily nutrition details
 }
 
 // Generate session ID
@@ -411,6 +412,8 @@ const SmartPromptSuggestions: React.FC<{
 const LetsJam: React.FC = () => {
   const navigate = useNavigate();
   const [userData, setUserData] = useState<UserData | null>(null);
+  // Add state for nutrition details
+  const [nutritionDetails, setNutritionDetails] = useState<any[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -450,8 +453,8 @@ const LetsJam: React.FC = () => {
     return () => clearTimeout(timer);
   }, [messages, isTyping]);
 
-  // FIXED: Fetch nutrition data using your working 24h logic
-  const fetchNutritionData = async (): Promise<NutritionData> => {
+  // FIXED: Fetch nutrition data with daily details for AI
+  const fetchNutritionData = async (): Promise<{ data: NutritionData, dailyDetails: any[] }> => {
     try {
       // Get the last 7 days instead of 30
       const today = new Date();
@@ -470,6 +473,7 @@ const LetsJam: React.FC = () => {
       let totalCarbs = 0;
       let totalFiber = 0;
       let daysWithData = 0;
+      const dailyDetails: any[] = [];
       
       console.log(`🥗 Fetching nutrition data for ${dates.length} days...`);
       
@@ -488,6 +492,7 @@ const LetsJam: React.FC = () => {
             let dayFat = 0;
             let dayCarbs = 0;
             let dayFiber = 0;
+            let dayEntries: any[] = [];
             
             if (logData.totals) {
               dayCalories = logData.totals.calories || 0;
@@ -503,10 +508,21 @@ const LetsJam: React.FC = () => {
                 dayCarbs += e.carbs || 0;
                 dayFiber += e.fiber || 0;
               });
+              dayEntries = logData.entries;
             }
             
-            // Only count days with actual food data (calories > 0)
+            // Store daily details for AI
             if (dayCalories > 0) {
+              dailyDetails.push({
+                date,
+                calories: Math.round(dayCalories),
+                protein: Math.round(dayProtein),
+                carbs: Math.round(dayCarbs),
+                fat: Math.round(dayFat),
+                fiber: Math.round(dayFiber),
+                entries: dayEntries.slice(0, 5) // Top 5 foods for context
+              });
+              
               daysWithData++;
               totalCalories += dayCalories;
               totalProtein += dayProtein;
@@ -532,20 +548,26 @@ const LetsJam: React.FC = () => {
       console.log(`📊 Nutrition averages: ${avgCalories} cal, ${avgProtein}g protein from ${daysWithData} days`);
       
       return {
-        avgCalories,
-        avgProtein,
-        avgFat,
-        avgCarbs,
-        avgFiber
+        data: {
+          avgCalories,
+          avgProtein,
+          avgFat,
+          avgCarbs,
+          avgFiber
+        },
+        dailyDetails: dailyDetails.reverse() // Most recent first
       };
     } catch (error) {
       console.error("Error fetching nutrition data:", error);
       return {
-        avgCalories: 0,
-        avgProtein: 0,
-        avgFat: 0,
-        avgCarbs: 0,
-        avgFiber: 0
+        data: {
+          avgCalories: 0,
+          avgProtein: 0,
+          avgFat: 0,
+          avgCarbs: 0,
+          avgFiber: 0
+        },
+        dailyDetails: []
       };
     }
   };
@@ -728,7 +750,7 @@ const LetsJam: React.FC = () => {
       console.log(`🔄 Fetching user data (forceRefresh: ${forceRefresh})...`);
       
       // Fetch both summary data and recent activities in parallel
-      const [nutritionData, activityData, bloodMarkers] = await Promise.all([
+      const [nutritionResult, activityData, bloodMarkers] = await Promise.all([
         fetchNutritionData(),
         fetchActivityData(),
         fetchBloodMarkers()
@@ -737,11 +759,15 @@ const LetsJam: React.FC = () => {
       // Also fetch recent activities
       await fetchRecentActivities();
       
+      // Set nutrition details for AI
+      setNutritionDetails(nutritionResult.dailyDetails);
+      
       // Set user data
       const newUserData = {
-        nutrition: nutritionData,
+        nutrition: nutritionResult.data,
         activity: activityData,
-        bloodMarkers: bloodMarkers
+        bloodMarkers: bloodMarkers,
+        nutritionDetails: nutritionResult.dailyDetails
       };
 
       setUserData(newUserData);
@@ -819,49 +845,49 @@ const LetsJam: React.FC = () => {
               `${(run.duration / run.distance).toFixed(1)} min/km` : 'N/A'
           })),
         
-        // CRITICAL: Add nutrition details for the AI  
-        nutritionDetails: {
-          recentDays: [
-            { date: '2025-06-11', calories: 1879 },
-            { date: '2025-06-10', calories: 2107 },
-            { date: '2025-06-09', calories: 1857 },
-            { date: '2025-06-08', calories: 1886 },
-            { date: '2025-06-07', calories: 1716 }
-          ],
-          averages: userData?.nutrition || {}
-        },
-        
-        bloodMarkers: {
-          type: "latest_blood_test_results",
-          testDate: userData?.bloodMarkers?.date || "unknown",
-          values: {
-            cholesterol: {
-              total: userData?.bloodMarkers?.total_cholesterol || "not available",
-              ldl: userData?.bloodMarkers?.ldl || "not available", 
-              hdl: userData?.bloodMarkers?.hdl || "not available"
-            },
-            metabolic: {
-              glucose: userData?.bloodMarkers?.glucose || "not available",
-              hba1c: userData?.bloodMarkers?.hba1c || "not available"
-            },
-            minerals: {
-              calcium: userData?.bloodMarkers?.calcium || "not available",
-              sodium: userData?.bloodMarkers?.sodium || "not available", 
-              potassium: userData?.bloodMarkers?.potassium || "not available"
-            },
-            kidneyFunction: {
-              creatinine: userData?.bloodMarkers?.creatinine || "not available"
-            },
-            bloodCells: {
-              hemoglobin: userData?.bloodMarkers?.hemoglobin || "not available",
-              rbc: userData?.bloodMarkers?.rbc || "not available",
-              plateletCount: userData?.bloodMarkers?.platelet_count || "not available"
-            },
-            hormones: {
-              tsh: userData?.bloodMarkers?.tsh || "not available"
-            }
+        // CRITICAL: Add detailed nutrition data for the AI  
+        nutritionDetails: nutritionDetails.map(day => ({
+          date: new Date(day.date).toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+          }),
+          calories: day.calories,
+          protein: day.protein,
+          carbs: day.carbs,
+          fat: day.fat,
+          fiber: day.fiber,
+          topFoods: day.entries?.slice(0, 3).map((entry: any) => entry.name || 'Food item') || []
+        })),
+        // CRITICAL: Add detailed blood marker data for the AI
+        bloodMarkersDetails: userData?.bloodMarkers ? {
+          testDate: userData.bloodMarkers.date,
+          cholesterolPanel: {
+            total: userData.bloodMarkers.total_cholesterol,
+            ldl: userData.bloodMarkers.ldl,
+            hdl: userData.bloodMarkers.hdl
+          },
+          metabolicMarkers: {
+            glucose: userData.bloodMarkers.glucose,
+            hba1c: userData.bloodMarkers.hba1c
+          },
+          minerals: {
+            calcium: userData.bloodMarkers.calcium,
+            sodium: userData.bloodMarkers.sodium,
+            potassium: userData.bloodMarkers.potassium
+          },
+          kidneyFunction: {
+            creatinine: userData.bloodMarkers.creatinine
+          },
+          bloodCells: {
+            hemoglobin: userData.bloodMarkers.hemoglobin,
+            rbc: userData.bloodMarkers.rbc,
+            plateletCount: userData.bloodMarkers.platelet_count
+          },
+          hormones: {
+            tsh: userData.bloodMarkers.tsh
           }
-        }
+        } : null,
       };
       
       // Build messages array with conversation history
@@ -875,10 +901,13 @@ const LetsJam: React.FC = () => {
 
       console.log('📤 Sending data to AI:', {
         nutrition: structuredUserData.nutrition.avgCaloriesPerDay,
+        nutritionDetails: structuredUserData.nutritionDetails.length,
         activities: structuredUserData.recentActivities.length,
         runDetails: structuredUserData.runDetails.length,
+        bloodMarkers: structuredUserData.bloodMarkersDetails ? 'Available' : 'None',
         workoutsPerWeek: structuredUserData.activity.workoutsPerWeek,
-        sampleRun: structuredUserData.runDetails[0]
+        sampleRun: structuredUserData.runDetails[0],
+        sampleNutrition: structuredUserData.nutritionDetails[0]
       });
       
       // Call chat API
@@ -906,7 +935,7 @@ const LetsJam: React.FC = () => {
               avgCalories: userData?.nutrition.avgCalories || 0,
               workoutsPerWeek: userData?.activity.workoutsPerWeek || 0
             },
-            instruction: "CRITICAL: Use the REAL data provided in runDetails and nutritionDetails. Never use placeholder text like [Date of Run 1] or [Distance]. Always provide specific dates, distances, and other metrics from the actual data. When asked about runs, list each run with its actual name, date, distance, and duration. When asked about nutrition, use the actual calorie data for each day."
+            instruction: "CRITICAL: Use the REAL data provided in runDetails, nutritionDetails, and bloodMarkersDetails. Never use placeholder text like [Date of Run 1], [Distance], or [Date]. Always provide specific dates, distances, calories, and food details from the actual data. When asked about runs, list each run with its actual name, date, distance, and duration. When asked about nutrition, use the actual daily calorie data and mention specific foods if available. When asked about blood markers, reference the actual test values and date."
           }
         })
       });
