@@ -32,21 +32,169 @@ function initializeFirebase() {
   }
 }
 
-// UPDATED: Enhanced system prompt that incorporates both Firestore data AND structured userData
-async function getSystemPrompt(userData = null) {
+// Enhanced session storage for maintaining context across requests
+// In production, use Redis, DynamoDB, or a proper database
+const sessionStorage = new Map();
+
+// Session cleanup - remove sessions older than 24 hours
+function cleanupOldSessions() {
+  const now = Date.now();
+  const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+  
+  let cleanedCount = 0;
+  for (const [sessionId, sessionData] of sessionStorage.entries()) {
+    if (now - sessionData.lastActivity > maxAge) {
+      sessionStorage.delete(sessionId);
+      cleanedCount++;
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`🧹 Cleaned up ${cleanedCount} old sessions`);
+  }
+}
+
+// Get or create session context
+function getSessionContext(sessionId, userId) {
+  cleanupOldSessions();
+  
+  if (!sessionStorage.has(sessionId)) {
+    console.log(`🆕 Creating new session context for ${sessionId.slice(-8)}`);
+    sessionStorage.set(sessionId, {
+      userId,
+      messages: [],
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+      context: {
+        userPreferences: {},
+        lastDataFetch: null,
+        conversationSummary: null,
+        topicsDiscussed: new Set(),
+        questionCount: 0
+      }
+    });
+  } else {
+    console.log(`🔄 Found existing session context for ${sessionId.slice(-8)}`);
+  }
+  
+  const session = sessionStorage.get(sessionId);
+  session.lastActivity = Date.now();
+  
+  return session;
+}
+
+// Update session with new messages and context
+function updateSessionContext(sessionId, messages, context = {}) {
+  if (sessionStorage.has(sessionId)) {
+    const session = sessionStorage.get(sessionId);
+    session.messages = messages.slice(-50); // Keep last 50 messages for memory efficiency
+    session.lastActivity = Date.now();
+    session.context = { ...session.context, ...context };
+    
+    console.log(`💾 Updated session ${sessionId.slice(-8)} with ${messages.length} messages`);
+  }
+}
+
+// Generate conversation summary for context preservation
+function generateConversationSummary(messages) {
+  if (messages.length < 4) return null;
+  
+  const recentMessages = messages.slice(-20); // Last 20 messages
+  const topics = new Set();
+  const userQuestions = [];
+  const aiResponses = [];
+  
+  recentMessages.forEach(msg => {
+    if (msg.role === 'user') {
+      userQuestions.push(msg.content.substring(0, 150));
+    } else if (msg.role === 'assistant') {
+      aiResponses.push(msg.content.substring(0, 150));
+    }
+    
+    // Extract potential topics (improved keyword matching)
+    const content = msg.content.toLowerCase();
+    
+    // Nutrition topics
+    if (content.includes('nutrition') || content.includes('food') || content.includes('calories') || 
+        content.includes('protein') || content.includes('carbs') || content.includes('fat')) {
+      topics.add('nutrition');
+    }
+    
+    // Activity topics
+    if (content.includes('workout') || content.includes('exercise') || content.includes('activity') || 
+        content.includes('running') || content.includes('training') || content.includes('fitness')) {
+      topics.add('activity');
+    }
+    
+    // Health markers
+    if (content.includes('blood') || content.includes('cholesterol') || content.includes('health markers') ||
+        content.includes('ldl') || content.includes('hdl') || content.includes('glucose')) {
+      topics.add('health-markers');
+    }
+    
+    // Goals and recommendations
+    if (content.includes('goal') || content.includes('recommend') || content.includes('improve') ||
+        content.includes('target') || content.includes('plan')) {
+      topics.add('goals-recommendations');
+    }
+    
+    // Trends and analysis
+    if (content.includes('trend') || content.includes('pattern') || content.includes('analyze') ||
+        content.includes('compare') || content.includes('progress')) {
+      topics.add('analysis-trends');
+    }
+  });
+  
+  return {
+    topics: Array.from(topics),
+    recentQuestions: userQuestions.slice(-5),
+    recentResponses: aiResponses.slice(-3),
+    messageCount: messages.length,
+    lastInteraction: new Date().toISOString(),
+    conversationAge: messages.length > 0 ? Date.now() - new Date(messages[0].timestamp).getTime() : 0
+  };
+}
+
+// Enhanced system prompt with session awareness and better formatting instructions
+async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
   const firestore = initializeFirebase();
   
   let systemContent = '';
   
-  // SECTION 1: Use structured userData if available (from LetsJam)
+  // Add session context if available
+  if (sessionContext && sessionContext.conversationSummary) {
+    systemContent += `=== CONVERSATION CONTEXT ===\n`;
+    systemContent += `Session Age: ${Math.round(sessionContext.conversationSummary.conversationAge / (1000 * 60))} minutes\n`;
+    systemContent += `Topics Previously Discussed: ${sessionContext.conversationSummary.topics.join(', ')}\n`;
+    systemContent += `Message Count: ${sessionContext.conversationSummary.messageCount}\n`;
+    
+    if (sessionContext.conversationSummary.recentQuestions.length > 0) {
+      systemContent += `Recent Questions:\n`;
+      sessionContext.conversationSummary.recentQuestions.forEach((q, i) => {
+        systemContent += `  ${i + 1}. ${q}\n`;
+      });
+    }
+    systemContent += '\n';
+  }
+  
+  // Add user preferences from session
+  if (sessionContext && sessionContext.userPreferences && Object.keys(sessionContext.userPreferences).length > 0) {
+    systemContent += `=== USER PREFERENCES ===\n`;
+    Object.entries(sessionContext.userPreferences).forEach(([key, value]) => {
+      systemContent += `${key}: ${value}\n`;
+    });
+    systemContent += '\n';
+  }
+  
+  // Use structured userData if available (from LetsJam)
   if (userData) {
     console.log('Building system prompt with structured userData...');
     
-    systemContent += `You are a personal health assistant with access to comprehensive health data:\n\n`;
+    systemContent += `You are a personal health assistant with access to comprehensive health data and conversation history:\n\n`;
     
     // Add structured nutrition data
     if (userData.nutrition) {
-      systemContent += `=== NUTRITION AVERAGES (30-day) ===\n`;
+      systemContent += `=== NUTRITION AVERAGES (7-day) ===\n`;
       systemContent += `- Daily calories: ${userData.nutrition.avgCaloriesPerDay}\n`;
       systemContent += `- Daily protein: ${userData.nutrition.avgProteinPerDay}g\n`;
       systemContent += `- Daily carbs: ${userData.nutrition.avgCarbsPerDay}g\n`;
@@ -56,7 +204,7 @@ async function getSystemPrompt(userData = null) {
     
     // Add structured activity data
     if (userData.activity) {
-      systemContent += `=== ACTIVITY AVERAGES (30-day) ===\n`;
+      systemContent += `=== ACTIVITY AVERAGES (7-day) ===\n`;
       systemContent += `- Workouts per week: ${userData.activity.workoutsPerWeek}\n`;
       systemContent += `- Average workout heart rate: ${userData.activity.avgHeartRatePerWorkout} bpm\n`;
       systemContent += `- Average calories burned per workout: ${userData.activity.avgCaloriesBurnedPerWorkout}\n`;
@@ -108,21 +256,34 @@ async function getSystemPrompt(userData = null) {
       }
     }
     
+    systemContent += `=== RESPONSE FORMATTING GUIDELINES ===\n`;
+    systemContent += `CRITICAL: Follow these formatting rules strictly:\n`;
+    systemContent += `- Use **bold text** SPARINGLY - only for key metrics, important findings, or section headers\n`;
+    systemContent += `- Write in clear, conversational paragraphs - avoid excessive bullet points\n`;
+    systemContent += `- Break long responses into digestible paragraphs with natural flow\n`;
+    systemContent += `- When listing items, use natural language like "Your key areas include: X, Y, and Z" rather than bullet points\n`;
+    systemContent += `- Use line breaks between main ideas for better readability\n`;
+    systemContent += `- Be warm, personal, and encouraging in tone\n`;
+    systemContent += `- Reference previous conversation context when relevant\n`;
+    systemContent += `- Provide specific, actionable insights based on the data\n`;
+    systemContent += `- Keep responses focused and concise while being thorough\n\n`;
+    
     systemContent += `=== IMPORTANT INSTRUCTIONS ===\n`;
     systemContent += `When answering questions about:\n`;
-    systemContent += `- BLOOD MARKERS (calcium, cholesterol, glucose, etc.): Use ONLY the blood test results above\n`;
-    systemContent += `- NUTRITION (calories, protein, etc.): Use ONLY the nutrition averages above\n`;
-    systemContent += `- ACTIVITY/WORKOUTS (heart rate, exercise, etc.): Use ONLY the activity averages above\n`;
-    systemContent += `- Be specific about values and provide context about normal ranges when relevant\n\n`;
+    systemContent += `- BLOOD MARKERS: Use ONLY the blood test results above and provide context about normal ranges\n`;
+    systemContent += `- NUTRITION: Use ONLY the nutrition averages above and compare to recommended daily values\n`;
+    systemContent += `- ACTIVITY/WORKOUTS: Use ONLY the activity averages above and provide fitness context\n`;
+    systemContent += `- CONTEXT: Remember and build upon previous conversations in this session\n`;
+    systemContent += `- PERSONALIZATION: Tailor responses to user's specific data and previous discussions\n\n`;
   }
   
-  // SECTION 2: Add recent detailed activity/food data from Firestore (if available)
+  // Add recent detailed data from Firestore (if available)
   if (!firestore) {
     console.log('Firestore not available, using userData only or default prompt');
     if (!userData) {
-      return 'You are a helpful AI assistant with access to the user\'s recent food and activity data. Please respond to the user\'s message.';
+      return 'You are a helpful AI assistant with access to conversation history. Please respond conversationally and remember our previous interactions in this session. Use clear, natural formatting with minimal bold text.';
     }
-    systemContent += `Respond based on the health data provided above. Be conversational and provide actionable insights.`;
+    systemContent += `Respond based on the health data provided above and our conversation history. Be conversational, remember what we've discussed, and provide actionable insights with clear, natural formatting.`;
     return systemContent;
   }
 
@@ -273,9 +434,9 @@ async function getSystemPrompt(userData = null) {
       }
     }
     
-    systemContent += `Based on both the 30-day averages and recent detailed data above, provide personalized insights. When asked about blood markers, reference ONLY the blood test results. When asked about recent activities or food, you can reference both the averages and specific recent entries. Be conversational and specific.`;
+    systemContent += `Based on both the 7-day averages and recent detailed data above, along with our conversation history, provide personalized insights. When asked about blood markers, reference ONLY the blood test results. When asked about recent activities or food, you can reference both the averages and specific recent entries. Use natural, conversational formatting with minimal bold text. Remember and build upon previous discussions in this session.`;
     
-    console.log(`=== BUILT ENHANCED SYSTEM PROMPT WITH BOTH STRUCTURED + DETAILED DATA (${systemContent.length} characters) ===`);
+    console.log(`=== BUILT ENHANCED SYSTEM PROMPT WITH SESSION CONTEXT (${systemContent.length} characters) ===`);
     console.log(systemContent.substring(0, 500) + '...');
     console.log(`=== END SYSTEM PROMPT ===`);
     
@@ -284,10 +445,10 @@ async function getSystemPrompt(userData = null) {
   } catch (error) {
     console.error('Error fetching detailed data from Firestore:', error.message);
     if (userData) {
-      systemContent += `Respond based on the health data provided above. There was an issue accessing recent detailed activity data, but the averages above are still available.`;
+      systemContent += `Respond based on the health data provided above and our conversation history. There was an issue accessing recent detailed activity data, but the averages above are still available. Use natural formatting and remember our previous discussions.`;
       return systemContent;
     }
-    return 'You are a helpful AI assistant. There was an issue accessing the user\'s recent food and activity data. Please respond helpfully and suggest they try again.';
+    return 'You are a helpful AI assistant. There was an issue accessing health data, but please continue our conversation based on what we\'ve discussed before. Use clear, natural formatting.';
   }
 }
 
@@ -297,7 +458,7 @@ const rateLimitMap = new Map();
 function isRateLimited(ip) {
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute window
-  const maxRequests = 10; // Max 10 requests per minute per IP
+  const maxRequests = 15; // Max 15 requests per minute per IP (increased for better UX)
   
   if (!rateLimitMap.has(ip)) {
     rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
@@ -414,7 +575,7 @@ async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
       contents: contents,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 500,
+        maxOutputTokens: 800, // Increased for more detailed responses
         topP: 0.8,
         topK: 40
       },
@@ -516,8 +677,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // UPDATED: Get both messages and userData from request body
-    const { messages, userData, userId, source } = req.body;
+    // Get request data including sessionId
+    const { messages, userData, userId, source, sessionId } = req.body;
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ 
@@ -528,17 +689,30 @@ export default async function handler(req, res) {
     console.log('=== INCOMING REQUEST ===');
     console.log('Source:', source);
     console.log('User ID:', userId);
+    console.log('Session ID:', sessionId?.slice(-8) || 'none');
     console.log('Messages count:', messages.length);
     console.log('Has userData:', !!userData);
     if (userData) {
       console.log('UserData keys:', Object.keys(userData));
     }
 
-    // UPDATED: Get enhanced system prompt with both structured userData and Firestore data
-    console.log('Fetching enhanced system prompt...');
-    const systemPromptPromise = getSystemPrompt(userData);
+    // Get or create session context if sessionId provided
+    let sessionContext = null;
+    if (sessionId) {
+      sessionContext = getSessionContext(sessionId, userId);
+      console.log('Session context:', {
+        messageCount: sessionContext.messages.length,
+        topics: sessionContext.context.conversationSummary?.topics || [],
+        lastActivity: new Date(sessionContext.lastActivity).toLocaleTimeString(),
+        age: Math.round((Date.now() - sessionContext.createdAt) / (1000 * 60)) + ' minutes'
+      });
+    }
+
+    // Get enhanced system prompt with session context
+    console.log('Fetching enhanced system prompt with session context...');
+    const systemPromptPromise = getEnhancedSystemPrompt(userData, sessionContext?.context);
     const systemPromptTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('System prompt fetch timeout')), 10000); // Increased timeout
+      setTimeout(() => reject(new Error('System prompt fetch timeout')), 12000); // Increased timeout
     });
     
     let systemPrompt;
@@ -547,20 +721,32 @@ export default async function handler(req, res) {
     } catch (timeoutError) {
       console.error('System prompt fetch timed out, using fallback');
       if (userData) {
-        systemPrompt = `You are a helpful health assistant. The user has provided some health data, but there was an issue accessing detailed recent data. Use the information available and respond helpfully.`;
+        systemPrompt = `You are a helpful health assistant with access to the user's health data. The user has provided health information, but there was an issue accessing detailed recent data. Use the available information and respond helpfully with natural formatting. Remember our conversation history when possible.`;
       } else {
-        systemPrompt = 'You are a helpful AI assistant. The user may ask about their recent activities, but there was an issue accessing their data. Please respond helpfully.';
+        systemPrompt = 'You are a helpful AI assistant. The user may ask about their health data, but there was an issue accessing their information. Please respond helpfully and use natural, conversational formatting with minimal bold text.';
       }
     }
 
-    console.log(`=== PREPARING GEMINI REQUEST ===`);
-    console.log(`User messages count: ${messages.length}`);
+    // Combine session messages with current request for full context
+    let allMessages = messages;
+    if (sessionContext && sessionContext.messages.length > 0) {
+      // Merge with previous session messages (keep last 30 for context, but not too many for API limits)
+      const previousMessages = sessionContext.messages.slice(-30);
+      // Only add the latest user message from the current request to avoid duplication
+      const latestUserMessage = messages.filter(msg => msg.role === 'user').slice(-1);
+      allMessages = [...previousMessages, ...latestUserMessage];
+      
+      console.log(`📚 Using conversation history: ${previousMessages.length} previous + ${latestUserMessage.length} new = ${allMessages.length} total messages`);
+    }
+
+    console.log(`=== PREPARING GEMINI REQUEST WITH SESSION CONTEXT ===`);
+    console.log(`Total conversation messages: ${allMessages.length}`);
     console.log(`System prompt length: ${systemPrompt.length} characters`);
     
-    // Build full messages array with enhanced system prompt
+    // Build full messages array
     const fullMsgs = [
       { role: 'system', content: systemPrompt },
-      ...messages
+      ...allMessages
     ];
 
     console.log(`=== FINAL MESSAGES ARRAY BEING SENT TO GEMINI ===`);
@@ -571,8 +757,8 @@ export default async function handler(req, res) {
       console.log(`  Content length: ${msg.content?.length || 0} characters`);
       if (msg.role === 'system') {
         console.log(`  System content preview: ${msg.content.substring(0, 200)}...`);
-      } else {
-        console.log(`  Content: ${msg.content}`);
+      } else if (msg.content) {
+        console.log(`  Content preview: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`);
       }
     });
     console.log(`=== END MESSAGES ARRAY ===`);
@@ -614,21 +800,21 @@ export default async function handler(req, res) {
           });
         case 429:
           return res.status(429).json({ 
-            error: 'Gemini rate limit exceeded. Please try again in a moment.',
+            error: 'AI service is busy. Please try again in a moment.',
             details: errorDetails?.error?.message || 'Rate limit exceeded',
-            retryAfter: 60
+            retryAfter: 30
           });
         case 500:
           return res.status(500).json({ 
-            error: 'Gemini internal server error - please try again' 
+            error: 'AI service internal error - please try again' 
           });
         case 503:
           return res.status(503).json({ 
-            error: 'Gemini service overloaded - please try again in a few minutes' 
+            error: 'AI service overloaded - please try again in a few minutes' 
           });
         default:
           return res.status(500).json({ 
-            error: `Gemini API error: ${geminiResponse.status}`,
+            error: `AI service error: ${geminiResponse.status}`,
             details: errorDetails?.error?.message || errorText
           });
       }
@@ -640,7 +826,9 @@ export default async function handler(req, res) {
     console.log(`=== GEMINI RESPONSE DATA ===`);
     console.log(`Response object keys:`, Object.keys(responseData));
     if (responseData.candidates && responseData.candidates[0]) {
-      console.log(`Response content: ${responseData.candidates[0].content?.parts?.[0]?.text?.substring(0, 200)}...`);
+      const responseContent = responseData.candidates[0].content?.parts?.[0]?.text;
+      console.log(`Response content preview: ${responseContent?.substring(0, 200)}...`);
+      console.log(`Response length: ${responseContent?.length || 0} characters`);
       console.log(`Finish reason: ${responseData.candidates[0].finishReason}`);
     }
     if (responseData.usageMetadata) {
@@ -649,10 +837,58 @@ export default async function handler(req, res) {
     
     // Convert Gemini response format to OpenAI-compatible format
     const convertedResponse = convertGeminiResponseToOpenAI(responseData);
+    const assistantContent = convertedResponse.choices[0].message.content;
     
-    console.log('=== GEMINI API CALL SUCCESSFUL ===');
+    // Update session context with new messages if session exists
+    if (sessionContext && sessionId) {
+      const newUserMessage = allMessages.slice(-1)[0]; // Get the latest user message
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: assistantContent, 
+        timestamp: new Date() 
+      };
+      
+      const updatedMessages = [...allMessages, assistantMessage];
+      const conversationSummary = generateConversationSummary(updatedMessages);
+      
+      // Update user preferences based on conversation patterns
+      const userPreferences = { ...sessionContext.context.userPreferences };
+      
+      // Simple preference learning - could be enhanced
+      if (assistantContent.toLowerCase().includes('protein')) {
+        userPreferences.interestedInProtein = true;
+      }
+      if (assistantContent.toLowerCase().includes('workout') || assistantContent.toLowerCase().includes('exercise')) {
+        userPreferences.interestedInFitness = true;
+      }
+      if (assistantContent.toLowerCase().includes('blood') || assistantContent.toLowerCase().includes('cholesterol')) {
+        userPreferences.interestedInBloodMarkers = true;
+      }
+      
+      updateSessionContext(sessionId, updatedMessages, {
+        conversationSummary,
+        userPreferences,
+        lastDataFetch: new Date().toISOString(),
+        questionCount: (sessionContext.context.questionCount || 0) + 1
+      });
+      
+      console.log(`💾 Updated session ${sessionId.slice(-8)} with new conversation data`);
+      console.log(`📊 Session stats: ${updatedMessages.length} messages, ${conversationSummary?.topics?.length || 0} topics discussed`);
+    }
     
-    return res.status(200).json(convertedResponse);
+    console.log('=== GEMINI API CALL SUCCESSFUL WITH SESSION CONTEXT ===');
+    console.log(`✅ Response delivered for session ${sessionId?.slice(-8) || 'none'}`);
+    
+    return res.status(200).json({
+      ...convertedResponse,
+      sessionId: sessionId,
+      sessionInfo: sessionContext ? {
+        messageCount: sessionContext.messages.length + 1, // +1 for the new message
+        topics: sessionContext.context.conversationSummary?.topics || [],
+        sessionAge: Math.round((Date.now() - sessionContext.createdAt) / (1000 * 60)),
+        preferences: Object.keys(sessionContext.context.userPreferences || {})
+      } : null
+    });
 
   } catch (error) {
     console.error('Handler error:', error);
@@ -660,19 +896,19 @@ export default async function handler(req, res) {
     // Handle specific fetch errors
     if (error.code === 'ENOTFOUND') {
       return res.status(500).json({ 
-        error: 'Network error: Could not reach Gemini API' 
+        error: 'Network error: Could not reach AI service' 
       });
     }
     
     if (error.name === 'AbortError') {
       return res.status(500).json({ 
-        error: 'Request timeout: Gemini API did not respond in time' 
+        error: 'Request timeout: AI service did not respond in time' 
       });
     }
     
     return res.status(500).json({ 
       error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
     });
   }
 }
