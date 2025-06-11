@@ -280,35 +280,46 @@ const SmartHealthSummary: React.FC<{
         </Card>
       </div>
       
-      {runActivities.length > 0 && (
+      {recentActivities.length > 0 && (
         <Card className="bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 border-cyan-200 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-cyan-700 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Recent Runs ({runActivities.length})
+              <Activity className="h-4 w-4" />
+              Recent Activities ({recentActivities.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
             <div className="space-y-2">
-              {runActivities.slice(0, 3).map((run, index) => (
+              {recentActivities.slice(0, 5).map((activity, index) => (
                 <div key={index} className="flex items-center justify-between py-2 border-b border-cyan-100 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-cyan-800 truncate">{run.name}</div>
-                    <div className="text-xs text-cyan-600">
-                      {new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    <div className="text-sm font-medium text-cyan-800 truncate">{activity.name}</div>
+                    <div className="flex items-center gap-2 text-xs text-cyan-600">
+                      <span className="bg-cyan-100 px-2 py-0.5 rounded text-cyan-700 font-medium">
+                        {activity.type}
+                      </span>
+                      <span>
+                        {new Date(activity.start_date || activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">
                     <div className="text-sm font-semibold text-blue-600">
-                      {run.distance ? `${run.distance.toFixed(1)}km` : 'No distance'}
+                      {activity.distance > 0 ? `${activity.distance.toFixed(1)}km` : `${Math.round(activity.duration)}min`}
                     </div>
                     <div className="text-xs text-cyan-500">
-                      {run.average_heartrate ? `${run.average_heartrate} bpm` : 'No HR'}
+                      {activity.average_heartrate ? `${activity.average_heartrate} bpm` : 
+                       activity.calories || activity.caloriesBurned ? `${activity.calories || activity.caloriesBurned} cal` : 'No data'}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+            {recentActivities.length > 5 && (
+              <div className="text-center mt-2 pt-2 border-t border-cyan-100">
+                <span className="text-xs text-cyan-500">+{recentActivities.length - 5} more activities</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1420,7 +1431,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                     </div>
                     <p className="text-sm text-gray-600">
                       {userData?.activity.avgHeartRate > 0 
-                        ? 'Average from running activities'
+                        ? 'Average from all activities'
                         : 'No heart rate data available'
                       }
                     </p>
