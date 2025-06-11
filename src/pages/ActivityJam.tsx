@@ -1,4 +1,4 @@
-// Simplified ActivityJam.tsx - just use direct calories field
+// ActivityJam.tsx - Fast loading with smart caching
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3 } from "lucide-react";
@@ -22,8 +22,14 @@ interface ActivityData {
   has_heartrate: boolean;
   average_heartrate?: number;
   max_heartrate?: number;
-  calories: number; // Simple direct field
+  calories: number;
   is_run_activity: boolean;
+}
+
+interface CachedData {
+  activities: ActivityData[];
+  timestamp: number;
+  lastUpdate: string;
 }
 
 const ActivityJam = () => {
@@ -33,6 +39,7 @@ const ActivityJam = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [usingCache, setUsingCache] = useState(false);
 
   // Chart refs
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
@@ -43,12 +50,75 @@ const ActivityJam = () => {
   // Chart instances
   const chartInstances = useRef<{ [key: string]: Chart }>({});
 
+  // Cache configuration
+  const CACHE_KEY = 'activity_jam_data';
+  const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
+
   // Helper function to determine if activity is a run
   const isRunActivity = (activityType: string): boolean => {
     const runTypes = ['run', 'virtualrun', 'treadmill', 'trail'];
     return runTypes.some(type => 
       activityType.toLowerCase().includes(type.toLowerCase())
     );
+  };
+
+  // Cache management functions
+  const getCachedData = (): CachedData | null => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) return null;
+      
+      const data: CachedData = JSON.parse(cached);
+      const now = Date.now();
+      
+      // Check if cache is still valid
+      if (now - data.timestamp > CACHE_DURATION) {
+        localStorage.removeItem(CACHE_KEY);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error reading cache:', error);
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+  };
+
+  const setCachedData = (activities: ActivityData[], lastUpdate: string) => {
+    try {
+      const cacheData: CachedData = {
+        activities,
+        timestamp: Date.now(),
+        lastUpdate
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+      console.log('✅ Data cached successfully');
+    } catch (error) {
+      console.error('Error caching data:', error);
+    }
+  };
+
+  const clearCache = () => {
+    localStorage.removeItem(CACHE_KEY);
+    console.log('🗑️ Cache cleared');
+  };
+
+  // Load data from cache instantly
+  const loadFromCache = (): boolean => {
+    const cached = getCachedData();
+    if (cached) {
+      console.log('⚡ Loading from cache - instant!');
+      setActivities(cached.activities);
+      setLastUpdate(cached.lastUpdate);
+      setUsingCache(true);
+      setLoading(false);
+      
+      // Create charts immediately with cached data
+      createCharts(cached.activities);
+      return true;
+    }
+    return false;
   };
 
   // Process activities data for charts
@@ -406,7 +476,7 @@ const ActivityJam = () => {
     
     const chartData = processChartData(activities);
     
-    console.log('📊 Creating charts with simple calorie data:', {
+    console.log('📊 Creating charts with cached data:', {
       totalDays: chartData.labels.length,
       totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
       totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
@@ -423,11 +493,13 @@ const ActivityJam = () => {
     }, 100);
   };
 
-  // Fetch activities with simple calorie handling
+  // Fetch activities with smart caching
   const fetchActivities = async (forceRefresh = false) => {
     try {
       if (forceRefresh) {
         setRefreshing(true);
+        setUsingCache(false);
+        clearCache();
       } else {
         setLoading(true);
       }
@@ -444,6 +516,7 @@ const ActivityJam = () => {
         params.set('timestamp', Date.now().toString());
       }
       
+      console.log('🌐 Fetching from API...');
       const response = await fetch(`/api/strava?${params.toString()}`);
 
       if (!response.ok) {
@@ -472,7 +545,7 @@ const ActivityJam = () => {
           has_heartrate: activity.has_heartrate || false,
           average_heartrate: activity.average_heartrate || activity.heart_rate,
           max_heartrate: activity.max_heartrate,
-          calories: activity.calories || 0, // Simple and direct!
+          calories: activity.calories || 0,
           is_run_activity: isRun
         };
       });
@@ -481,16 +554,16 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      console.log('🏃 Simple activity processing summary:', {
-        totalActivities: sortedActivities.length,
-        runActivities: sortedActivities.filter(a => a.is_run_activity).length,
-        runActivitiesWithHR: sortedActivities.filter(a => a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
-        activitiesWithCalories: sortedActivities.filter(a => a.calories && a.calories > 0).length,
-        totalCalories: sortedActivities.reduce((sum, a) => sum + (a.calories || 0), 0)
-      });
+      const updateTime = new Date().toLocaleTimeString();
+
+      console.log('✅ Fresh data fetched and processed');
 
       setActivities(sortedActivities);
-      setLastUpdate(new Date().toLocaleTimeString());
+      setLastUpdate(updateTime);
+      setUsingCache(false);
+
+      // Cache the fresh data
+      setCachedData(sortedActivities, updateTime);
 
       // Create charts after activities are set
       createCharts(sortedActivities);
@@ -508,9 +581,15 @@ const ActivityJam = () => {
     await fetchActivities(true);
   };
 
-  // Load on mount
+  // Load on mount with smart caching
   useEffect(() => {
-    fetchActivities(false);
+    // Try to load from cache first for instant display
+    const cacheLoaded = loadFromCache();
+    
+    // If no cache, fetch fresh data
+    if (!cacheLoaded) {
+      fetchActivities(false);
+    }
     
     // Cleanup charts on unmount
     return () => {
@@ -588,15 +667,22 @@ const ActivityJam = () => {
             Back to Home
           </Button>
           
-          <Button 
-            onClick={handleRefresh}
-            variant="outline"
-            disabled={refreshing}
-            className="hover:bg-white/20"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Data'}
-          </Button>
+          <div className="flex items-center gap-3">
+            {usingCache && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                ⚡ Cached Data
+              </Badge>
+            )}
+            <Button 
+              onClick={handleRefresh}
+              variant="outline"
+              disabled={refreshing}
+              className="hover:bg-white/20"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh Data'}
+            </Button>
+          </div>
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
@@ -605,10 +691,13 @@ const ActivityJam = () => {
           </h1>
           <p className="mt-3 text-lg text-gray-600">
             Your recent workouts and activities from Strava
+            {usingCache && <span className="text-green-600"> (loaded instantly from cache)</span>}
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Calories: Direct from Strava • Showing last 30 days
+              Last updated: {lastUpdate} • 
+              {usingCache && <span className="text-green-600"> ⚡ Cached</span>} • 
+              Showing last 30 days
             </p>
           )}
         </div>
@@ -672,6 +761,11 @@ const ActivityJam = () => {
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
                 <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
+                {usingCache && (
+                  <Badge variant="outline" className="ml-3 bg-green-50 text-green-700 border-green-300 text-xs">
+                    ⚡ Fast Load
+                  </Badge>
+                )}
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -849,6 +943,11 @@ const ActivityJam = () => {
                   <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                     <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
                     Activity Summary
+                    {usingCache && (
+                      <Badge variant="outline" className="ml-3 bg-green-50 text-green-700 border-green-300 text-xs">
+                        ⚡ Cached
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -895,12 +994,20 @@ const ActivityJam = () => {
               <Heart className="h-4 w-4" />
               HR from runs only for accuracy
             </span>
+            {usingCache && (
+              <>
+                <span className="hidden md:inline">•</span>
+                <span className="flex items-center gap-1 text-green-600">
+                  ⚡ Fast cached loading (10min cache)
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <span>Updated: {new Date().toLocaleDateString()}</span>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Simplified</span>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${usingCache ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+              <span className="text-xs">{usingCache ? 'Cached' : 'Live'}</span>
             </div>
           </div>
         </div>
