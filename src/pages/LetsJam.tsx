@@ -443,41 +443,52 @@ const LetsJam: React.FC = () => {
   // Hardcoded userId for consistency
   const userId = "mihir_jain";
   
-  // More reliable auto-scroll that forces scroll to bottom
-  const scrollToBottom = () => {
+  // Scroll to show START of new AI message instead of bottom
+  const scrollToLatestMessage = () => {
+    if (messages.length > 0) {
+      const latestMessage = messages[messages.length - 1];
+      if (latestMessage.role === 'assistant') {
+        // Find the latest AI message element and scroll to its TOP
+        const messageElements = messagesContainerRef.current?.querySelectorAll('[data-message-role="assistant"]');
+        if (messageElements && messageElements.length > 0) {
+          const latestAIMessage = messageElements[messageElements.length - 1];
+          latestAIMessage.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start' // Show START of the message
+          });
+          return;
+        }
+      }
+    }
+    
+    // Fallback: scroll to bottom for user messages
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ 
         behavior: 'smooth',
         block: 'end'
       });
     }
-    // Backup scroll method
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-    }
   };
   
-  // Scroll on message changes with multiple attempts to ensure it works
+  // Scroll on message changes - show start of AI responses
   useEffect(() => {
     // Immediate scroll
-    scrollToBottom();
+    scrollToLatestMessage();
     
     // Delayed scroll to ensure DOM updates
-    const timer1 = setTimeout(scrollToBottom, 100);
-    const timer2 = setTimeout(scrollToBottom, 300);
-    const timer3 = setTimeout(scrollToBottom, 500);
+    const timer1 = setTimeout(scrollToLatestMessage, 100);
+    const timer2 = setTimeout(scrollToLatestMessage, 300);
     
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
-      clearTimeout(timer3);
     };
   }, [messages, isTyping]);
 
-  // Force scroll when typing stops (message received)
+  // Force scroll when typing stops (message received) - show START of response
   useEffect(() => {
     if (!isTyping && messages.length > 1) {
-      setTimeout(scrollToBottom, 200);
+      setTimeout(scrollToLatestMessage, 200);
     }
   }, [isTyping]);
 
@@ -937,9 +948,9 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Force scroll after message is added
+      // Force scroll after message is added - show START of AI response
       setTimeout(() => {
-        scrollToBottom();
+        scrollToLatestMessage();
       }, 150);
       
     } catch (error) {
@@ -1080,7 +1091,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                 recentActivities={recentActivities}
               />
               
-              {/* Chat Container */}
+              {/* Chat Container - Dynamic Full Height */}
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <CardHeader className="border-b border-gray-100">
                   <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
@@ -1097,15 +1108,16 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                 <CardContent className="p-0">
                   <div 
                     ref={messagesContainerRef}
-                    className="overflow-y-auto p-4 space-y-4" 
+                    className="p-4 space-y-4" 
                     style={{
-                      height: `${Math.min(800, Math.max(450, (messages.length * 80) + 300))}px`,
-                      maxHeight: '80vh'
+                      minHeight: '400px',
+                      maxHeight: 'none' // Remove height restrictions
                     }}
                   >
                     {messages.map((message, index) => (
                       <div
                         key={index}
+                        data-message-role={message.role}
                         className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         <div className={`max-w-[85%] ${
