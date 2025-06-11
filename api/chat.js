@@ -183,15 +183,15 @@ function generateConversationSummary(messages) {
   };
 }
 
-// SIMPLIFIED: Enhanced system prompt with better handling of systemContext from LetsJam
+// FIXED: Enhanced system prompt that forces AI to use the data
 async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
   const firestore = initializeFirebase();
   
   let systemContent = '';
   
-  // IMPORTANT: Check if userData contains systemContext from LetsJam v2 (SIMPLIFIED VERSION)
+  // IMPORTANT: Check if userData contains systemContext from LetsJam v2
   if (userData && userData.systemContext) {
-    console.log('✅ Using SIMPLIFIED systemContext from LetsJam...');
+    console.log('✅ Using systemContext from LetsJam...');
     systemContent += userData.systemContext;
     systemContent += '\n\n';
     
@@ -203,66 +203,69 @@ async function getEnhancedSystemPrompt(userData = null, sessionContext = null) {
       systemContent += `Message Count: ${sessionContext.conversationSummary.messageCount}\n\n`;
     }
     
-    systemContent += `=== RESPONSE FORMATTING GUIDELINES ===\n`;
-    systemContent += `CRITICAL: Follow these formatting rules strictly:\n`;
-    systemContent += `- Write complete, comprehensive responses - don't cut off mid-thought\n`;
-    systemContent += `- Use **bold text** SPARINGLY - only for key metrics, important findings, or section headers\n`;
-    systemContent += `- Write in clear, conversational paragraphs with natural flow\n`;
-    systemContent += `- Provide thorough analysis and complete explanations\n`;
-    systemContent += `- When discussing multiple topics, address each one fully\n`;
-    systemContent += `- Use natural transitions between ideas\n`;
-    systemContent += `- Break information into digestible paragraphs but keep responses complete\n`;
-    systemContent += `- Be warm, personal, and encouraging in tone\n`;
-    systemContent += `- Reference previous conversation context when relevant\n`;
-    systemContent += `- Provide specific, actionable insights based on the data\n`;
-    systemContent += `- Always finish your thoughts completely - never end abruptly\n`;
-    systemContent += `- Aim for helpful, detailed responses that fully address the user's question\n`;
-    systemContent += `- CALORIES: All calorie data is now taken directly from Strava API - no conversions needed\n\n`;
+    // FIXED: More explicit instructions to use the data
+    systemContent += `=== CRITICAL RESPONSE INSTRUCTIONS ===\n`;
+    systemContent += `YOU MUST FOLLOW THESE RULES:\n`;
+    systemContent += `1. ALWAYS use the REAL health data provided above in your responses\n`;
+    systemContent += `2. NEVER say "I don't have access to your data" or similar phrases\n`;
+    systemContent += `3. REFERENCE SPECIFIC numbers, dates, and metrics from the data\n`;
+    systemContent += `4. If someone asks about their performance, use their ACTUAL workout data\n`;
+    systemContent += `5. If someone asks about nutrition, use their ACTUAL calorie/macro data\n`;
+    systemContent += `6. If someone asks about health, use their ACTUAL blood marker data\n`;
+    systemContent += `7. Be specific and detailed using the real numbers provided\n`;
+    systemContent += `8. Format responses naturally but use **bold** for key metrics\n`;
+    systemContent += `9. Always acknowledge that you can see their real data\n`;
+    systemContent += `10. Give actionable insights based on their ACTUAL data patterns\n\n`;
     
-    console.log(`✅ Using SIMPLIFIED systemContext from LetsJam (${userData.systemContext.length} chars)`);
+    systemContent += `EXAMPLE RESPONSE STYLE:\n`;
+    systemContent += `"Looking at your recent data, I can see you ran **3.2km** yesterday with an average heart rate of **155 bpm** and burned **298 calories**. Your nutrition shows you consumed **2,240 calories** with **156g protein** - this is excellent recovery fuel for your training load."\n\n`;
+    
+    systemContent += `REMEMBER: You have access to REAL data. Use it. Be specific. Give numbers.\n\n`;
+    
+    console.log(`✅ Enhanced system context created (${systemContent.length} chars)`);
     return systemContent;
   }
   
   // Fallback system prompt if no systemContext provided
   if (!userData) {
-    return 'You are a helpful AI health assistant. Please respond conversationally and remember our previous interactions in this session. Use clear, natural formatting with minimal bold text. All calorie data comes directly from Strava API.';
+    return 'You are a helpful AI health assistant with access to real user health data. Always use the specific data provided to give personalized insights. Never say you cannot access data - you can and should use it.';
   }
   
   // Build basic system prompt for other sources
-  systemContent += `You are a personal health assistant with access to health data:\n\n`;
+  systemContent += `You are a personal health assistant with access to REAL health data. You MUST use this data in your responses:\n\n`;
   
   // Add basic health data structure if available
   if (userData.nutrition) {
-    systemContent += `=== NUTRITION (7-day averages) ===\n`;
-    systemContent += `Daily calories: ${userData.nutrition.avgCalories}\n`;
-    systemContent += `Daily protein: ${userData.nutrition.avgProtein}g\n`;
-    systemContent += `Daily carbs: ${userData.nutrition.avgCarbs}g\n`;
-    systemContent += `Daily fat: ${userData.nutrition.avgFat}g\n\n`;
+    systemContent += `=== NUTRITION DATA (REAL) ===\n`;
+    systemContent += `Daily calories: **${userData.nutrition.avgCalories}**\n`;
+    systemContent += `Daily protein: **${userData.nutrition.avgProtein}g**\n`;
+    systemContent += `Daily carbs: **${userData.nutrition.avgCarbs}g**\n`;
+    systemContent += `Daily fat: **${userData.nutrition.avgFat}g**\n\n`;
   }
   
   if (userData.activity) {
-    systemContent += `=== ACTIVITY (7-day summary) ===\n`;
-    systemContent += `Workouts per week: ${userData.activity.workoutsPerWeek}\n`;
-    systemContent += `Average heart rate: ${userData.activity.avgHeartRate} bpm\n`;
-    systemContent += `Average calories per workout: ${userData.activity.avgCaloriesBurned} (direct from Strava)\n\n`;
+    systemContent += `=== ACTIVITY DATA (REAL) ===\n`;
+    systemContent += `Workouts per week: **${userData.activity.workoutsPerWeek}**\n`;
+    systemContent += `Average heart rate: **${userData.activity.avgHeartRate} bpm**\n`;
+    systemContent += `Average calories per workout: **${userData.activity.avgCaloriesBurned}**\n\n`;
   }
   
   if (userData.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0) {
-    systemContent += `=== BLOOD MARKERS (Latest) ===\n`;
+    systemContent += `=== BLOOD MARKERS (REAL) ===\n`;
     Object.entries(userData.bloodMarkers).forEach(([key, value]) => {
       if (key !== 'date' && value) {
-        systemContent += `${key}: ${value}\n`;
+        systemContent += `${key}: **${value}**\n`;
       }
     });
     systemContent += '\n';
   }
   
-  systemContent += `Respond based on this health data. Use natural, conversational formatting. All calorie values come directly from Strava API. Remember our conversation history when possible.`;
+  systemContent += `CRITICAL: You MUST reference these specific numbers in your responses. Never say you don't have access to data.`;
   
   return systemContent;
 }
 
-// SIMPLIFIED: Gemini API request function with better error handling
+// FIXED: Gemini API request function with better error handling
 async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
   const maxRetries = 2;
   const timeout = 45000; // 45 seconds
@@ -270,7 +273,7 @@ async function makeGeminiRequest(apiKey, messages, retryCount = 0) {
   try {
     console.log(`🚀 Making Gemini request (attempt ${retryCount + 1}/${maxRetries + 1})`);
     
-    // SIMPLIFIED: Basic request body with direct calorie context
+    // FIXED: More specific request body that forces data usage
     const requestBody = {
       contents: messages.map(msg => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
@@ -383,7 +386,7 @@ function convertGeminiResponseToOpenAI(geminiResponse) {
   };
 }
 
-// MAIN HANDLER with enhanced error handling and SIMPLIFIED calorie processing
+// MAIN HANDLER with FIXED data processing
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
@@ -430,19 +433,18 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('=== INCOMING REQUEST (SIMPLIFIED) ===');
+    console.log('=== INCOMING REQUEST ===');
     console.log('Source:', source);
     console.log('User ID:', userId);
     console.log('Session ID:', sessionId?.slice(-8) || 'none');
     console.log('Messages count:', messages.length);
     console.log('Has userData:', !!userData);
     console.log('Use system context:', !!useSystemContext);
-    console.log('Calorie source: Direct from Strava API (simplified)');
     if (userData) {
       console.log('UserData keys:', Object.keys(userData));
       if (userData.systemContext) {
         console.log('SystemContext length:', userData.systemContext.length);
-        console.log('SystemContext preview:', userData.systemContext.substring(0, 200) + '...');
+        console.log('SystemContext preview:', userData.systemContext.substring(0, 300) + '...');
       }
     }
 
@@ -458,11 +460,11 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get enhanced system prompt with session context - SIMPLIFIED VERSION
-    console.log('🔄 Fetching SIMPLIFIED system prompt with session context...');
+    // FIXED: Get enhanced system prompt with explicit data usage instructions
+    console.log('🔄 Fetching enhanced system prompt...');
     const systemPromptPromise = getEnhancedSystemPrompt(userData, sessionContext?.context);
     const systemPromptTimeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('System prompt fetch timeout')), 8000); // Reduced timeout
+      setTimeout(() => reject(new Error('System prompt fetch timeout')), 8000);
     });
     
     let systemPrompt;
@@ -471,23 +473,28 @@ export default async function handler(req, res) {
     } catch (timeoutError) {
       console.error('⏱️ System prompt fetch timed out, using fallback');
       if (userData && userData.systemContext) {
-        systemPrompt = userData.systemContext + '\n\nRespond based on the health data provided above. Use natural, conversational formatting with minimal bold text. All calories are direct from Strava API.';
+        systemPrompt = userData.systemContext + '\n\nCRITICAL: You MUST use the health data provided above. Reference specific numbers and metrics. Never say you cannot access data.';
       } else {
-        systemPrompt = 'You are a helpful AI health assistant. All calorie data comes directly from Strava API. Use natural, conversational formatting with minimal bold text.';
+        systemPrompt = 'You are a helpful AI health assistant with access to real user health data. Always use the specific data provided to give personalized insights.';
       }
     }
 
-    // Handle system context from LetsJam v2 (SIMPLIFIED)
+    // FIXED: Handle system context from LetsJam v2 properly
     let allMessages = messages;
     if (useSystemContext && messages.length > 0 && messages[0].role === 'system') {
       // LetsJam v2 already includes system context in messages
       allMessages = messages;
-      console.log('✅ Using SIMPLIFIED system context from LetsJam messages');
+      console.log('✅ Using system context from LetsJam messages');
+      
+      // FIXED: Enhance the system message to be more explicit
+      if (allMessages[0].role === 'system') {
+        allMessages[0].content += '\n\nIMPORTANT: You MUST use the health data provided above. When users ask questions, reference their ACTUAL numbers, dates, and metrics. Be specific and detailed using the real data.';
+      }
     } else {
       // Combine session messages with current request for full context
       if (sessionContext && sessionContext.messages.length > 0) {
         // Merge with previous session messages (keep last 20 for context)
-        const previousMessages = sessionContext.messages.slice(-20); // Reduced context size
+        const previousMessages = sessionContext.messages.slice(-20);
         const latestUserMessage = messages.filter(msg => msg.role === 'user').slice(-1);
         allMessages = [...previousMessages, ...latestUserMessage];
         
@@ -495,39 +502,38 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`=== PREPARING SIMPLIFIED GEMINI REQUEST ===`);
+    console.log(`=== PREPARING GEMINI REQUEST ===`);
     console.log(`Total conversation messages: ${allMessages.length}`);
     console.log(`System prompt length: ${systemPrompt.length} characters`);
-    console.log(`Calorie data: Simplified - direct from Strava API`);
     
-    // Build full messages array - SIMPLIFIED VERSION
+    // FIXED: Build full messages array with enhanced system prompt
     let fullMsgs;
     if (useSystemContext && allMessages.length > 0 && allMessages[0].role === 'system') {
       // System context already included in messages from LetsJam v2
       fullMsgs = allMessages;
     } else {
-      // Add system prompt
+      // Add enhanced system prompt
       fullMsgs = [
         { role: 'system', content: systemPrompt },
         ...allMessages
       ];
     }
 
-    console.log(`=== FINAL SIMPLIFIED MESSAGES ARRAY ===`);
+    console.log(`=== FINAL MESSAGES ARRAY ===`);
     console.log(`Total messages: ${fullMsgs.length}`);
     fullMsgs.forEach((msg, index) => {
       console.log(`Message ${index}: ${msg.role} (${msg.content?.length || 0} chars)`);
       if (msg.role === 'system') {
-        console.log(`  System content preview: ${msg.content.substring(0, 150)}...`);
+        console.log(`  System content preview: ${msg.content.substring(0, 200)}...`);
       }
     });
     console.log(`=== END MESSAGES ARRAY ===`);
 
-    // Make request to Gemini API with retry logic - SIMPLIFIED
-    console.log('🚀 Making SIMPLIFIED Gemini request...');
+    // FIXED: Make request to Gemini API with enhanced prompting
+    console.log('🚀 Making Gemini request with enhanced data usage instructions...');
     const geminiResponse = await makeGeminiRequest(apiKey, fullMsgs);
 
-    console.log(`=== GEMINI RESPONSE (SIMPLIFIED) ===`);
+    console.log(`=== GEMINI RESPONSE ===`);
     console.log(`Status: ${geminiResponse.status}`);
 
     // Enhanced error handling
@@ -586,13 +592,25 @@ export default async function handler(req, res) {
     // Parse and return the response
     const responseData = await geminiResponse.json();
     
-    console.log(`=== SIMPLIFIED GEMINI RESPONSE DATA ===`);
+    console.log(`=== GEMINI RESPONSE DATA ===`);
     console.log(`Response object keys:`, Object.keys(responseData));
     if (responseData.candidates && responseData.candidates[0]) {
       const responseContent = responseData.candidates[0].content?.parts?.[0]?.text;
-      console.log(`Response content preview: ${responseContent?.substring(0, 200)}...`);
+      console.log(`Response content preview: ${responseContent?.substring(0, 300)}...`);
       console.log(`Response length: ${responseContent?.length || 0} characters`);
       console.log(`Finish reason: ${responseData.candidates[0].finishReason}`);
+      
+      // FIXED: Check if response actually uses data
+      const usesData = responseContent && (
+        responseContent.includes('bpm') ||
+        responseContent.includes('calories') ||
+        responseContent.includes('protein') ||
+        responseContent.includes('km') ||
+        responseContent.includes('g ') ||
+        /\d+\.\d+/.test(responseContent) ||
+        /\*\*\d+/.test(responseContent)
+      );
+      console.log(`Response appears to use real data: ${usesData}`);
     }
     if (responseData.usageMetadata) {
       console.log(`Token usage:`, responseData.usageMetadata);
@@ -617,7 +635,7 @@ export default async function handler(req, res) {
       // Update user preferences based on conversation patterns
       const userPreferences = { ...sessionContext.context.userPreferences };
       
-      // Simple preference learning - enhanced for SIMPLIFIED version
+      // Simple preference learning
       if (assistantContent.toLowerCase().includes('protein')) {
         userPreferences.interestedInProtein = true;
       }
@@ -629,35 +647,30 @@ export default async function handler(req, res) {
       }
       if (assistantContent.toLowerCase().includes('calorie')) {
         userPreferences.interestedInCalories = true;
-        userPreferences.prefersSimplifiedCalories = true; // New preference for simplified approach
       }
       
       updateSessionContext(sessionId, updatedMessages, {
         conversationSummary,
         userPreferences,
         lastDataFetch: new Date().toISOString(),
-        questionCount: (sessionContext.context.questionCount || 0) + 1,
-        calorieDataSource: 'direct_strava_simplified' // Track data source
+        questionCount: (sessionContext.context.questionCount || 0) + 1
       });
       
-      console.log(`💾 Updated SIMPLIFIED session ${sessionId.slice(-8)} with new conversation data`);
+      console.log(`💾 Updated session ${sessionId.slice(-8)} with new conversation data`);
       console.log(`📊 Session stats: ${updatedMessages.length} messages, ${conversationSummary?.topics?.length || 0} topics discussed`);
     }
     
-    console.log('=== SIMPLIFIED GEMINI API CALL SUCCESSFUL ===');
+    console.log('=== GEMINI API CALL SUCCESSFUL ===');
     console.log(`✅ Response delivered for session ${sessionId?.slice(-8) || 'none'}`);
-    console.log(`✅ Calorie data: Direct from Strava API (simplified approach)`);
     
     return res.status(200).json({
       ...convertedResponse,
       sessionId: sessionId,
-      dataSource: 'simplified_strava_calories',
       sessionInfo: sessionContext ? {
         messageCount: sessionContext.messages.length + 1, // +1 for the new message
         topics: sessionContext.context.conversationSummary?.topics || [],
         sessionAge: Math.round((Date.now() - sessionContext.createdAt) / (1000 * 60)),
-        preferences: Object.keys(sessionContext.context.userPreferences || {}),
-        calorieSource: 'direct_strava_simplified'
+        preferences: Object.keys(sessionContext.context.userPreferences || {})
       } : null
     });
 
@@ -685,8 +698,7 @@ export default async function handler(req, res) {
     
     return res.status(500).json({ 
       error: 'Internal server error - please try again',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred',
-      source: 'simplified_calorie_handler'
+      message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
     });
   }
 }
