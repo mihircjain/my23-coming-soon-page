@@ -786,7 +786,7 @@ const LetsJam: React.FC = () => {
     await fetchUserData(true);
   };
 
-  // FIXED: Enhanced message sending with proper system context
+  // FIXED: Enhanced message sending with MUCH MORE EXPLICIT system context
   const handleSendMessage = async () => {
     if (!input.trim() || isTyping) return;
     
@@ -801,34 +801,51 @@ const LetsJam: React.FC = () => {
     setIsTyping(true);
     
     try {
-      // Build system context directly
+      // FIXED: Build MUCH MORE EXPLICIT system context that forces AI to use data
       const systemContext = `
-HEALTH DATA CONTEXT:
-You are a personal health assistant with access to real user health data. USE THIS ACTUAL DATA to answer questions.
+CRITICAL INSTRUCTION: You are a health AI with access to REAL user data. You MUST use this data in your responses. NEVER say you don't have access to data.
 
-=== RECENT RUNS (Last 7 Days) ===
+=== REAL USER HEALTH DATA (USE THIS IN YOUR RESPONSES) ===
+
+RECENT RUNS AND ACTIVITIES:
 ${recentActivities
   .filter(a => a.type && a.type.toLowerCase().includes('run'))
-  .map(run => `• ${run.name} (${new Date(run.start_date || run.date).toLocaleDateString()}) - ${run.distance.toFixed(2)}km in ${Math.round(run.duration)}min, Heart Rate: ${run.average_heartrate || 'N/A'} bpm, ${run.calories || run.caloriesBurned || 0} calories`)
-  .join('\n') || 'No runs recorded'}
+  .map((run, index) => `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - Distance: ${run.distance.toFixed(2)}km, Duration: ${Math.round(run.duration)}min, Heart Rate: ${run.average_heartrate || 'N/A'} bpm, Calories: ${run.calories || run.caloriesBurned || 0}`)
+  .join('\n') || 'No runs recorded in the last 7 days'}
 
-=== RECENT NUTRITION (Daily Intake) ===
-${nutritionDetails.map(day => `• ${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${day.calories} calories, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat`).join('\n') || 'No nutrition data'}
+ALL RECENT WORKOUTS:
+${recentActivities
+  .map((activity, index) => `Activity ${index + 1}: "${activity.name}" (${activity.type}) on ${new Date(activity.start_date || activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - Distance: ${activity.distance?.toFixed(2) || 0}km, Duration: ${Math.round(activity.duration || 0)}min, Heart Rate: ${activity.average_heartrate || 'N/A'} bpm, Calories: ${activity.calories || activity.caloriesBurned || 0}`)
+  .join('\n') || 'No activities recorded in the last 7 days'}
 
-=== WORKOUT SUMMARY (7 Days) ===
-• Total workouts: ${userData?.activity.workoutsPerWeek || 0}
-• Average heart rate: ${userData?.activity.avgHeartRate || 0} bpm
-• Average calories per workout: ${userData?.activity.avgCaloriesBurned || 0}
+NUTRITION DATA (DAILY BREAKDOWN):
+${nutritionDetails.map(day => `${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${day.calories} calories, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat, ${day.fiber}g fiber`).join('\n') || 'No nutrition data logged'}
 
-=== BLOOD MARKERS (Latest Test) ===
+WEEKLY AVERAGES:
+- Nutrition: ${userData?.nutrition.avgCalories || 0} calories/day, ${userData?.nutrition.avgProtein || 0}g protein/day
+- Activity: ${userData?.activity.workoutsPerWeek || 0} workouts/week, ${userData?.activity.avgHeartRate || 0} bpm average heart rate
+- Calories burned per workout: ${userData?.activity.avgCaloriesBurned || 0} calories
+
+BLOOD MARKERS (LATEST TEST):
 ${userData?.bloodMarkers ? Object.entries(userData.bloodMarkers)
   .filter(([key, value]) => key !== 'date' && value)
-  .map(([key, value]) => `• ${key}: ${value}`)
+  .map(([key, value]) => `${key}: ${value}`)
   .join('\n') : 'No blood marker data available'}
 
-IMPORTANT: Use this REAL data above to answer questions. Never use placeholder text or say you don't have access to data.`;
+=== RESPONSE REQUIREMENTS ===
+1. ALWAYS reference specific numbers from the data above
+2. NEVER say "I don't have access to your data" - you DO have access
+3. Use **bold** for key metrics like heart rates, distances, calories
+4. Give specific insights based on the ACTUAL data patterns
+5. When discussing performance, use their REAL workout data
+6. When discussing nutrition, use their REAL calorie/macro data
+7. Be conversational but data-driven
 
-      // Build messages array with system context
+EXAMPLE: "Looking at your recent runs, I can see you did **${recentActivities.filter(a => a.type?.toLowerCase().includes('run')).length} runs** this week. Your best run was **${recentActivities.filter(a => a.type?.toLowerCase().includes('run'))[0]?.distance?.toFixed(1) || 0}km** with an average heart rate of **${recentActivities.filter(a => a.type?.toLowerCase().includes('run'))[0]?.average_heartrate || 'N/A'} bpm**."
+
+Remember: Use the REAL data above. Be specific. Give actual numbers.`;
+
+      // Build messages array with explicit system context
       const conversationMessages = [
         { 
           role: "system", 
@@ -841,16 +858,18 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
         { role: "user", content: input.trim() }
       ];
 
-      console.log('📤 Sending data to AI:', {
+      console.log('📤 Sending EXPLICIT data to AI:', {
         systemContextLength: systemContext.length,
         totalMessages: conversationMessages.length,
-        nutrition: userData?.nutrition.avgCalories || 0,
-        workoutsPerWeek: userData?.activity.workoutsPerWeek || 0,
         runCount: recentActivities.filter(a => a.type && a.type.toLowerCase().includes('run')).length,
-        nutritionDays: nutritionDetails.length
+        totalActivities: recentActivities.length,
+        nutritionDays: nutritionDetails.length,
+        avgCalories: userData?.nutrition.avgCalories || 0,
+        workoutsPerWeek: userData?.activity.workoutsPerWeek || 0,
+        bloodMarkers: userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0
       });
       
-      // Call chat API
+      // Call chat API with explicit instructions
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -858,9 +877,9 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
         },
         body: JSON.stringify({
           userId: userId,
-          source: "smart_health_chat_v3",
+          source: "smart_health_chat_v4_fixed",
           userData: { systemContext },
-          messages: conversationMessages.slice(-6),
+          messages: conversationMessages.slice(-8), // Keep more context
           sessionId: sessionId,
           useSystemContext: true
         })
@@ -876,6 +895,22 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
                               data.response || 
                               data.message || 
                               'Sorry, I could not process that request.';
+      
+      // FIXED: Check if AI actually used the data
+      const usesRealData = assistantContent && (
+        assistantContent.includes('bpm') ||
+        assistantContent.includes('calories') ||
+        assistantContent.includes('protein') ||
+        assistantContent.includes('km') ||
+        assistantContent.includes('g ') ||
+        /\d+\.\d+/.test(assistantContent) ||
+        /\*\*\d+/.test(assistantContent) ||
+        assistantContent.toLowerCase().includes('your run') ||
+        assistantContent.toLowerCase().includes('your workout')
+      );
+      
+      console.log(`🤖 AI response uses real data: ${usesRealData}`);
+      console.log(`🤖 Response preview: ${assistantContent.substring(0, 200)}...`);
       
       const assistantMessage: ChatMessage = {
         role: 'assistant',
@@ -958,6 +993,12 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
             <Badge variant="secondary" className="text-xs">
               Session: {sessionId.slice(-8)}
             </Badge>
+            <Badge variant={recentActivities.length > 0 ? "default" : "secondary"} className="text-xs">
+              {recentActivities.length} Activities
+            </Badge>
+            <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
+              {nutritionDetails.length} Nutrition Days
+            </Badge>
           </div>
         </div>
       </header>
@@ -985,6 +1026,9 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
                     AI Health Coach
                     <Badge variant="secondary" className="ml-2 text-xs">
                       Session Active
+                    </Badge>
+                    <Badge variant={userData ? "default" : "secondary"} className="text-xs">
+                      {userData ? 'Data Loaded' : 'Loading Data'}
                     </Badge>
                   </CardTitle>
                 </CardHeader>
@@ -1059,8 +1103,8 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
                     <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
                       <span>{messages.length} messages in this session</span>
                       <span className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                        Real data connected
+                        <div className={`w-2 h-2 rounded-full ${userData ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+                        {userData ? 'Real data connected' : 'Loading data...'}
                       </span>
                     </div>
                   </div>
@@ -1123,70 +1167,89 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
             </Button>
           </div>
           
-          {/* Feature Highlights */}
+          {/* Data Status Display */}
           <div className="mt-8">
             <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <Zap className="h-5 w-5 text-orange-500" />
-                  What Your AI Health Coach Can Do
+                  Live Data Status
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-orange-500" />
-                      <span className="font-medium text-gray-700">Training Plans</span>
+                      <Activity className="h-4 w-4 text-orange-500" />
+                      <span className="font-medium text-gray-700">Activities</span>
+                      <Badge variant={recentActivities.length > 0 ? "default" : "secondary"} className="text-xs">
+                        {recentActivities.length}
+                      </Badge>
                     </div>
-                    <p className="text-sm text-gray-600">Personalized workout recommendations based on your current fitness level and recovery status</p>
+                    <p className="text-sm text-gray-600">
+                      {recentActivities.length > 0 
+                        ? `${recentActivities.filter(a => a.type?.toLowerCase().includes('run')).length} runs, ${recentActivities.length} total workouts`
+                        : 'No recent activities found'
+                      }
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Utensils className="h-4 w-4 text-green-500" />
-                      <span className="font-medium text-gray-700">Nutrition Insights</span>
+                      <span className="font-medium text-gray-700">Nutrition</span>
+                      <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
+                        {nutritionDetails.length} days
+                      </Badge>
                     </div>
-                    <p className="text-sm text-gray-600">Analyze your macro balance, calorie deficit, and meal timing for optimal performance</p>
+                    <p className="text-sm text-gray-600">
+                      {nutritionDetails.length > 0 
+                        ? `${userData?.nutrition.avgCalories || 0} avg calories/day`
+                        : 'No nutrition data logged'
+                      }
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Heart className="h-4 w-4 text-red-500" />
-                      <span className="font-medium text-gray-700">Recovery Analysis</span>
+                      <span className="font-medium text-gray-700">Heart Rate</span>
+                      <Badge variant={userData?.activity.avgHeartRate > 0 ? "default" : "secondary"} className="text-xs">
+                        {userData?.activity.avgHeartRate || 0} bpm
+                      </Badge>
                     </div>
-                    <p className="text-sm text-gray-600">Monitor heart rate trends (runs only), training load, and recommend rest or active recovery days</p>
+                    <p className="text-sm text-gray-600">
+                      {userData?.activity.avgHeartRate > 0 
+                        ? 'Average from running activities'
+                        : 'No heart rate data available'
+                      }
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Droplet className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium text-gray-700">Health Markers</span>
+                      <span className="font-medium text-gray-700">Blood Markers</span>
+                      <Badge variant={userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 ? "default" : "secondary"} className="text-xs">
+                        {userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0}
+                      </Badge>
                     </div>
-                    <p className="text-sm text-gray-600">Interpret blood test results and suggest lifestyle changes for optimal health</p>
+                    <p className="text-sm text-gray-600">
+                      {userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0
+                        ? 'Latest blood test results available'
+                        : 'No blood marker data available'
+                      }
+                    </p>
                   </div>
                 </div>
                 
                 <div className="mt-6 p-4 bg-white/60 rounded-lg border border-white/30">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    <Target className="h-4 w-4 text-orange-500" />
-                    Live Data Sources
+                    <Bot className="h-4 w-4 text-orange-500" />
+                    AI Data Access
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
-                    <div>
-                      <div className="font-medium text-red-600">Heart Rate:</div>
-                      <div>Real data from your running activities for accurate cardiovascular insights</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-orange-600">Distance & Calories:</div>
-                      <div>Direct from your Strava activities with precise measurements</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-green-600">Nutrition:</div>
-                      <div>Your logged meals and macro breakdowns for dietary analysis</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-blue-600">Health Markers:</div>
-                      <div>Your blood test results for comprehensive health assessment</div>
-                    </div>
+                  <div className="text-xs text-gray-600">
+                    <p>✅ The AI can see ALL your real data: {recentActivities.length} activities, {nutritionDetails.length} nutrition days, {userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0} blood markers</p>
+                    <p>✅ Specific numbers, dates, and metrics are passed to the AI</p>
+                    <p>✅ Ask specific questions about your performance, nutrition, or health trends</p>
                   </div>
                 </div>
               </CardContent>
@@ -1209,8 +1272,8 @@ IMPORTANT: Use this REAL data above to answer questions. Never use placeholder t
           <div className="flex items-center gap-4">
             <span>Powered by Gemini 2.0 Flash</span>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Live Data Connected</span>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${userData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <span className="text-xs">{userData ? 'Live Data Connected' : 'Loading Data'}</span>
             </div>
           </div>
         </div>
