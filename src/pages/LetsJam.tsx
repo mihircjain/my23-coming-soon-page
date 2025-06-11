@@ -160,6 +160,10 @@ const SmartHealthSummary: React.FC<{
 }> = ({ healthData, recentRuns, bloodMarkers, onRefresh, isRefreshing }) => {
   const structuredData = processHealthDataForAI(healthData, recentRuns, bloodMarkers);
   
+  // DEBUG: Log the data being processed
+  console.log('🔍 SmartHealthSummary received runs:', recentRuns.map(r => ({ name: r.name, distance: r.distance })));
+  console.log('🔍 Structured data total distance:', structuredData.activity.totalRunDistance);
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -418,13 +422,23 @@ const LetsJam: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
+  // FIXED: Auto-scroll that actually works during typing
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
   
+  // FIXED: Scroll on both message changes AND typing status changes
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isTyping]);
+  }, [messages]);
+  
+  useEffect(() => {
+    if (isTyping) {
+      scrollToBottom();
+    }
+  }, [isTyping]);
 
   // FIXED: Fetch health data with proper distance calculation
   const fetchHealthData = async () => {
@@ -506,15 +520,36 @@ const LetsJam: React.FC = () => {
         );
 
         if (isRunActivity) {
-          // FIXED: Proper distance conversion
+          // FIXED: Proper distance conversion - handle all cases
           let distance = 0;
-          if (data.distance && typeof data.distance === 'number') {
-            distance = data.distance / 1000;
-          } else if (data.distance && typeof data.distance === 'string') {
-            distance = parseFloat(data.distance) / 1000;
+          
+          if (data.distance != null) {
+            if (typeof data.distance === 'number') {
+              // Distance is in meters, convert to km
+              distance = data.distance / 1000;
+            } else if (typeof data.distance === 'string') {
+              // Sometimes it's a string, parse and convert
+              const parsed = parseFloat(data.distance);
+              if (!isNaN(parsed)) {
+                distance = parsed / 1000;
+              }
+            }
+          }
+          
+          // ALSO check for distance_km field
+          if (distance === 0 && data.distance_km != null) {
+            distance = parseFloat(data.distance_km) || 0;
+          }
+          
+          // ALSO check for summary fields
+          if (distance === 0 && data.summary?.distance) {
+            const summaryDistance = parseFloat(data.summary.distance);
+            if (!isNaN(summaryDistance)) {
+              distance = summaryDistance / 1000;
+            }
           }
 
-          console.log(`🏃 Processing run: ${data.name}, distance: ${distance}km (raw: ${data.distance})`);
+          console.log(`🏃 Processing run: ${data.name}, distance: ${distance}km (raw: ${data.distance}, type: ${typeof data.distance})`);
 
           runs.push({
             date: activityDate,
@@ -562,6 +597,7 @@ const LetsJam: React.FC = () => {
       );
 
       console.log(`📊 Final runs data:`, sortedRuns.slice(0, 3));
+      console.log(`📊 Total run distance calculated: ${sortedRuns.reduce((sum, r) => sum + r.distance, 0)}km`);
 
       setHealthData(sortedData);
       setRecentRuns(sortedRuns.slice(0, 5));
@@ -594,9 +630,20 @@ const LetsJam: React.FC = () => {
     setIsTyping(true);
     
     try {
+      // ENHANCED: Send comprehensive data context with ACTUAL run data
       const enhancedData = {
         ...structuredHealthData,
         rawHealthData: healthData,
+        // FIXED: Include actual run data with distances
+        actualRunData: recentRuns.map(run => ({
+          name: run.name,
+          date: run.date,
+          distance: run.distance,
+          duration: run.duration,
+          heartRate: run.average_heartrate,
+          calories: run.calories,
+          type: run.type
+        })),
         userProfile: {
           name: "Mihir",
           BMR: 1479,
@@ -608,6 +655,16 @@ const LetsJam: React.FC = () => {
             heartRate: healthData.some(d => d.heartRateRuns > 0),
             bloodMarkers: bloodMarkers !== null
           }
+        },
+        // FIXED: Add explicit recent run summary for AI
+        runSummary: {
+          totalRuns: recentRuns.length,
+          totalDistance: recentRuns.reduce((sum, run) => sum + run.distance, 0),
+          averageDistance: recentRuns.length > 0 ? recentRuns.reduce((sum, run) => sum + run.distance, 0) / recentRuns.length : 0,
+          averageHeartRate: recentRuns.filter(r => r.average_heartrate > 0).length > 0 
+            ? recentRuns.filter(r => r.average_heartrate > 0).reduce((sum, run) => sum + run.average_heartrate, 0) / recentRuns.filter(r => r.average_heartrate > 0).length 
+            : null,
+          lastRunDate: recentRuns.length > 0 ? recentRuns[0].date : null
         }
       };
 
@@ -627,7 +684,9 @@ const LetsJam: React.FC = () => {
             hasActivityData: enhancedData.userProfile.dataAvailable.activity,
             hasRunData: enhancedData.userProfile.dataAvailable.runs,
             hasHeartRateData: enhancedData.userProfile.dataAvailable.heartRate,
-            hasBloodData: enhancedData.userProfile.dataAvailable.bloodMarkers
+            hasBloodData: enhancedData.userProfile.dataAvailable.bloodMarkers,
+            // ADDED: Explicit instruction to use real data
+            instruction: "IMPORTANT: Use the ACTUAL run data provided in actualRunData and runSummary. Do NOT use placeholder text like [Insert Number]. Provide REAL statistics from the user's data."
           }
         }),
       });
@@ -749,8 +808,12 @@ const LetsJam: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {/* Messages Container - FIXED: Auto-scroll during typing */}
-                  <div className="h-80 overflow-y-auto p-4 space-y-4" id="messages-container">
+                  {/* Messages Container - FIXED: Better auto-scroll */}
+                  <div 
+                    className="h-80 overflow-y-auto p-4 space-y-4" 
+                    id="messages-container"
+                    ref={messagesEndRef}
+                  >
                     {messages.map((message, index) => (
                       <div
                         key={index}
@@ -761,7 +824,6 @@ const LetsJam: React.FC = () => {
                             ? 'bg-orange-500 text-white' 
                             : 'bg-gray-100 text-gray-800 border border-gray-200'
                         } rounded-lg p-3`}>
-                          {/* FIXED: Use MessageContent component for better formatting */}
                           <MessageContent content={message.content} />
                           <div className={`text-xs mt-1 ${
                             message.role === 'user' ? 'text-orange-100' : 'text-gray-500'
@@ -788,8 +850,6 @@ const LetsJam: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    
-                    <div ref={messagesEndRef} />
                   </div>
                   
                   {/* Input Area */}
