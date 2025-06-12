@@ -1960,7 +1960,7 @@ Remember: You are their complete marathon coach. Always include weight training,
               <span className="text-xs">{userData ? 'Marathon Coach Ready' : 'Loading Training Data'}</span>
             </div>
           </div>
-        </div>
+     
       </footer>
     </div>
   );
