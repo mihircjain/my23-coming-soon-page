@@ -960,12 +960,11 @@ const ActivityJam = () => {
                     <span>Click run tags to edit</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    {RUN_TAG_OPTIONS.slice(0, 3).map(option => (
+                    {RUN_TAG_OPTIONS.map(option => (
                       <Badge key={option.value} variant="outline" className={`text-xs ${option.color} ${option.bgColor}`}>
                         {option.label}
                       </Badge>
                     ))}
-                    <span className="text-gray-500">...</span>
                   </div>
                 </div>
               </div>
