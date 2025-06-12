@@ -373,13 +373,18 @@ export default async function handler(req, res) {
         if (todaysCached.length > 0) {
           const latestToday = todaysCached[0];
           const lastFetched = new Date(latestToday.fetched_at || latestToday.start_date);
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000); // Changed to 2 hours
           
-          if (lastFetched > oneHourAgo) {
+          if (lastFetched > twoHoursAgo) {
             console.log(`📦 Serving cached data (today's data is fresh, fetched ${Math.round((Date.now() - lastFetched.getTime()) / 60000)} mins ago)`);
             const combinedData = [...todaysCached, ...cachedData]
               .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
-            return res.status(200).json(combinedData);
+            
+            // Remove duplicates by activity ID
+            const uniqueData = removeDuplicateActivities(combinedData);
+            console.log(`🔄 Combined data: ${combinedData.length} total, ${uniqueData.length} after dedup`);
+            
+            return res.status(200).json(uniqueData);
           }
         }
         
@@ -523,14 +528,20 @@ export default async function handler(req, res) {
         }
         
         // Combine today's data with cached data
-        const allActivities = [...processedTodaysActivities, ...cachedData]
-          .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+        const allActivities = [...processedTodaysActivities, ...cachedData];
         
-        console.log(`✅ Incremental mode complete: ${allActivities.length} total activities (${processedTodaysActivities.length} new today)`);
+        // Remove duplicates by activity ID (prioritize newer data)
+        const uniqueActivities = removeDuplicateActivities(allActivities);
+        
+        const sortedActivities = uniqueActivities.sort((a, b) => 
+          new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+        );
+        
+        console.log(`✅ Incremental mode complete: ${allActivities.length} total activities, ${uniqueActivities.length} after dedup, ${processedTodaysActivities.length} new today`);
         
         // Set fast cache headers for incremental mode
         res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
-        return res.status(200).json(allActivities);
+        return res.status(200).json(sortedActivities);
         
       } catch (incrementalError) {
         console.error('❌ Incremental mode failed, falling back to cached data:', incrementalError);
