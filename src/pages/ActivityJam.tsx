@@ -1,59 +1,4 @@
-{activity.calories && activity.calories > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Calories:</span>
-                            <span className="font-medium flex items-center">
-                              <Zap className="h-3 w-3 mr-1 text-green-500" />
-                              {activity.calories}
-                              <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-600">
-                                Strava
-                              </Badge>
-                            </span>
-                          </div>
-                        )}
-                        {/* Run Type Tag - Below Calories */}
-                        {activity.is_run_activity && activity.run_tag && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Run Type:</span>
-                            <div className="flex items-center">
-                              {editingTag === activity.id ? (
-                                <div className="flex items-center gap-2">
-                                  <Select value={activity.run_tag} onValueChange={(value) => handleTagChange(activity.id, value as RunTag)}>
-                                    <SelectTrigger className="w-24 h-6 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {RUN_TAG_OPTIONS.map(option => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                          <span className={option.color}>{option.label}</span>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost" 
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => setEditingTag(null)}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs cursor-pointer transition-all duration-200 ${getRunTagOption(activity.run_tag).color} ${getRunTagOption(activity.run_tag).bgColor} hover:bg-opacity-80`}
-                                  onClick={() => setEditingTag(activity.id)}
-                                >
-                                  <Tag className="h-3 w-3 mr-1" />
-                                  {getRunTagOption(activity.run_tag).label}
-                                  <Edit3 className="h-3 w-3 ml-1 opacity-60" />
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {/* Run Tag Display - Below Calories */}
-                        {activity.// Enhanced ActivityJam.tsx with run tagging and optimized data fetching
+// Enhanced ActivityJam.tsx with run tagging and optimized data fetching
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X } from "lucide-react";
@@ -656,13 +601,28 @@ const ActivityJam = () => {
         console.log('⚡ Incremental load - fetching only today\'s data');
       }
       
-      const response = await fetch(`/api/strava?${params.toString()}`);
+      const apiUrl = `/api/strava?${params.toString()}`;
+      console.log('📡 Making API request to:', apiUrl);
+      
+      const response = await fetch(apiUrl);
+      
+      console.log('📡 API Response status:', response.status);
+      console.log('📡 API Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch activities: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        throw new Error(`Failed to fetch activities: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('📊 Raw API data received:', data);
+      console.log('📊 Data length:', data?.length);
+      
+      if (!Array.isArray(data)) {
+        console.error('❌ Expected array but got:', typeof data, data);
+        throw new Error('Invalid data format received from API');
+      }
       
       // Process activities with run tagging
       const processedActivities = data.map((activity: any) => {
@@ -688,9 +648,10 @@ const ActivityJam = () => {
           is_run_activity: isRun
         };
 
-        // Auto-tag runs if it's a run activity
+        // Set run tag from API data (prioritize saved tags over auto-tags)
         if (isRun) {
-          processedActivity.run_tag = autoTagRun(processedActivity);
+          // Check if the activity already has a saved tag from the API
+          processedActivity.run_tag = activity.run_tag || activity.runType || autoTagRun(processedActivity);
         }
 
         return processedActivity;
@@ -700,25 +661,26 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      // Load existing run tags from Firestore
+      // Load existing run tags from Firestore and apply them
       const runActivities = sortedActivities.filter(a => a.is_run_activity);
       if (runActivities.length > 0) {
+        console.log(`🏷️ Loading saved tags for ${runActivities.length} run activities`);
         const savedTags = await loadRunTags(runActivities.map(a => a.id));
         
-        // Apply saved tags, keeping auto-tags for new activities
+        // Apply saved tags to activities
         sortedActivities.forEach(activity => {
           if (activity.is_run_activity && savedTags[activity.id]) {
-            activity.run_tag = savedTags[activity.id];
+            const savedTag = savedTags[activity.id];
+            console.log(`🔄 Applying saved tag for ${activity.id}: ${activity.run_tag} -> ${savedTag}`);
+            activity.run_tag = savedTag;
           }
         });
-
-        // Save auto-tags for new run activities that don't have saved tags
-        const newRunActivities = runActivities.filter(a => !savedTags[a.id]);
-        for (const activity of newRunActivities) {
-          if (activity.run_tag) {
-            await saveRunTag(activity.id, activity.run_tag);
-          }
-        }
+        
+        console.log('📊 Tag application summary:', {
+          totalRuns: runActivities.length,
+          savedTags: Object.keys(savedTags).length,
+          appliedTags: sortedActivities.filter(a => a.is_run_activity && a.run_tag).length
+        });
       }
 
       console.log('🏃 Activity processing summary:', {
@@ -779,55 +741,6 @@ const ActivityJam = () => {
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
-  };
-
-  // Render run tag with editing capability
-  const renderRunTag = (activity: ActivityData) => {
-    if (!activity.is_run_activity || !activity.run_tag) return null;
-
-    const tagOption = getRunTagOption(activity.run_tag);
-    const isEditing = editingTag === activity.id;
-
-    if (isEditing) {
-      return (
-        <div className="flex items-center gap-2 mt-2">
-          <Select value={activity.run_tag} onValueChange={(value) => handleTagChange(activity.id, value as RunTag)}>
-            <SelectTrigger className="w-32 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RUN_TAG_OPTIONS.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  <span className={option.color}>{option.label}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button 
-            size="sm" 
-            variant="ghost" 
-            className="h-6 w-6 p-0"
-            onClick={() => setEditingTag(null)}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center gap-2 mt-2">
-        <Badge 
-          variant="outline" 
-          className={`text-xs ${tagOption.color} ${tagOption.bgColor} hover:bg-opacity-80 cursor-pointer transition-all duration-200`}
-          onClick={() => setEditingTag(activity.id)}
-        >
-          <Tag className="h-3 w-3 mr-1" />
-          {tagOption.label}
-          <Edit3 className="h-3 w-3 ml-1 opacity-60" />
-        </Badge>
-      </div>
-    );
   };
 
   if (error) {
@@ -1069,7 +982,6 @@ const ActivityJam = () => {
                           <Badge variant="secondary" className="ml-2 shrink-0">
                             {activity.type}
                           </Badge>
-                          {/* Removed duplicate Run badge - run tag is shown below instead */}
                         </div>
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
@@ -1150,6 +1062,48 @@ const ActivityJam = () => {
                                 Strava
                               </Badge>
                             </span>
+                          </div>
+                        )}
+                        {/* Run Type Tag - Below Calories */}
+                        {activity.is_run_activity && activity.run_tag && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Run Type:</span>
+                            <div className="flex items-center">
+                              {editingTag === activity.id ? (
+                                <div className="flex items-center gap-2">
+                                  <Select value={activity.run_tag} onValueChange={(value) => handleTagChange(activity.id, value as RunTag)}>
+                                    <SelectTrigger className="w-24 h-6 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {RUN_TAG_OPTIONS.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          <span className={option.color}>{option.label}</span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => setEditingTag(null)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs cursor-pointer transition-all duration-200 ${getRunTagOption(activity.run_tag).color} ${getRunTagOption(activity.run_tag).bgColor} hover:bg-opacity-80`}
+                                  onClick={() => setEditingTag(activity.id)}
+                                >
+                                  <Tag className="h-3 w-3 mr-1" />
+                                  {getRunTagOption(activity.run_tag).label}
+                                  <Edit3 className="h-3 w-3 ml-1 opacity-60" />
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
