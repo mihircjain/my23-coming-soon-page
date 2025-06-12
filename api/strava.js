@@ -1,4 +1,4 @@
-// api/strava.js - FIXED with duplicate prevention and cleanup
+// api/strava.js - ENHANCED with incremental mode and run tagging support
 // Vercel serverless function – fetch Strava activities with smart caching
 
 import admin from 'firebase-admin';
@@ -16,6 +16,39 @@ if (!admin.apps.length) {
   });
 }
 const db = admin.firestore();
+
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Auto-classify runs for tagging system                            */
+/* ──────────────────────────────────────────────────────────────────── */
+const autoTagRun = (activity) => {
+  if (!activity.type?.toLowerCase().includes('run')) {
+    return null; // Not a run
+  }
+
+  const distance = activity.distance || 0;
+  const timeInMinutes = (activity.moving_time || 0) / 60;
+  const paceMinPerKm = distance > 0 ? timeInMinutes / distance : 999;
+  const avgHR = activity.average_heartrate || 0;
+
+  // Long run detection (distance-based)
+  if (distance >= 15) return 'long';
+  if (distance >= 10 && paceMinPerKm > 5.5) return 'long';
+
+  // Recovery run detection (very easy pace or low HR)
+  if (distance <= 5 && paceMinPerKm > 6.5) return 'recovery';
+  if (avgHR && avgHR < 140 && distance <= 8) return 'recovery';
+
+  // Intervals detection (fast pace with moderate distance)
+  if (paceMinPerKm < 4.0 && distance <= 10) return 'intervals';
+  if (avgHR && avgHR > 170 && distance <= 8) return 'intervals';
+
+  // Tempo detection (moderately fast pace, moderate distance)
+  if (paceMinPerKm < 5.0 && distance >= 5 && distance <= 12) return 'tempo';
+  if (avgHR && avgHR >= 155 && avgHR <= 170 && distance >= 5) return 'tempo';
+
+  // Default to easy
+  return 'easy';
+};
 
 /* ──────────────────────────────────────────────────────────────────── */
 /*  ENHANCED: Multiple cleanup strategies                             */
@@ -96,7 +129,7 @@ const cleanupDuplicates = async (userId, strategy = 'activityId') => {
       });
     }
     
-    // Remove duplicates from deletion list (in case multiple strategies mark same doc)
+    // Remove duplicates from deletion list
     const uniqueDeletes = Array.from(new Set(duplicatesToDelete.map(ref => ref.path)))
       .map(path => duplicatesToDelete.find(ref => ref.path === path));
     
@@ -130,7 +163,7 @@ const cleanupDuplicates = async (userId, strategy = 'activityId') => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Check if we can refresh data (twice daily limit)                 */
+/*  Check if we can refresh data (rate limiting)                     */
 /* ──────────────────────────────────────────────────────────────────── */
 const canRefreshData = async (userId) => {
   try {
@@ -146,7 +179,7 @@ const canRefreshData = async (userId) => {
     
     const data = metadataDoc.data();
     if (data.refreshCount < 150) {
-      // Second refresh allowed
+      // Allow more refreshes
       await metadataRef.update({ 
         refreshCount: data.refreshCount + 1, 
         lastRefresh: new Date().toISOString() 
@@ -154,7 +187,7 @@ const canRefreshData = async (userId) => {
       return true;
     }
     
-    return false; // Already refreshed twice today
+    return false; // Rate limit reached
   } catch (error) {
     console.error('Error checking refresh limit:', error);
     return true; // Default to allowing refresh on error
@@ -162,9 +195,9 @@ const canRefreshData = async (userId) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Get cached data from Firestore - FIXED duplicate handling        */
+/*  Get cached data from Firestore - ENHANCED for incremental mode   */
 /* ──────────────────────────────────────────────────────────────────── */
-const getCachedData = async (userId, daysBack = 30) => {
+const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
   try {
     // Calculate cutoff date from TODAY
     const cutoffDate = new Date();
@@ -182,10 +215,10 @@ const getCachedData = async (userId, daysBack = 30) => {
       .where('start_date', '>=', cutoffDate.toISOString())
       .where('start_date', '<=', today.toISOString())
       .orderBy('start_date', 'desc')
-      .limit(200) // Increased to handle potential duplicates
+      .limit(200)
       .get();
     
-    // FIXED: Deduplicate activities by activity ID
+    // Deduplicate activities by activity ID
     const activityMap = new Map();
     
     snapshot.docs.forEach(doc => {
@@ -193,6 +226,11 @@ const getCachedData = async (userId, daysBack = 30) => {
       const activityId = data.id || doc.id.split('_')[1];
       
       if (!activityMap.has(activityId)) {
+        // Add run tag info if it's a run and has been tagged
+        if (includeRunTags && data.type?.toLowerCase().includes('run')) {
+          data.is_run_activity = true;
+          data.run_tag = data.runType || null; // Map runType to run_tag for frontend
+        }
         activityMap.set(activityId, data);
       } else {
         // If duplicate found, keep the one with more recent fetched_at
@@ -201,6 +239,10 @@ const getCachedData = async (userId, daysBack = 30) => {
         const currentTime = new Date(data.fetched_at || data.start_date);
         
         if (currentTime > existingTime) {
+          if (includeRunTags && data.type?.toLowerCase().includes('run')) {
+            data.is_run_activity = true;
+            data.run_tag = data.runType || null;
+          }
           activityMap.set(activityId, data);
         }
       }
@@ -217,6 +259,50 @@ const getCachedData = async (userId, daysBack = 30) => {
     return cachedActivities;
   } catch (error) {
     console.error('Error fetching cached data:', error);
+    return [];
+  }
+};
+
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Get only today's cached data (for incremental mode)              */
+/* ──────────────────────────────────────────────────────────────────── */
+const getTodaysCachedData = async (userId) => {
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayStart = `${today}T00:00:00.000Z`;
+    const todayEnd = `${today}T23:59:59.999Z`;
+    
+    console.log(`📅 Getting today's cached data for ${today}`);
+    
+    const snapshot = await db
+      .collection('strava_data')
+      .where('userId', '==', userId)
+      .where('start_date', '>=', todayStart)
+      .where('start_date', '<=', todayEnd)
+      .get();
+    
+    const todaysActivities = [];
+    const activityIds = new Set();
+    
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const activityId = data.id || doc.id.split('_')[1];
+      
+      if (!activityIds.has(activityId)) {
+        if (data.type?.toLowerCase().includes('run')) {
+          data.is_run_activity = true;
+          data.run_tag = data.runType || null;
+        }
+        todaysActivities.push(data);
+        activityIds.add(activityId);
+      }
+    });
+    
+    console.log(`📊 Found ${todaysActivities.length} unique activities for today`);
+    return todaysActivities;
+    
+  } catch (error) {
+    console.error('Error fetching today\'s cached data:', error);
     return [];
   }
 };
@@ -244,7 +330,7 @@ const estimateCalories = (activity) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Main handler - FIXED with duplicate prevention                   */
+/*  Main handler - ENHANCED with incremental mode                    */
 /* ──────────────────────────────────────────────────────────────────── */
 export default async function handler(req, res) {
   try {
@@ -255,28 +341,215 @@ export default async function handler(req, res) {
     const userId = req.query.userId || 'mihir_jain';
     const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
     const daysBack = parseInt(req.query.days) || 30;
-    const cleanup = req.query.cleanup === 'true'; // Basic cleanup
-    const cleanupStrategy = req.query.cleanupStrategy || 'activityId'; // 'activityId', 'dateAndName', 'all'
-    const deepClean = req.query.deepClean === 'true'; // More aggressive cleanup
+    const cleanup = req.query.cleanup === 'true';
+    const cleanupStrategy = req.query.cleanupStrategy || 'activityId';
+    const deepClean = req.query.deepClean === 'true';
     
-    console.log(`🚀 Strava API request: userId=${userId}, forceRefresh=${forceRefresh}, daysBack=${daysBack}`);
+    // NEW: Incremental mode - only fetch today's data + return cached older data
+    const mode = req.query.mode || 'full'; // 'full' or 'incremental'
+    
+    console.log(`🚀 Strava API request: userId=${userId}, mode=${mode}, forceRefresh=${forceRefresh}, daysBack=${daysBack}`);
     console.log(`🧹 Cleanup options: cleanup=${cleanup}, strategy=${cleanupStrategy}, deepClean=${deepClean}`);
     
-    // ENHANCED: Run cleanup with specified strategy
+    // Run cleanup if requested
     if (cleanup || deepClean) {
       const strategy = deepClean ? 'all' : cleanupStrategy;
       const duplicatesRemoved = await cleanupDuplicates(userId, strategy);
       console.log(`🧹 Cleanup completed: ${duplicatesRemoved} duplicates removed (strategy: ${strategy})`);
     }
     
-    // For force refresh, bypass all cache checks
+    // INCREMENTAL MODE: Fast loading for daily use
+    if (mode === 'incremental' && !forceRefresh) {
+      console.log('⚡ Incremental mode - fetching only today\'s new data');
+      
+      try {
+        // 1. Get cached data for last 29 days (excluding today)
+        const cachedData = await getCachedData(userId, daysBack - 1, true);
+        
+        // 2. Check if we have today's data cached already
+        const todaysCached = await getTodaysCachedData(userId);
+        
+        // 3. If we have today's data and it's recent, return combined data
+        if (todaysCached.length > 0) {
+          const latestToday = todaysCached[0];
+          const lastFetched = new Date(latestToday.fetched_at || latestToday.start_date);
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          
+          if (lastFetched > oneHourAgo) {
+            console.log(`📦 Serving cached data (today's data is fresh, fetched ${Math.round((Date.now() - lastFetched.getTime()) / 60000)} mins ago)`);
+            const combinedData = [...todaysCached, ...cachedData]
+              .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+            return res.status(200).json(combinedData);
+          }
+        }
+        
+        // 4. Fetch only today's activities from Strava
+        const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+        
+        const after = Math.floor(todayStart.getTime() / 1000);
+        const before = Math.floor(todayEnd.getTime() / 1000);
+        
+        // Get Strava credentials
+        const { 
+          VITE_STRAVA_CLIENT_ID: clientId,
+          VITE_STRAVA_CLIENT_SECRET: clientSecret,
+          VITE_STRAVA_REFRESH_TOKEN: refreshToken 
+        } = process.env;
+        
+        if (!clientId || !clientSecret || !refreshToken) {
+          console.log('❌ Missing Strava credentials for incremental fetch, serving cached data');
+          const combinedData = [...todaysCached, ...cachedData]
+            .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+          return res.status(200).json(combinedData);
+        }
+        
+        // Refresh access token
+        console.log('🔑 Refreshing Strava access token for incremental fetch...');
+        const tokenResp = await fetch('https://www.strava.com/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+          }),
+        });
+        
+        if (!tokenResp.ok) {
+          console.error('❌ Token refresh failed for incremental fetch, serving cached data');
+          const combinedData = [...todaysCached, ...cachedData]
+            .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+          return res.status(200).json(combinedData);
+        }
+        
+        const { access_token: accessToken } = await tokenResp.json();
+        
+        // Fetch only today's activities
+        console.log(`📅 Fetching only today's activities (${todayStart.toDateString()})`);
+        const stravaUrl = `https://www.strava.com/api/v3/athlete/activities?per_page=50&after=${after}&before=${before}`;
+        
+        const listResp = await fetch(stravaUrl, { 
+          headers: { Authorization: `Bearer ${accessToken}` } 
+        });
+        
+        if (!listResp.ok) {
+          console.error(`❌ Strava API error for incremental fetch (${listResp.status}), serving cached data`);
+          const combinedData = [...todaysCached, ...cachedData]
+            .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+          return res.status(200).json(combinedData);
+        }
+        
+        const todaysActivitiesFromStrava = await listResp.json();
+        console.log(`✅ Incremental fetch: ${todaysActivitiesFromStrava.length} activities found for today`);
+        
+        // Process and save today's activities
+        const processedTodaysActivities = [];
+        const batch = db.batch();
+        const now = new Date().toISOString();
+        
+        for (const activity of todaysActivitiesFromStrava) {
+          const minutes = Math.round(activity.moving_time / 60);
+          let calories = typeof activity.calories === 'number' && activity.calories > 0 ? activity.calories : null;
+
+          if (calories === null) {
+            const detailedResp = await fetch(`https://www.strava.com/api/v3/activities/${activity.id}`, {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            if (detailedResp.ok) {
+              const detailed = await detailedResp.json();
+              calories = typeof detailed.calories === 'number' && detailed.calories > 0
+                ? detailed.calories
+                : 0;
+            } else {
+              console.warn(`⚠️ Could not fetch details for ${activity.id}, estimating calories`);
+              calories = 0;
+            }
+          }
+          
+          const isRun = activity.type?.toLowerCase().includes('run');
+          const autoTag = isRun ? autoTagRun(activity) : null;
+          
+          const summary = {
+            userId,
+            id: activity.id.toString(),
+            start_date: activity.start_date,
+            date: activity.start_date.split('T')[0],
+            name: activity.name,
+            type: activity.type,
+            distance: activity.distance / 1000,
+            moving_time: activity.moving_time,
+            elapsed_time: activity.elapsed_time,
+            duration: minutes,
+            total_elevation_gain: activity.total_elevation_gain || 0,
+            elevation_gain: activity.total_elevation_gain || 0,
+            average_speed: activity.average_speed,
+            max_speed: activity.max_speed,
+            has_heartrate: activity.has_heartrate || false,
+            heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
+            average_heartrate: activity.average_heartrate,
+            max_heartrate: activity.max_heartrate,
+            calories: calories,
+            achievement_count: activity.achievement_count,
+            kudos_count: activity.kudos_count,
+            comment_count: activity.comment_count,
+            athlete_count: activity.athlete_count,
+            photo_count: activity.photo_count,
+            suffer_score: activity.suffer_score,
+            fetched_at: now,
+            // Run tagging fields
+            is_run_activity: isRun,
+            run_tag: autoTag,
+            runType: autoTag, // Store in DB as runType
+            autoClassified: autoTag ? true : false,
+            taggedAt: autoTag ? now : null,
+            taggedBy: autoTag ? 'auto' : null
+          };
+
+          processedTodaysActivities.push(summary);
+
+          // Save to Firestore
+          const docRef = db.collection('strava_data').doc(`${userId}_${activity.id}`);
+          batch.set(docRef, summary, { merge: true });
+        }
+        
+        // Commit today's activities
+        if (processedTodaysActivities.length > 0) {
+          await batch.commit();
+          console.log(`💾 Cached ${processedTodaysActivities.length} new activities for today`);
+        }
+        
+        // Combine today's data with cached data
+        const allActivities = [...processedTodaysActivities, ...cachedData]
+          .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+        
+        console.log(`✅ Incremental mode complete: ${allActivities.length} total activities (${processedTodaysActivities.length} new today)`);
+        
+        // Set fast cache headers for incremental mode
+        res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
+        return res.status(200).json(allActivities);
+        
+      } catch (incrementalError) {
+        console.error('❌ Incremental mode failed, falling back to cached data:', incrementalError);
+        const fallbackData = await getCachedData(userId, daysBack, true);
+        return res.status(200).json(fallbackData);
+      }
+    }
+    
+    // FULL MODE: Complete refresh (existing logic)
+    console.log('🔄 Full mode - fetching all activities from Strava');
+    
+    // Rate limit check for full refresh
     if (forceRefresh) {
-      console.log('🔄 Force refresh requested - bypassing all cache checks');
+      console.log('🔄 Force refresh requested - bypassing cache checks');
       
       const canRefresh = await canRefreshData(userId);
       if (!canRefresh) {
         console.log('❌ Force refresh denied - daily limit reached');
-        const cachedData = await getCachedData(userId, daysBack);
+        const cachedData = await getCachedData(userId, daysBack, true);
         return res.status(200).json(cachedData);
       }
     } else {
@@ -284,13 +557,13 @@ export default async function handler(req, res) {
       
       if (!canRefresh) {
         console.log('📦 Serving cached data (refresh limit reached)');
-        const cachedData = await getCachedData(userId, daysBack);
+        const cachedData = await getCachedData(userId, daysBack, true);
         return res.status(200).json(cachedData);
       }
     }
     
     // Try to get cached data first
-    const cachedData = await getCachedData(userId, daysBack);
+    const cachedData = await getCachedData(userId, daysBack, true);
     
     // Better cache freshness logic
     if (!forceRefresh && cachedData.length > 0) {
@@ -300,7 +573,7 @@ export default async function handler(req, res) {
       );
       
       const lastActivityTime = new Date(cachedData[0].fetched_at || cachedData[0].start_date);
-      const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000); // REDUCED to 1 hour
+      const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
       
       if (lastActivityTime > oneHourAgo || hasRecentData) {
         console.log('📦 Serving fresh cached data (< 1 hour old or has today\'s data)');
@@ -382,36 +655,38 @@ export default async function handler(req, res) {
     const activitiesData = await listResp.json();
     console.log(`✅ Fetched ${activitiesData.length} activities from Strava API`);
 
-    /* ––– FIXED: Process activities with consistent document IDs ––– */
+    /* ––– Process activities with run tagging support ––– */
     const summaries = [];
     const batch = db.batch();
     const now = new Date().toISOString();
 
     for (const activity of activitiesData) {
       const minutes = Math.round(activity.moving_time / 60);
-      //const calories = typeof activity.calories === 'number' ? activity.calories : 0;
       let calories = typeof activity.calories === 'number' && activity.calories > 0 ? activity.calories : null;
 
-if (calories === null) {
-  const detailedResp = await fetch(`https://www.strava.com/api/v3/activities/${activity.id}`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+      if (calories === null) {
+        const detailedResp = await fetch(`https://www.strava.com/api/v3/activities/${activity.id}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
 
-  if (detailedResp.ok) {
-    const detailed = await detailedResp.json();
-    calories = typeof detailed.calories === 'number' && detailed.calories > 0
-      ? detailed.calories
-      : 0;
-  } else {
-    console.warn(`⚠️ Could not fetch details for ${activity.id}, estimating calories`);
-    calories = 0;
-  }
-}
+        if (detailedResp.ok) {
+          const detailed = await detailedResp.json();
+          calories = typeof detailed.calories === 'number' && detailed.calories > 0
+            ? detailed.calories
+            : 0;
+        } else {
+          console.warn(`⚠️ Could not fetch details for ${activity.id}, estimating calories`);
+          calories = 0;
+        }
+      }
 
-      //const calories  = activity.calories;
+      // Auto-tag runs
+      const isRun = activity.type?.toLowerCase().includes('run');
+      const autoTag = isRun ? autoTagRun(activity) : null;
+
       const summary = {
         userId,
-        id: activity.id.toString(), // ENSURE activity ID is stored
+        id: activity.id.toString(),
         start_date: activity.start_date,
         date: activity.start_date.split('T')[0],
         name: activity.name,
@@ -435,12 +710,22 @@ if (calories === null) {
         athlete_count: activity.athlete_count,
         photo_count: activity.photo_count,
         suffer_score: activity.suffer_score,
-        fetched_at: now
+        fetched_at: now,
+        // Enhanced: Run tagging fields
+        is_run_activity: isRun,
+        run_tag: autoTag, // For frontend compatibility
+        runType: autoTag, // For database storage
+        autoClassified: autoTag ? true : false,
+        taggedAt: autoTag ? now : null,
+        taggedBy: autoTag ? 'auto' : null,
+        userOverride: false, // Will be set to true when user manually changes tag
+        originalSuggestion: autoTag,
+        confidenceScore: autoTag ? 0.8 : 0.0 // Default confidence for auto-classification
       };
 
       summaries.push(summary);
 
-      // FIXED: Use consistent document ID - just userId_activityId
+      // Use consistent document ID - userId_activityId
       const docRef = db.collection('strava_data').doc(`${userId}_${activity.id}`);
       batch.set(docRef, summary, { merge: true });
     }
@@ -448,7 +733,20 @@ if (calories === null) {
     // Commit all writes at once
     if (summaries.length > 0) {
       await batch.commit();
-      console.log(`💾 Cached ${summaries.length} activities to Firestore`);
+      console.log(`💾 Cached ${summaries.length} activities to Firestore with run tagging`);
+      
+      // Log run tagging stats
+      const runActivities = summaries.filter(a => a.is_run_activity);
+      const taggedRuns = runActivities.filter(a => a.run_tag);
+      console.log(`🏃 Run tagging stats: ${runActivities.length} runs found, ${taggedRuns.length} auto-tagged`);
+      
+      if (taggedRuns.length > 0) {
+        const tagCounts = taggedRuns.reduce((acc, run) => {
+          acc[run.run_tag] = (acc[run.run_tag] || 0) + 1;
+          return acc;
+        }, {});
+        console.log(`🏷️ Tag distribution:`, tagCounts);
+      }
     }
 
     // Sort by date (most recent first) before returning
@@ -460,7 +758,8 @@ if (calories === null) {
     if (sortedSummaries.length > 0) {
       console.log('📋 Sample activities being returned:');
       sortedSummaries.slice(0, 3).forEach((activity, index) => {
-        console.log(`${index + 1}. ${activity.name} - ${new Date(activity.start_date).toLocaleDateString()}`);
+        const runInfo = activity.is_run_activity ? ` (${activity.run_tag || 'untagged'} run)` : '';
+        console.log(`${index + 1}. ${activity.name}${runInfo} - ${new Date(activity.start_date).toLocaleDateString()}`);
       });
     }
 
@@ -480,7 +779,7 @@ if (calories === null) {
     try {
       const userId = req.query.userId || 'mihir_jain';
       const daysBack = parseInt(req.query.days) || 30;
-      const cachedData = await getCachedData(userId, daysBack);
+      const cachedData = await getCachedData(userId, daysBack, true);
       console.log(`📦 Serving ${cachedData.length} cached activities due to error`);
       return res.status(200).json(cachedData);
     } catch (cacheError) {
