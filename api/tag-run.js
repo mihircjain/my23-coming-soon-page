@@ -75,7 +75,7 @@ function autoClassifyRun(activityData) {
   const hr = activityData.average_heartrate || 0;
   const distance = activityData.distance;
   
-  if (distance >= 16) {
+  if (distance >= 15) {
     return { type: 'long', confidence: 0.9 };
   }
   
@@ -83,7 +83,7 @@ function autoClassifyRun(activityData) {
     return { type: 'interval', confidence: 0.8 };
   }
   
-  if (pace >= 4.5 && pace <= 5.5 && hr >= 150 && hr <= 170) {
+  if (pace >= 4.3 && pace <= 5.5 && hr >= 160 && hr <= 180) {
     return { type: 'tempo', confidence: 0.75 };
   }
   
