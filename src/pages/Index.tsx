@@ -792,11 +792,7 @@ const Index = () => {
               🧬 MY 23.
             </h1>
             
-            <div className="space-y-4">
-              <p className="text-xl md:text-2xl font-medium text-orange-600 animate-slide-up delay-200">
-                🚀 Coming Soon
-              </p>
-            </div>
+
           </div>
           
           <div className="mb-8 animate-slide-up delay-300">
