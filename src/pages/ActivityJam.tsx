@@ -1,4 +1,59 @@
-// Enhanced ActivityJam.tsx with run tagging and optimized data fetching
+{activity.calories && activity.calories > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Calories:</span>
+                            <span className="font-medium flex items-center">
+                              <Zap className="h-3 w-3 mr-1 text-green-500" />
+                              {activity.calories}
+                              <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-600">
+                                Strava
+                              </Badge>
+                            </span>
+                          </div>
+                        )}
+                        {/* Run Type Tag - Below Calories */}
+                        {activity.is_run_activity && activity.run_tag && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Run Type:</span>
+                            <div className="flex items-center">
+                              {editingTag === activity.id ? (
+                                <div className="flex items-center gap-2">
+                                  <Select value={activity.run_tag} onValueChange={(value) => handleTagChange(activity.id, value as RunTag)}>
+                                    <SelectTrigger className="w-24 h-6 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {RUN_TAG_OPTIONS.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          <span className={option.color}>{option.label}</span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => setEditingTag(null)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs cursor-pointer transition-all duration-200 ${getRunTagOption(activity.run_tag).color} ${getRunTagOption(activity.run_tag).bgColor} hover:bg-opacity-80`}
+                                  onClick={() => setEditingTag(activity.id)}
+                                >
+                                  <Tag className="h-3 w-3 mr-1" />
+                                  {getRunTagOption(activity.run_tag).label}
+                                  <Edit3 className="h-3 w-3 ml-1 opacity-60" />
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Run Tag Display - Below Calories */}
+                        {activity.// Enhanced ActivityJam.tsx with run tagging and optimized data fetching
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X } from "lucide-react";
@@ -101,32 +156,6 @@ const ActivityJam = () => {
     return 'easy';
   };
 
-  // Save run tag to Firestore
-  const saveRunTag = async (activityId: string, tag: RunTag) => {
-    try {
-      const response = await fetch('/api/run-tags', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          activityId,
-          tag,
-          userId: 'mihir_jain',
-          timestamp: new Date().toISOString()
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save run tag');
-      }
-
-      console.log(`💾 Saved run tag: ${activityId} -> ${tag}`);
-    } catch (error) {
-      console.error('❌ Error saving run tag:', error);
-    }
-  };
-
   // Load run tags from Firestore
   const loadRunTags = async (activityIds: string[]) => {
     try {
@@ -142,7 +171,7 @@ const ActivityJam = () => {
       }
 
       const data = await response.json();
-      console.log('📥 Loaded run tags:', data);
+      console.log('📥 Loaded run tags from API:', data);
       return data;
     } catch (error) {
       console.error('❌ Error loading run tags:', error);
@@ -150,20 +179,78 @@ const ActivityJam = () => {
     }
   };
 
-  // Handle tag change
-  const handleTagChange = async (activityId: string, newTag: RunTag) => {
-    // Update local state immediately
-    setActivities(prev => prev.map(activity => 
-      activity.id === activityId 
-        ? { ...activity, run_tag: newTag }
-        : activity
-    ));
+  // Save run tag to Firestore
+  const saveRunTag = async (activityId: string, tag: RunTag) => {
+    try {
+      console.log(`💾 Saving run tag: ${activityId} -> ${tag}`);
+      
+      const response = await fetch('/api/run-tags', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          activityId,
+          tag,
+          userId: 'mihir_jain',
+          timestamp: new Date().toISOString()
+        })
+      });
 
-    // Save to Firestore
-    await saveRunTag(activityId, newTag);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Save run tag API error:', response.status, errorText);
+        throw new Error('Failed to save run tag');
+      }
+
+      const result = await response.json();
+      console.log('✅ Run tag saved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error saving run tag:', error);
+      throw error;
+    }
+  };
+
+  // Handle tag change with improved error handling and state management
+  const handleTagChange = async (activityId: string, newTag: RunTag) => {
+    console.log(`🏷️ Changing tag for ${activityId}: ${newTag}`);
     
-    // Exit editing mode
-    setEditingTag(null);
+    try {
+      // Update local state immediately for responsive UI
+      setActivities(prev => prev.map(activity => 
+        activity.id === activityId 
+          ? { ...activity, run_tag: newTag }
+          : activity
+      ));
+
+      // Save to Firestore
+      await saveRunTag(activityId, newTag);
+      
+      console.log(`✅ Tag change completed for ${activityId}: ${newTag}`);
+      
+      // Exit editing mode
+      setEditingTag(null);
+      
+      // Show success feedback
+      setLastUpdate(new Date().toLocaleTimeString());
+      
+    } catch (error) {
+      console.error('❌ Failed to save tag change:', error);
+      
+      // Revert local state on error
+      setActivities(prev => prev.map(activity => {
+        if (activity.id === activityId) {
+          // Find the original tag from when we loaded the data
+          const originalActivity = activities.find(a => a.id === activityId);
+          return { ...activity, run_tag: originalActivity?.run_tag };
+        }
+        return activity;
+      }));
+      
+      setError('Failed to save tag change. Please try again.');
+      setEditingTag(null);
+    }
   };
 
   // Get run tag option
@@ -867,6 +954,11 @@ const ActivityJam = () => {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Loading all activities...' : 'Full Refresh (30 days)'}
             </Button>
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-8">
@@ -989,8 +1081,15 @@ const ActivityJam = () => {
                         })}
                       </div>
                       
-                      {/* Run Tag */}
-                      {renderRunTag(activity)}
+                      {/* Simplified run indicator under header - just shows it's a run */}
+                      {activity.is_run_activity && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="text-xs border-red-300 text-red-600">
+                            <Heart className="h-3 w-3 mr-1" />
+                            Running Activity
+                          </Badge>
+                        </div>
+                      )}
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4 mb-4">
