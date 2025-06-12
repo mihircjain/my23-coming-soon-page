@@ -1,30 +1,64 @@
-// /api/run-tags.js - Simple run tagging API that works with existing strava.js
+// /api/run-tags.js - Complete run tagging API for Vercel
 
 import admin from 'firebase-admin';
 
-// Initialize Firebase (same as your strava.js)
+// Initialize Firebase Admin (same pattern as your strava.js)
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
-      projectId:   process.env.VITE_FIREBASE_PROJECT_ID,
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     }),
   });
 }
+
 const db = admin.firestore();
 
-// Valid run types
+// Valid run types (must match frontend)
 const validRunTypes = ['easy', 'tempo', 'intervals', 'long', 'recovery'];
+
+// Main Vercel serverless function handler
+export default async function handler(req, res) {
+  console.log(`🔗 run-tags API called: ${req.method} ${req.url}`);
+  
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  try {
+    if (req.method === 'GET') {
+      return await handleGetRequest(req, res);
+    }
+    
+    if (req.method === 'POST') {
+      return await handlePostRequest(req, res);
+    }
+    
+    return res.status(405).json({ error: 'Method not allowed' });
+    
+  } catch (error) {
+    console.error('❌ run-tags API error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'API error'
+    });
+  }
+}
 
 // GET handler - Load existing run tags
 async function handleGetRequest(req, res) {
-  try {
-    const { userId = 'mihir_jain' } = req.query;
-    
-    console.log(`📥 Loading run tags for user: ${userId}`);
+  const { userId = 'mihir_jain' } = req.query;
+  
+  console.log(`📥 Loading run tags for user: ${userId}`);
 
-    // Query activities with run tags for this user
+  try {
+    // Query all activities for this user
     const snapshot = await db
       .collection('strava_data')
       .where('userId', '==', userId)
@@ -35,9 +69,11 @@ async function handleGetRequest(req, res) {
     
     snapshot.docs.forEach((doc) => {
       const data = doc.data();
-      // Check if activity has a run tag
+      const activityId = data.id || doc.id.split('_')[1];
+      
+      // Check if activity has a valid run tag
       if (data.runType && validRunTypes.includes(data.runType)) {
-        tags[data.id || doc.id.split('_')[1]] = data.runType;
+        tags[activityId] = data.runType;
         taggedCount++;
       }
     });
@@ -48,50 +84,47 @@ async function handleGetRequest(req, res) {
     
   } catch (error) {
     console.error('❌ Error loading run tags:', error);
-    return res.status(500).json({
-      error: 'Failed to load run tags',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Database error'
-    });
+    throw error;
   }
 }
 
 // POST handler - Save run tag
 async function handlePostRequest(req, res) {
+  const { activityId, tag, userId = 'mihir_jain', timestamp } = req.body;
+  
+  console.log(`🏷️ Tagging request: activityId=${activityId}, tag=${tag}, userId=${userId}`);
+  
+  // Validate input
+  if (!activityId || !tag) {
+    return res.status(400).json({
+      error: 'Missing required fields: activityId and tag are required'
+    });
+  }
+  
+  if (!validRunTypes.includes(tag)) {
+    return res.status(400).json({
+      error: `Invalid run type: ${tag}. Valid types: ${validRunTypes.join(', ')}`
+    });
+  }
+
   try {
-    const { activityId, tag, userId = 'mihir_jain', timestamp } = req.body;
+    // Use the same document ID pattern as strava.js
+    const docId = `${userId}_${activityId}`;
+    const activityRef = db.collection('strava_data').doc(docId);
     
-    console.log(`🏷️ Tagging request: activityId=${activityId}, tag=${tag}, userId=${userId}`);
+    console.log(`🔍 Looking for document: ${docId}`);
     
-    // Validate required fields
-    if (!activityId || !tag) {
-      return res.status(400).json({
-        error: 'Missing required fields: activityId and tag are required'
-      });
-    }
-    
-    // Validate run type
-    if (!validRunTypes.includes(tag)) {
-      return res.status(400).json({
-        error: `Invalid run type: ${tag}. Valid types: ${validRunTypes.join(', ')}`
-      });
-    }
-    
-    console.log(`🔍 Looking for activity document: ${userId}_${activityId}`);
-    
-    // Find the activity document using the correct naming pattern
-    const activityRef = db.collection('strava_data').doc(`${userId}_${activityId}`);
     const activitySnapshot = await activityRef.get();
     
     if (!activitySnapshot.exists()) {
-      console.log(`❌ Activity not found: ${userId}_${activityId}`);
+      console.log(`❌ Activity not found, creating minimal record: ${docId}`);
       
-      // If document doesn't exist, create a minimal one for tagging
-      console.log(`📝 Creating minimal activity record for tagging: ${activityId}`);
-      
-      const minimalActivityData = {
+      // Create minimal activity record for tagging
+      const minimalData = {
         userId,
         id: activityId,
-        type: 'Run', // Assume it's a run since we're tagging it
+        type: 'Run',
+        name: `Activity ${activityId}`,
         runType: tag,
         run_tag: tag,
         taggedAt: timestamp || new Date().toISOString(),
@@ -101,7 +134,9 @@ async function handlePostRequest(req, res) {
         updatedAt: new Date().toISOString()
       };
       
-      await activityRef.set(minimalActivityData);
+      await activityRef.set(minimalData);
+      
+      console.log(`✅ Created and tagged activity ${activityId} as ${tag}`);
       
       return res.status(200).json({
         success: true,
@@ -111,20 +146,13 @@ async function handlePostRequest(req, res) {
         created: true
       });
     }
-    
+
+    // Update existing activity
     const activityData = activitySnapshot.data();
-    console.log(`✅ Found activity: ${activityData.name} (${activityData.type})`);
+    console.log(`✅ Found existing activity: ${activityData.name || 'Unnamed'}`);
     
-    // Verify it's a run activity
-    if (!activityData.type?.toLowerCase().includes('run')) {
-      return res.status(400).json({
-        error: 'Can only tag running activities'
-      });
-    }
-    
-    // Update the activity with the run tag
+    // Update with merge to preserve existing data
     const updateData = {
-      ...activityData, // Keep existing data
       runType: tag,
       run_tag: tag, // For frontend compatibility
       taggedAt: timestamp || new Date().toISOString(),
@@ -133,10 +161,9 @@ async function handlePostRequest(req, res) {
       updatedAt: new Date().toISOString()
     };
     
-    // Use setDoc with merge to handle both existing and new documents
     await activityRef.set(updateData, { merge: true });
     
-    console.log(`✅ Successfully tagged activity ${activityId} as ${tag}`);
+    console.log(`✅ Successfully updated activity ${activityId} tag to ${tag}`);
     
     return res.status(200).json({
       success: true,
@@ -144,38 +171,15 @@ async function handlePostRequest(req, res) {
       runType: tag,
       message: `Run successfully tagged as ${tag}`,
       activityInfo: {
-        name: activityData.name,
+        name: activityData.name || 'Unnamed Activity',
+        type: activityData.type,
         distance: activityData.distance,
-        duration: activityData.moving_time || activityData.duration,
         date: activityData.start_date
       }
     });
     
   } catch (error) {
-    console.error('❌ Error tagging run:', error);
-    
-    // Handle Firestore-specific errors
-    if (error.code === 'not-found') {
-      return res.status(404).json({
-        error: 'Activity not found in database'
-      });
-    }
-    
-    if (error.code === 'permission-denied') {
-      return res.status(403).json({
-        error: 'Permission denied: Cannot update this activity'
-      });
-    }
-    
-    if (error.code === 'unavailable') {
-      return res.status(503).json({
-        error: 'Database temporarily unavailable. Please try again.'
-      });
-    }
-    
-    return res.status(500).json({
-      error: 'Internal server error while tagging run',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
-    });
+    console.error('❌ Error saving run tag:', error);
+    throw error;
   }
 }
