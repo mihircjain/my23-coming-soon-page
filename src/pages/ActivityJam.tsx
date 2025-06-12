@@ -993,15 +993,7 @@ const ActivityJam = () => {
                         })}
                       </div>
                       
-                      {/* Simplified run indicator under header - just shows it's a run */}
-                      {activity.is_run_activity && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline" className="text-xs border-red-300 text-red-600">
-                            <Heart className="h-3 w-3 mr-1" />
-                            Running Activity
-                          </Badge>
-                        </div>
-                      )}
+                      {/* No extra badges under header - keeping it clean */}
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4 mb-4">
