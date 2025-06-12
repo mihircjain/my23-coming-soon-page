@@ -1212,48 +1212,34 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
           </Button>
         </div>
         
-      <div className="text-center max-w-4xl mx-auto">
-  <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
-    🤖 Let's Jam
-  </h1>
-  <p className="mt-3 text-lg text-gray-700">
-    Your AI health coach with complete access to your health data
-  </p>
-
-  <div className="mt-3 flex items-center justify-center flex-wrap gap-2">
-    <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-800 border border-orange-200">
-      Real Data Connected
-    </span>
-
-    <span className="text-xs px-2 py-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
-      Session: {sessionId.slice(-8)}
-    </span>
-
-    <span className={`text-xs px-2 py-1 rounded-md border ${
-      recentActivities.length > 0
-        ? 'bg-purple-100 text-purple-800 border-purple-200'
-        : 'bg-red-50 text-red-600 border-red-200'
-    }`}>
-      {recentActivities.length} Activities
-    </span>
-
-    <span className={`text-xs px-2 py-1 rounded-md border ${
-      nutritionDetails.length > 0
-        ? 'bg-green-100 text-green-800 border-green-200'
-        : 'bg-red-50 text-red-600 border-red-200'
-    }`}>
-      {nutritionDetails.length} Nutrition Days
-    </span>
-
-    {messages.length > 1 && (
-      <span className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
-        {messages.length} Messages Restored
-      </span>
-    )}
-  </div>
-</div>
-      </header?
-
+        <div className="text-center max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
+            🤖 Let's Jam
+          </h1>
+          <p className="mt-3 text-lg text-gray-600">
+            Your AI health coach with complete access to your health data
+          </p>
+          <div className="mt-2 flex items-center justify-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              Real Data Connected
+            </Badge>
+            <Badge variant="secondary" className="text-xs">
+              Session: {sessionId.slice(-8)}
+            </Badge>
+            <Badge variant={recentActivities.length > 0 ? "default" : "secondary"} className="text-xs">
+              {recentActivities.length} Activities
+            </Badge>
+            <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
+              {nutritionDetails.length} Nutrition Days
+            </Badge>
+            {messages.length > 1 && (
+              <Badge variant="outline" className="text-xs">
+                {messages.length} Messages Restored
+              </Badge>
+            )}
+          </div>
+        </div>
+      </header>
       
       {/* Main content */}
       <main className="relative z-10 px-6 md:px-12 py-8">
