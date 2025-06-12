@@ -1252,6 +1252,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
     )}
   </div>
 </div>
+      </header?
 
       
       {/* Main content */}
