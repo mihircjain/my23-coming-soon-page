@@ -33,11 +33,6 @@ interface ActivityData {
   userOverride?: boolean;
 }
 
-// Chart refs
-const caloriesChartRef = useRef<HTMLCanvasElement>(null);
-const distanceChartRef = useRef<HTMLCanvasElement>(null);
-const heartRateChartRef = useRef<HTMLCanvasElement>(null);
-const chartInstances = useRef<{ [key: string]: Chart }>({});
 
 // Run classification algorithm
 const classifyRun = (activity: ActivityData) => {
@@ -270,6 +265,12 @@ const ActivityJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isTagging, setIsTagging] = useState(false);
+  // Chart refs
+const caloriesChartRef = useRef<HTMLCanvasElement>(null);
+const distanceChartRef = useRef<HTMLCanvasElement>(null);
+const heartRateChartRef = useRef<HTMLCanvasElement>(null);
+const chartInstances = useRef<{ [key: string]: Chart }>({});
+
 
   const isRunActivity = (activityType: string): boolean => {
     const runTypes = ['run', 'virtualrun', 'treadmill', 'trail'];
