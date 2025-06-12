@@ -116,7 +116,7 @@ async function handlePostRequest(req, res) {
     
     const activitySnapshot = await activityRef.get();
     
-    if (!activitySnapshot.exists()) {
+    if (!activitySnapshot.exists) {
       console.log(`❌ Activity not found, creating minimal record: ${docId}`);
       
       // Create minimal activity record for tagging
