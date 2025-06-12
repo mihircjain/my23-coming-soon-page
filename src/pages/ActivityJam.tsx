@@ -1,4 +1,4 @@
-// Simple ActivityJam.tsx - Tagging inside individual run widgets, stores in Firestore
+// Fixed ActivityJam.tsx - Proper Firestore tagging + Charts + Better colors
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, CheckCircle } from "lucide-react";
@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import Chart from 'chart.js/auto';
 import { db } from '@/lib/firebaseConfig';
-import { collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 
 const userId = "mihir_jain";
 
@@ -32,10 +33,16 @@ interface ActivityData {
   userOverride?: boolean;
 }
 
-// Run classification algorithm for suggestions
+// Chart refs
+const caloriesChartRef = useRef<HTMLCanvasElement>(null);
+const distanceChartRef = useRef<HTMLCanvasElement>(null);
+const heartRateChartRef = useRef<HTMLCanvasElement>(null);
+const chartInstances = useRef<{ [key: string]: Chart }>({});
+
+// Run classification algorithm
 const classifyRun = (activity: ActivityData) => {
   if (!activity.distance || !activity.moving_time) {
-    return { type: 'easy', confidence: 0.3, reason: 'Insufficient data' };
+    return { type: 'easy', confidence: 0.3, reason: 'Insufficient data - suggesting easy run' };
   }
   
   const pace = (activity.moving_time / 60) / activity.distance; // min/km
@@ -43,25 +50,25 @@ const classifyRun = (activity: ActivityData) => {
   const distance = activity.distance;
   
   if (distance >= 15) {
-    return { type: 'long', confidence: 0.9, reason: `${distance.toFixed(1)}km indicates long run` };
+    return { type: 'long', confidence: 0.9, reason: `${distance.toFixed(1)}km indicates long run distance` };
   }
   
   if (pace < 4.5 || hr > 175) {
-    return { type: 'interval', confidence: 0.8, reason: `Fast pace (${pace.toFixed(2)} min/km) or high HR` };
+    return { type: 'interval', confidence: 0.8, reason: `Fast pace (${pace.toFixed(2)} min/km)${hr > 175 ? ` and high HR (${hr} bpm)` : ''}` };
   }
   
   if (pace >= 4.3 && pace <= 5.5 && hr >= 160 && hr <= 180) {
-    return { type: 'tempo', confidence: 0.75, reason: `Moderate-hard effort (${pace.toFixed(2)} min/km, ${hr} bpm)` };
+    return { type: 'tempo', confidence: 0.75, reason: `Sustained moderate-hard effort (${pace.toFixed(2)} min/km, ${hr} bpm)` };
   }
   
-  if (pace > 6.5 || hr < 140) {
-    return { type: 'recovery', confidence: 0.7, reason: `Very easy effort (${pace.toFixed(2)} min/km)` };
+  if (pace > 6.5 || (hr > 0 && hr < 140)) {
+    return { type: 'recovery', confidence: 0.7, reason: `Very easy effort (${pace.toFixed(2)} min/km${hr > 0 ? `, ${hr} bpm` : ''})` };
   }
   
-  return { type: 'easy', confidence: 0.6, reason: `Moderate effort (${pace.toFixed(2)} min/km)` };
+  return { type: 'easy', confidence: 0.6, reason: `Moderate effort (${pace.toFixed(2)} min/km) - typical easy run` };
 };
 
-// Run tagging component for individual activity cards
+// Run tagging component with better colors matching the site theme
 const RunTaggingWidget: React.FC<{
   activity: ActivityData,
   onTagRun: (activityId: string, runType: string) => void,
@@ -70,13 +77,50 @@ const RunTaggingWidget: React.FC<{
   const [showTagging, setShowTagging] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('');
   
+  // Better colors matching the site theme
   const runTypes = [
-    { value: 'easy', label: 'Easy', color: 'bg-green-100 text-green-800', icon: '🟢' },
-    { value: 'tempo', label: 'Tempo', color: 'bg-orange-100 text-orange-800', icon: '🟠' },
-    { value: 'interval', label: 'Intervals', color: 'bg-red-100 text-red-800', icon: '🔴' },
-    { value: 'long', label: 'Long', color: 'bg-blue-100 text-blue-800', icon: '🔵' },
-    { value: 'recovery', label: 'Recovery', color: 'bg-gray-100 text-gray-800', icon: '⚪' },
-    { value: 'race', label: 'Race', color: 'bg-purple-100 text-purple-800', icon: '🟣' }
+    { 
+      value: 'easy', 
+      label: 'Easy', 
+      color: 'bg-emerald-100 text-emerald-800 border-emerald-300', 
+      hoverColor: 'hover:bg-emerald-200',
+      icon: '🟢' 
+    },
+    { 
+      value: 'tempo', 
+      label: 'Tempo', 
+      color: 'bg-orange-100 text-orange-800 border-orange-300', 
+      hoverColor: 'hover:bg-orange-200',
+      icon: '🟠' 
+    },
+    { 
+      value: 'interval', 
+      label: 'Intervals', 
+      color: 'bg-red-100 text-red-800 border-red-300', 
+      hoverColor: 'hover:bg-red-200',
+      icon: '🔴' 
+    },
+    { 
+      value: 'long', 
+      label: 'Long', 
+      color: 'bg-blue-100 text-blue-800 border-blue-300', 
+      hoverColor: 'hover:bg-blue-200',
+      icon: '🔵' 
+    },
+    { 
+      value: 'recovery', 
+      label: 'Recovery', 
+      color: 'bg-gray-100 text-gray-800 border-gray-300', 
+      hoverColor: 'hover:bg-gray-200',
+      icon: '⚪' 
+    },
+    { 
+      value: 'race', 
+      label: 'Race', 
+      color: 'bg-purple-100 text-purple-800 border-purple-300', 
+      hoverColor: 'hover:bg-purple-200',
+      icon: '🟣' 
+    }
   ];
   
   const suggestion = classifyRun(activity);
@@ -101,7 +145,7 @@ const RunTaggingWidget: React.FC<{
           <div className="flex items-center gap-2">
             <Tag className="h-3 w-3 text-green-600" />
             <span className="text-xs text-gray-600">Run Type:</span>
-            <Badge variant="outline" className={`text-xs ${taggedType?.color} border-0`}>
+            <Badge variant="outline" className={`text-xs ${taggedType?.color} border`}>
               {taggedType?.icon} {taggedType?.label}
             </Badge>
           </div>
@@ -116,25 +160,28 @@ const RunTaggingWidget: React.FC<{
         </div>
         
         {showTagging && (
-          <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
+          <div className="mt-2 p-3 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200">
             <div className="text-xs text-gray-600 mb-2">
               <span className="font-medium">AI suggests:</span> {suggestion.reason}
             </div>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-2">
               {runTypes.map((type) => (
                 <Button
                   key={type.value}
                   size="sm"
-                  variant={suggestion.type === type.value ? "default" : "outline"}
-                  className={`text-xs h-auto p-2 ${
-                    suggestion.type === type.value ? 'ring-1 ring-orange-300' : ''
+                  variant="outline"
+                  className={`text-xs h-auto p-2 ${type.color} ${type.hoverColor} border transition-all duration-150 ${
+                    suggestion.type === type.value ? 'ring-2 ring-orange-300' : ''
                   }`}
                   onClick={() => handleTag(type.value)}
                   disabled={isTagging && selectedType === type.value}
                 >
                   <div className="text-center">
-                    <div className="text-sm">{type.icon}</div>
+                    <div className="text-sm mb-1">{type.icon}</div>
                     <div className="font-medium">{type.label}</div>
+                    {isTagging && selectedType === type.value && (
+                      <div className="text-xs text-blue-600 mt-1">Saving...</div>
+                    )}
                   </div>
                 </Button>
               ))}
@@ -176,23 +223,23 @@ const RunTaggingWidget: React.FC<{
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-gray-600 p-2 bg-orange-50 rounded border border-orange-200">
             <span className="font-medium">AI suggests:</span> {suggestion.reason}
           </div>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-2">
             {runTypes.map((type) => (
               <Button
                 key={type.value}
                 size="sm"
-                variant={suggestion.type === type.value ? "default" : "outline"}
-                className={`text-xs h-auto p-2 ${
-                  suggestion.type === type.value ? 'ring-1 ring-orange-300' : ''
+                variant="outline"
+                className={`text-xs h-auto p-2 ${type.color} ${type.hoverColor} border transition-all duration-150 ${
+                  suggestion.type === type.value ? 'ring-2 ring-orange-300' : ''
                 }`}
                 onClick={() => handleTag(type.value)}
                 disabled={isTagging && selectedType === type.value}
               >
                 <div className="text-center">
-                  <div className="text-sm">{type.icon}</div>
+                  <div className="text-sm mb-1">{type.icon}</div>
                   <div className="font-medium">{type.label}</div>
                   {isTagging && selectedType === type.value && (
                     <div className="text-xs text-blue-600 mt-1">Saving...</div>
@@ -231,21 +278,325 @@ const ActivityJam = () => {
     );
   };
 
-  // Handle run tagging with Firestore storage
+  // Process chart data
+  const processChartData = (activities: ActivityData[]) => {
+    const sortedActivities = [...activities].sort((a, b) => 
+      new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+
+    const dailyData = new Map();
+
+    sortedActivities.forEach(activity => {
+      const date = activity.start_date.split('T')[0];
+      
+      if (!dailyData.has(date)) {
+        dailyData.set(date, {
+          calories: 0,
+          distance: 0,
+          runHeartRateCount: 0,
+          totalRunHeartRate: 0
+        });
+      }
+
+      const dayData = dailyData.get(date);
+      
+      dayData.calories += activity.calories || 0;
+      dayData.distance += activity.distance || 0;
+
+      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
+        dayData.totalRunHeartRate += activity.average_heartrate;
+        dayData.runHeartRateCount += 1;
+      }
+    });
+
+    const dates = Array.from(dailyData.keys()).sort();
+    const labels = dates.map(date => new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    }));
+
+    return {
+      labels: dates,
+      displayLabels: labels,
+      calories: dates.map(date => dailyData.get(date).calories),
+      distance: dates.map(date => Math.round(dailyData.get(date).distance * 10) / 10),
+      runHeartRate: dates.map(date => {
+        const dayData = dailyData.get(date);
+        return dayData.runHeartRateCount > 0 ? Math.round(dayData.totalRunHeartRate / dayData.runHeartRateCount) : 0;
+      })
+    };
+  };
+
+  // Destroy existing charts
+  const destroyCharts = () => {
+    Object.values(chartInstances.current).forEach(chart => {
+      if (chart) {
+        chart.destroy();
+      }
+    });
+    chartInstances.current = {};
+  };
+
+  // Create charts
+  const createCharts = (activities: ActivityData[]) => {
+    if (activities.length === 0) return;
+
+    destroyCharts();
+    
+    const chartData = processChartData(activities);
+    
+    setTimeout(() => {
+      createCaloriesChart(chartData);
+      createDistanceChart(chartData);
+      createRunHeartRateChart(chartData);
+    }, 100);
+  };
+
+  // Create calories chart
+  const createCaloriesChart = (chartData: any) => {
+    if (!caloriesChartRef.current) return;
+
+    const ctx = caloriesChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(245, 158, 11, 0.8)');
+    gradient.addColorStop(1, 'rgba(245, 158, 11, 0.1)');
+
+    chartInstances.current.calories = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Calories Burned',
+          data: chartData.calories,
+          borderColor: 'rgba(245, 158, 11, 1)',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} calories`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: true,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create distance chart
+  const createDistanceChart = (chartData: any) => {
+    if (!distanceChartRef.current) return;
+
+    const ctx = distanceChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
+    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.8)');
+
+    chartInstances.current.distance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Distance (km)',
+          data: chartData.distance,
+          backgroundColor: gradient,
+          borderColor: 'rgba(59, 130, 246, 1)',
+          borderWidth: 0,
+          borderRadius: 4,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} km`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: true,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create run heart rate chart
+  const createRunHeartRateChart = (chartData: any) => {
+    if (!heartRateChartRef.current) return;
+
+    const ctx = heartRateChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
+    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
+
+    chartInstances.current.runHeartRate = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Run Heart Rate (bpm)',
+          data: chartData.runHeartRate,
+          borderColor: 'rgba(239, 68, 68, 1)',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} bpm (runs only)`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: false,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // FIXED: Better Firestore tagging with proper activity lookup
   const handleTagRun = async (activityId: string, runType: string) => {
     setIsTagging(true);
     try {
-      console.log(`🏷️ Tagging run ${activityId} as ${runType} and storing in Firestore`);
+      console.log(`🏷️ Tagging run ${activityId} as ${runType}`);
       
-      // Update Firestore directly
+      // Try multiple approaches to find the activity in Firestore
       const stravaDataRef = collection(db, "strava_data");
-      const activityQuery = query(
+      
+      // First try: exact ID match as string
+      let activityQuery = query(
         stravaDataRef,
         where("userId", "==", userId),
-        where("id", "==", parseInt(activityId))
+        where("id", "==", activityId)
       );
       
-      const querySnapshot = await getDocs(activityQuery);
+      let querySnapshot = await getDocs(activityQuery);
+      
+      // Second try: ID as number
+      if (querySnapshot.empty) {
+        console.log('Trying ID as number...');
+        activityQuery = query(
+          stravaDataRef,
+          where("userId", "==", userId),
+          where("id", "==", parseInt(activityId))
+        );
+        querySnapshot = await getDocs(activityQuery);
+      }
+      
+      // Third try: find by activity name and date (fallback)
+      if (querySnapshot.empty) {
+        console.log('Trying name and date lookup...');
+        const activity = activities.find(a => a.id === activityId);
+        if (activity) {
+          activityQuery = query(
+            stravaDataRef,
+            where("userId", "==", userId),
+            where("name", "==", activity.name),
+            where("start_date", "==", activity.start_date)
+          );
+          querySnapshot = await getDocs(activityQuery);
+        }
+      }
       
       if (!querySnapshot.empty) {
         const activityDoc = querySnapshot.docs[0];
@@ -266,7 +617,11 @@ const ActivityJam = () => {
           )
         );
       } else {
-        throw new Error('Activity not found in Firestore');
+        // If still not found, let's debug what we have
+        console.log('🔍 Activity not found. Debug info:');
+        console.log('Looking for ID:', activityId, 'Type:', typeof activityId);
+        console.log('Available activities:', activities.slice(0, 3).map(a => ({ id: a.id, name: a.name })));
+        throw new Error('Activity not found in Firestore. Please refresh and try again.');
       }
       
     } catch (error) {
@@ -277,7 +632,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Fetch activities with run tagging support
+  // Fetch activities from Firestore
   const fetchActivities = async (forceRefresh = false) => {
     try {
       if (forceRefresh) {
@@ -288,7 +643,6 @@ const ActivityJam = () => {
 
       setError('');
       
-      // Fetch directly from Firestore to get tagged data
       console.log('🏃 Fetching activities from Firestore...');
       
       const thirtyDaysAgo = new Date();
@@ -312,7 +666,7 @@ const ActivityJam = () => {
           const isRun = isRunActivity(activityType);
 
           return {
-            id: activity.id?.toString() || Math.random().toString(),
+            id: activity.id?.toString() || doc.id, // Use doc.id as fallback
             name: activity.name || 'Unnamed Activity',
             type: activityType,
             start_date: activity.start_date,
@@ -326,7 +680,6 @@ const ActivityJam = () => {
             max_heartrate: activity.max_heartrate,
             calories: activity.calories || 0,
             is_run_activity: isRun,
-            // Include run tagging data from Firestore
             runType: activity.runType || null,
             taggedAt: activity.taggedAt || null,
             userOverride: activity.userOverride || false
@@ -337,23 +690,24 @@ const ActivityJam = () => {
           new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
         );
 
-        console.log('🏃 Activities with run tagging loaded from Firestore:', {
-          totalActivities: sortedActivities.length,
-          runActivities: sortedActivities.filter(a => a.is_run_activity).length,
-          taggedRuns: sortedActivities.filter(a => a.is_run_activity && a.runType).length,
-          untaggedRuns: sortedActivities.filter(a => a.is_run_activity && !a.runType).length
+        console.log('🏃 Activities loaded:', {
+          total: sortedActivities.length,
+          runs: sortedActivities.filter(a => a.is_run_activity).length,
+          tagged: sortedActivities.filter(a => a.is_run_activity && a.runType).length
         });
 
         setActivities(sortedActivities);
         setLastUpdate(new Date().toLocaleTimeString());
+        
+        // Create charts
+        createCharts(sortedActivities);
 
       } else {
-        console.log('📊 No activities found in Firestore');
         setActivities([]);
       }
 
     } catch (error) {
-      console.error('❌ Error fetching activities from Firestore:', error);
+      console.error('❌ Error fetching activities:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch activities');
     } finally {
       setLoading(false);
@@ -367,6 +721,10 @@ const ActivityJam = () => {
 
   useEffect(() => {
     fetchActivities(false);
+    
+    return () => {
+      destroyCharts();
+    };
   }, []);
 
   // Helper functions
@@ -428,6 +786,8 @@ const ActivityJam = () => {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
       {/* Background decoration */}
       <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
@@ -471,6 +831,19 @@ const ActivityJam = () => {
       <main className="relative z-10 px-6 md:px-12 py-8">
         {loading ? (
           <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20">
+                  <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-64 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
                 <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20">
@@ -508,10 +881,67 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Quick Stats */}
+            {/* Charts Section */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
+                <Badge variant="outline" className="ml-3 text-xs">
+                  Enhanced with run tagging
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Zap className="h-5 w-5 mr-2 text-green-500" />
+                      Calories Burned
+                    </CardTitle>
+                    <p className="text-xs text-gray-600">Direct from Strava API</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Activity className="h-5 w-5 mr-2 text-blue-500" />
+                      Distance Covered
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Heart className="h-5 w-5 mr-2 text-red-500" />
+                      Run Heart Rate
+                    </CardTitle>
+                    <p className="text-xs text-gray-600">Only from running activities</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={heartRateChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* Quick Stats */}
+            <section>
+              <div className="flex items-center mb-6">
+                <Target className="h-6 w-6 mr-3 text-gray-600" />
                 <h2 className="text-2xl font-semibold text-gray-800">Training Overview</h2>
                 <Badge variant="outline" className="ml-3 text-xs">
                   Run tagging enabled
@@ -720,7 +1150,7 @@ const ActivityJam = () => {
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4" />
-              HR data from Strava
+              HR data from runs only
             </span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
@@ -734,7 +1164,7 @@ const ActivityJam = () => {
             </span>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Tags Saved</span>
+              <span className="text-xs">Charts + Tags Ready</span>
             </div>
           </div>
         </div>
