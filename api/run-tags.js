@@ -1,132 +1,48 @@
-// /api/run-tags.js - Complete run tagging API with GET and POST support
+// /api/run-tags.js - Simple run tagging API that works with existing strava.js
 
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import admin from 'firebase-admin';
 
-// Initialize Firebase
-let db = null;
-
-function initializeFirebase() {
-  if (db) return db;
-  
-  const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID
-  };
-
-  if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-    console.warn('Firebase configuration incomplete');
-    return null;
-  }
-
-  try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-    db = getFirestore(app);
-    return db;
-  } catch (error) {
-    console.error('Failed to initialize Firebase:', error);
-    return null;
-  }
+// Initialize Firebase (same as your strava.js)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId:   process.env.VITE_FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+  });
 }
+const db = admin.firestore();
 
-// Rate limiting for tagging
-const tagRequests = new Map();
-const TAG_RATE_LIMIT = 20; // Max 20 tags per minute per IP
-const TAG_WINDOW = 60 * 1000; // 1 minute
-
-function isTagRateLimited(clientIP) {
-  const now = Date.now();
-  const windowStart = now - TAG_WINDOW;
-  
-  if (!tagRequests.has(clientIP)) {
-    tagRequests.set(clientIP, []);
-  }
-  
-  const requests = tagRequests.get(clientIP);
-  const recentRequests = requests.filter(timestamp => timestamp > windowStart);
-  tagRequests.set(clientIP, recentRequests);
-  
-  if (recentRequests.length >= TAG_RATE_LIMIT) {
-    return true;
-  }
-  
-  recentRequests.push(now);
-  return false;
-}
-
-// Validate run type - Updated to match frontend
-const validRunTypes = ['easy', 'tempo', 'intervals', 'long', 'recovery']; // Note: 'intervals' not 'interval'
-
-function validateRunType(runType) {
-  return validRunTypes.includes(runType);
-}
-
-// Auto-classify run for confidence scoring
-function autoClassifyRun(activityData) {
-  if (!activityData.distance || !activityData.moving_time) {
-    return { type: 'easy', confidence: 0.3 };
-  }
-  
-  const timeInMinutes = activityData.moving_time / 60;
-  const paceMinPerKm = timeInMinutes / activityData.distance;
-  const avgHR = activityData.average_heartrate || 0;
-  const distance = activityData.distance;
-  
-  // Long run detection (distance-based)
-  if (distance >= 15) return { type: 'long', confidence: 0.9 };
-  if (distance >= 10 && paceMinPerKm > 5.5) return { type: 'long', confidence: 0.8 };
-
-  // Recovery run detection (very easy pace or low HR)
-  if (distance <= 5 && paceMinPerKm > 6.5) return { type: 'recovery', confidence: 0.8 };
-  if (avgHR && avgHR < 140 && distance <= 8) return { type: 'recovery', confidence: 0.7 };
-
-  // Intervals detection (fast pace with moderate distance)
-  if (paceMinPerKm < 4.0 && distance <= 10) return { type: 'intervals', confidence: 0.8 };
-  if (avgHR && avgHR > 170 && distance <= 8) return { type: 'intervals', confidence: 0.7 };
-
-  // Tempo detection (moderately fast pace, moderate distance)
-  if (paceMinPerKm < 5.0 && distance >= 5 && distance <= 12) return { type: 'tempo', confidence: 0.8 };
-  if (avgHR && avgHR >= 155 && avgHR <= 170 && distance >= 5) return { type: 'tempo', confidence: 0.7 };
-
-  // Default to easy
-  return { type: 'easy', confidence: 0.6 };
-}
+// Valid run types
+const validRunTypes = ['easy', 'tempo', 'intervals', 'long', 'recovery'];
 
 // GET handler - Load existing run tags
 async function handleGetRequest(req, res) {
   try {
     const { userId = 'mihir_jain' } = req.query;
     
-    const firestore = initializeFirebase();
-    if (!firestore) {
-      return res.status(500).json({ error: 'Database connection failed' });
-    }
-
     console.log(`📥 Loading run tags for user: ${userId}`);
 
     // Query activities with run tags for this user
-    const activitiesRef = collection(firestore, "strava_data");
-    const q = query(
-      activitiesRef, 
-      where("userId", "==", userId),
-      where("runType", "!=", null) // Only get activities that have been tagged
-    );
+    const snapshot = await db
+      .collection('strava_data')
+      .where('userId', '==', userId)
+      .get();
     
-    const querySnapshot = await getDocs(q);
     const tags = {};
+    let taggedCount = 0;
     
-    querySnapshot.forEach((doc) => {
+    snapshot.docs.forEach((doc) => {
       const data = doc.data();
+      // Check if activity has a run tag
       if (data.runType && validRunTypes.includes(data.runType)) {
-        tags[doc.id] = data.runType;
+        tags[data.id || doc.id.split('_')[1]] = data.runType;
+        taggedCount++;
       }
     });
 
-    console.log(`✅ Loaded ${Object.keys(tags).length} run tags`);
+    console.log(`✅ Loaded ${taggedCount} run tags from ${snapshot.docs.length} activities`);
     
     return res.status(200).json(tags);
     
@@ -141,20 +57,10 @@ async function handleGetRequest(req, res) {
 
 // POST handler - Save run tag
 async function handlePostRequest(req, res) {
-  // Get client IP for rate limiting
-  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
-  
-  // Check rate limit
-  if (isTagRateLimited(clientIP)) {
-    console.log(`Tag rate limit exceeded for IP: ${clientIP}`);
-    return res.status(429).json({ 
-      error: 'Too many tagging requests. Please wait a moment.',
-      retryAfter: 60
-    });
-  }
-
   try {
-    const { activityId, tag, userId = 'mihir_jain', timestamp } = req.body; // Note: 'tag' not 'runType' to match frontend
+    const { activityId, tag, userId = 'mihir_jain', timestamp } = req.body;
+    
+    console.log(`🏷️ Tagging request: activityId=${activityId}, tag=${tag}, userId=${userId}`);
     
     // Validate required fields
     if (!activityId || !tag) {
@@ -164,43 +70,38 @@ async function handlePostRequest(req, res) {
     }
     
     // Validate run type
-    if (!validateRunType(tag)) {
+    if (!validRunTypes.includes(tag)) {
       return res.status(400).json({
         error: `Invalid run type: ${tag}. Valid types: ${validRunTypes.join(', ')}`
       });
     }
     
-    // Initialize Firebase
-    const firestore = initializeFirebase();
-    if (!firestore) {
-      return res.status(500).json({
-        error: 'Database connection failed'
-      });
-    }
+    console.log(`🔍 Looking for activity document: ${userId}_${activityId}`);
     
-    console.log(`🏷️ Tagging run ${activityId} as ${tag} for user ${userId}`);
-    
-    // Check if the activity exists
-    const activityRef = doc(firestore, "strava_data", activityId);
-    const activitySnapshot = await getDoc(activityRef);
+    // Find the activity document using the correct naming pattern
+    const activityRef = db.collection('strava_data').doc(`${userId}_${activityId}`);
+    const activitySnapshot = await activityRef.get();
     
     if (!activitySnapshot.exists()) {
-      // If activity doesn't exist, create a minimal record for tagging
-      console.log(`📝 Creating new activity record for tagging: ${activityId}`);
+      console.log(`❌ Activity not found: ${userId}_${activityId}`);
       
-      const newActivityData = {
-        id: activityId,
+      // If document doesn't exist, create a minimal one for tagging
+      console.log(`📝 Creating minimal activity record for tagging: ${activityId}`);
+      
+      const minimalActivityData = {
         userId,
+        id: activityId,
+        type: 'Run', // Assume it's a run since we're tagging it
         runType: tag,
+        run_tag: tag,
         taggedAt: timestamp || new Date().toISOString(),
         taggedBy: 'user',
-        autoClassified: false,
-        userOverride: true, // Since we don't have activity data to auto-classify
+        userOverride: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       
-      await updateDoc(activityRef, newActivityData);
+      await activityRef.set(minimalActivityData);
       
       return res.status(200).json({
         success: true,
@@ -212,54 +113,41 @@ async function handlePostRequest(req, res) {
     }
     
     const activityData = activitySnapshot.data();
+    console.log(`✅ Found activity: ${activityData.name} (${activityData.type})`);
     
-    // Verify ownership if userId is provided in activity data
-    if (activityData.userId && activityData.userId !== userId) {
-      return res.status(403).json({
-        error: 'Access denied: Activity does not belong to user'
+    // Verify it's a run activity
+    if (!activityData.type?.toLowerCase().includes('run')) {
+      return res.status(400).json({
+        error: 'Can only tag running activities'
       });
     }
     
-    // Get auto-classification for comparison (if we have activity data)
-    let autoClassification = { type: 'easy', confidence: 0.5 };
-    let isUserOverride = true;
-    
-    if (activityData.distance && activityData.moving_time) {
-      autoClassification = autoClassifyRun(activityData);
-      isUserOverride = autoClassification.type !== tag;
-    }
-    
-    // Update the activity with the run type
+    // Update the activity with the run tag
     const updateData = {
-      runType: tag, // Store as runType in database
+      ...activityData, // Keep existing data
+      runType: tag,
+      run_tag: tag, // For frontend compatibility
       taggedAt: timestamp || new Date().toISOString(),
       taggedBy: 'user',
-      autoClassified: false,
-      userOverride: isUserOverride,
-      originalSuggestion: autoClassification.type,
-      confidenceScore: autoClassification.confidence,
+      userOverride: true,
       updatedAt: new Date().toISOString()
     };
     
-    await updateDoc(activityRef, updateData);
+    // Use setDoc with merge to handle both existing and new documents
+    await activityRef.set(updateData, { merge: true });
     
-    console.log(`✅ Successfully tagged run ${activityId} as ${tag}`);
-    console.log(`📊 Auto-suggested: ${autoClassification.type}, User chose: ${tag}, Override: ${isUserOverride}`);
+    console.log(`✅ Successfully tagged activity ${activityId} as ${tag}`);
     
-    // Return success response
     return res.status(200).json({
       success: true,
       activityId,
       runType: tag,
       message: `Run successfully tagged as ${tag}`,
       activityInfo: {
-        name: activityData.name || 'Unknown Activity',
-        distance: activityData.distance || 0,
-        duration: activityData.moving_time || activityData.duration || 0,
-        date: activityData.start_date,
-        autoSuggestion: autoClassification.type,
-        userOverride: isUserOverride,
-        confidence: autoClassification.confidence
+        name: activityData.name,
+        distance: activityData.distance,
+        duration: activityData.moving_time || activityData.duration,
+        date: activityData.start_date
       }
     });
     
@@ -290,26 +178,4 @@ async function handlePostRequest(req, res) {
       message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
     });
   }
-}
-
-// Main handler
-export default async function handler(req, res) {
-  // Enable CORS if needed
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  if (req.method === 'GET') {
-    return handleGetRequest(req, res);
-  }
-  
-  if (req.method === 'POST') {
-    return handlePostRequest(req, res);
-  }
-  
-  return res.status(405).json({ error: 'Method not allowed' });
 }
