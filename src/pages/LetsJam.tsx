@@ -220,15 +220,28 @@ const SmartHealthSummary: React.FC<{
         </Button>
       </div>
       
-      <div className="flex items-center gap-2 mb-4">
-        <Badge variant="secondary" className="text-xs">Real Data</Badge>
-        <Badge variant={userData?.nutrition.avgCalories > 0 ? "default" : "secondary"} className="text-xs">
-          {userData?.nutrition.avgCalories > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
-        </Badge>
-        <Badge variant={runActivities.length > 0 ? "default" : "secondary"} className="text-xs">
-          {runActivities.length > 0 ? 'Runs: Active' : 'Runs: No Data'}
-        </Badge>
-      </div>
+<div className="flex items-center gap-2 mb-4">
+  <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-800 border border-orange-200">
+    Real Data
+  </span>
+
+  <span className={`text-xs px-2 py-1 rounded-md border ${
+    userData?.nutrition.avgCalories > 0
+      ? 'bg-green-100 text-green-800 border-green-200'
+      : 'bg-gray-100 text-gray-500 border-gray-200'
+  }`}>
+    {userData?.nutrition.avgCalories > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
+  </span>
+
+  <span className={`text-xs px-2 py-1 rounded-md border ${
+    runActivities.length > 0
+      ? 'bg-blue-100 text-blue-800 border-blue-200'
+      : 'bg-gray-100 text-gray-500 border-gray-200'
+  }`}>
+    {runActivities.length > 0 ? 'Runs: Active' : 'Runs: No Data'}
+  </span>
+</div>
+
       
       <div className="grid grid-cols-1 gap-3">
         <Card className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-emerald-200 shadow-sm">
