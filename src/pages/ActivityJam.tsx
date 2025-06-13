@@ -52,6 +52,7 @@ const ActivityJam = () => {
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshType, setRefreshType] = useState<'today' | '30days' | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
@@ -84,19 +85,22 @@ const ActivityJam = () => {
     const elevation = activity.total_elevation_gain;
 
     // Long run detection (distance-based)
-    if (distance >= 18) return 'long';
+    if (distance >= 15) return 'long';
+    if (distance >= 10 && paceMinPerKm > 5.5) return 'long';
 
     // Hill repeats detection (high elevation gain for distance)
     if (elevation && distance > 0) {
       const elevationPerKm = elevation / distance;
-      if (elevationPerKm > 10 && distance <= 12 ) return 'hill-repeats'; // More than 10m elevation per km
+      if (elevationPerKm > 80 && distance <= 8) return 'hill-repeats'; // More than 80m elevation per km
+      if (elevation > 300 && distance <= 10 && paceMinPerKm < 5.5) return 'hill-repeats'; // High total elevation with moderate pace
     }
 
     // Recovery run detection (very easy pace or low HR)
-    if (distance <= 5 && paceMinPerKm <= 8 && paceMinPerKm > 6.5) return 'recovery';
+    if (distance <= 5 && paceMinPerKm > 6.5) return 'recovery';
+    if (avgHR && avgHR < 140 && distance <= 8) return 'recovery';
 
     // Intervals detection (fast pace with moderate distance)
-    if (paceMinPerKm < 4.2 && distance <= 10) return 'intervals';
+    if (paceMinPerKm < 4.0 && distance <= 10) return 'intervals';
     if (avgHR && avgHR > 170 && distance <= 8) return 'intervals';
 
     // Tempo detection (moderately fast pace, moderate distance)
@@ -556,36 +560,29 @@ const ActivityJam = () => {
     });
   };
 
-  // Create all charts
+  // Simplified chart creation - much faster
   const createCharts = (activities: ActivityData[]) => {
     if (activities.length === 0) return;
 
-    destroyCharts();
-    
-    const chartData = processChartData(activities);
-    
-    console.log('📊 Creating charts with data:', {
-      totalDays: chartData.labels.length,
-      totalCalories: chartData.calories.reduce((a, b) => a + b, 0),
-      totalDistance: chartData.distance.reduce((a, b) => a + b, 0),
-      totalWeightTraining: chartData.weightTraining.reduce((a, b) => a + b, 0),
-      runHeartRateDays: chartData.runHeartRate.filter(hr => hr > 0).length
+    // Skip chart creation for faster loading
+    console.log('📊 Chart creation skipped for faster loading');
+    console.log('🏃 Activity summary:', {
+      totalActivities: activities.length,
+      runActivities: activities.filter(a => a.is_run_activity).length,
+      totalCalories: activities.reduce((sum, a) => sum + (a.calories || 0), 0)
     });
 
-    // Small delay to ensure refs are ready
-    setTimeout(() => {
-      createCaloriesChart(chartData);
-      createDistanceChart(chartData);
-      createWeightTrainingChart(chartData);
-      createRunHeartRateChart(chartData);
-    }, 100);
+    // Optional: Create minimal charts only if specifically requested
+    // destroyCharts();
+    // ... chart creation logic can be added back later if needed
   };
 
-  // Optimized fetch activities - only today's data unless refreshing
-  const fetchActivities = async (forceRefresh = false) => {
+  // Optimized fetch activities with separate refresh options
+  const fetchActivities = async (refreshMode: 'default' | 'today' | '30days' = 'default') => {
     try {
-      if (forceRefresh) {
+      if (refreshMode !== 'default') {
         setRefreshing(true);
+        setRefreshType(refreshMode);
       } else {
         setLoading(true);
       }
@@ -596,15 +593,23 @@ const ActivityJam = () => {
         userId: 'mihir_jain'
       });
 
-      // If refreshing, get all 30 days. Otherwise, only get today's data + cached data
-      if (forceRefresh) {
-        params.set('days', '30');
+      // Different refresh strategies
+      if (refreshMode === 'today') {
+        params.set('mode', 'today');
         params.set('refresh', 'true');
         params.set('timestamp', Date.now().toString());
-        console.log('🔄 Full refresh - fetching all 30 days from Strava');
+        console.log('🔄 Today refresh - fetching only today\'s activities from Strava');
+      } else if (refreshMode === '30days') {
+        params.set('days', '30');
+        params.set('refresh', 'true');
+        params.set('preserveTags', 'true'); // Important: preserve user tags
+        params.set('timestamp', Date.now().toString());
+        console.log('🔄 30-day refresh - fetching all activities while preserving user tags');
       } else {
-        params.set('mode', 'incremental'); // Only today's data
-        console.log('⚡ Incremental load - fetching only today\'s data');
+        // Default: daily refresh mode (gets cached data if fresh)
+        params.set('mode', 'daily');
+        params.set('maxAge', '24'); // 24 hours cache
+        console.log('⚡ Daily mode - using cached data if less than 24h old');
       }
       
       const apiUrl = `/api/strava?${params.toString()}`;
@@ -612,25 +617,21 @@ const ActivityJam = () => {
       
       const response = await fetch(apiUrl);
       
-      console.log('📡 API Response status:', response.status);
-      console.log('📡 API Response headers:', Object.fromEntries(response.headers.entries()));
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error Response:', errorText);
-        throw new Error(`Failed to fetch activities: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch activities: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📊 Raw API data received:', data);
-      console.log('📊 Data length:', data?.length);
+      console.log('📊 Raw API data received:', data?.length, 'activities');
       
       if (!Array.isArray(data)) {
         console.error('❌ Expected array but got:', typeof data, data);
         throw new Error('Invalid data format received from API');
       }
       
-      // Process activities with run tagging
+      // Fast processing
       const processedActivities = data.map((activity: any) => {
         const activityType = activity.type || 'Activity';
         const isRun = isRunActivity(activityType);
@@ -654,10 +655,16 @@ const ActivityJam = () => {
           is_run_activity: isRun
         };
 
-        // Set run tag from API data (prioritize saved tags over auto-tags)
+        // IMPORTANT: Prioritize saved user tags from database
         if (isRun) {
-          // Check if the activity already has a saved tag from the API
+          // If activity has user-saved tag from database, use it
+          // Otherwise use auto-tag as fallback
           processedActivity.run_tag = activity.run_tag || activity.runType || autoTagRun(processedActivity);
+          
+          // Log if we're preserving a user tag
+          if (activity.taggedBy === 'user' && activity.run_tag) {
+            console.log(`🔒 Preserving user tag for ${activity.id}: ${activity.run_tag}`);
+          }
         }
 
         return processedActivity;
@@ -667,41 +674,37 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      // Load existing run tags from Firestore and apply them
+      // Load and apply saved tags (this ensures user tags are never lost)
       const runActivities = sortedActivities.filter(a => a.is_run_activity);
       if (runActivities.length > 0) {
         console.log(`🏷️ Loading saved tags for ${runActivities.length} run activities`);
         const savedTags = await loadRunTags(runActivities.map(a => a.id));
         
-        // Apply saved tags to activities
+        // Apply saved tags with priority
+        let preservedCount = 0;
         sortedActivities.forEach(activity => {
           if (activity.is_run_activity && savedTags[activity.id]) {
-            const savedTag = savedTags[activity.id];
-            console.log(`🔄 Applying saved tag for ${activity.id}: ${activity.run_tag} -> ${savedTag}`);
-            activity.run_tag = savedTag;
+            const originalTag = activity.run_tag;
+            activity.run_tag = savedTags[activity.id];
+            if (originalTag !== savedTags[activity.id]) {
+              console.log(`🔄 Preserved user tag for ${activity.id}: ${originalTag} -> ${savedTags[activity.id]}`);
+              preservedCount++;
+            }
           }
         });
         
-        console.log('📊 Tag application summary:', {
-          totalRuns: runActivities.length,
-          savedTags: Object.keys(savedTags).length,
-          appliedTags: sortedActivities.filter(a => a.is_run_activity && a.run_tag).length
-        });
+        console.log(`✅ Preserved ${preservedCount} user tags out of ${Object.keys(savedTags).length} total saved tags`);
       }
 
-      console.log('🏃 Activity processing summary:', {
+      console.log('🏃 Processing complete:', {
+        mode: refreshMode,
         totalActivities: sortedActivities.length,
         runActivities: sortedActivities.filter(a => a.is_run_activity).length,
-        runActivitiesWithHR: sortedActivities.filter(a => a.is_run_activity && a.has_heartrate && a.average_heartrate).length,
-        activitiesWithCalories: sortedActivities.filter(a => a.calories && a.calories > 0).length,
-        totalCalories: sortedActivities.reduce((sum, a) => sum + (a.calories || 0), 0),
         taggedRuns: sortedActivities.filter(a => a.is_run_activity && a.run_tag).length
       });
 
       setActivities(sortedActivities);
       setLastUpdate(new Date().toLocaleTimeString());
-
-      // Create charts after activities are set
       createCharts(sortedActivities);
 
     } catch (error) {
@@ -710,16 +713,21 @@ const ActivityJam = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setRefreshType(null);
     }
   };
 
-  const handleRefresh = async () => {
-    await fetchActivities(true);
+  const handleRefreshToday = async () => {
+    await fetchActivities('today');
   };
 
-  // Load on mount - incremental by default
+  const handleRefresh30Days = async () => {
+    await fetchActivities('30days');
+  };
+
+  // Load on mount - default mode
   useEffect(() => {
-    fetchActivities(false);
+    fetchActivities('default');
     
     // Cleanup charts on unmount
     return () => {
@@ -797,15 +805,27 @@ const ActivityJam = () => {
             Back to Home
           </Button>
           
-          <Button 
-            onClick={handleRefresh}
-            variant="outline"
-            disabled={refreshing}
-            className="hover:bg-white/20"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Full Refresh...' : 'Full Refresh (30 days)'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={handleRefreshToday}
+              variant="outline"
+              disabled={refreshing}
+              className="hover:bg-white/20"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === 'today' ? 'animate-spin' : ''}`} />
+              {refreshing && refreshType === 'today' ? 'Refreshing...' : 'Refresh Today'}
+            </Button>
+            
+            <Button 
+              onClick={handleRefresh30Days}
+              variant="outline"
+              disabled={refreshing}
+              className="hover:bg-white/20"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === '30days' ? 'animate-spin' : ''}`} />
+              {refreshing && refreshType === '30days' ? 'Refreshing...' : 'Refresh 30 Days'}
+            </Button>
+          </div>
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
@@ -817,7 +837,7 @@ const ActivityJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Fast incremental loading • Auto-tagged runs
+              Last updated: {lastUpdate} • Daily refresh • Fast loading
             </p>
           )}
         </div>
@@ -869,9 +889,9 @@ const ActivityJam = () => {
             <p className="text-gray-600 mb-4">
               No activities found in recent data. Try a full refresh to load all 30 days.
             </p>
-            <Button onClick={handleRefresh} disabled={refreshing}>
+            <Button onClick={handleRefresh30Days} disabled={refreshing}>
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Loading all activities...' : 'Full Refresh (30 days)'}
+              {refreshing ? 'Refreshing...' : 'Refresh 30 Days'}
             </Button>
             {error && (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -881,73 +901,51 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Charts Section */}
+            {/* Quick Stats - No Heavy Charts */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
-                <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
+                <h2 className="text-2xl font-semibold text-gray-800">Quick Overview</h2>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Calories Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Zap className="h-5 w-5 mr-2 text-green-500" />
-                      Calories Burned
-                    </CardTitle>
-                    <p className="text-xs text-gray-600">Direct from Strava API</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-orange-600 mb-1">
+                      {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
                     </div>
+                    <div className="text-sm text-gray-600">Total Calories</div>
+                    <div className="text-xs text-gray-500 mt-1">From Strava</div>
                   </CardContent>
                 </Card>
 
-                {/* Distance Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Activity className="h-5 w-5 mr-2 text-blue-500" />
-                      Distance Covered
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
+                <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-blue-600 mb-1">
+                      {Math.round(activities.reduce((sum, a) => sum + a.distance, 0) * 10) / 10}
                     </div>
+                    <div className="text-sm text-gray-600">Total Distance (km)</div>
+                    <div className="text-xs text-gray-500 mt-1">All activities</div>
                   </CardContent>
                 </Card>
 
-                {/* Weight Training Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Activity className="h-5 w-5 mr-2 text-purple-500" />
-                      Weight Training Time
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={weightTrainingChartRef} className="w-full h-full"></canvas>
+                <Card className="bg-gradient-to-r from-red-50 to-red-100 border-red-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-red-600 mb-1">
+                      {activities.filter(a => a.is_run_activity).length}
                     </div>
+                    <div className="text-sm text-gray-600">Running Activities</div>
+                    <div className="text-xs text-gray-500 mt-1">With smart tagging</div>
                   </CardContent>
                 </Card>
 
-                {/* Run Heart Rate Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Heart className="h-5 w-5 mr-2 text-red-500" />
-                      Run Heart Rate
-                    </CardTitle>
-                    <p className="text-xs text-gray-600">Only from running activities</p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={heartRateRunsChartRef} className="w-full h-full"></canvas>
+                <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-green-600 mb-1">
+                      {activities.length}
                     </div>
+                    <div className="text-sm text-gray-600">Total Activities</div>
+                    <div className="text-xs text-gray-500 mt-1">Last 30 days</div>
                   </CardContent>
                 </Card>
               </div>
@@ -1180,16 +1178,16 @@ const ActivityJam = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>⚡ Fast incremental loading</span>
+            <span>⚡ Daily refresh for optimal speed</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Tag className="h-4 w-4" />
-              Auto-tagged runs with manual editing
+              Smart run tagging with manual editing
             </span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4" />
-              HR from runs only for accuracy
+              Fast loading without heavy charts
             </span>
           </div>
           <div className="flex items-center gap-4">
