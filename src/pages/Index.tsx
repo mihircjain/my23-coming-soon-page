@@ -153,8 +153,9 @@ const WeeklyGoalsTracker: React.FC<{
                 
                 <div className="text-sm font-bold text-gray-800 mb-2">
                   {Math.round(actual).toLocaleString()}
+                  {key === 'protein' ? 'g' : ' cal'}
                   <span className="text-xs text-gray-600">
-                    /{goal.target.toLocaleString()}
+                    /{goal.target.toLocaleString()}{key === 'protein' ? 'g' : ' cal'}
                   </span>
                 </div>
                 
@@ -190,9 +191,10 @@ const WeeklyGoalsTracker: React.FC<{
               const dayData = weekData[dateStr] || {};
               const isToday = dateStr === new Date().toISOString().split('T')[0];
               
-              const hasActivity = (dayData.caloriesBurned || 0) > 0;
               const BMR = 1479;
               const dailyDeficit = ((dayData.caloriesBurned || 0) + BMR) - (dayData.caloriesConsumed || 0);
+              const protein = dayData.protein || 0;
+              const burned = dayData.caloriesBurned || 0;
               
               return (
                 <div 
@@ -201,24 +203,30 @@ const WeeklyGoalsTracker: React.FC<{
                     isToday ? 'border-red-500 bg-white/80' : 'border-white/30 bg-white/60'
                   }`}
                 >
-                  <div className="font-semibold text-gray-600 text-xs">
-                    {date.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}
+                  <div className="font-semibold text-gray-600 text-xs mb-1">
+                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
                   </div>
-                  <div className="mt-1">
-                    {hasActivity ? (
-                      <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit/100)*100}
-                      </div>
-                    ) : (
-                      <div className="text-gray-400 text-xs">-</div>
-                    )}
+                  
+                  {/* Protein */}
+                  <div className="text-xs text-blue-600 font-medium">
+                    {Math.round(protein)}g
+                  </div>
+                  
+                  {/* Calories Burned */}
+                  <div className="text-xs text-orange-600 font-medium">
+                    {Math.round(burned)}
+                  </div>
+                  
+                  {/* Deficit */}
+                  <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
                   </div>
                 </div>
               );
             })}
           </div>
           <div className="text-xs text-gray-600 text-center">
-            Daily deficit (calories)
+            Protein (g) • Burned (cal) • Deficit (cal)
           </div>
         </div>
       </CardContent>
