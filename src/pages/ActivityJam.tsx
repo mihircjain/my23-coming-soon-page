@@ -578,26 +578,6 @@ const ActivityJam = () => {
         }
       }
     });
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
 
   // Create run heart rate chart
   const createRunHeartRateChart = (chartData: any) => {
