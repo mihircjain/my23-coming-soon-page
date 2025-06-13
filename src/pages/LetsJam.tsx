@@ -1,4 +1,4 @@
-// Enhanced LetsJam with Run Tags and Training Analysis
+// Enhanced LetsJam with Run Tags and Training Analysis - Updated with Green/Blue Color Palette
 // Hardcoded userId for consistency
 const userId = "mihir_jain";
 
@@ -88,14 +88,14 @@ interface UserData {
   trainingAnalysis?: TrainingAnalysis; // Added training analysis
 }
 
-// Run tag configuration with colors and intensities
+// Run tag configuration with colors and intensities - Updated with green/blue theme
 const RUN_TAG_CONFIG = {
   'easy': { label: 'Easy', emoji: '🟢', intensity: 1, color: 'green' },
-  'recovery': { label: 'Recovery', emoji: '🟣', intensity: 0.5, color: 'purple' },
-  'long': { label: 'Long', emoji: '🔵', intensity: 2, color: 'blue' },
-  'tempo': { label: 'Tempo', emoji: '🟡', intensity: 3, color: 'yellow' },
-  'intervals': { label: 'Intervals', emoji: '🔴', intensity: 4, color: 'red' },
-  'hill-repeats': { label: 'Hill Repeats', emoji: '🟠', intensity: 3.5, color: 'orange' }
+  'recovery': { label: 'Recovery', emoji: '🔵', intensity: 0.5, color: 'blue' },
+  'long': { label: 'Long', emoji: '🟦', intensity: 2, color: 'emerald' },
+  'tempo': { label: 'Tempo', emoji: '🟪', intensity: 3, color: 'teal' },
+  'intervals': { label: 'Intervals', emoji: '🟨', intensity: 4, color: 'cyan' },
+  'hill-repeats': { label: 'Hill Repeats', emoji: '🟫', intensity: 3.5, color: 'lime' }
 };
 
 // Generate session ID
@@ -230,11 +230,11 @@ const analyzeTrainingLoad = (recentActivities: RecentActivity[]): TrainingAnalys
   }
   
   if (runTagDistribution.recovery === 0 && totalRuns > 3) {
-    recommendations.push("🟣 No recovery runs detected. Add 1-2 easy recovery runs per week.");
+    recommendations.push("🔵 No recovery runs detected. Add 1-2 easy recovery runs per week.");
   }
   
   if (runTagDistribution.long === 0 && totalRuns > 2) {
-    recommendations.push("🔵 Consider adding a long run to build endurance.");
+    recommendations.push("🟦 Consider adding a long run to build endurance.");
   }
   
   if (weeklyDistance < 10 && totalRuns > 0) {
@@ -279,7 +279,7 @@ const loadRunTags = async (activityIds: string[]): Promise<Record<string, string
   }
 };
 
-// Enhanced Health Summary with training analysis
+// Enhanced Health Summary with training analysis - Updated with green/blue theme
 const SmartHealthSummary: React.FC<{ 
   userData: UserData | null,
   recentActivities: RecentActivity[], 
@@ -320,7 +320,7 @@ const SmartHealthSummary: React.FC<{
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-orange-500" />
+          <BarChart3 className="h-5 w-5 text-green-500" />
           Training Analysis
         </h3>
         <Button 
@@ -336,13 +336,13 @@ const SmartHealthSummary: React.FC<{
       </div>
       
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-800 border border-orange-200">
+        <span className="text-xs px-2 py-1 rounded-md bg-green-100 text-green-800 border border-green-200">
           Smart Analysis
         </span>
 
         <span className={`text-xs px-2 py-1 rounded-md border ${
           userData?.nutrition.avgCalories > 0
-            ? 'bg-green-100 text-green-800 border-green-200'
+            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
             : 'bg-gray-100 text-gray-500 border-gray-200'
         }`}>
           {userData?.nutrition.avgCalories > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
@@ -357,22 +357,22 @@ const SmartHealthSummary: React.FC<{
         </span>
       </div>
 
-      {/* Training Load Analysis Card */}
+      {/* Training Load Analysis Card - Updated with green/blue theme */}
       {trainingAnalysis && trainingAnalysis.totalRuns > 0 && (
-        <Card className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-purple-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 border-teal-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Target className="h-4 w-4 text-purple-600" />
-              <span className="text-xs font-medium text-purple-700">Training Load</span>
+              <Target className="h-4 w-4 text-teal-600" />
+              <span className="text-xs font-medium text-teal-700">Training Load</span>
               <Badge variant={trainingAnalysis.trainingStress === 'high' || trainingAnalysis.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
                 {trainingAnalysis.trainingStress}
               </Badge>
             </div>
             <div className="space-y-1">
-              <div className="text-lg font-bold text-purple-800">
+              <div className="text-lg font-bold text-teal-800">
                 {trainingAnalysis.hardVsEasyRatio}% Hard
               </div>
-              <div className="text-xs text-purple-600">
+              <div className="text-xs text-teal-600">
                 Hard:Easy ratio (ideal: 20:80)
               </div>
               <div className="text-xs text-gray-600 truncate">
@@ -383,13 +383,13 @@ const SmartHealthSummary: React.FC<{
         </Card>
       )}
 
-      {/* Run Tags Distribution */}
+      {/* Run Tags Distribution - Updated with green/blue theme */}
       {trainingAnalysis && trainingAnalysis.totalRuns > 0 && (
-        <Card className="bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 border-cyan-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-emerald-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Tag className="h-4 w-4 text-cyan-600" />
-              <span className="text-xs font-medium text-cyan-700">Run Types</span>
+              <Tag className="h-4 w-4 text-emerald-600" />
+              <span className="text-xs font-medium text-emerald-700">Run Types</span>
             </div>
             <div className="grid grid-cols-3 gap-1 text-xs">
               {Object.entries(trainingAnalysis.runTagDistribution).map(([tag, count]) => {
@@ -430,17 +430,17 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 border-orange-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-green-50 via-lime-50 to-emerald-50 border-green-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Activity className="h-4 w-4 text-orange-600" />
-              <span className="text-xs font-medium text-orange-700">Activity</span>
+              <Activity className="h-4 w-4 text-green-600" />
+              <span className="text-xs font-medium text-green-700">Activity</span>
             </div>
             <div className="space-y-1">
-              <div className="text-lg font-bold text-orange-800">
+              <div className="text-lg font-bold text-green-800">
                 {loading ? '...' : userData?.activity.workoutsPerWeek || '0'}
               </div>
-              <div className="text-xs text-orange-600">workouts/wk</div>
+              <div className="text-xs text-green-600">workouts/wk</div>
               <div className="text-xs text-gray-600 truncate">
                 {userData?.activity.avgCaloriesBurned > 0 ? `${userData.activity.avgCaloriesBurned} cal avg` : 'No workouts yet'}
               </div>
@@ -448,7 +448,7 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 border-blue-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
               <Zap className="h-4 w-4 text-blue-600" />
@@ -472,17 +472,17 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 border-purple-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 border-teal-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Heart className="h-4 w-4 text-purple-600" />
-              <span className="text-xs font-medium text-purple-700">Health</span>
+              <Heart className="h-4 w-4 text-teal-600" />
+              <span className="text-xs font-medium text-teal-700">Health</span>
             </div>
             <div className="space-y-1">
               <div className="text-lg font-bold text-green-800">
                 {loading ? '...' : userData?.nutrition.avgCalories > 0 ? 'Good' : 'No Data'}
               </div>
-              <div className="text-xs text-purple-600">
+              <div className="text-xs text-teal-600">
                 {userData?.nutrition.avgCalories > 0 ? 'tracking active' : 'Track nutrition'}
               </div>
               <div className="text-xs text-gray-600 truncate">
@@ -494,11 +494,11 @@ const SmartHealthSummary: React.FC<{
         </Card>
       </div>
       
-      {/* Smart Recommendations */}
+      {/* Smart Recommendations - Updated with green/blue theme */}
       {trainingAnalysis && trainingAnalysis.recommendations.length > 0 && (
-        <Card className="bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 border-amber-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-lime-50 via-green-50 to-emerald-50 border-lime-200 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-amber-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-lime-700 flex items-center gap-2">
               <Target className="h-4 w-4" />
               Smart Recommendations
             </CardTitle>
@@ -506,7 +506,7 @@ const SmartHealthSummary: React.FC<{
           <CardContent className="p-3 pt-0">
             <div className="space-y-2">
               {trainingAnalysis.recommendations.slice(0, 3).map((rec, index) => (
-                <div key={index} className="text-xs p-2 bg-white/60 rounded border border-amber-200">
+                <div key={index} className="text-xs p-2 bg-white/60 rounded border border-lime-200">
                   {rec}
                 </div>
               ))}
@@ -567,25 +567,25 @@ const SmartHealthSummary: React.FC<{
       )}
       
       {userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 && (
-        <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-rose-50 border-red-200 shadow-sm">
+        <Card className="bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 border-teal-200 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-red-700 flex items-center gap-2">
-              <Droplet className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium text-teal-700 flex items-center gap-2">
+              <Droplet className="h-4 w-4 text-teal-500" />
               Blood Markers
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(userData.bloodMarkers).slice(0, 4).map(([key, value]) => (
-                <div key={key} className="text-center bg-red-50/50 p-2 rounded border border-red-100">
-                  <div className="text-xs font-medium text-red-600 uppercase truncate">{key}</div>
-                  <div className="text-sm font-semibold text-red-800">{value}</div>
+                <div key={key} className="text-center bg-teal-50/50 p-2 rounded border border-teal-100">
+                  <div className="text-xs font-medium text-teal-600 uppercase truncate">{key}</div>
+                  <div className="text-sm font-semibold text-teal-800">{value}</div>
                 </div>
               ))}
             </div>
             {Object.keys(userData.bloodMarkers).length > 4 && (
               <div className="text-center mt-2">
-                <span className="text-xs text-red-500">+{Object.keys(userData.bloodMarkers).length - 4} more</span>
+                <span className="text-xs text-teal-500">+{Object.keys(userData.bloodMarkers).length - 4} more</span>
               </div>
             )}
           </CardContent>
@@ -595,7 +595,7 @@ const SmartHealthSummary: React.FC<{
   );
 };
 
-// Enhanced Smart Prompt Suggestions with training-specific prompts
+// Enhanced Smart Prompt Suggestions with training-specific prompts - Updated with green/blue theme
 const SmartPromptSuggestions: React.FC<{ 
   onPromptSelect: (prompt: string) => void,
   userData: UserData | null,
@@ -610,9 +610,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Training Analysis',
       icon: Target,
-      color: 'from-purple-100 via-indigo-100 to-blue-100 border-purple-300',
-      textColor: 'text-purple-700',
-      iconColor: 'text-purple-600',
+      color: 'from-teal-100 via-cyan-100 to-blue-100 border-teal-300',
+      textColor: 'text-teal-700',
+      iconColor: 'text-teal-600',
       prompts: hasRunData ? [
         `Analyze my ${trainingAnalysis?.hardVsEasyRatio || 0}% hard vs easy run ratio`,
         'Is my training load too high this week?',
@@ -629,9 +629,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Performance',
       icon: TrendingUp,
-      color: 'from-orange-100 via-amber-100 to-yellow-100 border-orange-300',
-      textColor: 'text-orange-700',
-      iconColor: 'text-orange-600',
+      color: 'from-green-100 via-emerald-100 to-teal-100 border-green-300',
+      textColor: 'text-green-700',
+      iconColor: 'text-green-600',
       prompts: hasRunData ? [
         'Analyze my running performance this week',
         'Compare my tempo vs long run performances',
@@ -647,9 +647,9 @@ const SmartPromptSuggestions: React.FC<{
     {
       title: 'Recovery & Load',
       icon: Heart,
-      color: 'from-red-100 via-pink-100 to-rose-100 border-red-300',
-      textColor: 'text-red-700',
-      iconColor: 'text-red-600',
+      color: 'from-blue-100 via-cyan-100 to-teal-100 border-blue-300',
+      textColor: 'text-blue-700',
+      iconColor: 'text-blue-600',
       prompts: trainingAnalysis ? [
         `My recovery score is ${trainingAnalysis.recoveryScore}/100 - what should I do?`,
         'Am I getting enough easy runs for recovery?',
@@ -1253,7 +1253,7 @@ ${userData?.bloodMarkers ? Object.entries(userData.bloodMarkers)
   .join('\n') : 'No blood marker data available'}
 
 === RESPONSE REQUIREMENTS ===
-1. ALWAYS reference specific run tags (🟢 Easy, 🟡 Tempo, 🔵 Long, 🔴 Intervals, 🟣 Recovery, 🟠 Hill-repeats)
+1. ALWAYS reference specific run tags (🟢 Easy, 🔵 Recovery, 🟦 Long, 🟪 Tempo, 🟨 Intervals, 🟫 Hill-repeats)
 2. Use training load analysis data (hard:easy ratio, recovery score, training stress)
 3. Give specific recommendations based on run type distribution
 4. Reference actual training patterns and intensity distribution
@@ -1269,7 +1269,7 @@ TRAINING COACHING FOCUS:
 - Give nutrition timing advice based on run types
 
 EXAMPLE RESPONSES:
-"Looking at your run tags, you've done **${trainingAnalysis?.runTagDistribution.intervals || 0} 🔴 interval sessions** and **${trainingAnalysis?.runTagDistribution.easy || 0} 🟢 easy runs** this week. Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio || 0}%**, which is ${(trainingAnalysis?.hardVsEasyRatio || 0) > 25 ? 'higher than the ideal 20%' : 'well balanced'}."
+"Looking at your run tags, you've done **${trainingAnalysis?.runTagDistribution.intervals || 0} 🟨 interval sessions** and **${trainingAnalysis?.runTagDistribution.easy || 0} 🟢 easy runs** this week. Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio || 0}%**, which is ${(trainingAnalysis?.hardVsEasyRatio || 0) > 25 ? 'higher than the ideal 20%' : 'well balanced'}."
 
 Remember: Use the REAL training data. Be specific about run tags and training patterns.`;
 
@@ -1324,8 +1324,8 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
       
       // Enhanced check for training-specific data usage
       const usesTrainingData = assistantContent && (
-        assistantContent.includes('🟢') || assistantContent.includes('🔴') || assistantContent.includes('🟡') ||
-        assistantContent.includes('🔵') || assistantContent.includes('🟣') || assistantContent.includes('🟠') ||
+        assistantContent.includes('🟢') || assistantContent.includes('🔵') || assistantContent.includes('🟦') ||
+        assistantContent.includes('🟪') || assistantContent.includes('🟨') || assistantContent.includes('🟫') ||
         assistantContent.includes('hard:easy') || assistantContent.includes('ratio') ||
         assistantContent.includes('recovery score') || assistantContent.includes('training stress') ||
         assistantContent.includes('bpm') || assistantContent.includes('calories') ||
@@ -1434,13 +1434,13 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
   }, []);
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
+      {/* Background decoration - Updated with green/blue theme */}
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       
-      {/* Header */}
+      {/* Header - Updated with green/blue theme */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
         <div className="flex items-center justify-between mb-6">
           <Button
@@ -1454,7 +1454,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
             🤖 Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
@@ -1502,12 +1502,12 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                 recentActivities={recentActivities}
               />
               
-              {/* Chat Container */}
+              {/* Chat Container - Updated with green/blue theme */}
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <CardHeader className="border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                      <Bot className="h-5 w-5 text-orange-500" />
+                      <Bot className="h-5 w-5 text-green-500" />
                       AI Running Coach
                       <Badge variant="secondary" className="ml-2 text-xs">
                         Enhanced
@@ -1550,12 +1550,12 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                       >
                         <div className={`max-w-[85%] ${
                           message.role === 'user' 
-                            ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' 
-                            : 'bg-gradient-to-r from-blue-50 to-indigo-50 text-gray-800 border border-blue-200 shadow-sm'
+                            ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white shadow-md' 
+                            : 'bg-gradient-to-r from-blue-50 to-cyan-50 text-gray-800 border border-blue-200 shadow-sm'
                         } rounded-lg p-4`}>
                           <MessageContent content={message.content} />
                           <div className={`text-xs mt-2 ${
-                            message.role === 'user' ? 'text-orange-100' : 'text-blue-500'
+                            message.role === 'user' ? 'text-green-100' : 'text-blue-500'
                           }`}>
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
@@ -1563,17 +1563,17 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                       </div>
                     ))}
                     
-                    {/* Enhanced typing indicator */}
+                    {/* Enhanced typing indicator - Updated with green/blue theme */}
                     {isTyping && (
                       <div className="flex justify-start">
-                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 shadow-sm">
+                        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 shadow-sm">
                           <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4 text-purple-500" />
-                            <span className="text-sm text-purple-700">Analyzing training data & run tags</span>
+                            <Bot className="h-4 w-4 text-teal-500" />
+                            <span className="text-sm text-teal-700">Analyzing training data & run tags</span>
                             <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200"></div>
+                              <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce delay-200"></div>
                             </div>
                           </div>
                         </div>
@@ -1583,7 +1583,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                     <div ref={messagesEndRef} />
                   </div>
                   
-                  {/* Input Area */}
+                  {/* Input Area - Updated with green/blue theme */}
                   <div className="border-t border-gray-100 p-4">
                     <div className="flex gap-3">
                       <Input
@@ -1591,13 +1591,13 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        className="flex-1 border-gray-200 focus:border-orange-400 focus:ring-orange-400"
+                        className="flex-1 border-gray-200 focus:border-green-400 focus:ring-green-400"
                         disabled={isTyping}
                       />
                       <Button
                         onClick={handleSendMessage}
                         disabled={!input.trim() || isTyping}
-                        className="bg-orange-500 hover:bg-orange-600 text-white px-4"
+                        className="bg-green-500 hover:bg-green-600 text-white px-4"
                       >
                         <Send className="h-4 w-4" />
                       </Button>
@@ -1607,7 +1607,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                       <span>{messages.length} messages in this session</span>
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${userData?.trainingAnalysis ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+                          <div className={`w-2 h-2 rounded-full ${userData?.trainingAnalysis ? 'bg-green-400' : 'bg-blue-400'}`}></div>
                           {userData?.trainingAnalysis ? 'Training analysis ready' : 'Loading analysis...'}
                         </span>
                         <span className="text-xs text-gray-400">
@@ -1636,12 +1636,12 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
             </div>
           </div>
           
-          {/* Bottom Action Cards */}
+          {/* Bottom Action Cards - Updated with green/blue theme */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             <Button 
               onClick={() => navigate('/overall-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-orange-200 hover:bg-orange-50 text-orange-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-green-200 hover:bg-green-50 text-green-700 px-6 py-4 h-auto flex-col gap-2"
             >
               <BarChart3 className="h-6 w-6" />
               <div>
@@ -1653,7 +1653,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
             <Button 
               onClick={() => navigate('/activity-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-red-200 hover:bg-red-50 text-red-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-teal-200 hover:bg-teal-50 text-teal-700 px-6 py-4 h-auto flex-col gap-2"
             >
               <Activity className="h-6 w-6" />
               <div>
@@ -1665,7 +1665,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
             <Button 
               onClick={() => navigate('/nutrition-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-orange-200 hover:bg-orange-50 text-orange-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-blue-200 hover:bg-blue-50 text-blue-700 px-6 py-4 h-auto flex-col gap-2"
             >
               <Utensils className="h-6 w-6" />
               <div>
@@ -1675,18 +1675,18 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
             </Button>
           </div>
           
-          {/* Enhanced Data Status Display */}
+          {/* Enhanced Data Status Display - Updated with green/blue theme */}
           <div className="mt-8">
-            <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
+            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Target className="h-5 w-5 text-orange-500" />
+                  <Target className="h-5 w-5 text-green-500" />
                   Enhanced Training Analysis Status
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Tag className="h-4 w-4 text-purple-500" />
+                      <Tag className="h-4 w-4 text-teal-500" />
                       <span className="font-medium text-gray-700">Run Tags</span>
                       <Badge variant={recentActivities.filter(a => a.is_run_activity).length > 0 ? "default" : "secondary"} className="text-xs">
                         {recentActivities.filter(a => a.is_run_activity).length}
@@ -1702,7 +1702,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-orange-500" />
+                      <Activity className="h-4 w-4 text-green-500" />
                       <span className="font-medium text-gray-700">Training Load</span>
                       <Badge variant={userData?.trainingAnalysis?.trainingStress === 'high' || userData?.trainingAnalysis?.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
                         {userData?.trainingAnalysis?.trainingStress || 'none'}
@@ -1718,7 +1718,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Heart className="h-4 w-4 text-red-500" />
+                      <Heart className="h-4 w-4 text-blue-500" />
                       <span className="font-medium text-gray-700">Recovery</span>
                       <Badge variant={userData?.trainingAnalysis?.recoveryScore && userData.trainingAnalysis.recoveryScore < 70 ? 'destructive' : 'default'} className="text-xs">
                         {userData?.trainingAnalysis?.recoveryScore || 0}/100
@@ -1735,7 +1735,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-blue-500" />
+                      <Target className="h-4 w-4 text-cyan-500" />
                       <span className="font-medium text-gray-700">Recommendations</span>
                       <Badge variant={userData?.trainingAnalysis?.recommendations.length ? "default" : "secondary"} className="text-xs">
                         {userData?.trainingAnalysis?.recommendations.length || 0}
@@ -1752,11 +1752,11 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                 
                 <div className="mt-6 p-4 bg-white/60 rounded-lg border border-white/30">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    <Bot className="h-4 w-4 text-orange-500" />
+                    <Bot className="h-4 w-4 text-green-500" />
                     Enhanced AI Capabilities
                   </h4>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <p>🏷️ **Run Tag Analysis**: Easy 🟢, Tempo 🟡, Long 🔵, Intervals 🔴, Recovery 🟣, Hill-repeats 🟠</p>
+                    <p>🏷️ **Run Tag Analysis**: Easy 🟢, Recovery 🔵, Long 🟦, Tempo 🟪, Intervals 🟨, Hill-repeats 🟫</p>
                     <p>📊 **Training Load Monitoring**: Hard vs Easy ratios, training stress assessment, overtraining detection</p>
                     <p>🎯 **Smart Recommendations**: Personalized training advice based on your actual run distribution</p>
                     <p>❤️ **Recovery Scoring**: Advanced recovery metrics with actionable insights</p>
@@ -1769,7 +1769,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
         </div>
       </main>
       
-      {/* Footer */}
+      {/* Footer - Updated with green/blue theme */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
@@ -1783,7 +1783,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
           <div className="flex items-center gap-4">
             <span>Powered by Gemini 2.0 Flash</span>
             <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${userData?.trainingAnalysis ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${userData?.trainingAnalysis ? 'bg-green-500' : 'bg-blue-500'}`}></div>
               <span className="text-xs">{userData?.trainingAnalysis ? 'Analysis Ready' : 'Loading Analysis'}</span>
             </div>
           </div>
