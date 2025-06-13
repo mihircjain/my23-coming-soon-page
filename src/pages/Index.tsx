@@ -9,9 +9,41 @@ import { toast, Toaster } from 'sonner';
 import { db } from '@/lib/firebaseConfig';
 import { collection, addDoc, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
-// Weekly Goals Component
+// Types
+interface HealthData {
+  date: string;
+  heartRate: number | null;
+  caloriesBurned: number;
+  caloriesConsumed: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  workoutDuration: number;
+  activityTypes: string[];
+}
+
+interface BloodMarkerData {
+  date: string;
+  markers: Record<string, number | string>;
+}
+
+interface EmailSignup {
+  email: string;
+  timestamp: string;
+  source: string;
+}
+
+interface UserFeedback {
+  email?: string;
+  message: string;
+  type: 'suggestion' | 'feature_request' | 'feedback';
+  timestamp: string;
+}
+
+// Weekly Goals Tracker Component
 const WeeklyGoalsTracker: React.FC<{
-  weekData: Record<string, any>;
+  weekData: Record<string, HealthData>;
   loading: boolean;
 }> = ({ weekData, loading }) => {
   // Calculate weekly totals
@@ -25,7 +57,7 @@ const WeeklyGoalsTracker: React.FC<{
 
     const BMR = 1479;
     
-    Object.values(weekData).forEach((day: any) => {
+    Object.values(weekData).forEach((day: HealthData) => {
       totals.caloriesBurned += day.caloriesBurned || 0;
       totals.protein += day.protein || 0;
       
@@ -58,8 +90,8 @@ const WeeklyGoalsTracker: React.FC<{
 
   const getWeeklyRating = () => {
     const scores = Object.keys(goals).map(key => {
-      const goal = goals[key];
-      const actual = weeklyTotals[key];
+      const goal = goals[key as keyof typeof goals];
+      const actual = weeklyTotals[key as keyof typeof weeklyTotals];
       return Math.min((actual / goal.target) * 100, 100);
     });
     
@@ -108,7 +140,7 @@ const WeeklyGoalsTracker: React.FC<{
         {/* Weekly Goals Progress */}
         <div className="space-y-4">
           {Object.entries(goals).map(([key, goal]) => {
-            const actual = weeklyTotals[key];
+            const actual = weeklyTotals[key as keyof typeof weeklyTotals];
             const percentage = Math.min((actual / goal.target) * 100, 100);
             const IconComponent = goal.icon;
             
@@ -215,6 +247,146 @@ const WeeklyGoalsTracker: React.FC<{
             Top: Daily deficit • Bottom: Calories burned
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Combined Email Signup and Feedback Component
+const EmailAndFeedbackCard: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [type, setType] = useState<'suggestion' | 'feature_request' | 'feedback'>('suggestion');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showFeedbackFields, setShowFeedbackFields] = useState(false);
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    const signupData: EmailSignup = {
+      email,
+      timestamp: new Date().toISOString(),
+      source: 'homepage_signup'
+    };
+
+    addDoc(collection(db, 'email_signups'), signupData)
+      .then(() => {
+        if (feedback.trim()) {
+          const feedbackData: UserFeedback = {
+            email,
+            message: feedback.trim(),
+            type,
+            timestamp: new Date().toISOString()
+          };
+          return addDoc(collection(db, 'user_feedback'), feedbackData);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        toast.success('🎉 Thanks for signing up! We\'ll keep you updated.');
+        setEmail('');
+        setFeedback('');
+        setShowFeedbackFields(false);
+      })
+      .catch((error) => {
+        console.error('Error saving data:', error);
+        toast.error('Failed to submit. Please try again.');
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
+  };
+
+  return (
+    <Card className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-lg hover:shadow-xl transition-all duration-300">
+      <CardHeader className="text-center pb-4">
+        <div className="mx-auto w-12 h-12 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center mb-3">
+          <Mail className="h-6 w-6 text-white" />
+        </div>
+        <CardTitle className="text-lg font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+          📬 Stay Updated
+        </CardTitle>
+        <p className="text-sm text-gray-600">
+          Get notified about new features & share your ideas
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
+          <Input
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-lg border-orange-200 focus:border-orange-400 focus:ring-orange-400 text-sm"
+            disabled={isSubmitting}
+            required
+          />
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFeedbackFields(!showFeedbackFields)}
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+            >
+              {showFeedbackFields ? '📬 Just email signup' : '💭 + Add feedback/suggestions'}
+            </button>
+          </div>
+
+          {showFeedbackFields && (
+            <div className="space-y-3 border-t border-orange-200 pt-3">
+              <div className="flex gap-1">
+                {[
+                  { value: 'suggestion', label: 'Idea', icon: '💡' },
+                  { value: 'feature_request', label: 'Feature', icon: '✨' },
+                  { value: 'feedback', label: 'Feedback', icon: '💬' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setType(option.value as any)}
+                    className={'flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ' + (
+                      type === option.value
+                        ? 'bg-orange-200 text-orange-700 border border-orange-300'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                    )}
+                  >
+                    {option.icon} {option.label}
+                  </button>
+                ))}
+              </div>
+              
+              <Textarea
+                placeholder="What would you like to see in My23.ai?"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                rows={3}
+                className="rounded-lg border-orange-200 focus:border-orange-400 focus:ring-orange-400 resize-none text-sm"
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isSubmitting || !email}
+            className="w-full bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+          >
+            {isSubmitting ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+            ) : (
+              <React.Fragment>
+                <Send className="h-4 w-4" />
+                {showFeedbackFields && feedback.trim() ? 'Subscribe + Send Feedback' : 'Subscribe'}
+              </React.Fragment>
+            )}
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );
@@ -361,44 +533,231 @@ const HealthOverviewCard: React.FC = () => {
       )}
     </div>
   );
-}; dateStr = date.toISOString().split('T')[0];
-              const dayData = weekData[dateStr] || {};
-              const isToday = dateStr === new Date().toISOString().split('T')[0];
-              
-              const hasActivity = (dayData.caloriesBurned || 0) > 0;
-              const BMR = 1479;
-              const dailyDeficit = ((dayData.caloriesBurned || 0) + BMR) - (dayData.caloriesConsumed || 0);
-              
-              return (
-                <div 
-                  key={dateStr}
-                  className={`p-2 rounded text-center text-xs border ${
-                    isToday ? 'border-red-500 bg-white/80' : 'border-white/30 bg-white/60'
-                  }`}
+};
+
+// Chatbot Card Component
+const ChatbotCard: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Hi! I am your AI health assistant. How can I help you today? 🤖' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+
+  const handleSendMessage = () => {
+    if (!input.trim()) return;
+
+    const userMessage = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsTyping(true);
+
+    console.log('Sending message to API:', userMessage.content);
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [...messages, userMessage].slice(-10),
+        userId: 'homepage_user',
+        source: 'homepage_chat'
+      }),
+    })
+    .then(response => {
+      console.log('API Response status:', response.status);
+      if (!response.ok) {
+        return response.text().then(errorText => {
+          console.error('API Error response:', errorText);
+          let errorData = {};
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (e) {
+            console.log('Error response is not JSON');
+          }
+          throw new Error(errorData.error || 'HTTP ' + response.status + ': ' + response.statusText);
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('API Response data:', data);
+      const assistantContent = data.choices?.[0]?.message?.content || 
+                              data.response || 
+                              data.message || 
+                              'Sorry, I could not process that request.';
+      
+      const aiResponse = { role: 'assistant', content: assistantContent };
+      setMessages(prev => [...prev, aiResponse]);
+    })
+    .catch(error => {
+      console.error('Error getting AI response:', error);
+      const errorResponse = { 
+        role: 'assistant', 
+        content: 'Sorry, I am having trouble connecting right now. Please try again in a moment. 🤖💭' 
+      };
+      setMessages(prev => [...prev, errorResponse]);
+      toast.error('Failed to get AI response: ' + error.message);
+    })
+    .finally(() => {
+      setIsTyping(false);
+    });
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const quickPrompts = [
+    "How's my nutrition this week?",
+    "What's my calorie trend?",
+    "Any health recommendations?",
+    "Analyze my protein intake"
+  ];
+
+  const handleQuickPrompt = (prompt: string) => {
+    setInput(prompt);
+  };
+
+  if (!isOpen) {
+    return (
+      <Card 
+        className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
+        onClick={() => window.location.href = '/lets-jam'}
+      >
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center mb-3">
+            <Bot className="h-6 w-6 text-white" />
+          </div>
+          <CardTitle className="text-lg font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+            🤖 AI Health Chat
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Get personalized health insights
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="bg-white/60 rounded-lg p-3 border border-orange-200">
+              <div className="text-xs text-gray-600 mb-1">
+                "How's my nutrition this week?"
+              </div>
+            </div>
+            <Button
+              className="w-full bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Start Chatting
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-lg">
+      <CardHeader className="text-center pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center">
+              <Bot className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                AI Health Chat
+              </CardTitle>
+              <p className="text-xs text-gray-500">Powered by Gemini</p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsOpen(false)}
+            className="h-6 w-6 p-0 text-gray-500 hover:text-gray-700"
+          >
+            ×
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          {messages.length <= 1 && (
+            <div className="grid grid-cols-2 gap-1">
+              {quickPrompts.map((prompt, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleQuickPrompt(prompt)}
+                  className="text-xs p-2 bg-white/60 hover:bg-white/80 border border-orange-200 rounded text-orange-700 transition-all duration-200"
                 >
-                  <div className="font-semibold text-gray-600">
-                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                  </div>
-                  <div className="mt-1">
-                    {hasActivity ? (
-                      <div className="space-y-1">
-                        <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
-                        </div>
-                        <div className="text-orange-600 font-semibold">
-                          {Math.round(dayData.caloriesBurned || 0)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-gray-400 text-xs">Rest</div>
-                    )}
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="bg-white/60 rounded-lg p-3 h-48 overflow-y-auto space-y-2">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}
+              >
+                <div
+                  className={'max-w-[80%] p-2 rounded-lg text-xs ' + (
+                    message.role === 'user'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-white text-gray-800 border border-gray-200'
+                  )}
+                >
+                  {message.content}
+                </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white text-gray-800 border border-gray-200 p-2 rounded-lg text-xs">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
-          <div className="text-xs text-gray-600 text-center mt-2">
-            Top: Daily deficit • Bottom: Calories burned
+
+          {/* Input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Ask about your health..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="text-sm border-orange-200 focus:border-orange-400"
+              disabled={isTyping}
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isTyping}
+              size="sm"
+              className="bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white px-3"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center">
+            <button
+              onClick={() => window.location.href = '/lets-jam'}
+              className="text-xs text-orange-600 hover:text-orange-700 underline"
+            >
+              Open full chat page →
+            </button>
           </div>
         </div>
       </CardContent>
@@ -432,8 +791,6 @@ const Index = () => {
               🗄️ MY DATA.<br />
               🧬 MY 23.
             </h1>
-            
-
           </div>
           
           <div className="mb-8 animate-slide-up delay-300">
