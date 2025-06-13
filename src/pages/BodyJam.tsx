@@ -57,7 +57,7 @@ const BodyJam = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   
-  // Blood marker data with actual values from blood report
+  // Blood marker data with actual values from blood report - Updated with green/blue theme icons
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarker[]>([
     {
       id: "rbc",
@@ -241,7 +241,7 @@ const BodyJam = () => {
     }
   ]);
 
-  // Body composition data from DEXA scan
+  // Body composition data from DEXA scan - Updated with green/blue theme colors
   const [bodyComposition, setBodyComposition] = useState<BodyComposition[]>([
     {
       id: "weight",
@@ -249,7 +249,7 @@ const BodyJam = () => {
       value: 73,
       unit: "kg",
       explanation: "Total body weight",
-      icon: <Scale className="h-4 w-4 text-orange-500" />
+      icon: <Scale className="h-4 w-4 text-green-500" />
     },
     {
       id: "height",
@@ -257,7 +257,7 @@ const BodyJam = () => {
       value: 170,
       unit: "cm",
       explanation: "Standing height",
-      icon: <Activity className="h-4 w-4 text-orange-500" />
+      icon: <Activity className="h-4 w-4 text-green-500" />
     },
     {
       id: "age",
@@ -265,7 +265,7 @@ const BodyJam = () => {
       value: 27.8,
       unit: "years",
       explanation: "Chronological age",
-      icon: <Activity className="h-4 w-4 text-orange-500" />
+      icon: <Activity className="h-4 w-4 text-green-500" />
     },
     {
       id: "body_fat",
@@ -273,7 +273,7 @@ const BodyJam = () => {
       value: 25.7,
       unit: "%",
       explanation: "Percentage of total body mass that is fat",
-      icon: <Heart className="h-4 w-4 text-red-500" />
+      icon: <Heart className="h-4 w-4 text-teal-500" />
     },
     {
       id: "fat_mass",
@@ -281,7 +281,7 @@ const BodyJam = () => {
       value: 18.7,
       unit: "kg",
       explanation: "Total mass of body fat",
-      icon: <Heart className="h-4 w-4 text-red-500" />
+      icon: <Heart className="h-4 w-4 text-teal-500" />
     },
     {
       id: "lean_mass",
@@ -289,7 +289,7 @@ const BodyJam = () => {
       value: 51.1,
       unit: "kg",
       explanation: "Total mass of non-fat tissue including muscle, organs, and water",
-      icon: <Dumbbell className="h-4 w-4 text-green-500" />
+      icon: <Dumbbell className="h-4 w-4 text-emerald-500" />
     },
     {
       id: "bone_mass",
@@ -297,7 +297,7 @@ const BodyJam = () => {
       value: 3.1,
       unit: "kg",
       explanation: "Total mass of bone mineral content",
-      icon: <Activity className="h-4 w-4 text-purple-500" />
+      icon: <Activity className="h-4 w-4 text-blue-500" />
     },
     {
       id: "visceral_fat_mass",
@@ -305,7 +305,7 @@ const BodyJam = () => {
       value: 580,
       unit: "g",
       explanation: "Mass of fat surrounding internal organs",
-      icon: <Heart className="h-4 w-4 text-amber-500" />
+      icon: <Heart className="h-4 w-4 text-cyan-500" />
     },
     {
       id: "visceral_fat_volume",
@@ -313,7 +313,7 @@ const BodyJam = () => {
       value: 615,
       unit: "cm³",
       explanation: "Volume of fat surrounding internal organs",
-      icon: <Heart className="h-4 w-4 text-amber-500" />
+      icon: <Heart className="h-4 w-4 text-cyan-500" />
     },
     {
       id: "android_gynoid_ratio",
@@ -321,7 +321,7 @@ const BodyJam = () => {
       value: 1.31,
       unit: "",
       explanation: "Ratio of android (abdominal) fat to gynoid (hip/thigh) fat",
-      icon: <Activity className="h-4 w-4 text-orange-500" />
+      icon: <Activity className="h-4 w-4 text-green-500" />
     },
     {
       id: "rmr",
@@ -329,11 +329,11 @@ const BodyJam = () => {
       value: 1479,
       unit: "kcal/day",
       explanation: "Resting Metabolic Rate - calories burned at rest",
-      icon: <Flame className="h-4 w-4 text-orange-500" />
+      icon: <Flame className="h-4 w-4 text-green-500" />
     }
   ]);
 
-  // Maintenance macros
+  // Maintenance macros - Updated with green/blue theme colors
   const [macros, setMacros] = useState<Macro[]>([
     {
       id: "protein",
@@ -341,7 +341,7 @@ const BodyJam = () => {
       value: 96,
       unit: "g",
       explanation: "Daily protein intake for maintenance",
-      icon: <Dumbbell className="h-4 w-4 text-orange-500" />
+      icon: <Dumbbell className="h-4 w-4 text-green-500" />
     },
     {
       id: "carbs",
@@ -349,7 +349,7 @@ const BodyJam = () => {
       value: 166,
       unit: "g",
       explanation: "Daily carbohydrate intake for maintenance",
-      icon: <Apple className="h-4 w-4 text-red-500" />
+      icon: <Apple className="h-4 w-4 text-teal-500" />
     },
     {
       id: "fat",
@@ -357,51 +357,51 @@ const BodyJam = () => {
       value: 47,
       unit: "g",
       explanation: "Daily fat intake for maintenance",
-      icon: <Activity className="h-4 w-4 text-amber-500" />
+      icon: <Activity className="h-4 w-4 text-cyan-500" />
     }
   ]);
 
-  // Group blood markers by category
+  // Group blood markers by category - Updated with green/blue theme colors
   const markerCategories: MarkerCategory[] = [
     {
       id: "heart",
       name: "Heart",
-      icon: <Heart className="h-5 w-5 text-red-500" />,
+      icon: <Heart className="h-5 w-5 text-teal-500" />,
       description: "Cardiovascular health markers including cholesterol and triglycerides",
       markers: bloodMarkers.filter(marker => marker.category === "heart")
     },
     {
       id: "kidney",
       name: "Kidney",
-      icon: <Activity className="h-5 w-5 text-orange-500" />,
+      icon: <Activity className="h-5 w-5 text-green-500" />,
       description: "Kidney function markers including creatinine and uric acid",
       markers: bloodMarkers.filter(marker => marker.category === "kidney")
     },
     {
       id: "metabolic",
       name: "Metabolic",
-      icon: <Activity className="h-5 w-5 text-green-500" />,
+      icon: <Activity className="h-5 w-5 text-emerald-500" />,
       description: "Metabolic health markers including glucose and thyroid function",
       markers: bloodMarkers.filter(marker => marker.category === "metabolic")
     },
     {
       id: "blood",
       name: "Blood",
-      icon: <Droplet className="h-5 w-5 text-red-500" />,
+      icon: <Droplet className="h-5 w-5 text-teal-500" />,
       description: "Blood cell counts and related markers",
       markers: bloodMarkers.filter(marker => marker.category === "blood")
     },
     {
       id: "vitamins",
       name: "Vitamins",
-      icon: <Apple className="h-5 w-5 text-orange-500" />,
+      icon: <Apple className="h-5 w-5 text-green-500" />,
       description: "Vitamin levels and nutritional markers",
       markers: bloodMarkers.filter(marker => marker.category === "vitamins")
     },
     {
       id: "electrolytes",
       name: "Electrolytes",
-      icon: <Flame className="h-5 w-5 text-orange-500" />,
+      icon: <Flame className="h-5 w-5 text-green-500" />,
       description: "Electrolyte balance markers including sodium and potassium",
       markers: bloodMarkers.filter(marker => marker.category === "electrolytes")
     }
@@ -413,9 +413,9 @@ const BodyJam = () => {
       case 'good':
         return 'text-green-500';
       case 'low':
-        return 'text-amber-500';
+        return 'text-cyan-500';
       case 'high':
-        return 'text-red-500';
+        return 'text-teal-500';
       default:
         return 'text-gray-500';
     }
@@ -434,13 +434,13 @@ const BodyJam = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex flex-col">
-      {/* Background decoration - orange/red theme */}
-      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
+      {/* Background decoration - Updated with green/blue theme */}
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       
-      {/* Header */}
+      {/* Header - Updated with green/blue theme */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
         <Button 
           onClick={() => navigate('/')} 
@@ -452,13 +452,13 @@ const BodyJam = () => {
         </Button>
         
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
             🩺 Mihir's Body Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
             Track your key health metrics and body composition
           </p>
-          <p className="mt-2 text-md font-medium text-orange-600">
+          <p className="mt-2 text-md font-medium text-green-600">
             📅 All data shown is from April 7, 2025
           </p>
         </div>
@@ -467,10 +467,10 @@ const BodyJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         <Tabs defaultValue="blood" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-orange-100 border border-orange-200">
-            <TabsTrigger value="blood" className="data-[state=active]:bg-orange-200">Blood Markers</TabsTrigger>
-            <TabsTrigger value="composition" className="data-[state=active]:bg-orange-200">Body Composition</TabsTrigger>
-            <TabsTrigger value="macros" className="data-[state=active]:bg-orange-200">Maintenance Macros</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 mb-8 bg-green-100 border border-green-200">
+            <TabsTrigger value="blood" className="data-[state=active]:bg-green-200">Blood Markers</TabsTrigger>
+            <TabsTrigger value="composition" className="data-[state=active]:bg-green-200">Body Composition</TabsTrigger>
+            <TabsTrigger value="macros" className="data-[state=active]:bg-green-200">Maintenance Macros</TabsTrigger>
           </TabsList>
           
           {/* Blood Markers Tab */}
@@ -479,7 +479,7 @@ const BodyJam = () => {
               // Loading skeletons
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {Array(8).fill(0).map((_, i) => (
-                  <Card key={i} className="bg-white/80 backdrop-blur-sm border border-orange-200 shadow-sm">
+                  <Card key={i} className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
                         <Skeleton className="h-4 w-4 mr-2 rounded-full" />
@@ -498,7 +498,7 @@ const BodyJam = () => {
                 {markerCategories.map(category => (
                   <div key={category.id} className="space-y-4">
                     {/* Category Header */}
-                    <div className="flex items-center space-x-2 border-b border-orange-200 pb-2">
+                    <div className="flex items-center space-x-2 border-b border-green-200 pb-2">
                       {category.icon}
                       <h2 className="text-xl font-semibold text-gray-800">{category.name}</h2>
                     </div>
@@ -510,11 +510,11 @@ const BodyJam = () => {
                         <TooltipProvider key={marker.id}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Card className="bg-white/80 backdrop-blur-sm border border-orange-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-orange-300">
+                              <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-green-300">
                                 <CardHeader className="pb-2">
                                   <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
                                     <span className="flex items-center">
-                                      <Activity className="mr-2 h-4 w-4 text-orange-500" />
+                                      <Activity className="mr-2 h-4 w-4 text-green-500" />
                                       {marker.name}
                                     </span>
                                     <Info className={`h-4 w-4 ${getStatusColor(marker.status)}`} />
@@ -553,7 +553,7 @@ const BodyJam = () => {
                 <TooltipProvider key={item.id}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Card className="bg-white/80 backdrop-blur-sm border border-orange-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-orange-300">
+                      <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-green-300">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
                             <span className="flex items-center">
@@ -588,7 +588,7 @@ const BodyJam = () => {
                 <TooltipProvider key={item.id}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Card className="bg-white/80 backdrop-blur-sm border border-orange-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-orange-300">
+                      <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-green-300">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
                             <span className="flex items-center">
@@ -618,26 +618,26 @@ const BodyJam = () => {
         </Tabs>
       </main>
       
-      {/* Footer */}
+      {/* Footer - Updated with green/blue theme */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
             <span>Data from your latest health assessment</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Heart className="h-4 w-4 text-red-500" />
+              <Heart className="h-4 w-4 text-teal-500" />
               18 Blood markers
             </span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Scale className="h-4 w-4 text-orange-500" />
+              <Scale className="h-4 w-4 text-green-500" />
               11 Body metrics
             </span>
           </div>
           <div className="flex items-center gap-4">
             <span>Updated: April 7, 2025</span>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-xs">Complete data</span>
             </div>
           </div>
