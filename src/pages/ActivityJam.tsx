@@ -578,15 +578,6 @@ const ActivityJam = () => {
         }
       }
     });
-  };Color: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} minutes`
-            }
-          }
         },
         scales: {
           x: {
