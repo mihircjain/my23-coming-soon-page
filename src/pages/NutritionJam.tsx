@@ -718,7 +718,43 @@ const NutritionJam = () => {
       ]
     },
     {
-      id: 8,
+  id: 8,
+  name: "Paneer Pasta",
+  foods: [
+    {
+      foodId: "Zucchini Bell Pepper Salad",
+      calories: 48,
+      protein: 1.0,
+      carbs: 1.7,
+      fat: 4.4,
+      fiber: 0.6,
+      quantity: 1,
+      unit: "serving"
+    },
+    {
+      foodId: "Durum Wheat Pasta, Borges",
+      calories: 157,
+      protein: 5.6,
+      carbs: 32.4,
+      fat: 0.6,
+      fiber: 1.1,
+      quantity: 1,
+      unit: "serving"
+    },
+    {
+      foodId: "High Protein Low Fat Paneer, Milky Mist",
+      calories: 204,
+      protein: 25.0,
+      carbs: 5.8,
+      fat: 9.0,
+      fiber: 0.0,
+      quantity: 1,
+      unit: "serving"
+    }
+  ]
+},
+    {
+      id: 9,
       name: "Dosa Sambhar",
       foods: [
         { foodId: "Dosa", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9, quantity: 1, unit: "serving" },
