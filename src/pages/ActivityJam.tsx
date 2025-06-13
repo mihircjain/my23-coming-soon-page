@@ -1,4 +1,4 @@
-// Enhanced ActivityJam.tsx with run tagging and optimized data fetching
+// Fixed ActivityJam.tsx with resolved syntax errors
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X } from "lucide-react";
@@ -44,7 +44,7 @@ interface ActivityData {
   max_heartrate?: number;
   calories: number;
   is_run_activity: boolean;
-  run_tag?: RunTag; // New field for run tagging
+  run_tag?: RunTag;
 }
 
 const ActivityJam = () => {
@@ -65,6 +65,10 @@ const ActivityJam = () => {
 
   // Chart instances
   const chartInstances = useRef<{ [key: string]: Chart }>({});
+
+  // Smart chart data caching - load instantly from cache, calculate in background
+  const [chartData, setChartData] = useState<any>(null);
+  const [chartsLoading, setChartsLoading] = useState(false);
 
   // Helper function to determine if activity is a run
   const isRunActivity = (activityType: string): boolean => {
@@ -91,8 +95,8 @@ const ActivityJam = () => {
     // Hill repeats detection (high elevation gain for distance)
     if (elevation && distance > 0) {
       const elevationPerKm = elevation / distance;
-      if (elevationPerKm > 80 && distance <= 8) return 'hill-repeats'; // More than 80m elevation per km
-      if (elevation > 300 && distance <= 10 && paceMinPerKm < 5.5) return 'hill-repeats'; // High total elevation with moderate pace
+      if (elevationPerKm > 80 && distance <= 8) return 'hill-repeats';
+      if (elevation > 300 && distance <= 10 && paceMinPerKm < 5.5) return 'hill-repeats';
     }
 
     // Recovery run detection (very easy pace or low HR)
@@ -275,7 +279,7 @@ const ActivityJam = () => {
     };
   };
 
-  // Restore full chart creation functions for beautiful visualizations
+  // Destroy charts helper
   const destroyCharts = () => {
     Object.values(chartInstances.current).forEach(chart => {
       if (chart) {
@@ -571,75 +575,6 @@ const ActivityJam = () => {
           },
           y: {
             grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },  
-            beginAtZero: false,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-
-  // Create run heart rate chart
-  const createRunHeartRateChart = (chartData: any) => {
-    if (!heartRateRunsChartRef.current) return;
-
-    const ctx = heartRateRunsChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
-    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
-
-    chartInstances.current.runHeartRate = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Run Heart Rate (bpm)',
-          data: chartData.runHeartRate,
-          borderColor: 'rgba(239, 68, 68, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(239, 68, 68, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} bpm (runs only)`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
             border: { display: false },
             beginAtZero: false,
             ticks: { color: '#6b7280' }
@@ -648,10 +583,6 @@ const ActivityJam = () => {
       }
     });
   };
-
-  // Smart chart data caching - load instantly from cache, calculate in background
-  const [chartData, setChartData] = useState<any>(null);
-  const [chartsLoading, setChartsLoading] = useState(false);
 
   // Load cached chart data instantly
   const loadCachedChartData = async () => {
@@ -903,6 +834,10 @@ const ActivityJam = () => {
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+  };
+
+  const handleRefresh = async () => {
+    await fetchActivities('30days');
   };
 
   if (error) {
@@ -1223,8 +1158,6 @@ const ActivityJam = () => {
                           day: 'numeric'
                         })}
                       </div>
-                      
-                      {/* No extra badges under header - keeping it clean */}
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4 mb-4">
