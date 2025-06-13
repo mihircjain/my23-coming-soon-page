@@ -184,6 +184,15 @@ export const vegetarianFoods: FoodItem[] = [
     "fiber": 1.3
   },
   {
+  name: "Aloo Matar",
+  servingSize: "100g",
+  calories: 74,
+  protein: 2.1,
+  carbs: 9.1,
+  fat: 3.4,
+  fiber: 2.6
+},
+  {
     "name": "Mocha",
     "servingSize": "250ml",
     "calories": 202,
