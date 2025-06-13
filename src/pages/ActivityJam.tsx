@@ -1,4 +1,4 @@
-// Fixed ActivityJam.tsx with resolved syntax errors
+// Fixed ActivityJam.tsx - Complete and properly formatted
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X } from "lucide-react";
@@ -60,15 +60,22 @@ const ActivityJam = () => {
   // Chart refs
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
   const distanceChartRef = useRef<HTMLCanvasElement>(null);
-  const weightTrainingChartRef = useRef<HTMLCanvasElement>(null);
-  const heartRateRunsChartRef = useRef<HTMLCanvasElement>(null);
+  const heartRateChartRef = useRef<HTMLCanvasElement>(null);
 
-  // Chart instances
-  const chartInstances = useRef<{ [key: string]: Chart }>({});
+  // Chart instances - simplified management
+  const chartInstances = useRef<{ [key: string]: Chart | null }>({
+    calories: null,
+    distance: null,
+    heartRate: null
+  });
 
-  // Smart chart data caching - load instantly from cache, calculate in background
-  const [chartData, setChartData] = useState<any>(null);
-  const [chartsLoading, setChartsLoading] = useState(false);
+  // Simplified chart data state
+  const [chartData, setChartData] = useState<{
+    calories: number[];
+    distance: number[];
+    heartRate: number[];
+    labels: string[];
+  } | null>(null);
 
   // Helper function to determine if activity is a run
   const isRunActivity = (activityType: string): boolean => {
@@ -88,34 +95,33 @@ const ActivityJam = () => {
     const avgHR = activity.average_heartrate;
     const elevation = activity.total_elevation_gain;
 
-    // Long run detection (distance-based)
+    // Long run detection
     if (distance >= 15) return 'long';
     if (distance >= 10 && paceMinPerKm > 5.5) return 'long';
 
-    // Hill repeats detection (high elevation gain for distance)
+    // Hill repeats detection
     if (elevation && distance > 0) {
       const elevationPerKm = elevation / distance;
       if (elevationPerKm > 80 && distance <= 8) return 'hill-repeats';
       if (elevation > 300 && distance <= 10 && paceMinPerKm < 5.5) return 'hill-repeats';
     }
 
-    // Recovery run detection (very easy pace or low HR)
+    // Recovery run detection
     if (distance <= 5 && paceMinPerKm > 6.5) return 'recovery';
     if (avgHR && avgHR < 140 && distance <= 8) return 'recovery';
 
-    // Intervals detection (fast pace with moderate distance)
+    // Intervals detection
     if (paceMinPerKm < 4.0 && distance <= 10) return 'intervals';
     if (avgHR && avgHR > 170 && distance <= 8) return 'intervals';
 
-    // Tempo detection (moderately fast pace, moderate distance)
+    // Tempo detection
     if (paceMinPerKm < 5.0 && distance >= 5 && distance <= 12) return 'tempo';
     if (avgHR && avgHR >= 155 && avgHR <= 170 && distance >= 5) return 'tempo';
 
-    // Default to easy
     return 'easy';
   };
 
-  // Load run tags from Firestore
+  // Load run tags from API
   const loadRunTags = async (activityIds: string[]) => {
     try {
       const response = await fetch('/api/run-tags', {
@@ -138,7 +144,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Save run tag to Firestore
+  // Save run tag to API
   const saveRunTag = async (activityId: string, tag: RunTag) => {
     try {
       console.log(`💾 Saving run tag: ${activityId} -> ${tag}`);
@@ -171,27 +177,23 @@ const ActivityJam = () => {
     }
   };
 
-  // Handle tag change with improved error handling and state management
+  // Handle tag change
   const handleTagChange = async (activityId: string, newTag: RunTag) => {
     console.log(`🏷️ Changing tag for ${activityId}: ${newTag}`);
     
     try {
-      // Update local state immediately for responsive UI
+      // Update local state immediately
       setActivities(prev => prev.map(activity => 
         activity.id === activityId 
           ? { ...activity, run_tag: newTag }
           : activity
       ));
 
-      // Save to Firestore
+      // Save to API
       await saveRunTag(activityId, newTag);
       
       console.log(`✅ Tag change completed for ${activityId}: ${newTag}`);
-      
-      // Exit editing mode
       setEditingTag(null);
-      
-      // Show success feedback
       setLastUpdate(new Date().toLocaleTimeString());
       
     } catch (error) {
@@ -200,7 +202,6 @@ const ActivityJam = () => {
       // Revert local state on error
       setActivities(prev => prev.map(activity => {
         if (activity.id === activityId) {
-          // Find the original tag from when we loaded the data
           const originalActivity = activities.find(a => a.id === activityId);
           return { ...activity, run_tag: originalActivity?.run_tag };
         }
@@ -217,81 +218,91 @@ const ActivityJam = () => {
     return RUN_TAG_OPTIONS.find(option => option.value === tag) || RUN_TAG_OPTIONS[0];
   };
 
-  // Process activities data for charts
+  // Process activities data for charts (no caching, direct processing)
   const processChartData = (activities: ActivityData[]) => {
+    console.log('📊 Processing chart data for', activities.length, 'activities');
+    
+    if (activities.length === 0) {
+      console.log('📊 No activities to process');
+      return null;
+    }
+
     // Sort activities by date
     const sortedActivities = [...activities].sort((a, b) => 
       new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
     );
 
-    // Group by date and aggregate data
+    // Group by date
     const dailyData = new Map();
 
     sortedActivities.forEach(activity => {
-      const date = activity.start_date.split('T')[0]; // Get YYYY-MM-DD
+      const date = activity.start_date.split('T')[0];
       
       if (!dailyData.has(date)) {
         dailyData.set(date, {
           calories: 0,
           distance: 0,
-          weightTrainingTime: 0,
-          runHeartRateCount: 0,
-          totalRunHeartRate: 0
+          heartRateTotal: 0,
+          heartRateCount: 0
         });
       }
 
       const dayData = dailyData.get(date);
-      
-      // Simple direct calories
       dayData.calories += activity.calories || 0;
       dayData.distance += activity.distance || 0;
       
-      // Weight training time
-      if (activity.type?.toLowerCase().includes('weight') || 
-          activity.type?.toLowerCase().includes('strength')) {
-        dayData.weightTrainingTime += Math.round(activity.moving_time / 60); // Convert to minutes
-      }
-
       // Heart rate ONLY from runs
       if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
-        dayData.totalRunHeartRate += activity.average_heartrate;
-        dayData.runHeartRateCount += 1;
+        dayData.heartRateTotal += activity.average_heartrate;
+        dayData.heartRateCount += 1;
       }
     });
 
-    // Convert to arrays for charts
+    // Convert to arrays
     const dates = Array.from(dailyData.keys()).sort();
     const labels = dates.map(date => new Date(date).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
     }));
 
-    return {
-      labels: dates,
-      displayLabels: labels,
+    const chartData = {
+      labels,
       calories: dates.map(date => dailyData.get(date).calories),
-      distance: dates.map(date => Math.round(dailyData.get(date).distance * 100) / 100),
-      weightTraining: dates.map(date => dailyData.get(date).weightTrainingTime),
-      runHeartRate: dates.map(date => {
+      distance: dates.map(date => Math.round(dailyData.get(date).distance * 10) / 10),
+      heartRate: dates.map(date => {
         const dayData = dailyData.get(date);
-        return dayData.runHeartRateCount > 0 ? Math.round(dayData.totalRunHeartRate / dayData.runHeartRateCount) : 0;
+        return dayData.heartRateCount > 0 ? Math.round(dayData.heartRateTotal / dayData.heartRateCount) : 0;
       })
     };
+
+    console.log('📊 Processed chart data:', {
+      labels: chartData.labels.length,
+      calories: chartData.calories.length,
+      distance: chartData.distance.length,
+      heartRate: chartData.heartRate.length
+    });
+
+    return chartData;
   };
 
-  // Destroy charts helper
+  // Destroy all charts
   const destroyCharts = () => {
+    console.log('🗑️ Destroying existing charts');
     Object.values(chartInstances.current).forEach(chart => {
       if (chart) {
         chart.destroy();
       }
     });
-    chartInstances.current = {};
+    chartInstances.current = {
+      calories: null,
+      distance: null,
+      heartRate: null
+    };
   };
 
-  // Create calories chart with gradient
-  const createCaloriesChart = (chartData: any) => {
-    if (!caloriesChartRef.current) return;
+  // Create calories chart
+  const createCaloriesChart = (data: any) => {
+    if (!caloriesChartRef.current || !data) return;
 
     const ctx = caloriesChartRef.current.getContext('2d');
     if (!ctx) return;
@@ -301,72 +312,53 @@ const ActivityJam = () => {
       chartInstances.current.calories.destroy();
     }
 
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(245, 158, 11, 0.8)');
-    gradient.addColorStop(1, 'rgba(245, 158, 11, 0.1)');
+    console.log('📊 Creating calories chart with', data.calories.length, 'data points');
 
-    chartInstances.current.calories = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Calories Burned',
-          data: chartData.calories,
-          borderColor: 'rgba(245, 158, 11, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} calories`
-            }
-          }
+    try {
+      chartInstances.current.calories = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Calories Burned',
+            data: data.calories,
+            borderColor: 'rgb(245, 158, 11)',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 5
+          }]
         },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
           },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 6 }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0,0,0,0.1)' }
+            }
           }
         }
-      }
-    });
+      });
+      
+      console.log('✅ Calories chart created successfully');
+    } catch (error) {
+      console.error('❌ Error creating calories chart:', error);
+    }
   };
 
-  // Create distance chart with gradient bars
-  const createDistanceChart = (chartData: any) => {
-    if (!distanceChartRef.current) return;
+  // Create distance chart
+  const createDistanceChart = (data: any) => {
+    if (!distanceChartRef.current || !data) return;
 
     const ctx = distanceChartRef.current.getContext('2d');
     if (!ctx) return;
@@ -376,287 +368,129 @@ const ActivityJam = () => {
       chartInstances.current.distance.destroy();
     }
 
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
-    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.8)');
+    console.log('📊 Creating distance chart with', data.distance.length, 'data points');
 
-    chartInstances.current.distance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Distance (km)',
-          data: chartData.distance,
-          backgroundColor: gradient,
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 0,
-          borderRadius: 4,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} km`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Create weight training chart
-  const createWeightTrainingChart = (chartData: any) => {
-    if (!weightTrainingChartRef.current) return;
-
-    const ctx = weightTrainingChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Destroy existing chart
-    if (chartInstances.current.weightTraining) {
-      chartInstances.current.weightTraining.destroy();
-    }
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(139, 92, 246, 0.8)');
-    gradient.addColorStop(1, 'rgba(139, 92, 246, 0.1)');
-
-    chartInstances.current.weightTraining = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Weight Training (minutes)',
-          data: chartData.weightTraining,
-          borderColor: 'rgba(139, 92, 246, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(139, 92, 246, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} minutes`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: true,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Create run heart rate chart
-  const createRunHeartRateChart = (chartData: any) => {
-    if (!heartRateRunsChartRef.current) return;
-
-    const ctx = heartRateRunsChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Destroy existing chart
-    if (chartInstances.current.runHeartRate) {
-      chartInstances.current.runHeartRate.destroy();
-    }
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
-    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
-
-    chartInstances.current.runHeartRate = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.displayLabels,
-        datasets: [{
-          label: 'Run Heart Rate (bpm)',
-          data: chartData.runHeartRate,
-          borderColor: 'rgba(239, 68, 68, 1)',
-          backgroundColor: gradient,
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(239, 68, 68, 1)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            titleColor: '#374151',
-            bodyColor: '#374151',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            cornerRadius: 8,
-            padding: 12,
-            displayColors: false,
-            callbacks: {
-              label: (context) => `${context.parsed.y} bpm (runs only)`
-            }
-          }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              maxTicksLimit: 6,
-              color: '#6b7280'
-            }
-          },
-          y: {
-            grid: { color: 'rgba(156, 163, 175, 0.2)' },
-            border: { display: false },
-            beginAtZero: false,
-            ticks: { color: '#6b7280' }
-          }
-        }
-      }
-    });
-  };
-
-  // Load cached chart data instantly
-  const loadCachedChartData = async () => {
     try {
-      console.log('📊 Loading cached chart data...');
-      const response = await fetch(`/api/chart-cache?userId=mihir_jain`);
-      
-      if (response.ok) {
-        const cachedData = await response.json();
-        console.log('✅ Loaded cached chart data:', cachedData);
-        setChartData(cachedData);
-        return cachedData;
-      }
-    } catch (error) {
-      console.error('❌ Error loading cached chart data:', error);
-    }
-    return null;
-  };
-
-  // Generate and cache chart data (runs in background)
-  const generateAndCacheChartData = async (activities: ActivityData[]) => {
-    try {
-      setChartsLoading(true);
-      console.log('🔄 Generating fresh chart data...');
-      
-      const freshChartData = processChartData(activities);
-      
-      // Cache the chart data
-      await fetch('/api/chart-cache', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: 'mihir_jain',
-          chartData: freshChartData,
-          generatedAt: new Date().toISOString()
-        })
+      chartInstances.current.distance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Distance (km)',
+            data: data.distance,
+            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 6 }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0,0,0,0.1)' }
+            }
+          }
+        }
       });
       
-      setChartData(freshChartData);
-      console.log('✅ Chart data cached and updated');
+      console.log('✅ Distance chart created successfully');
     } catch (error) {
-      console.error('❌ Error generating chart data:', error);
-    } finally {
-      setChartsLoading(false);
+      console.error('❌ Error creating distance chart:', error);
     }
   };
 
-  // Fast chart creation with cached data
-  const createCharts = async (activities: ActivityData[]) => {
-    if (activities.length === 0) return;
+  // Create heart rate chart
+  const createHeartRateChart = (data: any) => {
+    if (!heartRateChartRef.current || !data) return;
 
-    // First, try to load cached chart data instantly
-    let currentChartData = await loadCachedChartData();
-    
-    if (currentChartData) {
-      // Use cached data immediately - FAST!
-      console.log('⚡ Using cached chart data for instant rendering');
-      setTimeout(() => {
-        if (currentChartData.labels.length > 0) {
-          createCaloriesChart(currentChartData);
-          createDistanceChart(currentChartData);
-          createWeightTrainingChart(currentChartData);
-          createRunHeartRateChart(currentChartData);
+    const ctx = heartRateChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    // Destroy existing chart
+    if (chartInstances.current.heartRate) {
+      chartInstances.current.heartRate.destroy();
+    }
+
+    console.log('📊 Creating heart rate chart with', data.heartRate.length, 'data points');
+
+    try {
+      chartInstances.current.heartRate = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Heart Rate (bpm)',
+            data: data.heartRate,
+            borderColor: 'rgb(239, 68, 68)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 6 }
+            },
+            y: {
+              beginAtZero: false,
+              grid: { color: 'rgba(0,0,0,0.1)' }
+            }
+          }
         }
-      }, 100);
+      });
+      
+      console.log('✅ Heart rate chart created successfully');
+    } catch (error) {
+      console.error('❌ Error creating heart rate chart:', error);
     }
-    
-    // Then generate fresh data in background (for next time)
-    setTimeout(() => {
-      generateAndCacheChartData(activities);
-    }, 1000);
   };
 
-  // Optimized fetch activities with separate refresh options
+  // Create all charts directly
+  const createCharts = (activities: ActivityData[]) => {
+    console.log('📊 Creating charts for', activities.length, 'activities');
+    
+    // Destroy existing charts first
+    destroyCharts();
+    
+    // Process data
+    const processedData = processChartData(activities);
+    if (!processedData) {
+      console.log('📊 No data to create charts');
+      return;
+    }
+
+    // Set chart data state
+    setChartData(processedData);
+
+    // Create charts with a small delay to ensure DOM is ready
+    setTimeout(() => {
+      createCaloriesChart(processedData);
+      createDistanceChart(processedData);
+      createHeartRateChart(processedData);
+    }, 100);
+  };
+
+  // Fetch activities with simplified approach
   const fetchActivities = async (refreshMode: 'default' | 'today' | '30days' = 'default') => {
     try {
       if (refreshMode !== 'default') {
@@ -677,18 +511,17 @@ const ActivityJam = () => {
         params.set('mode', 'today');
         params.set('refresh', 'true');
         params.set('timestamp', Date.now().toString());
-        console.log('🔄 Today refresh - fetching only today\'s activities from Strava');
+        console.log('🔄 Today refresh');
       } else if (refreshMode === '30days') {
         params.set('days', '30');
         params.set('refresh', 'true');
-        params.set('preserveTags', 'true'); // Important: preserve user tags
+        params.set('preserveTags', 'true');
         params.set('timestamp', Date.now().toString());
-        console.log('🔄 30-day refresh - fetching all activities while preserving user tags');
+        console.log('🔄 30-day refresh');
       } else {
-        // Default: daily refresh mode (gets cached data if fresh)
         params.set('mode', 'daily');
-        params.set('maxAge', '24'); // 24 hours cache
-        console.log('⚡ Daily mode - using cached data if less than 24h old');
+        params.set('maxAge', '24');
+        console.log('⚡ Daily mode');
       }
       
       const apiUrl = `/api/strava?${params.toString()}`;
@@ -710,7 +543,7 @@ const ActivityJam = () => {
         throw new Error('Invalid data format received from API');
       }
       
-      // Fast processing
+      // Process activities
       const processedActivities = data.map((activity: any) => {
         const activityType = activity.type || 'Activity';
         const isRun = isRunActivity(activityType);
@@ -734,16 +567,8 @@ const ActivityJam = () => {
           is_run_activity: isRun
         };
 
-        // IMPORTANT: Prioritize saved user tags from database
         if (isRun) {
-          // If activity has user-saved tag from database, use it
-          // Otherwise use auto-tag as fallback
           processedActivity.run_tag = activity.run_tag || activity.runType || autoTagRun(processedActivity);
-          
-          // Log if we're preserving a user tag
-          if (activity.taggedBy === 'user' && activity.run_tag) {
-            console.log(`🔒 Preserving user tag for ${activity.id}: ${activity.run_tag}`);
-          }
         }
 
         return processedActivity;
@@ -753,26 +578,17 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      // Load and apply saved tags (this ensures user tags are never lost)
+      // Load and apply saved tags
       const runActivities = sortedActivities.filter(a => a.is_run_activity);
       if (runActivities.length > 0) {
         console.log(`🏷️ Loading saved tags for ${runActivities.length} run activities`);
         const savedTags = await loadRunTags(runActivities.map(a => a.id));
         
-        // Apply saved tags with priority
-        let preservedCount = 0;
         sortedActivities.forEach(activity => {
           if (activity.is_run_activity && savedTags[activity.id]) {
-            const originalTag = activity.run_tag;
             activity.run_tag = savedTags[activity.id];
-            if (originalTag !== savedTags[activity.id]) {
-              console.log(`🔄 Preserved user tag for ${activity.id}: ${originalTag} -> ${savedTags[activity.id]}`);
-              preservedCount++;
-            }
           }
         });
-        
-        console.log(`✅ Preserved ${preservedCount} user tags out of ${Object.keys(savedTags).length} total saved tags`);
       }
 
       console.log('🏃 Processing complete:', {
@@ -784,6 +600,8 @@ const ActivityJam = () => {
 
       setActivities(sortedActivities);
       setLastUpdate(new Date().toLocaleTimeString());
+      
+      // Create charts directly
       createCharts(sortedActivities);
 
     } catch (error) {
@@ -804,7 +622,11 @@ const ActivityJam = () => {
     await fetchActivities('30days');
   };
 
-  // Load on mount - default mode
+  const handleRefresh = async () => {
+    await fetchActivities('30days');
+  };
+
+  // Load on mount
   useEffect(() => {
     fetchActivities('default');
     
@@ -834,10 +656,6 @@ const ActivityJam = () => {
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
-  };
-
-  const handleRefresh = async () => {
-    await fetchActivities('30days');
   };
 
   if (error) {
@@ -920,7 +738,7 @@ const ActivityJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Daily refresh • Fast loading
+              Last updated: {lastUpdate} • Simplified charts • Reliable loading
             </p>
           )}
         </div>
@@ -931,8 +749,8 @@ const ActivityJam = () => {
         {loading ? (
           <div className="space-y-8">
             {/* Chart skeletons */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {[...Array(4)].map((_, i) => (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
                 <Card key={i} className="bg-white/80 backdrop-blur-sm border border-white/20">
                   <CardHeader>
                     <Skeleton className="h-6 w-32" />
@@ -984,34 +802,41 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Charts Section - Back with Fast Caching */}
+            {/* Simplified Charts Section */}
             <section>
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
                   <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
                   <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
                 </div>
-                {chartsLoading && (
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Updating charts...</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className={`w-2 h-2 rounded-full ${chartData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                  <span>{chartData ? 'Charts loaded' : 'Loading charts...'}</span>
+                </div>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Calories Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Zap className="h-5 w-5 mr-2 text-green-500" />
+                      <Zap className="h-5 w-5 mr-2 text-orange-500" />
                       Calories Burned
                     </CardTitle>
-                    <p className="text-xs text-gray-600">Direct from Strava API</p>
+                    <p className="text-xs text-gray-600">Daily totals from Strava</p>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64">
-                      <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
+                    <div className="h-64 relative">
+                      {chartData ? (
+                        <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-gray-400">
+                            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+                            <p className="text-sm">Loading chart...</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -1023,48 +848,52 @@ const ActivityJam = () => {
                       <Activity className="h-5 w-5 mr-2 text-blue-500" />
                       Distance Covered
                     </CardTitle>
+                    <p className="text-xs text-gray-600">Daily distance (km)</p>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64">
-                      <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
+                    <div className="h-64 relative">
+                      {chartData ? (
+                        <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-gray-400">
+                            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+                            <p className="text-sm">Loading chart...</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Weight Training Chart */}
-                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Activity className="h-5 w-5 mr-2 text-purple-500" />
-                      Weight Training Time
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <canvas ref={weightTrainingChartRef} className="w-full h-full"></canvas>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Run Heart Rate Chart */}
+                {/* Heart Rate Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                       <Heart className="h-5 w-5 mr-2 text-red-500" />
                       Run Heart Rate
                     </CardTitle>
-                    <p className="text-xs text-gray-600">Only from running activities</p>
+                    <p className="text-xs text-gray-600">Average from running activities only</p>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64">
-                      <canvas ref={heartRateRunsChartRef} className="w-full h-full"></canvas>
+                    <div className="h-64 relative">
+                      {chartData ? (
+                        <canvas ref={heartRateChartRef} className="w-full h-full"></canvas>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-gray-400">
+                            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+                            <p className="text-sm">Loading chart...</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               </div>
             </section>
 
-            {/* Quick Stats - Enhanced */}
+            {/* Quick Stats */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
@@ -1220,7 +1049,7 @@ const ActivityJam = () => {
                             </span>
                           </div>
                         )}
-                        {/* Run Type Tag - Below Calories */}
+                        {/* Run Type Tag */}
                         {activity.is_run_activity && activity.run_tag && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Run Type:</span>
@@ -1313,7 +1142,7 @@ const ActivityJam = () => {
                         <Tag className="h-4 w-4 mr-2" />
                         Run Type Distribution
                       </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                         {RUN_TAG_OPTIONS.map(option => {
                           const count = activities.filter(a => a.is_run_activity && a.run_tag === option.value).length;
                           return (
@@ -1339,7 +1168,7 @@ const ActivityJam = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>⚡ Daily refresh for optimal speed</span>
+            <span>⚡ Simplified reliable charts</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Tag className="h-4 w-4" />
@@ -1348,14 +1177,14 @@ const ActivityJam = () => {
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4" />
-              Fast loading without heavy charts
+              Fast loading optimized performance
             </span>
           </div>
           <div className="flex items-center gap-4">
             <span>Updated: {new Date().toLocaleDateString()}</span>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Enhanced</span>
+              <div className={`w-2 h-2 rounded-full ${chartData ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}></div>
+              <span className="text-xs">{chartData ? 'Charts Ready' : 'Loading Charts'}</span>
             </div>
           </div>
         </div>
