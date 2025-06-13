@@ -22,6 +22,24 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 1.4
   },
   {
+  name: "Zucchini Bell Pepper Salad",
+  servingSize: "50g",
+  calories: 48,
+  protein: 1.0,
+  carbs: 1.7,
+  fat: 4.4,
+  fiber: 0.6
+},
+{
+  name: "Durum Wheat Pasta, Borges",
+  servingSize: "45g",
+  calories: 157,
+  protein: 5.6,
+  carbs: 32.4,
+  fat: 0.6,
+  fiber: 1.1
+},
+  {
   name: "Mushroom Burrito",
   servingSize: "300g",
   calories: 327,
@@ -592,6 +610,14 @@ export const mealPresets: MealPreset[] = [
       { name: "Roti", quantity: 1 } // 50g
     ]
   },
+  {
+  name: "Paneer Pasta",
+  foods: [
+    { name: "Zucchini Bell Pepper Salad", quantity: 1 }, // 50g
+    { name: "Durum Wheat Pasta, Borges", quantity: 1 },  // 45g
+    { name: "High Protein Low Fat Paneer, Milky Mist", quantity: 1 } // 100g
+  ]
+},
   {
     name: "Matar Paneer + Dal",
     foods: [
