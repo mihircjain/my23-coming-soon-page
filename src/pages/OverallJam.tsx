@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Drumstick, Leaf, RefreshCw, BarChart3, Target, TrendingUp, Plus } from "lucide-react";
+import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Drumstick, Leaf, RefreshCw, BarChart3, Target, TrendingUp, Plus, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,48 +39,208 @@ interface CombinedData {
   runCount: number; // Track number of runs for proper averaging
 }
 
-// Daily Health Box Component with updated Health Score (Calorie Deficit + Protein)
+// Weekly Goals Tracker Component - Same as Homepage
+const WeeklyGoalsTracker: React.FC<{
+  weekData: Record<string, CombinedData>;
+  loading: boolean;
+}> = ({ weekData, loading }) => {
+  // Calculate weekly totals
+  const calculateWeeklyTotals = () => {
+    const totals = {
+      caloriesBurned: 0,
+      protein: 0,
+      calorieDeficit: 0,
+      activeDays: 0
+    };
+
+    const BMR = 1479;
+    
+    Object.values(weekData).forEach((day: CombinedData) => {
+      totals.caloriesBurned += day.caloriesBurned || 0;
+      totals.protein += day.protein || 0;
+      
+      const dailyDeficit = (day.caloriesBurned + BMR) - day.caloriesConsumed;
+      totals.calorieDeficit += dailyDeficit;
+      
+      if (day.caloriesBurned > 0 || day.caloriesConsumed > 0) {
+        totals.activeDays += 1;
+      }
+    });
+
+    return totals;
+  };
+
+  const weeklyTotals = calculateWeeklyTotals();
+
+  // Weekly Goals
+  const goals = {
+    caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "orange", shortLabel: "Cal Burn" },
+    protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
+    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "green", shortLabel: "Cal Deficit" }
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 100) return "bg-green-500";
+    if (percentage >= 75) return "bg-yellow-500";
+    if (percentage >= 50) return "bg-orange-500";
+    return "bg-red-500";
+  };
+
+  const getWeeklyRating = () => {
+    const scores = Object.keys(goals).map(key => {
+      const goal = goals[key as keyof typeof goals];
+      const actual = weeklyTotals[key as keyof typeof weeklyTotals];
+      return Math.min((actual / goal.target) * 100, 100);
+    });
+    
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    
+    if (avgScore >= 90) return { rating: "🏆 CHAMPION", color: "text-yellow-600" };
+    if (avgScore >= 75) return { rating: "🔥 STRONG", color: "text-orange-600" };
+    if (avgScore >= 50) return { rating: "💪 BUILDING", color: "text-blue-600" };
+    return { rating: "🌱 STARTING", color: "text-green-600" };
+  };
+
+  const weeklyRating = getWeeklyRating();
+
+  if (loading) {
+    return (
+      <Card className="bg-gradient-to-r from-orange-200 to-red-200 rounded-xl shadow-lg">
+        <CardContent className="p-4">
+          <div className="animate-pulse space-y-3">
+            <div className="h-6 bg-white/30 rounded w-1/2 mx-auto"></div>
+            <div className="grid grid-cols-3 gap-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-white/30 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-gradient-to-r from-orange-200 to-red-200 rounded-xl shadow-lg">
+      <CardHeader className="text-center pb-2">
+        <CardTitle className="text-xl font-bold bg-gradient-to-r from-orange-700 to-red-700 bg-clip-text text-transparent">
+          📊 Weekly Goals
+        </CardTitle>
+        <div className={`text-lg font-bold ${weeklyRating.color}`}>
+          {weeklyRating.rating}
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        {/* Compact Goal Widgets */}
+        <div className="grid grid-cols-3 gap-3">
+          {Object.entries(goals).map(([key, goal]) => {
+            const actual = weeklyTotals[key as keyof typeof weeklyTotals];
+            const percentage = Math.min((actual / goal.target) * 100, 100);
+            const IconComponent = goal.icon;
+            
+            return (
+              <div key={key} className="bg-white/60 rounded-lg p-3 border border-white/30 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <IconComponent className={`h-4 w-4 text-${goal.color}-600`} />
+                </div>
+                
+                <div className="text-xs font-semibold text-gray-700 mb-1">
+                  {goal.shortLabel}
+                </div>
+                
+                <div className="text-sm font-bold text-gray-800 mb-2">
+                  {Math.round(actual).toLocaleString()}
+                  {key === 'protein' ? 'g' : ' cal'}
+                  <span className="text-xs text-gray-600">
+                    /{goal.target.toLocaleString()}{key === 'protein' ? 'g' : ' cal'}
+                  </span>
+                </div>
+                
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                  <div 
+                    className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(percentage)}`}
+                    style={{ width: `${Math.min(percentage, 100)}%` }}
+                  />
+                </div>
+                
+                <div className={`text-xs font-semibold ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-yellow-600' : 'text-orange-600'}`}>
+                  {Math.round(percentage)}%
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Compact Daily Breakdown */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-gray-700 text-center">This Week</h4>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: 7 }, (_, i) => {
+              const date = new Date();
+              date.setDate(date.getDate() - (6 - i));
+              const dateStr = date.toISOString().split('T')[0];
+              const dayData = weekData[dateStr] || {};
+              const isToday = dateStr === new Date().toISOString().split('T')[0];
+              
+              const BMR = 1479;
+              const dailyDeficit = ((dayData.caloriesBurned || 0) + BMR) - (dayData.caloriesConsumed || 0);
+              const protein = dayData.protein || 0;
+              const burned = dayData.caloriesBurned || 0;
+              
+              return (
+                <div 
+                  key={dateStr}
+                  className={`p-1 rounded text-center text-xs border ${
+                    isToday ? 'border-red-500 bg-white/80' : 'border-white/30 bg-white/60'
+                  }`}
+                >
+                  <div className="font-semibold text-gray-600 text-xs mb-1">
+                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                  </div>
+                  
+                  {/* Protein */}
+                  <div className="text-xs text-blue-600 font-medium">
+                    P: {Math.round(protein)}g
+                  </div>
+                  
+                  {/* Calories Burned */}
+                  <div className="text-xs text-orange-600 font-medium">
+                    Cal Burn: {Math.round(burned)}
+                  </div>
+                  
+                  {/* Deficit */}
+                  <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Cal Deficit: {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-xs text-gray-600 text-center">
+            P: Protein (g) • Cal Burn: Burned (cal) • Cal Deficit: Deficit (cal)
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Daily Health Box Component - Simplified without health score
 const DailyHealthBox = ({ data, date, isToday, onClick }) => {
   const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRateRuns > 0;
   
   // Calculate calorie deficit: calories burned + BMR - calories consumed
   const BMR = 1479;
   const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
-  
-  // Calculate health score based on calories burned, protein, and calorie deficit
-  const calculateHealthScore = () => {
-    let score = 0;
-    
-    // Calories Burned Score (40% of total) - Target: 300+ calories burned
-    const burnedScore = Math.min(40, (data.caloriesBurned / 300) * 40);
-    
-    // Protein Score (30% of total) - Target: 140g+ 
-    const proteinScore = Math.min(30, (data.protein / 140) * 30);
-    
-    // Calorie Deficit Score (30% of total) - Progressive scoring
-    const deficitScore = (() => {
-      if (calorieDeficit <= 0) return 0;
-      if (calorieDeficit >= 500) return 30;
-      if (calorieDeficit >= 400) return 25;
-      if (calorieDeficit >= 300) return 20;
-      if (calorieDeficit >= 200) return 15;
-      if (calorieDeficit >= 100) return 10;
-      return 5; // 1-99 calorie deficit gets 5 points
-    })();
-    
-    score = burnedScore + proteinScore + deficitScore;
-    return Math.min(Math.round(score), 100);
-  };
-
-  const healthScore = calculateHealthScore();
 
   return (
     <Card 
       className={`cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group ${
         hasData 
-          ? "bg-gradient-to-br from-blue-50 to-green-50 border-blue-200 hover:shadow-blue-100" 
+          ? "bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 hover:shadow-orange-100" 
           : "bg-gray-50 border-gray-200 hover:shadow-gray-100"
-      } ${isToday ? "ring-2 ring-purple-500" : ""}`}
+      } ${isToday ? "ring-2 ring-red-500" : ""}`}
       onClick={onClick}
     >
       <CardContent className="p-4">
@@ -95,7 +255,7 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
               })}
             </div>
             {isToday && (
-              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">
                 Today
               </span>
             )}
@@ -103,25 +263,6 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
 
           {hasData ? (
             <>
-              {/* Health Score with progress bar */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-1">
-                    <Heart className="h-4 w-4 text-red-500" />
-                    <span className="text-base font-bold text-gray-800">
-                      {healthScore}%
-                    </span>
-                    <span className="text-xs text-gray-500">health</span>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${healthScore}%` }}
-                  />
-                </div>
-              </div>
-
               {/* Key Metrics */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="text-center">
@@ -171,7 +312,7 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
             <div className="text-center py-6">
               <div className="text-gray-400 text-sm mb-1">No data</div>
               <div className="text-xs text-gray-400">Rest day</div>
-              <Heart className="h-6 w-6 mx-auto mt-2 text-gray-300 group-hover:text-purple-500 transition-colors" />
+              <Heart className="h-6 w-6 mx-auto mt-2 text-gray-300 group-hover:text-red-500 transition-colors" />
             </div>
           )}
         </div>
@@ -428,8 +569,8 @@ const OverallJam = () => {
           {
             label: 'Calories Consumed',
             data: data.map(d => d.caloriesConsumed),
-            borderColor: 'rgba(16, 185, 129, 0.8)',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderColor: 'rgba(34, 197, 94, 0.8)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
             fill: false,
             tension: 0.4,
             borderWidth: 3,
@@ -440,8 +581,8 @@ const OverallJam = () => {
           {
             label: 'Calories Burned (Strava)',
             data: data.map(d => d.caloriesBurned),
-            borderColor: 'rgba(245, 158, 11, 0.8)',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderColor: 'rgba(251, 146, 60, 0.8)',
+            backgroundColor: 'rgba(251, 146, 60, 0.1)',
             fill: false,
             tension: 0.4,
             borderWidth: 3,
@@ -452,8 +593,8 @@ const OverallJam = () => {
           {
             label: 'Calorie Deficit',
             data: calorieDeficitData,
-            borderColor: 'rgba(34, 197, 94, 0.8)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            borderColor: 'rgba(16, 185, 129, 0.8)',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
             fill: false,
             tension: 0.4,
             borderWidth: 3,
@@ -464,8 +605,8 @@ const OverallJam = () => {
           {
             label: 'Protein (g)',
             data: data.map(d => d.protein),
-            borderColor: 'rgba(139, 92, 246, 0.8)',
-            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            borderColor: 'rgba(59, 130, 246, 0.8)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
             fill: false,
             tension: 0.4,
             borderWidth: 3,
@@ -564,7 +705,7 @@ const OverallJam = () => {
               display: true,
               text: 'Calories',
               font: { size: 12, weight: 'bold' },
-              color: 'rgba(16, 185, 129, 0.8)'
+              color: 'rgba(34, 197, 94, 0.8)'
             }
           },
           'y-deficit': {
@@ -585,7 +726,7 @@ const OverallJam = () => {
               display: true,
               text: 'Calorie Deficit',
               font: { size: 12, weight: 'bold' },
-              color: 'rgba(34, 197, 94, 0.8)'
+              color: 'rgba(16, 185, 129, 0.8)'
             }
           },
           'y-protein': {
@@ -606,7 +747,7 @@ const OverallJam = () => {
               display: true,
               text: 'Protein (g)',
               font: { size: 12, weight: 'bold' },
-              color: 'rgba(139, 92, 246, 0.8)'
+              color: 'rgba(59, 130, 246, 0.8)'
             }
           },
           'y-heartrate': {
@@ -670,11 +811,11 @@ const OverallJam = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex flex-col">
       {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-green-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-blue-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-green-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
 
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
@@ -700,8 +841,8 @@ const OverallJam = () => {
         </div>
 
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
-            Mihir's Overall Jam
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
+            🩺 Mihir's Overall Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
             Your complete health overview for the last 7 days
@@ -717,9 +858,14 @@ const OverallJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         
+        {/* Weekly Goals Tracker - Same as Homepage */}
+        <section className="mb-8">
+          <WeeklyGoalsTracker weekData={last7DaysData} loading={loading} />
+        </section>
+
          {/* 7-Day Health Overview */}
         <section className="mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+          <Card className="bg-white/80 backdrop-blur-sm border border-orange-200 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-red-500" />
@@ -743,54 +889,13 @@ const OverallJam = () => {
                   />
                 ))}
               </div>
-              
-              {/* Health Score Explanation Footer */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  Health Score Calculation (100 points total)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
-                  <div className="space-y-1">
-                    <div className="font-medium text-orange-600">Calories Burned (40 pts)</div>
-                    <div>🎯 Target: 300+ cal = 40 pts</div>
-                    <div>📈 Below: (burned/300) × 40</div>
-                    <div className="text-blue-600">✅ Uses actual Strava calories</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-purple-600">Protein Intake (30 pts)</div>
-                    <div>🎯 Target: 140g+ = 30 pts</div>
-                    <div>📈 Below: (protein/140) × 30</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="font-medium text-green-600">Calorie Deficit (30 pts)</div>
-                    <div>🎯 Progressive scoring:</div>
-                    <div>• 0 cal = 0 pts</div>
-                    <div>• 1-99 cal = 5 pts</div>
-                    <div>• 100+ cal = 10 pts</div>
-                    <div>• 200+ cal = 15 pts</div>
-                    <div>• 300+ cal = 20 pts</div>
-                    <div>• 400+ cal = 25 pts</div>
-                    <div>• 500+ cal = 30 pts</div>
-                  </div>
-                </div>
-                <div className="mt-3 text-xs text-gray-500 border-t pt-2">
-                  <strong>BMR (Basal Metabolic Rate):</strong> 1479 calories/day
-                  <br />
-                  <strong>Heart Rate Data:</strong> Only from running activities (excludes weight training, cycling, etc.)
-                  <br />
-                  <strong>Calorie Data:</strong> Direct from Strava API (not estimated)
-                  <br />
-                  <strong>Deficit Formula:</strong> (Strava Calories Burned + 1479 BMR) - Calories Consumed
-                </div>
-              </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Weekly Averages Section - Updated with run-specific HR */}
+        {/* Weekly Averages Section - Updated with orange theme */}
         <section className="mb-8">
-          <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+          <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
             Weekly Averages
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -810,64 +915,64 @@ const OverallJam = () => {
             </div>
 
             {/* Calories Out Card */}
-            <div className="bg-gradient-to-br from-amber-200 to-orange-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="bg-gradient-to-br from-orange-400 to-red-500 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Calories Out</h3>
+                <h3 className="text-lg font-semibold text-white">Calories Out</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Flame className="h-5 w-5 text-gray-700" />
+                  <Flame className="h-5 w-5 text-white" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('caloriesBurned')}</p>
-                <p className="text-sm text-gray-700">cal/day</p>
-                <p className="text-xs text-gray-600">From Strava</p>
+                <p className="text-3xl font-bold text-white">{calculateAvgMetric('caloriesBurned')}</p>
+                <p className="text-sm text-orange-100">cal/day</p>
+                <p className="text-xs text-orange-200">From Strava</p>
               </div>
             </div>
 
             {/* Protein Card */}
-            <div className="bg-gradient-to-br from-purple-200 to-violet-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Protein</h3>
+                <h3 className="text-lg font-semibold text-white">Protein</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5 text-gray-700" />
+                  <Target className="h-5 w-5 text-white" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">{calculateAvgMetric('protein')}</p>
-                <p className="text-sm text-gray-700">g/day</p>
+                <p className="text-3xl font-bold text-white">{calculateAvgMetric('protein')}</p>
+                <p className="text-sm text-blue-100">g/day</p>
               </div>
             </div>
 
             {/* Calorie Deficit Card */}
-            <div className="bg-gradient-to-br from-emerald-200 to-blue-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+            <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Cal Deficit</h3>
+                <h3 className="text-lg font-semibold text-white">Cal Deficit</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-gray-700" />
+                  <TrendingUp className="h-5 w-5 text-white" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className={`text-3xl font-bold ${calculateAvgCalorieDeficit() >= 0 ? 'text-gray-800' : 'text-red-700'}`}>
+                <p className={`text-3xl font-bold ${calculateAvgCalorieDeficit() >= 0 ? 'text-white' : 'text-red-200'}`}>
                   {calculateAvgCalorieDeficit() >= 0 ? '+' : ''}{calculateAvgCalorieDeficit()}
                 </p>
-                <p className="text-sm text-gray-700">cal/day</p>
+                <p className="text-sm text-green-100">cal/day</p>
               </div>
             </div>
 
-            {/* Run Heart Rate Card - NEW */}
-            <div className="bg-gradient-to-br from-red-200 to-pink-300 rounded-xl p-6 text-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Run Heart Rate Card */}
+            <div className="bg-gradient-to-br from-red-400 to-pink-500 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Run HR</h3>
+                <h3 className="text-lg font-semibold text-white">Run HR</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
-                  <Heart className="h-5 w-5 text-gray-700" />
+                  <Heart className="h-5 w-5 text-white" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-800">
+                <p className="text-3xl font-bold text-white">
                   {calculateAvgMetric('heartRateRuns') || '--'}
                 </p>
-                <p className="text-sm text-gray-700">bpm avg</p>
-                <p className="text-xs text-gray-600">Runs only</p>
+                <p className="text-sm text-red-100">bpm avg</p>
+                <p className="text-xs text-red-200">Runs only</p>
               </div>
             </div>
           </div>
@@ -875,9 +980,9 @@ const OverallJam = () => {
 
         {/* Combined Chart Section */}
         <section className="mb-8">
-          <Card className="bg-gradient-to-r from-indigo-200 to-purple-300 rounded-2xl p-6 text-gray-800 shadow-lg">
+          <Card className="bg-gradient-to-r from-orange-200 to-red-200 rounded-2xl p-6 text-gray-800 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent flex items-center gap-2">
+              <CardTitle className="text-xl font-semibold bg-gradient-to-r from-orange-700 to-red-700 bg-clip-text text-transparent flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-gray-700" />
                 Health Trends (Last 7 Days)
                 <Badge variant="secondary" className="ml-2 text-xs">
@@ -905,10 +1010,10 @@ const OverallJam = () => {
         {/* Latest Blood Markers Section */}
         {latestBloodMarkers && (
           <section className="mb-8">
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Droplet className="h-5 w-5 text-blue-500" />
+                  <Droplet className="h-5 w-5 text-red-500" />
                   Latest Blood Markers
                 </CardTitle>
                 <p className="text-sm text-gray-600">
@@ -933,7 +1038,7 @@ const OverallJam = () => {
         <section className="mb-8 flex justify-center gap-4">
           <Button
             onClick={() => navigate('/activity-jam')}
-            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3"
+            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3"
           >
             <Activity className="mr-2 h-5 w-5" />
             View Fitness Details
@@ -974,7 +1079,7 @@ const OverallJam = () => {
           <div className="flex items-center gap-4">
             <span>Last updated: {new Date().toLocaleDateString()}</span>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
               <span className="text-xs">Live</span>
             </div>
           </div>
