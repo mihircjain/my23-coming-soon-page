@@ -16,7 +16,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // Valid run types (must match frontend)
-const validRunTypes = ['easy', 'tempo', 'intervals', 'long', 'recovery'];
+const validRunTypes = ['easy', 'tempo', 'intervals', 'long', 'recovery', 'hill-repeats'];
 
 // Main Vercel serverless function handler
 export default async function handler(req, res) {
