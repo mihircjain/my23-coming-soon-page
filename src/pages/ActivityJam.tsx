@@ -275,7 +275,7 @@ const ActivityJam = () => {
     };
   };
 
-  // Destroy existing charts
+  // Restore full chart creation functions for beautiful visualizations
   const destroyCharts = () => {
     Object.values(chartInstances.current).forEach(chart => {
       if (chart) {
@@ -285,12 +285,17 @@ const ActivityJam = () => {
     chartInstances.current = {};
   };
 
-  // Create calories chart
+  // Create calories chart with gradient
   const createCaloriesChart = (chartData: any) => {
     if (!caloriesChartRef.current) return;
 
     const ctx = caloriesChartRef.current.getContext('2d');
     if (!ctx) return;
+
+    // Destroy existing chart
+    if (chartInstances.current.calories) {
+      chartInstances.current.calories.destroy();
+    }
 
     // Create gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
@@ -355,12 +360,17 @@ const ActivityJam = () => {
     });
   };
 
-  // Create distance chart
+  // Create distance chart with gradient bars
   const createDistanceChart = (chartData: any) => {
     if (!distanceChartRef.current) return;
 
     const ctx = distanceChartRef.current.getContext('2d');
     if (!ctx) return;
+
+    // Destroy existing chart
+    if (chartInstances.current.distance) {
+      chartInstances.current.distance.destroy();
+    }
 
     // Create gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
@@ -427,6 +437,11 @@ const ActivityJam = () => {
     const ctx = weightTrainingChartRef.current.getContext('2d');
     if (!ctx) return;
 
+    // Destroy existing chart
+    if (chartInstances.current.weightTraining) {
+      chartInstances.current.weightTraining.destroy();
+    }
+
     // Create gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
     gradient.addColorStop(0, 'rgba(139, 92, 246, 0.8)');
@@ -461,6 +476,109 @@ const ActivityJam = () => {
             titleColor: '#374151',
             bodyColor: '#374151',
             borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} minutes`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },
+            beginAtZero: true,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };
+
+  // Create run heart rate chart
+  const createRunHeartRateChart = (chartData: any) => {
+    if (!heartRateRunsChartRef.current) return;
+
+    const ctx = heartRateRunsChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    // Destroy existing chart
+    if (chartInstances.current.runHeartRate) {
+      chartInstances.current.runHeartRate.destroy();
+    }
+
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
+    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
+
+    chartInstances.current.runHeartRate = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.displayLabels,
+        datasets: [{
+          label: 'Run Heart Rate (bpm)',
+          data: chartData.runHeartRate,
+          borderColor: 'rgba(239, 68, 68, 1)',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            titleColor: '#374151',
+            bodyColor: '#374151',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 12,
+            displayColors: false,
+            callbacks: {
+              label: (context) => `${context.parsed.y} bpm (runs only)`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              maxTicksLimit: 6,
+              color: '#6b7280'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(156, 163, 175, 0.2)' },
+            border: { display: false },  
+            beginAtZero: false,
+            ticks: { color: '#6b7280' }
+          }
+        }
+      }
+    });
+  };Color: '#e5e7eb',
             borderWidth: 1,
             cornerRadius: 8,
             padding: 12,
@@ -560,21 +678,80 @@ const ActivityJam = () => {
     });
   };
 
-  // Simplified chart creation - much faster
-  const createCharts = (activities: ActivityData[]) => {
+  // Smart chart data caching - load instantly from cache, calculate in background
+  const [chartData, setChartData] = useState<any>(null);
+  const [chartsLoading, setChartsLoading] = useState(false);
+
+  // Load cached chart data instantly
+  const loadCachedChartData = async () => {
+    try {
+      console.log('📊 Loading cached chart data...');
+      const response = await fetch(`/api/chart-cache?userId=mihir_jain`);
+      
+      if (response.ok) {
+        const cachedData = await response.json();
+        console.log('✅ Loaded cached chart data:', cachedData);
+        setChartData(cachedData);
+        return cachedData;
+      }
+    } catch (error) {
+      console.error('❌ Error loading cached chart data:', error);
+    }
+    return null;
+  };
+
+  // Generate and cache chart data (runs in background)
+  const generateAndCacheChartData = async (activities: ActivityData[]) => {
+    try {
+      setChartsLoading(true);
+      console.log('🔄 Generating fresh chart data...');
+      
+      const freshChartData = processChartData(activities);
+      
+      // Cache the chart data
+      await fetch('/api/chart-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'mihir_jain',
+          chartData: freshChartData,
+          generatedAt: new Date().toISOString()
+        })
+      });
+      
+      setChartData(freshChartData);
+      console.log('✅ Chart data cached and updated');
+    } catch (error) {
+      console.error('❌ Error generating chart data:', error);
+    } finally {
+      setChartsLoading(false);
+    }
+  };
+
+  // Fast chart creation with cached data
+  const createCharts = async (activities: ActivityData[]) => {
     if (activities.length === 0) return;
 
-    // Skip chart creation for faster loading
-    console.log('📊 Chart creation skipped for faster loading');
-    console.log('🏃 Activity summary:', {
-      totalActivities: activities.length,
-      runActivities: activities.filter(a => a.is_run_activity).length,
-      totalCalories: activities.reduce((sum, a) => sum + (a.calories || 0), 0)
-    });
-
-    // Optional: Create minimal charts only if specifically requested
-    // destroyCharts();
-    // ... chart creation logic can be added back later if needed
+    // First, try to load cached chart data instantly
+    let currentChartData = await loadCachedChartData();
+    
+    if (currentChartData) {
+      // Use cached data immediately - FAST!
+      console.log('⚡ Using cached chart data for instant rendering');
+      setTimeout(() => {
+        if (currentChartData.labels.length > 0) {
+          createCaloriesChart(currentChartData);
+          createDistanceChart(currentChartData);
+          createWeightTrainingChart(currentChartData);
+          createRunHeartRateChart(currentChartData);
+        }
+      }, 100);
+    }
+    
+    // Then generate fresh data in background (for next time)
+    setTimeout(() => {
+      generateAndCacheChartData(activities);
+    }, 1000);
   };
 
   // Optimized fetch activities with separate refresh options
@@ -901,7 +1078,87 @@ const ActivityJam = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Quick Stats - No Heavy Charts */}
+            {/* Charts Section - Back with Fast Caching */}
+            <section>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
+                  <h2 className="text-2xl font-semibold text-gray-800">Activity Trends</h2>
+                </div>
+                {chartsLoading && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Updating charts...</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Calories Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Zap className="h-5 w-5 mr-2 text-green-500" />
+                      Calories Burned
+                    </CardTitle>
+                    <p className="text-xs text-gray-600">Direct from Strava API</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={caloriesChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Distance Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Activity className="h-5 w-5 mr-2 text-blue-500" />
+                      Distance Covered
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={distanceChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Weight Training Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Activity className="h-5 w-5 mr-2 text-purple-500" />
+                      Weight Training Time
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={weightTrainingChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Run Heart Rate Chart */}
+                <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
+                      <Heart className="h-5 w-5 mr-2 text-red-500" />
+                      Run Heart Rate
+                    </CardTitle>
+                    <p className="text-xs text-gray-600">Only from running activities</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <canvas ref={heartRateRunsChartRef} className="w-full h-full"></canvas>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* Quick Stats - Enhanced */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
