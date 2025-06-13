@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Chart from 'chart.js/auto';
 
 // Run tag types
-type RunTag = 'easy' | 'tempo' | 'long' | 'recovery' | 'intervals';
+type RunTag = 'easy' | 'tempo' | 'long' | 'recovery' | 'intervals' | 'hill-repeats';
 
 interface RunTagOption {
   value: RunTag;
@@ -25,7 +25,8 @@ const RUN_TAG_OPTIONS: RunTagOption[] = [
   { value: 'tempo', label: 'Tempo', color: 'text-orange-600', bgColor: 'bg-orange-50 border-orange-200' },
   { value: 'long', label: 'Long', color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
   { value: 'recovery', label: 'Recovery', color: 'text-purple-600', bgColor: 'bg-purple-50 border-purple-200' },
-  { value: 'intervals', label: 'Intervals', color: 'text-red-600', bgColor: 'bg-red-50 border-red-200' }
+  { value: 'intervals', label: 'Intervals', color: 'text-red-600', bgColor: 'bg-red-50 border-red-200' },
+  { value: 'hill-repeats', label: 'Hill Repeats', color: 'text-amber-600', bgColor: 'bg-amber-50 border-amber-200' }
 ];
 
 interface ActivityData {
@@ -80,17 +81,22 @@ const ActivityJam = () => {
     const timeInMinutes = activity.moving_time / 60;
     const paceMinPerKm = timeInMinutes / distance;
     const avgHR = activity.average_heartrate;
+    const elevation = activity.total_elevation_gain;
 
     // Long run detection (distance-based)
-    if (distance >= 15) return 'long';
-    if (distance >= 10 && paceMinPerKm > 5.5) return 'long';
+    if (distance >= 18) return 'long';
+
+    // Hill repeats detection (high elevation gain for distance)
+    if (elevation && distance > 0) {
+      const elevationPerKm = elevation / distance;
+      if (elevationPerKm > 10 && distance <= 12 ) return 'hill-repeats'; // More than 10m elevation per km
+    }
 
     // Recovery run detection (very easy pace or low HR)
-    if (distance <= 5 && paceMinPerKm > 6.5) return 'recovery';
-    if (avgHR && avgHR < 140 && distance <= 8) return 'recovery';
+    if (distance <= 5 && paceMinPerKm <= 8 && paceMinPerKm > 6.5) return 'recovery';
 
     // Intervals detection (fast pace with moderate distance)
-    if (paceMinPerKm < 4.0 && distance <= 10) return 'intervals';
+    if (paceMinPerKm < 4.2 && distance <= 10) return 'intervals';
     if (avgHR && avgHR > 170 && distance <= 8) return 'intervals';
 
     // Tempo detection (moderately fast pace, moderate distance)
