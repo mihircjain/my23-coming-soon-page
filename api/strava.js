@@ -1,5 +1,5 @@
-// api/strava.js - ENHANCED with incremental mode and run tagging support
-// Vercel serverless function – fetch Strava activities with smart caching
+// api/strava.js - FIXED: Preserves run tags during refresh
+// Vercel serverless function – fetch Strava activities with smart caching and tag preservation
 
 import admin from 'firebase-admin';
 
@@ -51,6 +51,51 @@ const autoTagRun = (activity) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
+/*  NEW: Load existing run tags to preserve user modifications        */
+/* ──────────────────────────────────────────────────────────────────── */
+const loadExistingRunTags = async (userId) => {
+  try {
+    console.log('🏷️ Loading existing run tags to preserve user modifications...');
+    
+    const snapshot = await db
+      .collection('strava_data')
+      .where('userId', '==', userId)
+      .where('is_run_activity', '==', true)
+      .get();
+    
+    const existingTags = new Map();
+    let userModifiedCount = 0;
+    
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const activityId = data.id?.toString();
+      
+      if (activityId && data.runType) {
+        existingTags.set(activityId, {
+          runType: data.runType,
+          run_tag: data.run_tag || data.runType,
+          userOverride: data.userOverride === true,
+          taggedBy: data.taggedBy || 'auto',
+          taggedAt: data.taggedAt,
+          originalSuggestion: data.originalSuggestion
+        });
+        
+        if (data.userOverride === true) {
+          userModifiedCount++;
+        }
+      }
+    });
+    
+    console.log(`✅ Loaded ${existingTags.size} existing run tags (${userModifiedCount} user-modified)`);
+    return existingTags;
+    
+  } catch (error) {
+    console.error('❌ Error loading existing run tags:', error);
+    return new Map();
+  }
+};
+
+/* ──────────────────────────────────────────────────────────────────── */
 /*  ENHANCED: Multiple cleanup strategies                             */
 /* ──────────────────────────────────────────────────────────────────── */
 const cleanupDuplicates = async (userId, strategy = 'activityId') => {
@@ -65,7 +110,7 @@ const cleanupDuplicates = async (userId, strategy = 'activityId') => {
     const duplicatesToDelete = [];
     
     if (strategy === 'activityId' || strategy === 'all') {
-      // Strategy 1: Group by activity ID, keep newest
+      // Strategy 1: Group by activity ID, keep newest (but preserve user tags)
       const activityGroups = new Map();
       
       snapshot.docs.forEach(doc => {
@@ -81,49 +126,25 @@ const cleanupDuplicates = async (userId, strategy = 'activityId') => {
         activityGroups.get(activityId).push({
           docRef: doc.ref,
           docId: doc.id,
-          fetchedAt: new Date(data.fetched_at || data.start_date || '1970-01-01')
+          data: data,
+          fetchedAt: new Date(data.fetched_at || data.start_date || '1970-01-01'),
+          hasUserTag: data.userOverride === true
         });
       });
       
-      // Find duplicates and mark older ones for deletion
+      // Find duplicates and mark older ones for deletion (preserve user tags)
       activityGroups.forEach((docs, activityId) => {
         if (docs.length > 1) {
-          docs.sort((a, b) => b.fetchedAt.getTime() - a.fetchedAt.getTime());
+          // Sort: user-tagged first, then by newest fetch time
+          docs.sort((a, b) => {
+            if (a.hasUserTag && !b.hasUserTag) return -1;
+            if (!a.hasUserTag && b.hasUserTag) return 1;
+            return b.fetchedAt.getTime() - a.fetchedAt.getTime();
+          });
+          
           const [keeper, ...toDelete] = docs;
           
-          console.log(`🔍 Activity ${activityId}: keeping ${keeper.docId}, deleting ${toDelete.length} duplicates`);
-          duplicatesToDelete.push(...toDelete.map(doc => doc.docRef));
-        }
-      });
-    }
-    
-    if (strategy === 'dateAndName' || strategy === 'all') {
-      // Strategy 2: Group by date + name, keep newest
-      const dateNameGroups = new Map();
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        const dateKey = data.start_date?.split('T')[0] || 'unknown';
-        const nameKey = (data.name || 'unnamed').toLowerCase().trim();
-        const compositeKey = `${dateKey}_${nameKey}`;
-        
-        if (!dateNameGroups.has(compositeKey)) {
-          dateNameGroups.set(compositeKey, []);
-        }
-        
-        dateNameGroups.get(compositeKey).push({
-          docRef: doc.ref,
-          docId: doc.id,
-          fetchedAt: new Date(data.fetched_at || data.start_date || '1970-01-01')
-        });
-      });
-      
-      dateNameGroups.forEach((docs, key) => {
-        if (docs.length > 1) {
-          docs.sort((a, b) => b.fetchedAt.getTime() - a.fetchedAt.getTime());
-          const [keeper, ...toDelete] = docs;
-          
-          console.log(`🔍 Date+Name ${key}: keeping ${keeper.docId}, deleting ${toDelete.length} duplicates`);
+          console.log(`🔍 Activity ${activityId}: keeping ${keeper.docId}${keeper.hasUserTag ? ' (user-tagged)' : ''}, deleting ${toDelete.length} duplicates`);
           duplicatesToDelete.push(...toDelete.map(doc => doc.docRef));
         }
       });
@@ -218,7 +239,7 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
       .limit(200)
       .get();
     
-    // Deduplicate activities by activity ID
+    // Deduplicate activities by activity ID (prioritize user-tagged versions)
     const activityMap = new Map();
     
     snapshot.docs.forEach(doc => {
@@ -233,12 +254,27 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
         }
         activityMap.set(activityId, data);
       } else {
-        // If duplicate found, keep the one with more recent fetched_at
+        // If duplicate found, prefer user-tagged version, then most recent
         const existing = activityMap.get(activityId);
-        const existingTime = new Date(existing.fetched_at || existing.start_date);
-        const currentTime = new Date(data.fetched_at || data.start_date);
+        const existingUserTagged = existing.userOverride === true;
+        const currentUserTagged = data.userOverride === true;
         
-        if (currentTime > existingTime) {
+        let shouldReplace = false;
+        
+        if (currentUserTagged && !existingUserTagged) {
+          // Current has user tag, existing doesn't
+          shouldReplace = true;
+        } else if (!currentUserTagged && existingUserTagged) {
+          // Existing has user tag, current doesn't - keep existing
+          shouldReplace = false;
+        } else {
+          // Both have same tag status, use newer fetch time
+          const existingTime = new Date(existing.fetched_at || existing.start_date);
+          const currentTime = new Date(data.fetched_at || data.start_date);
+          shouldReplace = currentTime > existingTime;
+        }
+        
+        if (shouldReplace) {
           if (includeRunTags && data.type?.toLowerCase().includes('run')) {
             data.is_run_activity = true;
             data.run_tag = data.runType || null;
@@ -308,6 +344,37 @@ const getTodaysCachedData = async (userId) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
+/*  Remove duplicate activities helper function                       */
+/* ──────────────────────────────────────────────────────────────────── */
+const removeDuplicateActivities = (activities) => {
+  const activityMap = new Map();
+  
+  activities.forEach(activity => {
+    const activityId = activity.id?.toString();
+    if (!activityId) return;
+    
+    if (!activityMap.has(activityId)) {
+      activityMap.set(activityId, activity);
+    } else {
+      // Prefer user-tagged versions
+      const existing = activityMap.get(activityId);
+      if (activity.userOverride === true && existing.userOverride !== true) {
+        activityMap.set(activityId, activity);
+      } else if (existing.userOverride !== true && activity.userOverride !== true) {
+        // Both auto-tagged or untagged, use newer data
+        const existingTime = new Date(existing.fetched_at || existing.start_date);
+        const currentTime = new Date(activity.fetched_at || activity.start_date);
+        if (currentTime > existingTime) {
+          activityMap.set(activityId, activity);
+        }
+      }
+    }
+  });
+  
+  return Array.from(activityMap.values());
+};
+
+/* ──────────────────────────────────────────────────────────────────── */
 /*  Fast calorie estimation (no individual API calls)                */
 /* ──────────────────────────────────────────────────────────────────── */
 const estimateCalories = (activity) => {
@@ -330,7 +397,7 @@ const estimateCalories = (activity) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Main handler - ENHANCED with incremental mode                    */
+/*  Main handler - ENHANCED with run tag preservation                */
 /* ──────────────────────────────────────────────────────────────────── */
 export default async function handler(req, res) {
   try {
@@ -344,18 +411,30 @@ export default async function handler(req, res) {
     const cleanup = req.query.cleanup === 'true';
     const cleanupStrategy = req.query.cleanupStrategy || 'activityId';
     const deepClean = req.query.deepClean === 'true';
+    const preserveTags = req.query.preserveTags !== 'false'; // Default to true
     
     // NEW: Incremental mode - only fetch today's data + return cached older data
     const mode = req.query.mode || 'full'; // 'full' or 'incremental'
     
-    console.log(`🚀 Strava API request: userId=${userId}, mode=${mode}, forceRefresh=${forceRefresh}, daysBack=${daysBack}`);
+    console.log(`🚀 Strava API request: userId=${userId}, mode=${mode}, forceRefresh=${forceRefresh}, daysBack=${daysBack}, preserveTags=${preserveTags}`);
     console.log(`🧹 Cleanup options: cleanup=${cleanup}, strategy=${cleanupStrategy}, deepClean=${deepClean}`);
+    
+    // CRITICAL: Load existing run tags before any operations
+    let existingRunTags = new Map();
+    if (preserveTags) {
+      existingRunTags = await loadExistingRunTags(userId);
+    }
     
     // Run cleanup if requested
     if (cleanup || deepClean) {
       const strategy = deepClean ? 'all' : cleanupStrategy;
       const duplicatesRemoved = await cleanupDuplicates(userId, strategy);
       console.log(`🧹 Cleanup completed: ${duplicatesRemoved} duplicates removed (strategy: ${strategy})`);
+      
+      // Reload existing tags after cleanup
+      if (preserveTags) {
+        existingRunTags = await loadExistingRunTags(userId);
+      }
     }
     
     // INCREMENTAL MODE: Fast loading for daily use
@@ -450,12 +529,13 @@ export default async function handler(req, res) {
         const todaysActivitiesFromStrava = await listResp.json();
         console.log(`✅ Incremental fetch: ${todaysActivitiesFromStrava.length} activities found for today`);
         
-        // Process and save today's activities
+        // Process and save today's activities WITH TAG PRESERVATION
         const processedTodaysActivities = [];
         const batch = db.batch();
         const now = new Date().toISOString();
         
         for (const activity of todaysActivitiesFromStrava) {
+          const activityId = activity.id.toString();
           const minutes = Math.round(activity.moving_time / 60);
           let calories = typeof activity.calories === 'number' && activity.calories > 0 ? activity.calories : null;
 
@@ -476,11 +556,27 @@ export default async function handler(req, res) {
           }
           
           const isRun = activity.type?.toLowerCase().includes('run');
-          const autoTag = isRun ? autoTagRun(activity) : null;
+          
+          // CRITICAL: Check for existing tag first
+          let runTagInfo = null;
+          if (isRun && existingRunTags.has(activityId)) {
+            runTagInfo = existingRunTags.get(activityId);
+            console.log(`🏷️ Preserving existing tag for ${activityId}: ${runTagInfo.runType} (${runTagInfo.userOverride ? 'user' : 'auto'})`);
+          } else if (isRun) {
+            const autoTag = autoTagRun(activity);
+            runTagInfo = {
+              runType: autoTag,
+              run_tag: autoTag,
+              userOverride: false,
+              taggedBy: 'auto',
+              taggedAt: now,
+              originalSuggestion: autoTag
+            };
+          }
           
           const summary = {
             userId,
-            id: activity.id.toString(),
+            id: activityId,
             start_date: activity.start_date,
             date: activity.start_date.split('T')[0],
             name: activity.name,
@@ -505,14 +601,18 @@ export default async function handler(req, res) {
             photo_count: activity.photo_count,
             suffer_score: activity.suffer_score,
             fetched_at: now,
-            // Run tagging fields
-            is_run_activity: isRun,
-            run_tag: autoTag,
-            runType: autoTag, // Store in DB as runType
-            autoClassified: autoTag ? true : false,
-            taggedAt: autoTag ? now : null,
-            taggedBy: autoTag ? 'auto' : null
+            is_run_activity: isRun
           };
+
+          // Add run tag info if it's a run
+          if (isRun && runTagInfo) {
+            summary.run_tag = runTagInfo.run_tag;
+            summary.runType = runTagInfo.runType;
+            summary.userOverride = runTagInfo.userOverride;
+            summary.taggedBy = runTagInfo.taggedBy;
+            summary.taggedAt = runTagInfo.taggedAt;
+            summary.originalSuggestion = runTagInfo.originalSuggestion;
+          }
 
           processedTodaysActivities.push(summary);
 
@@ -524,7 +624,8 @@ export default async function handler(req, res) {
         // Commit today's activities
         if (processedTodaysActivities.length > 0) {
           await batch.commit();
-          console.log(`💾 Cached ${processedTodaysActivities.length} new activities for today`);
+          const preservedTags = processedTodaysActivities.filter(a => a.is_run_activity && a.userOverride === true).length;
+          console.log(`💾 Cached ${processedTodaysActivities.length} new activities for today (${preservedTags} with preserved tags)`);
         }
         
         // Combine today's data with cached data
@@ -550,8 +651,8 @@ export default async function handler(req, res) {
       }
     }
     
-    // FULL MODE: Complete refresh (existing logic)
-    console.log('🔄 Full mode - fetching all activities from Strava');
+    // FULL MODE: Complete refresh WITH TAG PRESERVATION
+    console.log('🔄 Full mode - fetching all activities from Strava with tag preservation');
     
     // Rate limit check for full refresh
     if (forceRefresh) {
@@ -666,12 +767,15 @@ export default async function handler(req, res) {
     const activitiesData = await listResp.json();
     console.log(`✅ Fetched ${activitiesData.length} activities from Strava API`);
 
-    /* ––– Process activities with run tagging support ––– */
+    /* ––– Process activities with ENHANCED run tag preservation ––– */
     const summaries = [];
     const batch = db.batch();
     const now = new Date().toISOString();
+    let preservedTagsCount = 0;
+    let newTagsCount = 0;
 
     for (const activity of activitiesData) {
+      const activityId = activity.id.toString();
       const minutes = Math.round(activity.moving_time / 60);
       let calories = typeof activity.calories === 'number' && activity.calories > 0 ? activity.calories : null;
 
@@ -691,13 +795,36 @@ export default async function handler(req, res) {
         }
       }
 
-      // Auto-tag runs
       const isRun = activity.type?.toLowerCase().includes('run');
-      const autoTag = isRun ? autoTagRun(activity) : null;
+      
+      // CRITICAL: Enhanced tag preservation logic
+      let runTagInfo = null;
+      if (isRun) {
+        if (preserveTags && existingRunTags.has(activityId)) {
+          // Use existing tag (preserve user modifications)
+          runTagInfo = existingRunTags.get(activityId);
+          preservedTagsCount++;
+          console.log(`🏷️ Preserving tag for ${activityId}: ${runTagInfo.runType} (${runTagInfo.userOverride ? 'user-modified' : 'auto-tagged'})`);
+        } else {
+          // Generate new auto tag
+          const autoTag = autoTagRun(activity);
+          runTagInfo = {
+            runType: autoTag,
+            run_tag: autoTag,
+            userOverride: false,
+            taggedBy: 'auto',
+            taggedAt: now,
+            originalSuggestion: autoTag,
+            autoClassified: true,
+            confidenceScore: 0.8
+          };
+          newTagsCount++;
+        }
+      }
 
       const summary = {
         userId,
-        id: activity.id.toString(),
+        id: activityId,
         start_date: activity.start_date,
         date: activity.start_date.split('T')[0],
         name: activity.name,
@@ -722,17 +849,20 @@ export default async function handler(req, res) {
         photo_count: activity.photo_count,
         suffer_score: activity.suffer_score,
         fetched_at: now,
-        // Enhanced: Run tagging fields
-        is_run_activity: isRun,
-        run_tag: autoTag, // For frontend compatibility
-        runType: autoTag, // For database storage
-        autoClassified: autoTag ? true : false,
-        taggedAt: autoTag ? now : null,
-        taggedBy: autoTag ? 'auto' : null,
-        userOverride: false, // Will be set to true when user manually changes tag
-        originalSuggestion: autoTag,
-        confidenceScore: autoTag ? 0.8 : 0.0 // Default confidence for auto-classification
+        is_run_activity: isRun
       };
+
+      // Add run tag info if it's a run
+      if (isRun && runTagInfo) {
+        summary.run_tag = runTagInfo.run_tag;
+        summary.runType = runTagInfo.runType;
+        summary.userOverride = runTagInfo.userOverride || false;
+        summary.taggedBy = runTagInfo.taggedBy;
+        summary.taggedAt = runTagInfo.taggedAt;
+        summary.originalSuggestion = runTagInfo.originalSuggestion;
+        summary.autoClassified = runTagInfo.autoClassified || false;
+        summary.confidenceScore = runTagInfo.confidenceScore || 0.0;
+      }
 
       summaries.push(summary);
 
@@ -744,19 +874,27 @@ export default async function handler(req, res) {
     // Commit all writes at once
     if (summaries.length > 0) {
       await batch.commit();
-      console.log(`💾 Cached ${summaries.length} activities to Firestore with run tagging`);
+      console.log(`💾 Cached ${summaries.length} activities to Firestore with enhanced run tag preservation`);
       
-      // Log run tagging stats
+      // Enhanced run tagging stats
       const runActivities = summaries.filter(a => a.is_run_activity);
       const taggedRuns = runActivities.filter(a => a.run_tag);
-      console.log(`🏃 Run tagging stats: ${runActivities.length} runs found, ${taggedRuns.length} auto-tagged`);
+      const userModifiedRuns = taggedRuns.filter(a => a.userOverride === true);
+      
+      console.log(`🏃 Enhanced run tagging stats:`);
+      console.log(`   - ${runActivities.length} runs found`);
+      console.log(`   - ${taggedRuns.length} tagged runs`);
+      console.log(`   - ${preservedTagsCount} tags preserved from existing data`);
+      console.log(`   - ${newTagsCount} new auto-tags generated`);
+      console.log(`   - ${userModifiedRuns.length} user-modified tags preserved`);
       
       if (taggedRuns.length > 0) {
         const tagCounts = taggedRuns.reduce((acc, run) => {
-          acc[run.run_tag] = (acc[run.run_tag] || 0) + 1;
+          const tagType = run.userOverride ? `${run.run_tag} (user)` : `${run.run_tag} (auto)`;
+          acc[tagType] = (acc[tagType] || 0) + 1;
           return acc;
         }, {});
-        console.log(`🏷️ Tag distribution:`, tagCounts);
+        console.log(`🏷️ Tag distribution with preservation status:`, tagCounts);
       }
     }
 
@@ -765,11 +903,16 @@ export default async function handler(req, res) {
       new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
     );
 
-    // Log sample activities
+    // Log sample activities with tag preservation info
     if (sortedSummaries.length > 0) {
-      console.log('📋 Sample activities being returned:');
+      console.log('📋 Sample activities being returned (with tag preservation):');
       sortedSummaries.slice(0, 3).forEach((activity, index) => {
-        const runInfo = activity.is_run_activity ? ` (${activity.run_tag || 'untagged'} run)` : '';
+        let runInfo = '';
+        if (activity.is_run_activity) {
+          const tagStatus = activity.userOverride === true ? 'user-modified' : 'auto-tagged';
+          const wasPreserved = existingRunTags.has(activity.id) ? ' [PRESERVED]' : ' [NEW]';
+          runInfo = ` (${activity.run_tag || 'untagged'} ${tagStatus}${wasPreserved})`;
+        }
         console.log(`${index + 1}. ${activity.name}${runInfo} - ${new Date(activity.start_date).toLocaleDateString()}`);
       });
     }
