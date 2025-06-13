@@ -268,63 +268,63 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
                 iconType="line"
               />
               
-              {/* Calories In - Orange stroke - Left axis */}
+              {/* Calories In - Bright Orange stroke - Left axis */}
               <Line 
                 yAxisId="calories"
                 type="monotone" 
                 dataKey="caloriesIn" 
-                stroke="#ea580c"
-                strokeWidth={3}
-                dot={{ fill: '#ea580c', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#ea580c' }}
+                stroke="#ff6b35"
+                strokeWidth={4}
+                dot={{ fill: '#ff6b35', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#ff6b35' }}
                 name="Calories In"
               />
               
-              {/* Protein - Red stroke - Right axis */}
+              {/* Protein - Deep Red stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="protein" 
                 stroke="#dc2626"
-                strokeWidth={3}
-                dot={{ fill: '#dc2626', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#dc2626' }}
+                strokeWidth={4}
+                dot={{ fill: '#dc2626', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#dc2626' }}
                 name="Protein"
               />
               
-              {/* Carbs - Orange stroke - Right axis */}
+              {/* Carbs - Coral/Pink stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="carbs" 
-                stroke="#f97316"
-                strokeWidth={3}
-                dot={{ fill: '#f97316', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#f97316' }}
+                stroke="#f87171"
+                strokeWidth={4}
+                dot={{ fill: '#f87171', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#f87171' }}
                 name="Carbs"
               />
               
-              {/* Fat - Dark Red stroke - Right axis */}
+              {/* Fat - Dark Burgundy stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="fat" 
-                stroke="#b91c1c"
-                strokeWidth={3}
-                dot={{ fill: '#b91c1c', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#b91c1c' }}
+                stroke="#991b1b"
+                strokeWidth={4}
+                dot={{ fill: '#991b1b', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#991b1b' }}
                 name="Fat"
               />
               
-              {/* Fiber - Light Orange stroke - Right axis */}
+              {/* Fiber - Amber/Yellow stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="fiber" 
-                stroke="#fb923c"
-                strokeWidth={3}
-                dot={{ fill: '#fb923c', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#fb923c' }}
+                stroke="#f59e0b"
+                strokeWidth={4}
+                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#f59e0b' }}
                 name="Fiber"
               />
             </LineChart>
@@ -342,9 +342,9 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
             <div>
               <div className="font-medium text-gray-700 mb-1">Right Axis (Grams):</div>
               <div>• <span className="text-red-600 font-medium">Protein</span>: Daily protein consumption</div>
-              <div>• <span className="text-orange-600 font-medium">Carbs</span>: Daily carbohydrate intake</div>
+              <div>• <span className="text-red-400 font-medium">Carbs</span>: Daily carbohydrate intake</div>
               <div>• <span className="text-red-800 font-medium">Fat</span>: Daily fat consumption</div>
-              <div>• <span className="text-orange-400 font-medium">Fiber</span>: Daily fiber intake</div>
+              <div>• <span className="text-amber-500 font-medium">Fiber</span>: Daily fiber intake</div>
             </div>
           </div>
         </div>
