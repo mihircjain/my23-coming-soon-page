@@ -90,14 +90,13 @@ interface UserData {
 
 // Run tag configuration with colors and intensities - Updated with green/blue theme
 const RUN_TAG_CONFIG = {
-  'easy': { label: 'Easy', emoji: '🟢', intensity: 1, color: 'green' },
-  'recovery': { label: 'Recovery', emoji: '🔵', intensity: 0.5, color: 'blue' },
-  'long': { label: 'Long', emoji: '🟦', intensity: 2, color: 'emerald' },
-  'tempo': { label: 'Tempo', emoji: '🟪', intensity: 3, color: 'teal' },
-  'intervals': { label: 'Intervals', emoji: '🟨', intensity: 4, color: 'cyan' },
-  'hill-repeats': { label: 'Hill Repeats', emoji: '🟫', intensity: 3.5, color: 'lime' }
+  'easy': { label: 'Easy', emoji: '🚶', intensity: 1, color: 'green' },
+  'recovery': { label: 'Recovery', emoji: '💙', intensity: 0.5, color: 'blue' },
+  'long': { label: 'Long', emoji: '🏃', intensity: 2, color: 'emerald' },
+  'tempo': { label: 'Tempo', emoji: '⚡', intensity: 3, color: 'teal' },
+  'intervals': { label: 'Intervals', emoji: '🔥', intensity: 4, color: 'cyan' },
+  'hill-repeats': { label: 'Hill Repeats', emoji: '⛰️', intensity: 3.5, color: 'lime' }
 };
-
 // Generate session ID
 const generateSessionId = () => {
   return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -230,7 +229,7 @@ const analyzeTrainingLoad = (recentActivities: RecentActivity[]): TrainingAnalys
   }
   
   if (runTagDistribution.recovery === 0 && totalRuns > 3) {
-    recommendations.push("🔵 No recovery runs detected. Add 1-2 easy recovery runs per week.");
+    recommendations.push("💙 No recovery runs detected. Add 1-2 easy recovery runs per week.");
   }
   
   if (runTagDistribution.long === 0 && totalRuns > 2) {
@@ -1253,7 +1252,7 @@ ${userData?.bloodMarkers ? Object.entries(userData.bloodMarkers)
   .join('\n') : 'No blood marker data available'}
 
 === RESPONSE REQUIREMENTS ===
-1. ALWAYS reference specific run tags (🟢 Easy, 🔵 Recovery, 🟦 Long, 🟪 Tempo, 🟨 Intervals, 🟫 Hill-repeats)
+1. ALWAYS reference specific run tags (🚶 Easy, 💙 Recovery, 🏃 Long, ⚡ Tempo, 🔥 Intervals, ⛰️ Hill-repeats)
 2. Use training load analysis data (hard:easy ratio, recovery score, training stress)
 3. Give specific recommendations based on run type distribution
 4. Reference actual training patterns and intensity distribution
@@ -1269,7 +1268,7 @@ TRAINING COACHING FOCUS:
 - Give nutrition timing advice based on run types
 
 EXAMPLE RESPONSES:
-"Looking at your run tags, you've done **${trainingAnalysis?.runTagDistribution.intervals || 0} 🟨 interval sessions** and **${trainingAnalysis?.runTagDistribution.easy || 0} 🟢 easy runs** this week. Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio || 0}%**, which is ${(trainingAnalysis?.hardVsEasyRatio || 0) > 25 ? 'higher than the ideal 20%' : 'well balanced'}."
+"Looking at your run tags, you've done **${trainingAnalysis?.runTagDistribution.intervals || 0} 🟨 interval sessions** and **${trainingAnalysis?.runTagDistribution.easy || 0} 🚶 easy runs** this week. Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio || 0}%**, which is ${(trainingAnalysis?.hardVsEasyRatio || 0) > 25 ? 'higher than the ideal 20%' : 'well balanced'}."
 
 Remember: Use the REAL training data. Be specific about run tags and training patterns.`;
 
@@ -1324,8 +1323,8 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
       
       // Enhanced check for training-specific data usage
       const usesTrainingData = assistantContent && (
-        assistantContent.includes('🟢') || assistantContent.includes('🔵') || assistantContent.includes('🟦') ||
-        assistantContent.includes('🟪') || assistantContent.includes('🟨') || assistantContent.includes('🟫') ||
+assistantContent.includes('🚶') || assistantContent.includes('💙') || assistantContent.includes('🏃') ||
+        assistantContent.includes('⚡') || assistantContent.includes('🔥') || assistantContent.includes('⛰️') ||
         assistantContent.includes('hard:easy') || assistantContent.includes('ratio') ||
         assistantContent.includes('recovery score') || assistantContent.includes('training stress') ||
         assistantContent.includes('bpm') || assistantContent.includes('calories') ||
@@ -1756,7 +1755,7 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                     Enhanced AI Capabilities
                   </h4>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <p>🏷️ **Run Tag Analysis**: Easy 🟢, Recovery 🔵, Long 🟦, Tempo 🟪, Intervals 🟨, Hill-repeats 🟫</p>
+                    <p>🏷️ **Run Tag Analysis**:🚶 Easy, 💙 Recovery, 🏃 Long, ⚡ Tempo, 🔥 Intervals, ⛰️ Hill-repeats</p>
                     <p>📊 **Training Load Monitoring**: Hard vs Easy ratios, training stress assessment, overtraining detection</p>
                     <p>🎯 **Smart Recommendations**: Personalized training advice based on your actual run distribution</p>
                     <p>❤️ **Recovery Scoring**: Advanced recovery metrics with actionable insights</p>
