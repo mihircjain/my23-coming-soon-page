@@ -76,9 +76,9 @@ const WeeklyGoalsTracker: React.FC<{
 
   // Weekly Goals
   const goals = {
-    caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "orange", shortLabel: "Burned" },
+    caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "orange", shortLabel: "Cal Burn" },
     protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
-    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "green", shortLabel: "Deficit" }
+    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "green", shortLabel: "Cal Deficit" }
   };
 
   const getProgressColor = (percentage: number) => {
@@ -169,12 +169,6 @@ const WeeklyGoalsTracker: React.FC<{
                 <div className={`text-xs font-semibold ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-yellow-600' : 'text-orange-600'}`}>
                   {Math.round(percentage)}%
                 </div>
-                
-                {percentage >= 100 && (
-                  <div className="text-xs text-green-600 font-semibold mt-1">
-                    ✅
-                  </div>
-                )}
               </div>
             );
           })}
@@ -209,24 +203,24 @@ const WeeklyGoalsTracker: React.FC<{
                   
                   {/* Protein */}
                   <div className="text-xs text-blue-600 font-medium">
-                    {Math.round(protein)}g
+                    P: {Math.round(protein)}g
                   </div>
                   
                   {/* Calories Burned */}
                   <div className="text-xs text-orange-600 font-medium">
-                    {Math.round(burned)}
+                    Cal Burn: {Math.round(burned)}
                   </div>
                   
                   {/* Deficit */}
                   <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
+                    Cal Deficit: {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
                   </div>
                 </div>
               );
             })}
           </div>
           <div className="text-xs text-gray-600 text-center">
-            Protein (g) • Burned (cal) • Deficit (cal)
+            P: Protein (g) • Cal Burn: Burned (cal) • Cal Deficit: Deficit (cal)
           </div>
         </div>
       </CardContent>
