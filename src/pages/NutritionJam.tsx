@@ -138,33 +138,30 @@ const safeCalculateTotals = (entries) => {
   }
 };
 
-// Multi-line Chart Component with weekly averages
+// Multi-line Chart Component for 7-day nutrition data with weekly averages
 const MultiLineNutritionChart = ({ last7DaysData }) => {
   // Calculate weekly averages
-  const calculateWeeklyAverages = () => {
-    const validDays = last7DaysData.filter(day => day.totals && day.totals.calories > 0);
-    if (validDays.length === 0) {
-      return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
-    }
-
-    const totals = validDays.reduce((acc, day) => ({
-      calories: acc.calories + (day.totals?.calories || 0),
-      protein: acc.protein + (day.totals?.protein || 0),
-      carbs: acc.carbs + (day.totals?.carbs || 0),
-      fat: acc.fat + (day.totals?.fat || 0),
-      fiber: acc.fiber + (day.totals?.fiber || 0)
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+  const calculateWeeklyAverages = (data) => {
+    const totals = data.reduce((acc, dayLog) => {
+      return {
+        calories: acc.calories + (dayLog.totals?.calories || 0),
+        protein: acc.protein + (dayLog.totals?.protein || 0),
+        carbs: acc.carbs + (dayLog.totals?.carbs || 0),
+        fat: acc.fat + (dayLog.totals?.fat || 0),
+        fiber: acc.fiber + (dayLog.totals?.fiber || 0)
+      };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
     return {
-      calories: Math.round(totals.calories / validDays.length),
-      protein: Math.round(totals.protein / validDays.length),
-      carbs: Math.round(totals.carbs / validDays.length),
-      fat: Math.round(totals.fat / validDays.length),
-      fiber: Math.round(totals.fiber / validDays.length)
+      calories: Math.round(totals.calories / 7),
+      protein: Math.round(totals.protein / 7),
+      carbs: Math.round(totals.carbs / 7),
+      fat: Math.round(totals.fat / 7),
+      fiber: Math.round(totals.fiber / 7)
     };
   };
 
-  const weeklyAvgs = calculateWeeklyAverages();
+  const weeklyAverages = calculateWeeklyAverages(last7DaysData);
 
   // Transform data for recharts
   const chartData = last7DaysData.map(dayLog => {
@@ -184,7 +181,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 border border-orange-200 rounded-lg shadow-lg">
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-semibold text-gray-800 mb-2">{label}</p>
           {payload.map((entry, index) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
@@ -213,30 +210,27 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
       <CardContent>
         {/* Weekly Averages Summary */}
         <div className="mb-6 p-4 bg-white/60 rounded-lg border border-orange-200">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-orange-500" />
-            Weekly Averages (Per Day)
-          </h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-            <div className="bg-orange-100 rounded-lg p-3 border border-orange-200">
-              <div className="text-lg font-bold text-orange-600">{weeklyAvgs.calories}</div>
-              <div className="text-xs text-orange-700 font-medium">Calories</div>
+          <h4 className="text-sm font-semibold text-gray-700 mb-3 text-center">Weekly Averages</h4>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
+              <div className="text-lg font-bold text-orange-600">{weeklyAverages.calories}</div>
+              <div className="text-xs text-orange-700 font-medium">Avg Calories</div>
             </div>
-            <div className="bg-blue-100 rounded-lg p-3 border border-blue-200">
-              <div className="text-lg font-bold text-blue-600">{weeklyAvgs.protein}g</div>
-              <div className="text-xs text-blue-700 font-medium">Protein</div>
+            <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-red-100 rounded-lg border border-red-200">
+              <div className="text-lg font-bold text-red-600">{weeklyAverages.protein}g</div>
+              <div className="text-xs text-red-700 font-medium">Avg Protein</div>
             </div>
-            <div className="bg-green-100 rounded-lg p-3 border border-green-200">
-              <div className="text-lg font-bold text-green-600">{weeklyAvgs.carbs}g</div>
-              <div className="text-xs text-green-700 font-medium">Carbs</div>
+            <div className="text-center p-3 bg-gradient-to-br from-red-50 to-orange-100 rounded-lg border border-orange-200">
+              <div className="text-lg font-bold text-orange-600">{weeklyAverages.carbs}g</div>
+              <div className="text-xs text-orange-700 font-medium">Avg Carbs</div>
             </div>
-            <div className="bg-purple-100 rounded-lg p-3 border border-purple-200">
-              <div className="text-lg font-bold text-purple-600">{weeklyAvgs.fat}g</div>
-              <div className="text-xs text-purple-700 font-medium">Fat</div>
+            <div className="text-center p-3 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200">
+              <div className="text-lg font-bold text-red-600">{weeklyAverages.fat}g</div>
+              <div className="text-xs text-red-700 font-medium">Avg Fat</div>
             </div>
-            <div className="bg-amber-100 rounded-lg p-3 border border-amber-200">
-              <div className="text-lg font-bold text-amber-600">{weeklyAvgs.fiber}g</div>
-              <div className="text-xs text-amber-700 font-medium">Fiber</div>
+            <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-red-100 rounded-lg border border-orange-200">
+              <div className="text-lg font-bold text-orange-600">{weeklyAverages.fiber}g</div>
+              <div className="text-xs text-orange-700 font-medium">Avg Fiber</div>
             </div>
           </div>
         </div>
@@ -244,26 +238,26 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
         <div className="h-96 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 20, right: 60, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#fed7aa" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis 
                 dataKey="date" 
-                stroke="#ea580c"
+                stroke="#6b7280"
                 fontSize={12}
               />
-              {/* Left Y-axis for Calories */}
+              {/* Left Y-axis for Calories (0-3000 range) */}
               <YAxis 
                 yAxisId="calories"
                 orientation="left"
-                stroke="#ea580c"
+                stroke="#6b7280"
                 fontSize={12}
                 domain={[0, 'dataMax + 200']}
                 label={{ value: 'Calories', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
               />
-              {/* Right Y-axis for Macros */}
+              {/* Right Y-axis for Macros (0-200 range) */}
               <YAxis 
                 yAxisId="macros"
                 orientation="right"
-                stroke="#ea580c"
+                stroke="#6b7280"
                 fontSize={12}
                 domain={[0, 'dataMax + 20']}
                 label={{ value: 'Grams', angle: 90, position: 'insideRight', style: { textAnchor: 'middle' } }}
@@ -274,63 +268,63 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
                 iconType="line"
               />
               
-              {/* Calories In - Orange gradient */}
+              {/* Calories In - Orange stroke - Left axis */}
               <Line 
                 yAxisId="calories"
                 type="monotone" 
                 dataKey="caloriesIn" 
-                stroke="#f97316"
+                stroke="#ea580c"
                 strokeWidth={3}
-                dot={{ fill: '#f97316', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#f97316' }}
+                dot={{ fill: '#ea580c', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#ea580c' }}
                 name="Calories In"
               />
               
-              {/* Protein - Blue */}
+              {/* Protein - Red stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="protein" 
-                stroke="#3b82f6"
+                stroke="#dc2626"
                 strokeWidth={3}
-                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#3b82f6' }}
+                dot={{ fill: '#dc2626', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#dc2626' }}
                 name="Protein"
               />
               
-              {/* Carbs - Green */}
+              {/* Carbs - Orange stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="carbs" 
-                stroke="#10b981"
+                stroke="#f97316"
                 strokeWidth={3}
-                dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#10b981' }}
+                dot={{ fill: '#f97316', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#f97316' }}
                 name="Carbs"
               />
               
-              {/* Fat - Red */}
+              {/* Fat - Dark Red stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="fat" 
-                stroke="#ef4444"
+                stroke="#b91c1c"
                 strokeWidth={3}
-                dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#ef4444' }}
+                dot={{ fill: '#b91c1c', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#b91c1c' }}
                 name="Fat"
               />
               
-              {/* Fiber - Amber */}
+              {/* Fiber - Light Orange stroke - Right axis */}
               <Line 
                 yAxisId="macros"
                 type="monotone" 
                 dataKey="fiber" 
-                stroke="#d97706"
+                stroke="#fb923c"
                 strokeWidth={3}
-                dot={{ fill: '#d97706', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 7, fill: '#d97706' }}
+                dot={{ fill: '#fb923c', strokeWidth: 2, r: 5 }}
+                activeDot={{ r: 7, fill: '#fb923c' }}
                 name="Fiber"
               />
             </LineChart>
@@ -338,7 +332,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
         </div>
         
         {/* Chart Legend Info */}
-        <div className="mt-4 p-4 bg-white/60 rounded-lg border border-orange-200">
+        <div className="mt-4 p-4 bg-white/60 rounded-lg border border-gray-200">
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Chart Information</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-600">
             <div>
@@ -347,10 +341,10 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
             </div>
             <div>
               <div className="font-medium text-gray-700 mb-1">Right Axis (Grams):</div>
-              <div>• <span className="text-blue-600 font-medium">Protein</span>: Daily protein consumption</div>
-              <div>• <span className="text-green-600 font-medium">Carbs</span>: Daily carbohydrate intake</div>
-              <div>• <span className="text-red-600 font-medium">Fat</span>: Daily fat consumption</div>
-              <div>• <span className="text-amber-600 font-medium">Fiber</span>: Daily fiber intake</div>
+              <div>• <span className="text-red-600 font-medium">Protein</span>: Daily protein consumption</div>
+              <div>• <span className="text-orange-600 font-medium">Carbs</span>: Daily carbohydrate intake</div>
+              <div>• <span className="text-red-800 font-medium">Fat</span>: Daily fat consumption</div>
+              <div>• <span className="text-orange-400 font-medium">Fiber</span>: Daily fiber intake</div>
             </div>
           </div>
         </div>
@@ -384,10 +378,10 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
 
   const getCardStyle = () => {
     if (isToday) {
-      return "ring-2 ring-red-500 bg-gradient-to-br from-orange-50 to-red-100 border-red-300";
+      return "ring-2 ring-orange-500 bg-gradient-to-br from-orange-50 to-red-100 border-orange-300";
     }
     if (hasData) {
-      return "bg-gradient-to-br from-green-50 to-emerald-100 border-green-300 hover:shadow-green-200";
+      return "bg-gradient-to-br from-orange-50 to-red-50 border-orange-300 hover:shadow-orange-200";
     }
     return "bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:shadow-gray-200";
   };
@@ -406,7 +400,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
             {formatDate(date)}
           </div>
           {isToday && (
-            <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">
+            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
               Today
             </span>
           )}
@@ -438,21 +432,21 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
 
             {/* Macros Grid */}
             <div className="grid grid-cols-2 gap-6">
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-blue-200">
-                <div className="font-bold text-blue-600 text-lg">{Math.round(totals.protein)}g</div>
-                <div className="text-blue-700 text-xs">Protein</div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-red-200">
+                <div className="font-bold text-red-600 text-lg">{Math.round(totals.protein)}g</div>
+                <div className="text-red-700 text-xs">Protein</div>
               </div>
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-green-200">
-                <div className="font-bold text-green-600 text-lg">{Math.round(totals.carbs)}g</div>
-                <div className="text-green-700 text-xs">Carbs</div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-orange-200">
+                <div className="font-bold text-orange-600 text-lg">{Math.round(totals.carbs)}g</div>
+                <div className="text-orange-700 text-xs">Carbs</div>
               </div>
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-purple-200">
-                <div className="font-bold text-purple-600 text-lg">{Math.round(totals.fat)}g</div>
-                <div className="text-purple-700 text-xs">Fat</div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-red-200">
+                <div className="font-bold text-red-600 text-lg">{Math.round(totals.fat)}g</div>
+                <div className="text-red-700 text-xs">Fat</div>
               </div>
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-amber-200">
-                <div className="font-bold text-amber-600 text-lg">{Math.round(totals.fiber || 0)}g</div>
-                <div className="text-amber-700 text-xs">Fiber</div>
+              <div className="text-center bg-white/60 rounded-lg py-3 border border-orange-200">
+                <div className="font-bold text-orange-600 text-lg">{Math.round(totals.fiber || 0)}g</div>
+                <div className="text-orange-700 text-xs">Fiber</div>
               </div>
             </div>
 
@@ -466,7 +460,7 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
           <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
             <div className="text-gray-400 text-sm mb-2">No data</div>
             <div className="text-xs text-gray-400 mb-4">Tap to log food</div>
-            <Plus className="h-8 w-8 text-gray-300 group-hover:text-red-500 transition-colors" />
+            <Plus className="h-8 w-8 text-gray-300 group-hover:text-orange-500 transition-colors" />
           </div>
         )}
       </CardContent>
@@ -489,18 +483,11 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
     return isNaN(num) || !isFinite(num) ? 0 : num;
   };
 
-  console.log(`FoodItemCard for entry ${index}:`, {
-    entry,
-    calories: entry.calories,
-    protein: entry.protein,
-    quantity: entry.quantity
-  });
-
   const totalCals = Math.round(safeNumber(entry.calories) * safeNumber(entry.quantity));
   const totalProtein = Math.round(safeNumber(entry.protein) * safeNumber(entry.quantity));
 
   return (
-    <Card className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-orange-50 border-orange-200">
+    <Card className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-orange-50">
       <CardContent className="p-4">
         <div className="flex justify-between items-center">
           <div className="flex-1">
@@ -509,20 +496,11 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
               <span className="flex items-center gap-1">
                 <Flame className="h-3 w-3 text-orange-500" />
                 {totalCals} cal
-                <span className="text-xs text-gray-400">
-                  ({safeNumber(entry.calories)} × {safeNumber(entry.quantity)})
-                </span>
               </span>
               <span className="flex items-center gap-1">
-                <Target className="h-3 w-3 text-blue-500" />
+                <Target className="h-3 w-3 text-red-500" />
                 {totalProtein}g protein
-                <span className="text-xs text-gray-400">
-                  ({safeNumber(entry.protein)} × {safeNumber(entry.quantity)})
-                </span>
               </span>
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              Raw: cal={entry.calories}, prot={entry.protein}, qty={entry.quantity}
             </div>
           </div>
 
@@ -533,11 +511,11 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
                   type="number"
                   value={quantity}
                   onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                  className="w-16 px-2 py-1 text-sm border border-orange-200 rounded focus:ring-2 focus:ring-orange-500"
+                  className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-orange-500"
                   step="0.1"
                   min="0"
                 />
-                <Button size="sm" onClick={handleSave} className="bg-orange-500 hover:bg-orange-600">Save</Button>
+                <Button size="sm" onClick={handleSave}>Save</Button>
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
               </div>
             ) : (
@@ -547,7 +525,6 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
                     variant="outline"
                     size="sm"
                     onClick={() => onUpdateQuantity(index, Math.max(0.1, safeNumber(entry.quantity) - 0.5))}
-                    className="border-orange-200 hover:bg-orange-50"
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -558,13 +535,12 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
                     variant="outline"
                     size="sm"
                     onClick={() => onUpdateQuantity(index, safeNumber(entry.quantity) + 0.5)}
-                    className="border-orange-200 hover:bg-orange-50"
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
                 </div>
 
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="border-orange-200 hover:bg-orange-50">
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
                   <Edit className="h-3 w-3" />
                 </Button>
 
@@ -572,7 +548,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => onRemove(index)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -585,7 +561,7 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   );
 };
 
-// Fixed Combined Meals Card Component with proper bottom alignment
+// Combined Meals Card Component with fixed alignment
 const CombinedMealCard = ({ preset, onClick }) => {
   const totalCalories = preset.foods?.reduce((sum, food) => 
     sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
@@ -601,7 +577,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
   const foodCount = preset.foods?.length || 0;
 
   return (
-    <Card className="bg-white border border-orange-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-orange-300 h-full flex flex-col">
+    <Card className="bg-white border border-orange-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-red-300 h-full flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex justify-between items-start mb-2">
           <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
@@ -614,78 +590,73 @@ const CombinedMealCard = ({ preset, onClick }) => {
       </CardHeader>
       
       <CardContent className="pt-0 flex flex-col flex-1">
-        {/* All content container with flex-1 and flex flex-col */}
-        <div className="flex flex-col flex-1">
-          
-          {/* Food items description - fixed height */}
-          <div className="text-sm text-gray-600 mb-3 min-h-[3rem]">
-            <div className="leading-relaxed line-clamp-2">
-              {preset.foods{/* Food items description - fixed height */}
-          <div className="text-sm text-gray-600 mb-3 min-h-[3rem]">
-            <div className="leading-relaxed line-clamp-2">
+        {/* Main content area that can grow */}
+        <div className="flex-1 min-h-0">
+          {/* Food items description - fixed height with overflow */}
+          <div className="text-sm text-gray-600 mb-4 h-12 overflow-hidden">
+            <div className="leading-relaxed">
               {preset.foods?.map(food => food.foodId).join(", ")}
             </div>
           </div>
 
-          {/* Summary stats - Better alignment with fixed heights */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200 flex flex-col justify-center h-20">
+          {/* Summary stats - fixed height */}
+          <div className="grid grid-cols-2 gap-3 mb-4 h-20">
+            <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200 flex flex-col justify-center">
               <div className="text-xl font-bold text-orange-600 leading-tight">
                 {Math.round(totalCalories)}
               </div>
               <div className="text-xs text-orange-700 font-medium mt-1">calories</div>
             </div>
-            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 flex flex-col justify-center h-20">
-              <div className="text-xl font-bold text-blue-600 leading-tight">
+            <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200 flex flex-col justify-center">
+              <div className="text-xl font-bold text-red-600 leading-tight">
                 {foodCount}
               </div>
-              <div className="text-xs text-blue-700 font-medium mt-1">items</div>
+              <div className="text-xs text-red-700 font-medium mt-1">items</div>
             </div>
           </div>
           
-          {/* Detailed macros grid - Fixed alignment with consistent heights */}
-          <div className="grid grid-cols-4 gap-2 mb-4 text-xs">
-            <div className="text-center bg-blue-50 rounded-lg py-2 px-1 border border-blue-100 flex flex-col justify-center h-16">
-              <div className="font-bold text-blue-600 text-sm leading-tight">{Math.round(totalProtein)}g</div>
-              <div className="text-blue-700 text-[10px] mt-1">Protein</div>
+          {/* Detailed macros grid - Fixed alignment with consistent heights and orange/red theme */}
+          <div className="grid grid-cols-4 gap-2 mb-4 text-xs h-16">
+            <div className="text-center bg-red-50 rounded-lg py-2 px-1 border border-red-100 flex flex-col justify-center">
+              <div className="font-bold text-red-600 text-sm leading-tight">{Math.round(totalProtein)}g</div>
+              <div className="text-red-700 text-[10px] mt-1">Protein</div>
             </div>
-            <div className="text-center bg-green-50 rounded-lg py-2 px-1 border border-green-100 flex flex-col justify-center h-16">
-              <div className="font-bold text-green-600 text-sm leading-tight">{Math.round(totalCarbs)}g</div>
-              <div className="text-green-700 text-[10px] mt-1">Carbs</div>
+            <div className="text-center bg-orange-50 rounded-lg py-2 px-1 border border-orange-100 flex flex-col justify-center">
+              <div className="font-bold text-orange-600 text-sm leading-tight">{Math.round(totalCarbs)}g</div>
+              <div className="text-orange-700 text-[10px] mt-1">Carbs</div>
             </div>
-            <div className="text-center bg-purple-50 rounded-lg py-2 px-1 border border-purple-100 flex flex-col justify-center h-16">
-              <div className="font-bold text-purple-600 text-sm leading-tight">{Math.round(totalFat)}g</div>
-              <div className="text-purple-700 text-[10px] mt-1">Fat</div>
+            <div className="text-center bg-red-50 rounded-lg py-2 px-1 border border-red-100 flex flex-col justify-center">
+              <div className="font-bold text-red-700 text-sm leading-tight">{Math.round(totalFat)}g</div>
+              <div className="text-red-800 text-[10px] mt-1">Fat</div>
             </div>
-            <div className="text-center bg-amber-50 rounded-lg py-2 px-1 border border-amber-100 flex flex-col justify-center h-16">
-              <div className="font-bold text-amber-600 text-sm leading-tight">{Math.round(totalFiber)}g</div>
-              <div className="text-amber-700 text-[10px] mt-1">Fiber</div>
+            <div className="text-center bg-orange-50 rounded-lg py-2 px-1 border border-orange-100 flex flex-col justify-center">
+              <div className="font-bold text-orange-600 text-sm leading-tight">{Math.round(totalFiber)}g</div>
+              <div className="text-orange-700 text-[10px] mt-1">Fiber</div>
             </div>
           </div>
 
-          {/* Spacer to push content to bottom */}
-          <div className="flex-1"></div>
-
-          {/* Food breakdown - limited to 3 items with fixed height */}
-          <div className="space-y-1 text-xs text-gray-600 overflow-hidden mb-4 min-h-[3rem]">
-            {preset.foods?.slice(0, 3).map((food, index) => (
-              <div key={index} className="flex justify-between">
-                <span className="truncate flex-1">{food.foodId}</span>
-                <span className="ml-2 text-gray-500 flex-shrink-0">
-                  {Math.round(food.calories * food.quantity)}cal
-                </span>
-              </div>
-            ))}
-            {preset.foods && preset.foods.length > 3 && (
-              <div className="text-center text-gray-400 text-[10px]">
-                +{preset.foods.length - 3} more items
-              </div>
-            )}
+          {/* Food breakdown - fixed height container */}
+          <div className="h-16 overflow-hidden">
+            <div className="space-y-1 text-xs text-gray-600">
+              {preset.foods?.slice(0, 3).map((food, index) => (
+                <div key={index} className="flex justify-between">
+                  <span className="truncate flex-1">{food.foodId}</span>
+                  <span className="ml-2 text-gray-500 flex-shrink-0">
+                    {Math.round(food.calories * food.quantity)}cal
+                  </span>
+                </div>
+              ))}
+              {preset.foods && preset.foods.length > 3 && (
+                <div className="text-center text-gray-400 text-[10px]">
+                  +{preset.foods.length - 3} more items
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Fixed bottom section with button - always at bottom */}
-        <div className="flex-shrink-0">
+        <div className="pt-4 flex-shrink-0">
           <Button 
             onClick={onClick}
             className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
@@ -844,6 +815,7 @@ const NutritionJam = () => {
 
   const loadLastXDaysData = useCallback(async () => {
     try {
+      // Always generate 7 days regardless of what's in Firestore
       const last7Days = [];
       const today = new Date();
       
@@ -852,6 +824,7 @@ const NutritionJam = () => {
         date.setDate(today.getDate() - i);
         const dateString = safeFormatDateToYYYYMMDD(date);
         
+        // Create a basic log structure for each day
         const dayLog = {
           date: dateString,
           entries: [],
@@ -859,6 +832,7 @@ const NutritionJam = () => {
           lastUpdated: null
         };
         
+        // Try to get actual data from Firestore if available
         try {
           const actualLog = await getOrCreateDailyLogFirestore(dateString);
           if (actualLog && actualLog.entries && actualLog.entries.length > 0) {
@@ -868,6 +842,7 @@ const NutritionJam = () => {
           }
         } catch (error) {
           console.error(`Error loading data for ${dateString}:`, error);
+          // Keep the empty structure
         }
         
         last7Days.push(dayLog);
@@ -876,6 +851,7 @@ const NutritionJam = () => {
       setLastXDaysData(last7Days);
     } catch (error) {
       console.error('Error loading last X days data:', error);
+      // Still create empty 7 days structure
       const fallback7Days = [];
       const today = new Date();
       
@@ -921,8 +897,10 @@ const NutritionJam = () => {
 
     setSaving(true);
     try {
+      // Log the incoming food entry to debug
       console.log('Raw food entry received:', foodEntry);
       
+      // Normalize the food entry data structure
       const normalizedEntry = {
         foodId: foodEntry.foodId || foodEntry.name || 'Unknown Food',
         calories: Number(foodEntry.calories) || 0,
@@ -935,8 +913,10 @@ const NutritionJam = () => {
         timestamp: new Date().toISOString()
       };
       
+      // Log the normalized entry
       console.log('Normalized food entry:', normalizedEntry);
       
+      // Validate that we have meaningful nutrition data
       if (normalizedEntry.calories === 0 && normalizedEntry.protein === 0 && 
           normalizedEntry.carbs === 0 && normalizedEntry.fat === 0) {
         console.warn('Warning: Food entry has no nutrition data:', normalizedEntry);
@@ -946,6 +926,7 @@ const NutritionJam = () => {
       const updatedEntries = [...currentLog.entries, normalizedEntry];
       const updatedTotals = safeCalculateTotals(updatedEntries);
       
+      // Log the calculated totals
       console.log('Updated totals after adding food:', updatedTotals);
       
       const updatedLog: DailyLog = {
@@ -1102,9 +1083,9 @@ const NutritionJam = () => {
           </Button>
           <div className="flex items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                 <Utensils className="h-8 w-8 text-orange-600" />
-                🍎 Nutrition Jam
+                Nutrition Jam
               </h1>
               <p className="text-gray-600 mt-1">Track your daily nutrition and meals</p>
             </div>
@@ -1116,7 +1097,7 @@ const NutritionJam = () => {
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-[240px] justify-start text-left font-normal border-orange-200 hover:bg-orange-50",
+                    "w-[240px] justify-start text-left font-normal",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
@@ -1139,7 +1120,7 @@ const NutritionJam = () => {
                 onClick={handleAutoFillFromYesterday}
                 disabled={saving}
                 variant="outline"
-                className="flex items-center gap-2 border-orange-200 hover:bg-orange-50"
+                className="flex items-center gap-2"
               >
                 <TrendingUp className="h-4 w-4" />
                 Auto-fill from Yesterday
@@ -1151,11 +1132,11 @@ const NutritionJam = () => {
 
       <main className="flex-1 px-6 md:px-12 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-orange-100 border border-orange-200">
-            <TabsTrigger value="today" className="data-[state=active]:bg-orange-200">Today's Log</TabsTrigger>
-            <TabsTrigger value="last7days" className="data-[state=active]:bg-orange-200">Last 7 Days</TabsTrigger>
-            <TabsTrigger value="presets" className="data-[state=active]:bg-orange-200">Combined Meals</TabsTrigger>
-            <TabsTrigger value="public" className="data-[state=active]:bg-orange-200">Public Logs</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="today">Today's Log</TabsTrigger>
+            <TabsTrigger value="last7days">Last 7 Days</TabsTrigger>
+            <TabsTrigger value="presets">Combined Meals</TabsTrigger>
+            <TabsTrigger value="public">Public Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="today" className="space-y-6">
@@ -1204,40 +1185,40 @@ const NutritionJam = () => {
                         </div>
                       </div>
 
-                      {/* Macros Grid */}
+                      {/* Macros Grid - Orange/Red theme */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
-                          <Target className="h-5 w-5 mx-auto mb-2 text-blue-500" />
-                          <div className="text-2xl font-bold text-blue-600">
+                        <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
+                          <Target className="h-5 w-5 mx-auto mb-2 text-red-500" />
+                          <div className="text-2xl font-bold text-red-600">
                             {Math.round(currentLog?.totals?.protein || 0)}g
                           </div>
-                          <div className="text-xs text-blue-700 font-medium">Protein</div>
+                          <div className="text-xs text-red-700 font-medium">Protein</div>
                         </div>
-                        <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
-                          <Activity className="h-5 w-5 mx-auto mb-2 text-green-500" />
-                          <div className="text-2xl font-bold text-green-600">
+                        <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+                          <Activity className="h-5 w-5 mx-auto mb-2 text-orange-500" />
+                          <div className="text-2xl font-bold text-orange-600">
                             {Math.round(currentLog?.totals?.carbs || 0)}g
                           </div>
-                          <div className="text-xs text-green-700 font-medium">Carbs</div>
+                          <div className="text-xs text-orange-700 font-medium">Carbs</div>
                         </div>
-                        <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
-                          <div className="w-5 h-5 mx-auto mb-2 bg-purple-500 rounded-full"></div>
-                          <div className="text-2xl font-bold text-purple-600">
+                        <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
+                          <div className="w-5 h-5 mx-auto mb-2 bg-red-500 rounded-full"></div>
+                          <div className="text-2xl font-bold text-red-700">
                             {Math.round(currentLog?.totals?.fat || 0)}g
                           </div>
-                          <div className="text-xs text-purple-700 font-medium">Fat</div>
+                          <div className="text-xs text-red-800 font-medium">Fat</div>
                         </div>
-                        <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
-                          <div className="w-5 h-5 mx-auto mb-2 bg-amber-500 rounded-sm"></div>
-                          <div className="text-2xl font-bold text-amber-600">
+                        <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+                          <div className="w-5 h-5 mx-auto mb-2 bg-orange-500 rounded-sm"></div>
+                          <div className="text-2xl font-bold text-orange-600">
                             {Math.round(currentLog?.totals?.fiber || 0)}g
                           </div>
-                          <div className="text-xs text-amber-700 font-medium">Fiber</div>
+                          <div className="text-xs text-orange-700 font-medium">Fiber</div>
                         </div>
                       </div>
 
                       {/* Quick Stats */}
-                      <div className="mt-6 bg-white rounded-lg p-4 border border-orange-200">
+                      <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
                         <div className="flex items-center justify-center text-sm">
                           <span className="text-gray-600 flex items-center gap-1">
                             <Utensils className="h-4 w-4" />
@@ -1252,7 +1233,7 @@ const NutritionJam = () => {
                 </Card>
 
                 {/* Add Food - Horizontal Section */}
-                <Card className="border-orange-200">
+                <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Plus className="h-5 w-5 text-orange-600" />
@@ -1265,10 +1246,10 @@ const NutritionJam = () => {
                 </Card>
 
                 {/* Today's Foods - Full Width Section */}
-                <Card className="border-orange-200">
+                <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Utensils className="h-5 w-5 text-orange-600" />
+                      <Utensils className="h-5 w-5 text-red-600" />
                       Today's Foods ({currentLog?.entries?.length || 0})
                     </CardTitle>
                   </CardHeader>
@@ -1299,7 +1280,7 @@ const NutritionJam = () => {
           </TabsContent>
 
           <TabsContent value="last7days" className="space-y-6">
-            <Card className="border-orange-200">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5 text-orange-600" />
@@ -1333,15 +1314,15 @@ const NutritionJam = () => {
               </CardContent>
             </Card>
             
-            {/* Multi-line Chart with weekly averages */}
+            {/* Multi-line Chart replaces the Weekly Averages Summary */}
             <MultiLineNutritionChart last7DaysData={lastXDaysData} />
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-6">
             <section>
               <div className="flex items-center mb-6">
-                <CalendarIcon className="h-6 w-6 mr-3 text-orange-600" />
-                <h2 className="text-2xl font-semibold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Combined Meals (Presets)</h2>
+                <CalendarIcon className="h-6 w-6 mr-3 text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-800">Combined Meals (Presets)</h2>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
