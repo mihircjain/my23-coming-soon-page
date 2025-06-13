@@ -41,7 +41,7 @@ interface UserFeedback {
   timestamp: string;
 }
 
-// Weekly Goals Tracker Component - Compact Version
+// Weekly Goals Tracker Component - Updated with Green/Blue Theme
 const WeeklyGoalsTracker: React.FC<{
   weekData: Record<string, HealthData>;
   loading: boolean;
@@ -74,18 +74,18 @@ const WeeklyGoalsTracker: React.FC<{
 
   const weeklyTotals = calculateWeeklyTotals();
 
-  // Weekly Goals
+  // Weekly Goals - Updated colors
   const goals = {
-    caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "orange", shortLabel: "Cal Burn" },
+    caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "green", shortLabel: "Cal Burn" },
     protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
-    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "green", shortLabel: "Cal Deficit" }
+    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "emerald", shortLabel: "Cal Deficit" }
   };
 
   const getProgressColor = (percentage: number) => {
     if (percentage >= 100) return "bg-green-500";
-    if (percentage >= 75) return "bg-yellow-500";
-    if (percentage >= 50) return "bg-orange-500";
-    return "bg-red-500";
+    if (percentage >= 75) return "bg-blue-500";
+    if (percentage >= 50) return "bg-emerald-500";
+    return "bg-teal-500";
   };
 
   const getWeeklyRating = () => {
@@ -97,17 +97,17 @@ const WeeklyGoalsTracker: React.FC<{
     
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
     
-    if (avgScore >= 90) return { rating: "🏆 CHAMPION", color: "text-yellow-600" };
-    if (avgScore >= 75) return { rating: "🔥 STRONG", color: "text-orange-600" };
-    if (avgScore >= 50) return { rating: "💪 BUILDING", color: "text-blue-600" };
-    return { rating: "🌱 STARTING", color: "text-green-600" };
+    if (avgScore >= 90) return { rating: "🏆 CHAMPION", color: "text-green-600" };
+    if (avgScore >= 75) return { rating: "🔥 STRONG", color: "text-blue-600" };
+    if (avgScore >= 50) return { rating: "💪 BUILDING", color: "text-emerald-600" };
+    return { rating: "🌱 STARTING", color: "text-teal-600" };
   };
 
   const weeklyRating = getWeeklyRating();
 
   if (loading) {
     return (
-      <Card className="bg-gradient-to-r from-orange-200 to-red-200 rounded-xl shadow-lg">
+      <Card className="bg-gradient-to-r from-green-100 to-blue-100 rounded-xl shadow-lg">
         <CardContent className="p-4">
           <div className="animate-pulse space-y-3">
             <div className="h-6 bg-white/30 rounded w-1/2 mx-auto"></div>
@@ -123,9 +123,9 @@ const WeeklyGoalsTracker: React.FC<{
   }
 
   return (
-    <Card className="bg-gradient-to-r from-orange-200 to-red-200 rounded-xl shadow-lg">
+    <Card className="bg-gradient-to-r from-green-100 to-blue-100 rounded-xl shadow-lg">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-xl font-bold bg-gradient-to-r from-orange-700 to-red-700 bg-clip-text text-transparent">
+        <CardTitle className="text-xl font-bold bg-gradient-to-r from-green-700 to-blue-700 bg-clip-text text-transparent">
           📊 Weekly Goals
         </CardTitle>
         <div className={`text-lg font-bold ${weeklyRating.color}`}>
@@ -166,7 +166,7 @@ const WeeklyGoalsTracker: React.FC<{
                   />
                 </div>
                 
-                <div className={`text-xs font-semibold ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-yellow-600' : 'text-orange-600'}`}>
+                <div className={`text-xs font-semibold ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-blue-600' : 'text-emerald-600'}`}>
                   {Math.round(percentage)}%
                 </div>
               </div>
@@ -194,7 +194,7 @@ const WeeklyGoalsTracker: React.FC<{
                 <div 
                   key={dateStr}
                   className={`p-1 rounded text-center text-xs border ${
-                    isToday ? 'border-red-500 bg-white/80' : 'border-white/30 bg-white/60'
+                    isToday ? 'border-green-500 bg-white/80' : 'border-white/30 bg-white/60'
                   }`}
                 >
                   <div className="font-semibold text-gray-600 text-xs mb-1">
@@ -207,12 +207,12 @@ const WeeklyGoalsTracker: React.FC<{
                   </div>
                   
                   {/* Calories Burned */}
-                  <div className="text-xs text-orange-600 font-medium">
+                  <div className="text-xs text-green-600 font-medium">
                     Cal Burn: {Math.round(burned)}
                   </div>
                   
                   {/* Deficit */}
-                  <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-emerald-600' : 'text-teal-600'}`}>
                     Cal Deficit: {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
                   </div>
                 </div>
@@ -228,7 +228,7 @@ const WeeklyGoalsTracker: React.FC<{
   );
 };
 
-// Combined Email Signup and Feedback Component
+// Combined Email Signup and Feedback Component - Updated with Green/Blue Theme
 const EmailAndFeedbackCard: React.FC = () => {
   const [email, setEmail] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -280,12 +280,12 @@ const EmailAndFeedbackCard: React.FC = () => {
   };
 
   return (
-    <Card className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-lg hover:shadow-xl transition-all duration-300">
+    <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader className="text-center pb-4">
-        <div className="mx-auto w-12 h-12 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center mb-3">
+        <div className="mx-auto w-12 h-12 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-3">
           <Mail className="h-6 w-6 text-white" />
         </div>
-        <CardTitle className="text-lg font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+        <CardTitle className="text-lg font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
           📬 Stay Updated
         </CardTitle>
         <p className="text-sm text-gray-600">
@@ -299,7 +299,7 @@ const EmailAndFeedbackCard: React.FC = () => {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border-orange-200 focus:border-orange-400 focus:ring-orange-400 text-sm"
+            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-sm"
             disabled={isSubmitting}
             required
           />
@@ -308,14 +308,14 @@ const EmailAndFeedbackCard: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowFeedbackFields(!showFeedbackFields)}
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+              className="text-sm text-green-600 hover:text-green-700 font-medium"
             >
               {showFeedbackFields ? '📬 Just email signup' : '💭 + Add feedback/suggestions'}
             </button>
           </div>
 
           {showFeedbackFields && (
-            <div className="space-y-3 border-t border-orange-200 pt-3">
+            <div className="space-y-3 border-t border-green-200 pt-3">
               <div className="flex gap-1">
                 {[
                   { value: 'suggestion', label: 'Idea', icon: '💡' },
@@ -328,7 +328,7 @@ const EmailAndFeedbackCard: React.FC = () => {
                     onClick={() => setType(option.value as any)}
                     className={'flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ' + (
                       type === option.value
-                        ? 'bg-orange-200 text-orange-700 border border-orange-300'
+                        ? 'bg-green-100 text-green-700 border border-green-300'
                         : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
                     )}
                   >
@@ -342,7 +342,7 @@ const EmailAndFeedbackCard: React.FC = () => {
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 rows={3}
-                className="rounded-lg border-orange-200 focus:border-orange-400 focus:ring-orange-400 resize-none text-sm"
+                className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 resize-none text-sm"
                 disabled={isSubmitting}
               />
             </div>
@@ -351,7 +351,7 @@ const EmailAndFeedbackCard: React.FC = () => {
           <Button
             type="submit"
             disabled={isSubmitting || !email}
-            className="w-full bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+            className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
           >
             {isSubmitting ? (
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
@@ -368,7 +368,7 @@ const EmailAndFeedbackCard: React.FC = () => {
   );
 };
 
-// Health Overview Component with Weekly Goals
+// Health Overview Component with Weekly Goals - Updated colors
 const HealthOverviewCard: React.FC = () => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarkerData | null>(null);
@@ -485,10 +485,10 @@ const HealthOverviewCard: React.FC = () => {
       <WeeklyGoalsTracker weekData={last7DaysData} loading={loading} />
 
       {bloodMarkers && (
-        <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
+        <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Droplet className="h-5 w-5 text-red-500" />
+              <Droplet className="h-5 w-5 text-teal-500" />
               Latest Blood Markers
             </CardTitle>
             <p className="text-sm text-gray-600">
@@ -511,7 +511,7 @@ const HealthOverviewCard: React.FC = () => {
   );
 };
 
-// Chatbot Card Component
+// Chatbot Card Component - Updated with Green/Blue Theme
 const ChatbotCard: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -602,14 +602,14 @@ const ChatbotCard: React.FC = () => {
   if (!isOpen) {
     return (
       <Card 
-        className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
+        className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
         onClick={() => window.location.href = '/lets-jam'}
       >
         <CardHeader className="text-center pb-4">
-          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center mb-3">
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-3">
             <Bot className="h-6 w-6 text-white" />
           </div>
-          <CardTitle className="text-lg font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+          <CardTitle className="text-lg font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
             🤖 AI Health Chat
           </CardTitle>
           <p className="text-sm text-gray-600">
@@ -618,13 +618,13 @@ const ChatbotCard: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="bg-white/60 rounded-lg p-3 border border-orange-200">
+            <div className="bg-white/60 rounded-lg p-3 border border-green-200">
               <div className="text-xs text-gray-600 mb-1">
                 "How's my nutrition this week?"
               </div>
             </div>
             <Button
-              className="w-full bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+              className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
             >
               <MessageSquare className="h-4 w-4" />
               Start Chatting
@@ -636,15 +636,15 @@ const ChatbotCard: React.FC = () => {
   }
 
   return (
-    <Card className="bg-gradient-to-br from-orange-100 to-red-100 border-orange-200 shadow-lg">
+    <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg">
       <CardHeader className="text-center pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-400 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center">
               <Bot className="h-4 w-4 text-white" />
             </div>
             <div>
-              <CardTitle className="text-sm font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+              <CardTitle className="text-sm font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
                 AI Health Chat
               </CardTitle>
               <p className="text-xs text-gray-500">Powered by Gemini</p>
@@ -668,7 +668,7 @@ const ChatbotCard: React.FC = () => {
                 <button
                   key={index}
                   onClick={() => handleQuickPrompt(prompt)}
-                  className="text-xs p-2 bg-white/60 hover:bg-white/80 border border-orange-200 rounded text-orange-700 transition-all duration-200"
+                  className="text-xs p-2 bg-white/60 hover:bg-white/80 border border-green-200 rounded text-green-700 transition-all duration-200"
                 >
                   {prompt}
                 </button>
@@ -685,7 +685,7 @@ const ChatbotCard: React.FC = () => {
                 <div
                   className={'max-w-[80%] p-2 rounded-lg text-xs ' + (
                     message.role === 'user'
-                      ? 'bg-orange-500 text-white'
+                      ? 'bg-green-500 text-white'
                       : 'bg-white text-gray-800 border border-gray-200'
                   )}
                 >
@@ -713,14 +713,14 @@ const ChatbotCard: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              className="text-sm border-orange-200 focus:border-orange-400"
+              className="text-sm border-green-200 focus:border-green-400"
               disabled={isTyping}
             />
             <Button
               onClick={handleSendMessage}
               disabled={!input.trim() || isTyping}
               size="sm"
-              className="bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white px-3"
+              className="bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white px-3"
             >
               <Send className="h-4 w-4" />
             </Button>
@@ -730,7 +730,7 @@ const ChatbotCard: React.FC = () => {
           <div className="text-center">
             <button
               onClick={() => window.location.href = '/lets-jam'}
-              className="text-xs text-orange-600 hover:text-orange-700 underline"
+              className="text-xs text-green-600 hover:text-green-700 underline"
             >
               Open full chat page →
             </button>
@@ -747,22 +747,22 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 relative overflow-hidden">
       <Toaster position="top-right" />
       
       {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
       
       {/* Floating elements for visual interest */}
-      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-pink-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-teal-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
       
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
         {/* Main heading section */}
         <div className="text-center mb-12">
           <div className="space-y-6 mb-8">
-            <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent animate-fade-in leading-tight">
+            <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-green-600 via-blue-600 to-teal-600 bg-clip-text text-transparent animate-fade-in leading-tight">
               🩺 MY HEALTH.<br />
               🗄️ MY DATA.<br />
               🧬 MY 23.
@@ -793,7 +793,7 @@ const Index = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Button 
                 onClick={() => window.location.href = '/overall-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <BarChart2 className="mr-3 h-5 w-5" />
                 Overall Jam
@@ -801,7 +801,7 @@ const Index = () => {
               
               <Button 
                 onClick={() => window.location.href = '/lets-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-orange-200 hover:bg-white text-orange-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <MessageSquare className="mr-3 h-5 w-5" />
                 Lets Jam
@@ -812,7 +812,7 @@ const Index = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Button 
                 onClick={() => window.location.href = '/activity-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-orange-200 hover:bg-white text-orange-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Activity className="mr-3 h-5 w-5" />
                 Activity Jam
@@ -820,7 +820,7 @@ const Index = () => {
               
               <Button 
                 onClick={() => window.location.href = '/nutrition-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Utensils className="mr-3 h-5 w-5" />
                 Nutrition Jam
@@ -828,7 +828,7 @@ const Index = () => {
               
               <Button 
                 onClick={() => window.location.href = '/body-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-red-200 hover:bg-white text-red-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="bg-white/80 backdrop-blur-sm border border-teal-200 hover:bg-white text-teal-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Heart className="mr-3 h-5 w-5" />
                 Body Jam
@@ -846,7 +846,7 @@ const Index = () => {
         <div className="text-center mb-12 animate-slide-up delay-500">
           <Button 
             onClick={handleEmailClick}
-            className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-4 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             <Mail className="mr-3 h-5 w-5" />
             mihir@my23.ai
@@ -856,7 +856,7 @@ const Index = () => {
         {/* Coming soon indicator */}
         <div className="text-center animate-slide-up delay-900">
           <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
-            <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm text-gray-600 font-medium">📬 Building the future of personalized health</span>
           </div>
         </div>
