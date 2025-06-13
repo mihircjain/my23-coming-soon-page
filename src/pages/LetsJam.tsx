@@ -1,8 +1,9 @@
+// Enhanced LetsJam with Run Tags and Training Analysis
 // Hardcoded userId for consistency
 const userId = "mihir_jain";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, RefreshCw, Activity, Utensils, Heart, TrendingUp, Target, Zap, Calendar, BarChart3, ArrowLeft, User, MessageSquare, Flame, Droplet, Clock } from 'lucide-react';
+import { Bot, Send, RefreshCw, Activity, Utensils, Heart, TrendingUp, Target, Zap, Calendar, BarChart3, ArrowLeft, User, MessageSquare, Flame, Droplet, Clock, Tag, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '@/lib/firebaseConfig';
 import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 
-// Types matching your 24h code structure
+// Enhanced types with run tags
 interface HealthData {
   date: string;
   heartRate: number | null;
@@ -43,6 +44,8 @@ interface RecentActivity {
   max_heartrate?: number;
   calories?: number;
   caloriesBurned?: number;
+  run_tag?: string; // Added run tag support
+  is_run_activity?: boolean;
 }
 
 interface ChatMessage {
@@ -66,12 +69,34 @@ interface ActivityData {
   avgDuration: number;
 }
 
+// Enhanced training analysis interface
+interface TrainingAnalysis {
+  totalRuns: number;
+  weeklyDistance: number;
+  hardVsEasyRatio: number;
+  trainingStress: 'low' | 'moderate' | 'high' | 'overreaching';
+  recoveryScore: number;
+  runTagDistribution: Record<string, number>;
+  recommendations: string[];
+}
+
 interface UserData {
   nutrition: NutritionData;
   activity: ActivityData;
   bloodMarkers: Record<string, any>;
   nutritionDetails?: any[];
+  trainingAnalysis?: TrainingAnalysis; // Added training analysis
 }
+
+// Run tag configuration with colors and intensities
+const RUN_TAG_CONFIG = {
+  'easy': { label: 'Easy', emoji: '🟢', intensity: 1, color: 'green' },
+  'recovery': { label: 'Recovery', emoji: '🟣', intensity: 0.5, color: 'purple' },
+  'long': { label: 'Long', emoji: '🔵', intensity: 2, color: 'blue' },
+  'tempo': { label: 'Tempo', emoji: '🟡', intensity: 3, color: 'yellow' },
+  'intervals': { label: 'Intervals', emoji: '🔴', intensity: 4, color: 'red' },
+  'hill-repeats': { label: 'Hill Repeats', emoji: '🟠', intensity: 3.5, color: 'orange' }
+};
 
 // Generate session ID
 const generateSessionId = () => {
@@ -99,7 +124,6 @@ const loadSessionFromStorage = (): { sessionId: string | null, messages: ChatMes
     
     if (savedSessionId && savedMessages) {
       const parsedMessages = JSON.parse(savedMessages);
-      // Convert timestamp strings back to Date objects
       const messagesWithDates = parsedMessages.map((msg: any) => ({
         ...msg,
         timestamp: new Date(msg.timestamp)
@@ -143,7 +167,119 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-// Health Summary with enhanced colors - FIXED HEART RATE CALCULATION
+// Enhanced function to analyze training load and patterns
+const analyzeTrainingLoad = (recentActivities: RecentActivity[]): TrainingAnalysis => {
+  const runActivities = recentActivities.filter(activity => 
+    activity.is_run_activity || (activity.type && activity.type.toLowerCase().includes('run'))
+  );
+
+  // Calculate run tag distribution
+  const runTagDistribution: Record<string, number> = {};
+  Object.keys(RUN_TAG_CONFIG).forEach(tag => {
+    runTagDistribution[tag] = 0;
+  });
+
+  let totalTrainingStress = 0;
+  let weeklyDistance = 0;
+  let hardRuns = 0;
+  let easyRuns = 0;
+
+  runActivities.forEach(run => {
+    weeklyDistance += run.distance || 0;
+    
+    const runTag = run.run_tag || 'easy';
+    if (runTagDistribution[runTag] !== undefined) {
+      runTagDistribution[runTag]++;
+    }
+
+    // Calculate training stress based on run type and distance
+    const tagConfig = RUN_TAG_CONFIG[runTag as keyof typeof RUN_TAG_CONFIG] || RUN_TAG_CONFIG.easy;
+    const runStress = (run.distance || 0) * tagConfig.intensity;
+    totalTrainingStress += runStress;
+
+    // Categorize hard vs easy
+    if (tagConfig.intensity >= 3) {
+      hardRuns++;
+    } else {
+      easyRuns++;
+    }
+  });
+
+  // Calculate hard vs easy ratio (ideal is 20:80)
+  const totalRuns = runActivities.length;
+  const hardVsEasyRatio = totalRuns > 0 ? (hardRuns / totalRuns) * 100 : 0;
+
+  // Determine training stress level
+  let trainingStress: 'low' | 'moderate' | 'high' | 'overreaching' = 'low';
+  if (totalTrainingStress > 50) trainingStress = 'overreaching';
+  else if (totalTrainingStress > 30) trainingStress = 'high';
+  else if (totalTrainingStress > 15) trainingStress = 'moderate';
+
+  // Calculate recovery score (0-100)
+  const recoveryScore = Math.max(0, 100 - (hardVsEasyRatio > 30 ? 30 : 0) - (totalTrainingStress > 30 ? 20 : 0));
+
+  // Generate smart recommendations
+  const recommendations: string[] = [];
+  
+  if (hardVsEasyRatio > 30) {
+    recommendations.push("⚠️ High intensity ratio detected. Consider adding more easy runs for better recovery.");
+  }
+  
+  if (totalTrainingStress > 40) {
+    recommendations.push("🔥 High training stress. Schedule a recovery week or reduce intensity.");
+  }
+  
+  if (runTagDistribution.recovery === 0 && totalRuns > 3) {
+    recommendations.push("🟣 No recovery runs detected. Add 1-2 easy recovery runs per week.");
+  }
+  
+  if (runTagDistribution.long === 0 && totalRuns > 2) {
+    recommendations.push("🔵 Consider adding a long run to build endurance.");
+  }
+  
+  if (weeklyDistance < 10 && totalRuns > 0) {
+    recommendations.push("📈 Gradually increase weekly distance for better fitness gains.");
+  }
+
+  if (recommendations.length === 0 && totalRuns > 0) {
+    recommendations.push("✅ Good training balance! Keep up the consistent work.");
+  }
+
+  return {
+    totalRuns,
+    weeklyDistance: Math.round(weeklyDistance * 10) / 10,
+    hardVsEasyRatio: Math.round(hardVsEasyRatio),
+    trainingStress,
+    recoveryScore: Math.round(recoveryScore),
+    runTagDistribution,
+    recommendations
+  };
+};
+
+// Load run tags from Firestore
+const loadRunTags = async (activityIds: string[]): Promise<Record<string, string>> => {
+  try {
+    const response = await fetch('/api/run-tags', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to load run tags');
+    }
+
+    const data = await response.json();
+    console.log('📥 Loaded run tags from API:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Error loading run tags:', error);
+    return {};
+  }
+};
+
+// Enhanced Health Summary with training analysis
 const SmartHealthSummary: React.FC<{ 
   userData: UserData | null,
   recentActivities: RecentActivity[], 
@@ -152,61 +288,40 @@ const SmartHealthSummary: React.FC<{
   loading: boolean
 }> = ({ userData, recentActivities, onRefresh, isRefreshing, loading }) => {
   
-  // Calculate total distance from recent activities
   const totalRunDistance = React.useMemo(() => {
     const runActivities = recentActivities.filter(activity => 
-      activity.type && activity.type.toLowerCase().includes('run')
+      activity.is_run_activity || (activity.type && activity.type.toLowerCase().includes('run'))
     );
-    
-    const distance = runActivities.reduce((sum, run) => sum + (run.distance || 0), 0);
-    
-    console.log('🔍 SmartHealthSummary - Run activities:', runActivities.length);
-    console.log('🔍 SmartHealthSummary - Total run distance:', distance);
-    
-    return distance;
+    return runActivities.reduce((sum, run) => sum + (run.distance || 0), 0);
   }, [recentActivities]);
   
-  // NEW: Calculate average heart rate specifically for running activities
   const averageRunningHeartRate = React.useMemo(() => {
     const runActivities = recentActivities.filter(activity => 
-      activity.type && activity.type.toLowerCase().includes('run')
+      (activity.is_run_activity || (activity.type && activity.type.toLowerCase().includes('run'))) &&
+      activity.average_heartrate && activity.average_heartrate > 0
     );
     
-    const runActivitiesWithHR = runActivities.filter(run => 
-      run.average_heartrate && run.average_heartrate > 0
-    );
+    if (runActivities.length === 0) return 0;
     
-    if (runActivitiesWithHR.length === 0) {
-      return 0;
-    }
-    
-    const totalHR = runActivitiesWithHR.reduce((sum, run) => 
-      sum + (run.average_heartrate || 0), 0
-    );
-    
-    const avgHR = Math.round(totalHR / runActivitiesWithHR.length);
-    
-    console.log('🔍 SmartHealthSummary - Running HR calculation:', {
-      totalRunActivities: runActivities.length,
-      runActivitiesWithHR: runActivitiesWithHR.length,
-      averageHR: avgHR
-    });
-    
-    return avgHR;
+    const totalHR = runActivities.reduce((sum, run) => sum + (run.average_heartrate || 0), 0);
+    return Math.round(totalHR / runActivities.length);
   }, [recentActivities]);
   
   const runActivities = React.useMemo(() => 
     recentActivities.filter(activity => 
-      activity.type && activity.type.toLowerCase().includes('run')
+      activity.is_run_activity || (activity.type && activity.type.toLowerCase().includes('run'))
     ), [recentActivities]
   );
+
+  // Get training analysis
+  const trainingAnalysis = userData?.trainingAnalysis;
   
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-orange-500" />
-          Last 7 Days Summary
+          Training Analysis
         </h3>
         <Button 
           onClick={onRefresh}
@@ -220,28 +335,79 @@ const SmartHealthSummary: React.FC<{
         </Button>
       </div>
       
-<div className="flex items-center gap-2 mb-4">
-  <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-800 border border-orange-200">
-    Real Data
-  </span>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-800 border border-orange-200">
+          Smart Analysis
+        </span>
 
-  <span className={`text-xs px-2 py-1 rounded-md border ${
-    userData?.nutrition.avgCalories > 0
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : 'bg-gray-100 text-gray-500 border-gray-200'
-  }`}>
-    {userData?.nutrition.avgCalories > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
-  </span>
+        <span className={`text-xs px-2 py-1 rounded-md border ${
+          userData?.nutrition.avgCalories > 0
+            ? 'bg-green-100 text-green-800 border-green-200'
+            : 'bg-gray-100 text-gray-500 border-gray-200'
+        }`}>
+          {userData?.nutrition.avgCalories > 0 ? 'Nutrition: Active' : 'Nutrition: No Data'}
+        </span>
 
-  <span className={`text-xs px-2 py-1 rounded-md border ${
-    runActivities.length > 0
-      ? 'bg-blue-100 text-blue-800 border-blue-200'
-      : 'bg-gray-100 text-gray-500 border-gray-200'
-  }`}>
-    {runActivities.length > 0 ? 'Runs: Active' : 'Runs: No Data'}
-  </span>
-</div>
+        <span className={`text-xs px-2 py-1 rounded-md border ${
+          runActivities.length > 0
+            ? 'bg-blue-100 text-blue-800 border-blue-200'
+            : 'bg-gray-100 text-gray-500 border-gray-200'
+        }`}>
+          {runActivities.length > 0 ? 'Runs: Active' : 'Runs: No Data'}
+        </span>
+      </div>
 
+      {/* Training Load Analysis Card */}
+      {trainingAnalysis && trainingAnalysis.totalRuns > 0 && (
+        <Card className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-purple-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="h-4 w-4 text-purple-600" />
+              <span className="text-xs font-medium text-purple-700">Training Load</span>
+              <Badge variant={trainingAnalysis.trainingStress === 'high' || trainingAnalysis.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
+                {trainingAnalysis.trainingStress}
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-purple-800">
+                {trainingAnalysis.hardVsEasyRatio}% Hard
+              </div>
+              <div className="text-xs text-purple-600">
+                Hard:Easy ratio (ideal: 20:80)
+              </div>
+              <div className="text-xs text-gray-600 truncate">
+                Recovery score: {trainingAnalysis.recoveryScore}/100
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Run Tags Distribution */}
+      {trainingAnalysis && trainingAnalysis.totalRuns > 0 && (
+        <Card className="bg-gradient-to-br from-cyan-50 via-teal-50 to-green-50 border-cyan-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Tag className="h-4 w-4 text-cyan-600" />
+              <span className="text-xs font-medium text-cyan-700">Run Types</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1 text-xs">
+              {Object.entries(trainingAnalysis.runTagDistribution).map(([tag, count]) => {
+                const config = RUN_TAG_CONFIG[tag as keyof typeof RUN_TAG_CONFIG];
+                if (!config || count === 0) return null;
+                return (
+                  <div key={tag} className="text-center p-1 bg-white/60 rounded border">
+                    <div className="font-semibold text-gray-800">
+                      {config.emoji} {count}
+                    </div>
+                    <div className="text-xs text-gray-600">{config.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       <div className="grid grid-cols-1 gap-3">
         <Card className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-emerald-200 shadow-sm">
@@ -282,7 +448,6 @@ const SmartHealthSummary: React.FC<{
           </CardContent>
         </Card>
         
-        {/* FIXED: Running card with running-specific heart rate */}
         <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
@@ -329,6 +494,27 @@ const SmartHealthSummary: React.FC<{
         </Card>
       </div>
       
+      {/* Smart Recommendations */}
+      {trainingAnalysis && trainingAnalysis.recommendations.length > 0 && (
+        <Card className="bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 border-amber-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-amber-700 flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Smart Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="space-y-2">
+              {trainingAnalysis.recommendations.slice(0, 3).map((rec, index) => (
+                <div key={index} className="text-xs p-2 bg-white/60 rounded border border-amber-200">
+                  {rec}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       {recentActivities.length > 0 && (
         <Card className="bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 border-cyan-200 shadow-sm">
           <CardHeader className="pb-2">
@@ -342,7 +528,14 @@ const SmartHealthSummary: React.FC<{
               {recentActivities.slice(0, 5).map((activity, index) => (
                 <div key={index} className="flex items-center justify-between py-2 border-b border-cyan-100 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-cyan-800 truncate">{activity.name}</div>
+                    <div className="text-sm font-medium text-cyan-800 truncate flex items-center gap-2">
+                      {activity.name}
+                      {activity.run_tag && (
+                        <span className="text-xs">
+                          {RUN_TAG_CONFIG[activity.run_tag as keyof typeof RUN_TAG_CONFIG]?.emoji}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-xs text-cyan-600">
                       <span className="bg-cyan-100 px-2 py-0.5 rounded text-cyan-700 font-medium">
                         {activity.type}
@@ -402,33 +595,71 @@ const SmartHealthSummary: React.FC<{
   );
 };
 
-// Smart Prompt Suggestions Component with enhanced colors
+// Enhanced Smart Prompt Suggestions with training-specific prompts
 const SmartPromptSuggestions: React.FC<{ 
   onPromptSelect: (prompt: string) => void,
   userData: UserData | null,
   recentActivities: RecentActivity[]
 }> = ({ onPromptSelect, userData, recentActivities }) => {
   const hasNutritionData = userData?.nutrition.avgCalories > 0;
-  const hasRunData = recentActivities.some(a => a.type && a.type.toLowerCase().includes('run'));
+  const hasRunData = recentActivities.some(a => a.is_run_activity || (a.type && a.type.toLowerCase().includes('run')));
   const hasActivityData = userData?.activity.workoutsPerWeek > 0;
+  const trainingAnalysis = userData?.trainingAnalysis;
   
   const promptCategories = [
     {
-      title: 'Performance',
+      title: 'Training Analysis',
       icon: Target,
+      color: 'from-purple-100 via-indigo-100 to-blue-100 border-purple-300',
+      textColor: 'text-purple-700',
+      iconColor: 'text-purple-600',
+      prompts: hasRunData ? [
+        `Analyze my ${trainingAnalysis?.hardVsEasyRatio || 0}% hard vs easy run ratio`,
+        'Is my training load too high this week?',
+        'What run type should I do tomorrow?',
+        'Am I overtraining based on my run tags?',
+        'How can I improve my training balance?'
+      ] : [
+        'Help me create a structured running plan',
+        'What run types should I include in training?',
+        'How do I balance hard and easy runs?',
+        'What is polarized training?'
+      ]
+    },
+    {
+      title: 'Performance',
+      icon: TrendingUp,
       color: 'from-orange-100 via-amber-100 to-yellow-100 border-orange-300',
       textColor: 'text-orange-700',
       iconColor: 'text-orange-600',
       prompts: hasRunData ? [
         'Analyze my running performance this week',
-        'Should I do a long run tomorrow?',
-        'How hard have I trained this week?',
-        'What type of runs should I focus on?'
+        'Compare my tempo vs long run performances',
+        'How are my heart rate zones looking?',
+        'What does my pace progression tell you?'
       ] : [
         'How can I start running?',
         'What running plan would you recommend?',
         'Help me set up a beginner running schedule',
         'What should I know before starting to run?'
+      ]
+    },
+    {
+      title: 'Recovery & Load',
+      icon: Heart,
+      color: 'from-red-100 via-pink-100 to-rose-100 border-red-300',
+      textColor: 'text-red-700',
+      iconColor: 'text-red-600',
+      prompts: trainingAnalysis ? [
+        `My recovery score is ${trainingAnalysis.recoveryScore}/100 - what should I do?`,
+        'Am I getting enough easy runs for recovery?',
+        'Should I take a rest day based on my training?',
+        'How do I know if I\'m overreaching?'
+      ] : [
+        'How important is recovery for fitness?',
+        'What are signs of overtraining?',
+        'How much sleep should I get?',
+        'What recovery activities do you recommend?'
       ]
     },
     {
@@ -438,51 +669,15 @@ const SmartPromptSuggestions: React.FC<{
       textColor: 'text-emerald-700',
       iconColor: 'text-emerald-600',
       prompts: hasNutritionData ? [
-        'Is my protein intake adequate?',
-        'Am I eating enough for my workouts?',
-        'What should I eat on rest days?',
-        'How is my calorie balance trending?'
+        'Is my protein intake adequate for my training?',
+        'Should I eat differently on hard vs easy run days?',
+        'What should I eat before my next tempo run?',
+        'How is my nutrition supporting my recovery?'
       ] : [
         'Help me start tracking nutrition',
         'What should I eat to support my goals?',
         'How many calories should I consume daily?',
         'What are good protein sources?'
-      ]
-    },
-    {
-      title: 'Recovery',
-      icon: Heart,
-      color: 'from-purple-100 via-pink-100 to-rose-100 border-purple-300',
-      textColor: 'text-purple-700',
-      iconColor: 'text-purple-600',
-      prompts: hasActivityData ? [
-        'Am I recovering well from my workouts?',
-        'Did I overtrain last week?',
-        'What does my heart rate data tell you?',
-        'How should I adjust my training load?'
-      ] : [
-        'How important is recovery for fitness?',
-        'What are signs of overtraining?',
-        'How much sleep should I get?',
-        'What recovery activities do you recommend?'
-      ]
-    },
-    {
-      title: 'Health Analysis',
-      icon: BarChart3,
-      color: 'from-blue-100 via-indigo-100 to-cyan-100 border-blue-300',
-      textColor: 'text-blue-700',
-      iconColor: 'text-blue-600',
-      prompts: userData?.bloodMarkers ? [
-        'Any concerns in my blood markers?',
-        'Compare this week to last week',
-        'What are my biggest health risks?',
-        'Give me a complete health assessment'
-      ] : [
-        'What health metrics should I track?',
-        'How often should I get blood tests?',
-        'What are key health indicators to monitor?',
-        'Help me create a health monitoring plan'
       ]
     }
   ];
@@ -491,7 +686,12 @@ const SmartPromptSuggestions: React.FC<{
     <div className="space-y-3">
       <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
         <MessageSquare className="h-4 w-4" />
-        Quick Questions
+        Smart Training Questions
+        {trainingAnalysis && (
+          <Badge variant="outline" className="text-xs">
+            Analysis Ready
+          </Badge>
+        )}
       </h4>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {promptCategories.map((category, categoryIndex) => (
@@ -535,23 +735,20 @@ const LetsJam: React.FC = () => {
     const { sessionId: savedSessionId, messages: savedMessages } = loadSessionFromStorage();
     
     if (savedSessionId && savedMessages.length > 0) {
-      // Restore previous session
       return {
         sessionId: savedSessionId,
         messages: savedMessages
       };
     } else {
-      // Create new session
       const newSessionId = generateSessionId();
       const welcomeMessages = [
         {
           role: 'assistant' as const,
-          content: 'Hi! I\'m your AI health coach with access to your complete health data. I can analyze your running performance, nutrition trends, and Strava activity data to provide personalized insights. What would you like to explore today?',
+          content: 'Hi! I\'m your AI health coach with complete access to your training data, including run tags, training load analysis, and performance metrics. I can analyze your hard vs easy run ratios, detect overtraining patterns, and provide personalized training recommendations. What would you like to explore today?',
           timestamp: new Date()
         }
       ];
       
-      // Save new session immediately
       saveSessionToStorage(newSessionId, welcomeMessages);
       
       return {
@@ -569,24 +766,21 @@ const LetsJam: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Better scroll refs and behavior
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
-  // Save messages to localStorage whenever messages change
   useEffect(() => {
     if (messages.length > 0) {
       saveSessionToStorage(sessionId, messages);
     }
   }, [messages, sessionId]);
 
-  // Function to start a new session
   const startNewSession = () => {
     const newSessionId = generateSessionId();
     const welcomeMessages = [
       {
         role: 'assistant' as const,
-        content: 'Hi! I\'m your AI health coach with access to your complete health data. I can analyze your running performance, nutrition trends, and Strava activity data to provide personalized insights. What would you like to explore today?',
+        content: 'Hi! I\'m your AI health coach with complete access to your training data, including run tags, training load analysis, and performance metrics. I can analyze your hard vs easy run ratios, detect overtraining patterns, and provide personalized training recommendations. What would you like to explore today?',
         timestamp: new Date()
       }
     ];
@@ -596,32 +790,28 @@ const LetsJam: React.FC = () => {
     setInput('');
     setIsTyping(false);
     
-    // Clear old session and save new one
     clearSessionStorage();
     saveSessionToStorage(newSessionId, welcomeMessages);
     
     console.log('🆕 Started new session:', newSessionId.slice(-8));
   };
   
-  // Scroll to show START of new AI message instead of bottom
   const scrollToLatestMessage = () => {
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1];
       if (latestMessage.role === 'assistant') {
-        // Find the latest AI message element and scroll to its TOP
         const messageElements = messagesContainerRef.current?.querySelectorAll('[data-message-role="assistant"]');
         if (messageElements && messageElements.length > 0) {
           const latestAIMessage = messageElements[messageElements.length - 1];
           latestAIMessage.scrollIntoView({ 
             behavior: 'smooth',
-            block: 'start' // Show START of the message
+            block: 'start'
           });
           return;
         }
       }
     }
     
-    // Fallback: scroll to bottom for user messages
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ 
         behavior: 'smooth',
@@ -630,12 +820,8 @@ const LetsJam: React.FC = () => {
     }
   };
   
-  // Scroll on message changes - show start of AI responses
   useEffect(() => {
-    // Immediate scroll
     scrollToLatestMessage();
-    
-    // Delayed scroll to ensure DOM updates
     const timer1 = setTimeout(scrollToLatestMessage, 100);
     const timer2 = setTimeout(scrollToLatestMessage, 300);
     
@@ -645,17 +831,14 @@ const LetsJam: React.FC = () => {
     };
   }, [messages, isTyping]);
 
-  // Force scroll when typing stops (message received) - show START of response
   useEffect(() => {
     if (!isTyping && messages.length > 1) {
       setTimeout(scrollToLatestMessage, 200);
     }
   }, [isTyping]);
 
-  // Fetch nutrition data with daily details for AI
   const fetchNutritionData = async (): Promise<{ data: NutritionData, dailyDetails: any[] }> => {
     try {
-      // Get the last 7 days instead of 30
       const today = new Date();
       const dates = [];
       
@@ -665,7 +848,6 @@ const LetsJam: React.FC = () => {
         dates.push(date.toISOString().split('T')[0]);
       }
       
-      // Initialize totals
       let totalCalories = 0;
       let totalProtein = 0;
       let totalFat = 0;
@@ -676,7 +858,6 @@ const LetsJam: React.FC = () => {
       
       console.log(`🥗 Fetching nutrition data for ${dates.length} days...`);
       
-      // Fetch data for each day
       for (const date of dates) {
         try {
           const logRef = doc(db, "nutritionLogs", date);
@@ -685,7 +866,6 @@ const LetsJam: React.FC = () => {
           if (logSnapshot.exists()) {
             const logData = logSnapshot.data();
             
-            // Check if we have actual nutrition data (not just empty entries)
             let dayCalories = 0;
             let dayProtein = 0;
             let dayFat = 0;
@@ -710,7 +890,6 @@ const LetsJam: React.FC = () => {
               dayEntries = logData.entries;
             }
             
-            // Store daily details for AI
             if (dayCalories > 0) {
               dailyDetails.push({
                 date,
@@ -719,7 +898,7 @@ const LetsJam: React.FC = () => {
                 carbs: Math.round(dayCarbs),
                 fat: Math.round(dayFat),
                 fiber: Math.round(dayFiber),
-                entries: dayEntries.slice(0, 5) // Top 5 foods for context
+                entries: dayEntries.slice(0, 5)
               });
               
               daysWithData++;
@@ -737,7 +916,6 @@ const LetsJam: React.FC = () => {
         }
       }
       
-      // Calculate averages - ONLY divide by days that actually had food data
       const avgCalories = daysWithData > 0 ? Math.round(totalCalories / daysWithData) : 0;
       const avgProtein = daysWithData > 0 ? Math.round(totalProtein / daysWithData) : 0;
       const avgFat = daysWithData > 0 ? Math.round(totalFat / daysWithData) : 0;
@@ -754,7 +932,7 @@ const LetsJam: React.FC = () => {
           avgCarbs,
           avgFiber
         },
-        dailyDetails: dailyDetails.reverse() // Most recent first
+        dailyDetails: dailyDetails.reverse()
       };
     } catch (error) {
       console.error("Error fetching nutrition data:", error);
@@ -771,7 +949,6 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Fetch activity data using your working 24h logic
   const fetchActivityData = async (): Promise<ActivityData> => {
     try {
       console.log('🏃 Fetching activity data for last 7 days from Firestore cache...');
@@ -812,11 +989,10 @@ const LetsJam: React.FC = () => {
           console.log(`📊 Activity: ${activity.name} - ${activity.calories || activity.caloriesBurned || 0} cal`);
         });
         
-        // Calculate averages and stats for 7 days
         const avgHeartRate = activitiesWithHeartRate > 0 ? Math.round(totalHeartRate / activitiesWithHeartRate) : 0;
         const avgCaloriesBurned = activityCount > 0 ? Math.round(totalCaloriesBurned / activityCount) : 0;
         const avgDuration = activityCount > 0 ? Math.round(totalDuration / activityCount) : 0;
-        const workoutsPerWeek = Math.round(activityCount); // Since we're looking at 7 days, this is workouts per week
+        const workoutsPerWeek = Math.round(activityCount);
         
         console.log(`📊 Activity averages: ${workoutsPerWeek} workouts, ${avgHeartRate} bpm, ${avgCaloriesBurned} cal`);
         
@@ -845,7 +1021,14 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Fetch recent activities using your working 24h logic
+  // Enhanced function to determine if activity is a run
+  const isRunActivity = (activityType: string): boolean => {
+    const runTypes = ['run', 'virtualrun', 'treadmill', 'trail'];
+    return runTypes.some(type => 
+      activityType.toLowerCase().includes(type.toLowerCase())
+    );
+  };
+
   const fetchRecentActivities = async () => {
     try {
       console.log('🏃 Fetching recent activities from Firestore cache...');
@@ -859,13 +1042,13 @@ const LetsJam: React.FC = () => {
         where("userId", "==", userId),
         where("start_date", ">=", sevenDaysAgo.toISOString()),
         orderBy("start_date", "desc"),
-        limit(10)
+        limit(20)
       );
       
       const stravaSnapshot = await getDocs(stravaQuery);
       
       if (!stravaSnapshot.empty) {
-        const processedActivities = stravaSnapshot.docs.map(doc => {
+        const activities = stravaSnapshot.docs.map(doc => {
           const activity = doc.data();
           
           console.log(`📊 Processing activity: ${activity.name} - Distance: ${activity.distance}`);
@@ -876,7 +1059,7 @@ const LetsJam: React.FC = () => {
             type: activity.type || 'Activity',
             start_date: activity.start_date,
             date: activity.date || activity.start_date?.substring(0, 10),
-            distance: activity.distance || 0, // Your distance is already in km
+            distance: activity.distance || 0,
             moving_time: activity.moving_time || activity.duration * 60 || 0,
             duration: activity.duration || 0,
             total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
@@ -886,12 +1069,31 @@ const LetsJam: React.FC = () => {
             average_heartrate: activity.average_heartrate || activity.heart_rate,
             max_heartrate: activity.max_heartrate,
             calories: activity.calories || activity.caloriesBurned || 0,
-            caloriesBurned: activity.caloriesBurned || activity.calories || 0
+            caloriesBurned: activity.caloriesBurned || activity.calories || 0,
+            is_run_activity: isRunActivity(activity.type || ''),
+            run_tag: activity.run_tag || 'easy' // Default to easy if no tag
           };
         });
 
-        console.log(`📊 Processed ${processedActivities.length} activities`);
-        setRecentActivities(processedActivities);
+        // Load run tags from API and apply them
+        const runActivities = activities.filter(a => a.is_run_activity);
+        if (runActivities.length > 0) {
+          console.log(`🏷️ Loading run tags for ${runActivities.length} run activities`);
+          const savedTags = await loadRunTags(runActivities.map(a => a.id));
+          
+          // Apply saved tags
+          activities.forEach(activity => {
+            if (activity.is_run_activity && savedTags[activity.id]) {
+              activity.run_tag = savedTags[activity.id];
+              console.log(`🔄 Applied saved tag for ${activity.id}: ${savedTags[activity.id]}`);
+            }
+          });
+          
+          console.log(`✅ Applied ${Object.keys(savedTags).length} saved run tags`);
+        }
+
+        console.log(`📊 Processed ${activities.length} activities with run tags`);
+        setRecentActivities(activities);
       } else {
         console.log('📊 No recent activities found');
         setRecentActivities([]);
@@ -902,7 +1104,6 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Fetch blood markers using your working 24h logic
   const fetchBloodMarkers = async () => {
     try {
       console.log('🩸 Fetching blood markers...');
@@ -938,7 +1139,6 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Main fetch function using your working 24h logic
   const fetchUserData = async (forceRefresh = false) => {
     try {
       setLoading(true);
@@ -948,30 +1148,30 @@ const LetsJam: React.FC = () => {
 
       console.log(`🔄 Fetching user data (forceRefresh: ${forceRefresh})...`);
       
-      // Fetch both summary data and recent activities in parallel
       const [nutritionResult, activityData, bloodMarkers] = await Promise.all([
         fetchNutritionData(),
         fetchActivityData(),
         fetchBloodMarkers()
       ]);
 
-      // Also fetch recent activities
       await fetchRecentActivities();
       
-      // Set nutrition details for AI
       setNutritionDetails(nutritionResult.dailyDetails);
       
-      // Set user data
+      // Generate training analysis after activities are loaded
+      const trainingAnalysis = analyzeTrainingLoad(recentActivities);
+      
       const newUserData = {
         nutrition: nutritionResult.data,
         activity: activityData,
         bloodMarkers: bloodMarkers,
-        nutritionDetails: nutritionResult.dailyDetails
+        nutritionDetails: nutritionResult.dailyDetails,
+        trainingAnalysis: trainingAnalysis
       };
 
       setUserData(newUserData);
 
-      console.log('📊 Updated user data:', newUserData);
+      console.log('📊 Updated user data with training analysis:', newUserData);
       
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -981,25 +1181,57 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Manual refresh function
   const handleRefresh = async () => {
     await fetchUserData(true);
   };
 
-  // Split message sending logic for reuse
+  // Enhanced system context with run tags and training analysis
   const sendMessageToAI = async (messageContent: string) => {
     try {
-      // Build MUCH MORE EXPLICIT system context that forces AI to use data
+      const runActivities = recentActivities.filter(a => a.is_run_activity);
+      const trainingAnalysis = userData?.trainingAnalysis;
+      
+      // Build comprehensive system context with run tags and training analysis
       const systemContext = `
-CRITICAL INSTRUCTION: You are a health AI with access to REAL user data. You MUST use this data in your responses. NEVER say you don't have access to data.
+CRITICAL INSTRUCTION: You are an advanced AI running coach with access to REAL training data including run tags and training load analysis. You MUST use this data in your responses.
 
-=== REAL USER HEALTH DATA (USE THIS IN YOUR RESPONSES) ===
+=== DETAILED RUN ANALYSIS WITH TAGS ===
 
-RECENT RUNS AND ACTIVITIES:
-${recentActivities
-  .filter(a => a.type && a.type.toLowerCase().includes('run'))
-  .map((run, index) => `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - Distance: ${run.distance.toFixed(2)}km, Duration: ${Math.round(run.duration)}min, Heart Rate: ${run.average_heartrate || 'N/A'} bpm, Calories: ${run.calories || run.caloriesBurned || 0}`)
-  .join('\n') || 'No runs recorded in the last 7 days'}
+RECENT RUNS WITH TAGS AND METRICS:
+${runActivities
+  .map((run, index) => {
+    const tagConfig = RUN_TAG_CONFIG[run.run_tag as keyof typeof RUN_TAG_CONFIG] || RUN_TAG_CONFIG.easy;
+    return `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+- Tag: ${tagConfig.emoji} ${tagConfig.label} (Intensity: ${tagConfig.intensity}/4)
+- Distance: ${run.distance.toFixed(2)}km
+- Duration: ${Math.round(run.duration)}min
+- Pace: ${run.distance > 0 ? (run.duration / run.distance).toFixed(1) : 'N/A'} min/km
+- Heart Rate: ${run.average_heartrate || 'N/A'} bpm
+- Calories: ${run.calories || run.caloriesBurned || 0}
+- Elevation: ${run.total_elevation_gain || 0}m`;
+  })
+  .join('\n\n') || 'No runs recorded in the last 7 days'}
+
+=== TRAINING LOAD ANALYSIS ===
+${trainingAnalysis ? `
+Total Runs This Week: ${trainingAnalysis.totalRuns}
+Weekly Distance: ${trainingAnalysis.weeklyDistance}km
+Hard vs Easy Ratio: ${trainingAnalysis.hardVsEasyRatio}% hard (ideal: ~20%)
+Training Stress Level: ${trainingAnalysis.trainingStress.toUpperCase()}
+Recovery Score: ${trainingAnalysis.recoveryScore}/100
+
+RUN TYPE DISTRIBUTION:
+${Object.entries(trainingAnalysis.runTagDistribution)
+  .filter(([, count]) => count > 0)
+  .map(([tag, count]) => {
+    const config = RUN_TAG_CONFIG[tag as keyof typeof RUN_TAG_CONFIG];
+    return `${config.emoji} ${config.label}: ${count} runs (${config.intensity} intensity)`;
+  })
+  .join('\n')}
+
+SMART RECOMMENDATIONS:
+${trainingAnalysis.recommendations.join('\n')}
+` : 'No training analysis available - insufficient run data'}
 
 ALL RECENT WORKOUTS:
 ${recentActivities
@@ -1021,19 +1253,26 @@ ${userData?.bloodMarkers ? Object.entries(userData.bloodMarkers)
   .join('\n') : 'No blood marker data available'}
 
 === RESPONSE REQUIREMENTS ===
-1. ALWAYS reference specific numbers from the data above
-2. NEVER say "I don't have access to your data" - you DO have access
-3. Use **bold** for key metrics like heart rates, distances, calories
-4. Give specific insights based on the ACTUAL data patterns
-5. When discussing performance, use their REAL workout data
-6. When discussing nutrition, use their REAL calorie/macro data
-7. Be conversational but data-driven
+1. ALWAYS reference specific run tags (🟢 Easy, 🟡 Tempo, 🔵 Long, 🔴 Intervals, 🟣 Recovery, 🟠 Hill-repeats)
+2. Use training load analysis data (hard:easy ratio, recovery score, training stress)
+3. Give specific recommendations based on run type distribution
+4. Reference actual training patterns and intensity distribution
+5. Use **bold** for key metrics like heart rates, distances, ratios
+6. Provide actionable advice based on training balance
+7. Never say "I don't have access" - you DO have complete training data
 
-EXAMPLE: "Looking at your recent runs, I can see you did **${recentActivities.filter(a => a.type?.toLowerCase().includes('run')).length} runs** this week. Your best run was **${recentActivities.filter(a => a.type?.toLowerCase().includes('run'))[0]?.distance?.toFixed(1) || 0}km** with an average heart rate of **${recentActivities.filter(a => a.type?.toLowerCase().includes('run'))[0]?.average_heartrate || 'N/A'} bpm**."
+TRAINING COACHING FOCUS:
+- Analyze polarized training (80/20 easy/hard rule)
+- Detect overtraining patterns from run tag distribution
+- Recommend specific run types based on current training balance
+- Provide recovery guidance based on training load
+- Give nutrition timing advice based on run types
 
-Remember: Use the REAL data above. Be specific. Give actual numbers.`;
+EXAMPLE RESPONSES:
+"Looking at your run tags, you've done **${trainingAnalysis?.runTagDistribution.intervals || 0} 🔴 interval sessions** and **${trainingAnalysis?.runTagDistribution.easy || 0} 🟢 easy runs** this week. Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio || 0}%**, which is ${(trainingAnalysis?.hardVsEasyRatio || 0) > 25 ? 'higher than the ideal 20%' : 'well balanced'}."
 
-      // Build messages array with explicit system context
+Remember: Use the REAL training data. Be specific about run tags and training patterns.`;
+
       const conversationMessages = [
         { 
           role: "system", 
@@ -1046,18 +1285,17 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
         { role: "user", content: messageContent }
       ];
 
-      console.log('📤 Sending EXPLICIT data to AI:', {
+      console.log('📤 Sending ENHANCED training data to AI:', {
         systemContextLength: systemContext.length,
         totalMessages: conversationMessages.length,
-        runCount: recentActivities.filter(a => a.type && a.type.toLowerCase().includes('run')).length,
-        totalActivities: recentActivities.length,
-        nutritionDays: nutritionDetails.length,
-        avgCalories: userData?.nutrition.avgCalories || 0,
-        workoutsPerWeek: userData?.activity.workoutsPerWeek || 0,
-        bloodMarkers: userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0
+        runCount: runActivities.length,
+        runTagsUsed: Object.keys(trainingAnalysis?.runTagDistribution || {}).length,
+        trainingStress: trainingAnalysis?.trainingStress || 'none',
+        hardEasyRatio: trainingAnalysis?.hardVsEasyRatio || 0,
+        recoveryScore: trainingAnalysis?.recoveryScore || 0,
+        recommendations: trainingAnalysis?.recommendations.length || 0
       });
       
-      // Call chat API with explicit instructions
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -1065,9 +1303,9 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
         },
         body: JSON.stringify({
           userId: userId,
-          source: "smart_health_chat_v4_fixed",
-          userData: { systemContext },
-          messages: conversationMessages.slice(-8), // Keep more context
+          source: "smart_health_chat_v5_enhanced_training",
+          userData: { systemContext, trainingAnalysis },
+          messages: conversationMessages.slice(-10),
           sessionId: sessionId,
           useSystemContext: true
         })
@@ -1084,20 +1322,21 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                               data.message || 
                               'Sorry, I could not process that request.';
       
-      // Check if AI actually used the data
-      const usesRealData = assistantContent && (
-        assistantContent.includes('bpm') ||
-        assistantContent.includes('calories') ||
-        assistantContent.includes('protein') ||
-        assistantContent.includes('km') ||
-        assistantContent.includes('g ') ||
-        /\d+\.\d+/.test(assistantContent) ||
-        /\*\*\d+/.test(assistantContent) ||
+      // Enhanced check for training-specific data usage
+      const usesTrainingData = assistantContent && (
+        assistantContent.includes('🟢') || assistantContent.includes('🔴') || assistantContent.includes('🟡') ||
+        assistantContent.includes('🔵') || assistantContent.includes('🟣') || assistantContent.includes('🟠') ||
+        assistantContent.includes('hard:easy') || assistantContent.includes('ratio') ||
+        assistantContent.includes('recovery score') || assistantContent.includes('training stress') ||
+        assistantContent.includes('bpm') || assistantContent.includes('calories') ||
+        assistantContent.includes('km') || /\d+\.\d+/.test(assistantContent) ||
         assistantContent.toLowerCase().includes('your run') ||
-        assistantContent.toLowerCase().includes('your workout')
+        assistantContent.toLowerCase().includes('interval') ||
+        assistantContent.toLowerCase().includes('tempo') ||
+        assistantContent.toLowerCase().includes('easy run')
       );
       
-      console.log(`🤖 AI response uses real data: ${usesRealData}`);
+      console.log(`🤖 AI response uses training data: ${usesTrainingData}`);
       console.log(`🤖 Response preview: ${assistantContent.substring(0, 200)}...`);
       
       const assistantMessage: ChatMessage = {
@@ -1108,7 +1347,6 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Force scroll after message is added - show START of AI response
       setTimeout(() => {
         scrollToLatestMessage();
       }, 150);
@@ -1122,7 +1360,6 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       };
       setMessages(prev => [...prev, errorMessage]);
       
-      // Force scroll after error message - show START  
       setTimeout(() => {
         scrollToLatestMessage();
       }, 150);
@@ -1131,7 +1368,6 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
     }
   };
 
-  // Enhanced message sending with auto-send for preset questions
   const handleSendMessage = async () => {
     if (!input.trim() || isTyping) return;
     
@@ -1151,7 +1387,6 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
 
   const handlePromptSelect = (prompt: string) => {
     setInput(prompt);
-    // Auto-send the selected prompt
     setTimeout(() => {
       if (!isTyping) {
         const userMessage: ChatMessage = {
@@ -1164,7 +1399,6 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
         setInput('');
         setIsTyping(true);
         
-        // Send to AI
         sendMessageToAI(prompt);
       }
     }, 100);
@@ -1177,7 +1411,14 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
     }
   };
 
-  // Fetch user data on component mount
+  // Update training analysis whenever activities change
+  useEffect(() => {
+    if (recentActivities.length > 0 && userData) {
+      const trainingAnalysis = analyzeTrainingLoad(recentActivities);
+      setUserData(prev => prev ? { ...prev, trainingAnalysis } : null);
+    }
+  }, [recentActivities]);
+
   useEffect(() => {
     fetchUserData(false);
     
@@ -1217,21 +1458,26 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
             🤖 Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Your AI health coach with complete access to your health data
+            Advanced AI running coach with training load analysis & run tags
           </p>
-          <div className="mt-2 flex items-center justify-center gap-2">
+          <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <Badge variant="secondary" className="text-xs">
-              Real Data Connected
+              Training Analysis Ready
             </Badge>
             <Badge variant="secondary" className="text-xs">
               Session: {sessionId.slice(-8)}
             </Badge>
             <Badge variant={recentActivities.length > 0 ? "default" : "secondary"} className="text-xs">
-              {recentActivities.length} Activities
+              {recentActivities.filter(a => a.is_run_activity).length} Tagged Runs
             </Badge>
             <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
               {nutritionDetails.length} Nutrition Days
             </Badge>
+            {userData?.trainingAnalysis && (
+              <Badge variant={userData.trainingAnalysis.trainingStress === 'high' || userData.trainingAnalysis.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
+                {userData.trainingAnalysis.trainingStress} Load
+              </Badge>
+            )}
             {messages.length > 1 && (
               <Badge variant="outline" className="text-xs">
                 {messages.length} Messages Restored
@@ -1246,7 +1492,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            {/* Left Column - Chat Interface (Larger) */}
+            {/* Left Column - Chat Interface */}
             <div className="lg:col-span-3 space-y-4">
               
               {/* Smart Prompt Suggestions */}
@@ -1256,18 +1502,18 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                 recentActivities={recentActivities}
               />
               
-              {/* Chat Container - Dynamic Full Height */}
+              {/* Chat Container */}
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <CardHeader className="border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                       <Bot className="h-5 w-5 text-orange-500" />
-                      AI Health Coach
+                      AI Running Coach
                       <Badge variant="secondary" className="ml-2 text-xs">
-                        Session Active
+                        Enhanced
                       </Badge>
-                      <Badge variant={userData ? "default" : "secondary"} className="text-xs">
-                        {userData ? 'Data Loaded' : 'Loading Data'}
+                      <Badge variant={userData?.trainingAnalysis ? "default" : "secondary"} className="text-xs">
+                        {userData?.trainingAnalysis ? 'Analysis Ready' : 'Loading Analysis'}
                       </Badge>
                     </CardTitle>
                     <div className="flex items-center gap-2">
@@ -1293,7 +1539,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                     className="p-4 space-y-4" 
                     style={{
                       minHeight: '400px',
-                      maxHeight: 'none' // Remove height restrictions
+                      maxHeight: 'none'
                     }}
                   >
                     {messages.map((message, index) => (
@@ -1317,13 +1563,13 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                       </div>
                     ))}
                     
-                    {/* Typing indicator */}
+                    {/* Enhanced typing indicator */}
                     {isTyping && (
                       <div className="flex justify-start">
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 shadow-sm">
                           <div className="flex items-center gap-2">
                             <Bot className="h-4 w-4 text-purple-500" />
-                            <span className="text-sm text-purple-700">AI is analyzing your data</span>
+                            <span className="text-sm text-purple-700">Analyzing training data & run tags</span>
                             <div className="flex gap-1">
                               <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
                               <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100"></div>
@@ -1341,7 +1587,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                   <div className="border-t border-gray-100 p-4">
                     <div className="flex gap-3">
                       <Input
-                        placeholder="Ask about your health, training, nutrition, or recovery..."
+                        placeholder="Ask about training load, run tags, recovery, or performance analysis..."
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
@@ -1361,8 +1607,8 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                       <span>{messages.length} messages in this session</span>
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${userData ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
-                          {userData ? 'Real data connected' : 'Loading data...'}
+                          <div className={`w-2 h-2 rounded-full ${userData?.trainingAnalysis ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+                          {userData?.trainingAnalysis ? 'Training analysis ready' : 'Loading analysis...'}
                         </span>
                         <span className="text-xs text-gray-400">
                           {messages.length > 1 ? 'Session restored' : 'New session'}
@@ -1374,7 +1620,7 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
               </Card>
             </div>
             
-            {/* Right Column - Health Summary */}
+            {/* Right Column - Enhanced Health Summary */}
             <div className="lg:col-span-1">
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm sticky top-6">
                 <CardContent className="p-4">
@@ -1429,43 +1675,43 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
             </Button>
           </div>
           
-          {/* Data Status Display */}
+          {/* Enhanced Data Status Display */}
           <div className="mt-8">
             <Card className="bg-gradient-to-r from-orange-50 to-red-50 border-orange-200">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-orange-500" />
-                  Live Data Status
+                  <Target className="h-5 w-5 text-orange-500" />
+                  Enhanced Training Analysis Status
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-orange-500" />
-                      <span className="font-medium text-gray-700">Activities</span>
-                      <Badge variant={recentActivities.length > 0 ? "default" : "secondary"} className="text-xs">
-                        {recentActivities.length}
+                      <Tag className="h-4 w-4 text-purple-500" />
+                      <span className="font-medium text-gray-700">Run Tags</span>
+                      <Badge variant={recentActivities.filter(a => a.is_run_activity).length > 0 ? "default" : "secondary"} className="text-xs">
+                        {recentActivities.filter(a => a.is_run_activity).length}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {recentActivities.length > 0 
-                        ? `${recentActivities.filter(a => a.type?.toLowerCase().includes('run')).length} runs, ${recentActivities.length} total workouts`
-                        : 'No recent activities found'
+                      {recentActivities.filter(a => a.is_run_activity).length > 0 
+                        ? `Tagged runs with intensity analysis`
+                        : 'No tagged runs found'
                       }
                     </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Utensils className="h-4 w-4 text-green-500" />
-                      <span className="font-medium text-gray-700">Nutrition</span>
-                      <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
-                        {nutritionDetails.length} days
+                      <Activity className="h-4 w-4 text-orange-500" />
+                      <span className="font-medium text-gray-700">Training Load</span>
+                      <Badge variant={userData?.trainingAnalysis?.trainingStress === 'high' || userData?.trainingAnalysis?.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
+                        {userData?.trainingAnalysis?.trainingStress || 'none'}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {nutritionDetails.length > 0 
-                        ? `${userData?.nutrition.avgCalories || 0} avg calories/day`
-                        : 'No nutrition data logged'
+                      {userData?.trainingAnalysis 
+                        ? `${userData.trainingAnalysis.hardVsEasyRatio}% hard runs (ideal: ~20%)`
+                        : 'No training analysis available'
                       }
                     </p>
                   </div>
@@ -1473,31 +1719,32 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Heart className="h-4 w-4 text-red-500" />
-                      <span className="font-medium text-gray-700">Heart Rate</span>
-                      <Badge variant={userData?.activity.avgHeartRate > 0 ? "default" : "secondary"} className="text-xs">
-                        {userData?.activity.avgHeartRate || 0} bpm
+                      <span className="font-medium text-gray-700">Recovery</span>
+                      <Badge variant={userData?.trainingAnalysis?.recoveryScore && userData.trainingAnalysis.recoveryScore < 70 ? 'destructive' : 'default'} className="text-xs">
+                        {userData?.trainingAnalysis?.recoveryScore || 0}/100
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {userData?.activity.avgHeartRate > 0 
-                        ? 'Average from all activities'
-                        : 'No heart rate data available'
+                      {userData?.trainingAnalysis && userData.trainingAnalysis.recoveryScore > 0
+                        ? userData.trainingAnalysis.recoveryScore >= 80 ? 'Excellent recovery' : 
+                          userData.trainingAnalysis.recoveryScore >= 60 ? 'Good recovery' : 'Needs attention'
+                        : 'No recovery data available'
                       }
                     </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Droplet className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium text-gray-700">Blood Markers</span>
-                      <Badge variant={userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 ? "default" : "secondary"} className="text-xs">
-                        {userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0}
+                      <Target className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-gray-700">Recommendations</span>
+                      <Badge variant={userData?.trainingAnalysis?.recommendations.length ? "default" : "secondary"} className="text-xs">
+                        {userData?.trainingAnalysis?.recommendations.length || 0}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0
-                        ? 'Latest blood test results available'
-                        : 'No blood marker data available'
+                      {userData?.trainingAnalysis?.recommendations.length
+                        ? 'Smart training recommendations available'
+                        : 'No recommendations generated'
                       }
                     </p>
                   </div>
@@ -1506,13 +1753,14 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
                 <div className="mt-6 p-4 bg-white/60 rounded-lg border border-white/30">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <Bot className="h-4 w-4 text-orange-500" />
-                    AI Data Access
+                    Enhanced AI Capabilities
                   </h4>
-                  <div className="text-xs text-gray-600">
-                    <p>✅ The AI can see ALL your real data: {recentActivities.length} activities, {nutritionDetails.length} nutrition days, {userData?.bloodMarkers ? Object.keys(userData.bloodMarkers).length : 0} blood markers</p>
-                    <p>✅ Specific numbers, dates, and metrics are passed to the AI</p>
-                    <p>✅ Ask specific questions about your performance, nutrition, or health trends</p>
-                    <p>💾 Your conversation is automatically saved and restored when you return</p>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <p>🏷️ **Run Tag Analysis**: Easy 🟢, Tempo 🟡, Long 🔵, Intervals 🔴, Recovery 🟣, Hill-repeats 🟠</p>
+                    <p>📊 **Training Load Monitoring**: Hard vs Easy ratios, training stress assessment, overtraining detection</p>
+                    <p>🎯 **Smart Recommendations**: Personalized training advice based on your actual run distribution</p>
+                    <p>❤️ **Recovery Scoring**: Advanced recovery metrics with actionable insights</p>
+                    <p>💾 **Session Persistence**: Your conversations are automatically saved and restored</p>
                   </div>
                 </div>
               </CardContent>
@@ -1525,18 +1773,18 @@ Remember: Use the REAL data above. Be specific. Give actual numbers.`;
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-            <span>AI-powered health coaching with real-time data</span>
+            <span>Enhanced AI running coach with training load analysis</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Bot className="h-4 w-4" />
-              Session: {sessionId.slice(-8)}
+              <Target className="h-4 w-4" />
+              Smart recommendations
             </span>
           </div>
           <div className="flex items-center gap-4">
             <span>Powered by Gemini 2.0 Flash</span>
             <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${userData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-              <span className="text-xs">{userData ? 'Live Data Connected' : 'Loading Data'}</span>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${userData?.trainingAnalysis ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <span className="text-xs">{userData?.trainingAnalysis ? 'Analysis Ready' : 'Loading Analysis'}</span>
             </div>
           </div>
         </div>
