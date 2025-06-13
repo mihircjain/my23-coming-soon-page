@@ -1,4 +1,4 @@
-// Fixed ActivityJam.tsx - Complete and properly formatted
+// ActivityJam.tsx - Updated with Green/Blue Color Palette
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X } from "lucide-react";
@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Chart from 'chart.js/auto';
 
-// Run tag types
+// Run tag types - Updated with green/blue theme
 type RunTag = 'easy' | 'tempo' | 'long' | 'recovery' | 'intervals' | 'hill-repeats';
 
 interface RunTagOption {
@@ -22,11 +22,11 @@ interface RunTagOption {
 
 const RUN_TAG_OPTIONS: RunTagOption[] = [
   { value: 'easy', label: 'Easy', color: 'text-green-600', bgColor: 'bg-green-50 border-green-200' },
-  { value: 'tempo', label: 'Tempo', color: 'text-orange-600', bgColor: 'bg-orange-50 border-orange-200' },
-  { value: 'long', label: 'Long', color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
-  { value: 'recovery', label: 'Recovery', color: 'text-purple-600', bgColor: 'bg-purple-50 border-purple-200' },
-  { value: 'intervals', label: 'Intervals', color: 'text-red-600', bgColor: 'bg-red-50 border-red-200' },
-  { value: 'hill-repeats', label: 'Hill Repeats', color: 'text-amber-600', bgColor: 'bg-amber-50 border-amber-200' }
+  { value: 'tempo', label: 'Tempo', color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
+  { value: 'long', label: 'Long', color: 'text-emerald-600', bgColor: 'bg-emerald-50 border-emerald-200' },
+  { value: 'recovery', label: 'Recovery', color: 'text-teal-600', bgColor: 'bg-teal-50 border-teal-200' },
+  { value: 'intervals', label: 'Intervals', color: 'text-cyan-600', bgColor: 'bg-cyan-50 border-cyan-200' },
+  { value: 'hill-repeats', label: 'Hill Repeats', color: 'text-lime-600', bgColor: 'bg-lime-50 border-lime-200' }
 ];
 
 interface ActivityData {
@@ -300,7 +300,7 @@ const ActivityJam = () => {
     };
   };
 
-  // Create calories chart
+  // Create calories chart - Updated with green theme
   const createCaloriesChart = (data: any) => {
     if (!caloriesChartRef.current || !data) return;
 
@@ -322,8 +322,8 @@ const ActivityJam = () => {
           datasets: [{
             label: 'Calories Burned',
             data: data.calories,
-            borderColor: 'rgb(245, 158, 11)',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderColor: 'rgb(34, 197, 94)', // green-500
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
             borderWidth: 2,
             fill: true,
             tension: 0.4,
@@ -356,7 +356,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Create distance chart
+  // Create distance chart - Updated with blue theme
   const createDistanceChart = (data: any) => {
     if (!distanceChartRef.current || !data) return;
 
@@ -378,7 +378,7 @@ const ActivityJam = () => {
           datasets: [{
             label: 'Distance (km)',
             data: data.distance,
-            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+            backgroundColor: 'rgba(59, 130, 246, 0.8)', // blue-500
             borderColor: 'rgb(59, 130, 246)',
             borderWidth: 1,
             borderRadius: 4
@@ -409,7 +409,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Create heart rate chart
+  // Create heart rate chart - Updated with teal theme
   const createHeartRateChart = (data: any) => {
     if (!heartRateChartRef.current || !data) return;
 
@@ -431,8 +431,8 @@ const ActivityJam = () => {
           datasets: [{
             label: 'Heart Rate (bpm)',
             data: data.heartRate,
-            borderColor: 'rgb(239, 68, 68)',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderColor: 'rgb(20, 184, 166)', // teal-500
+            backgroundColor: 'rgba(20, 184, 166, 0.1)',
             borderWidth: 2,
             fill: true,
             tension: 0.4,
@@ -660,7 +660,7 @@ const ActivityJam = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
         <header className="pt-8 px-6 md:px-12">
           <div className="flex items-center justify-between mb-6">
             <Button onClick={() => navigate('/')} variant="ghost">
@@ -692,11 +692,11 @@ const ActivityJam = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-orange-400/10 to-red-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-red-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
+      {/* Background decoration - Updated with green/blue theme */}
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
@@ -730,7 +730,7 @@ const ActivityJam = () => {
         </div>
         
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-blue-600 to-teal-600 bg-clip-text text-transparent">
             Activity Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
@@ -816,11 +816,11 @@ const ActivityJam = () => {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Calories Chart */}
+                {/* Calories Chart - Updated with green theme */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Zap className="h-5 w-5 mr-2 text-orange-500" />
+                      <Zap className="h-5 w-5 mr-2 text-green-500" />
                       Calories Burned
                     </CardTitle>
                     <p className="text-xs text-gray-600">Daily totals from Strava</p>
@@ -841,7 +841,7 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                {/* Distance Chart */}
+                {/* Distance Chart - Updated with blue theme */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
@@ -866,11 +866,11 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                {/* Heart Rate Chart */}
+                {/* Heart Rate Chart - Updated with teal theme */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Heart className="h-5 w-5 mr-2 text-red-500" />
+                      <Heart className="h-5 w-5 mr-2 text-teal-500" />
                       Run Heart Rate
                     </CardTitle>
                     <p className="text-xs text-gray-600">Average from running activities only</p>
@@ -893,7 +893,7 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* Quick Stats */}
+            {/* Quick Stats - Updated with green/blue theme */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
@@ -901,9 +901,9 @@ const ActivityJam = () => {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200">
+                <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
                   <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-orange-600 mb-1">
+                    <div className="text-3xl font-bold text-green-600 mb-1">
                       {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
                     </div>
                     <div className="text-sm text-gray-600">Total Calories</div>
@@ -921,9 +921,9 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-r from-red-50 to-red-100 border-red-200">
+                <Card className="bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200">
                   <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-red-600 mb-1">
+                    <div className="text-3xl font-bold text-teal-600 mb-1">
                       {activities.filter(a => a.is_run_activity).length}
                     </div>
                     <div className="text-sm text-gray-600">Running Activities</div>
@@ -931,9 +931,9 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+                <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200">
                   <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-green-600 mb-1">
+                    <div className="text-3xl font-bold text-emerald-600 mb-1">
                       {activities.length}
                     </div>
                     <div className="text-sm text-gray-600">Total Activities</div>
@@ -990,8 +990,8 @@ const ActivityJam = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="text-center p-3 bg-orange-50 rounded-lg">
-                          <div className="text-2xl font-bold text-orange-600">
+                        <div className="text-center p-3 bg-green-50 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600">
                             {formatDistance(activity.distance)}
                           </div>
                           <div className="text-xs text-gray-600">km</div>
@@ -1017,9 +1017,9 @@ const ActivityJam = () => {
                           <div className="flex justify-between">
                             <span className="text-gray-600">Avg HR:</span>
                             <span className="font-medium flex items-center">
-                              <Heart className="h-3 w-3 mr-1 text-red-500" />
+                              <Heart className="h-3 w-3 mr-1 text-teal-500" />
                               {activity.average_heartrate} bpm
-                              <Badge variant="outline" className="ml-1 text-xs border-red-300 text-red-600">
+                              <Badge variant="outline" className="ml-1 text-xs border-teal-300 text-teal-600">
                                 Run
                               </Badge>
                             </span>
@@ -1098,7 +1098,7 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* Summary Stats */}
+            {/* Summary Stats - Updated with green/blue theme */}
             <section>
               <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
                 <CardHeader>
@@ -1116,19 +1116,19 @@ const ActivityJam = () => {
                       <div className="text-xs text-gray-600">Activities with calories</div>
                     </div>
                     <div className="p-3 bg-white/60 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-orange-600">
+                      <div className="text-2xl font-bold text-blue-600">
                         {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
                       </div>
                       <div className="text-xs text-gray-600">Total calories burned</div>
                     </div>
                     <div className="p-3 bg-white/60 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-2xl font-bold text-emerald-600">
                         {activities.filter(a => a.is_run_activity).length}
                       </div>
                       <div className="text-xs text-gray-600">Running activities</div>
                     </div>
                     <div className="p-3 bg-white/60 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-red-600">
+                      <div className="text-2xl font-bold text-teal-600">
                         {activities.filter(a => a.is_run_activity && a.has_heartrate).length}
                       </div>
                       <div className="text-xs text-gray-600">Runs with HR data</div>
