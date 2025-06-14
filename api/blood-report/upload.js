@@ -30,17 +30,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'File and userId are required' });
     }
 
-    // For now, we'll accept both PDF and text files for testing
-    const isValidFile = file.originalFilename?.endsWith('.pdf') || 
-                       file.originalFilename?.endsWith('.txt') ||
-                       file.mimetype?.includes('text');
-
-    if (!isValidFile) {
-      return res.status(400).json({ 
-        error: 'Please upload a PDF file or text file with blood test results' 
-      });
-    }
-
     const fileId = uuidv4();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `${timestamp}_${fileId}_${file.originalFilename}`;
