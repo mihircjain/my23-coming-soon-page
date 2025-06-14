@@ -1,10 +1,6 @@
 // pages/api/blood-report/process.js
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import path from 'path';
-
-// Import the file storage from upload API
-let fileStorage = new Map();
 
 export default async function handler(req, res) {
   console.log('🔍 Process API called, method:', req.method);
@@ -17,75 +13,74 @@ export default async function handler(req, res) {
   try {
     console.log('📋 Request body:', req.body);
     
-    const { fileId, userId, filePath } = req.body;
+    const { fileId, userId } = req.body;
     
-    console.log('🔍 Processing request:', { fileId, userId, filePath });
+    console.log('🔍 Processing request:', { fileId, userId });
     
     if (!fileId || !userId) {
       console.log('❌ Missing required fields');
       return res.status(400).json({ 
         error: 'fileId and userId are required',
-        received: { fileId, userId, filePath }
+        received: { fileId, userId }
       });
     }
 
-    let fileBuffer = null;
-    let fileInfo = null;
+    // Access global file storage
+    global.fileStorage = global.fileStorage || new Map();
+    
+    console.log('💾 Checking file storage...');
+    console.log('💾 Files in storage:', Array.from(global.fileStorage.keys()));
+    console.log('💾 Looking for fileId:', fileId);
 
-    // Method 1: Try to read from memory storage
-    if (fileStorage.has(fileId)) {
-      console.log('📄 Found file in memory storage');
-      const storedFile = fileStorage.get(fileId);
-      fileBuffer = Buffer.from(storedFile.buffer, 'base64');
-      fileInfo = storedFile;
-    }
-    // Method 2: Try to read from provided file path
-    else if (filePath && existsSync(filePath)) {
-      console.log('📄 Reading file from provided path:', filePath);
-      fileBuffer = await readFile(filePath);
-      fileInfo = { filePath, fileId };
-    }
-    // Method 3: Try to find file in uploads directory
-    else {
-      console.log('📄 Searching for file in uploads directory...');
-      const uploadsDir = path.join(process.cwd(), 'uploads');
-      
-      if (existsSync(uploadsDir)) {
-        const fs = require('fs');
-        const files = fs.readdirSync(uploadsDir);
-        const matchingFile = files.find(f => f.includes(fileId));
-        
-        if (matchingFile) {
-          const foundPath = path.join(uploadsDir, matchingFile);
-          console.log('📄 Found file at:', foundPath);
-          fileBuffer = await readFile(foundPath);
-          fileInfo = { filePath: foundPath, fileId };
-        }
-      }
-    }
-
-    if (!fileBuffer) {
-      console.log('❌ File not found using any method');
+    if (!global.fileStorage.has(fileId)) {
+      console.log('❌ File not found in memory storage');
       return res.status(404).json({ 
-        error: 'Uploaded file not found',
-        searchedPaths: {
-          memoryStorage: fileStorage.has(fileId),
-          providedPath: filePath,
-          uploadsDir: path.join(process.cwd(), 'uploads')
-        }
+        error: 'File not found in storage',
+        fileId,
+        availableFiles: Array.from(global.fileStorage.keys()),
+        storageSize: global.fileStorage.size
       });
     }
 
-    console.log('📄 File found and read successfully, size:', fileBuffer.length);
+    const fileData = global.fileStorage.get(fileId);
+    console.log('📄 Found file data:', {
+      fileId: fileData.fileId,
+      fileName: fileData.fileName,
+      fileSize: fileData.fileSize,
+      originalName: fileData.originalName,
+      bufferSize: fileData.buffer ? fileData.buffer.length : 0
+    });
+
+    const fileBuffer = fileData.buffer;
+    
+    if (!fileBuffer) {
+      console.log('❌ File buffer is empty');
+      return res.status(404).json({ 
+        error: 'File buffer not found',
+        fileData: { ...fileData, buffer: 'REDACTED' }
+      });
+    }
+
+    console.log('📄 File found and ready for processing, size:', fileBuffer.length);
+
+    // Get file content as text for analysis
+    let fileContent = '';
+    try {
+      fileContent = fileBuffer.toString('utf8');
+      console.log('📄 File content preview (first 200 chars):', fileContent.substring(0, 200));
+    } catch (error) {
+      console.log('⚠️ Could not convert file to text:', error.message);
+      fileContent = '[Binary file - could not convert to text]';
+    }
 
     // Simulate AI processing delay
     console.log('🤖 Starting AI processing...');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Mock extracted parameters with some variation based on fileId
-    const baseParameters = {
+    // Enhanced mock extracted parameters with realistic values
+    const extractedParameters = {
       hemoglobin: {
-        value: 16.3,
+        value: 15.2,
         unit: 'g/dL',
         normalRange: '13.5-17.5 g/dL (men); 12.0-15.5 (women)',
         displayName: 'Hemoglobin',
@@ -93,7 +88,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       rbc: {
-        value: 5.80,
+        value: 4.85,
         unit: 'mill/mm³',
         normalRange: '4.5-5.9 million cells/mcL (men); 4.1-5.1 (women)',
         displayName: 'RBC Count',
@@ -101,7 +96,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       wbc: {
-        value: 5560,
+        value: 7200,
         unit: 'cells/mm³',
         normalRange: '4,500-11,000 cells/mcL',
         displayName: 'WBC Count',
@@ -109,7 +104,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       platelets: {
-        value: 309,
+        value: 285,
         unit: '10³/µL',
         normalRange: '150,000-450,000 platelets/mcL',
         displayName: 'Platelet Count',
@@ -117,7 +112,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       glucose: {
-        value: 89,
+        value: 94,
         unit: 'mg/dL',
         normalRange: '70-140 mg/dL (random); 70-99 mg/dL (fasting)',
         displayName: 'Glucose',
@@ -125,7 +120,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       total_cholesterol: {
-        value: 144,
+        value: 168,
         unit: 'mg/dL',
         normalRange: 'Less than 200 mg/dL',
         displayName: 'Total Cholesterol',
@@ -133,23 +128,23 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       hdl: {
-        value: 38,
+        value: 42,
         unit: 'mg/dL',
         normalRange: '40 mg/dL or higher (men); 50 or higher (women)',
         displayName: 'HDL Cholesterol',
         confidence: 0.91,
-        status: 'attention'
+        status: 'normal'
       },
       ldl: {
-        value: 96,
+        value: 108,
         unit: 'mg/dL',
         normalRange: 'Less than 100 mg/dL',
         displayName: 'LDL Cholesterol',
         confidence: 0.87,
-        status: 'normal'
+        status: 'attention'
       },
       triglycerides: {
-        value: 50,
+        value: 89,
         unit: 'mg/dL',
         normalRange: 'Less than 150 mg/dL',
         displayName: 'Triglycerides',
@@ -157,7 +152,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       creatinine: {
-        value: 0.7,
+        value: 0.9,
         unit: 'mg/dL',
         normalRange: '0.7-1.3 mg/dL (men); 0.6-1.1 mg/dL (women)',
         displayName: 'Creatinine',
@@ -165,7 +160,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       hba1c: {
-        value: 5.1,
+        value: 5.4,
         unit: '%',
         normalRange: 'Below 5.7%',
         displayName: 'HbA1C',
@@ -173,7 +168,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       tsh: {
-        value: 2.504,
+        value: 1.8,
         unit: 'µIU/mL',
         normalRange: '0.4-4.0 µIU/mL',
         displayName: 'TSH',
@@ -181,7 +176,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       vitamin_d: {
-        value: 48.2,
+        value: 32.5,
         unit: 'ng/mL',
         normalRange: '20-50 ng/mL',
         displayName: 'Vitamin D',
@@ -189,7 +184,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       vitamin_b12: {
-        value: 405,
+        value: 485,
         unit: 'pg/mL',
         normalRange: '200-900 pg/mL',
         displayName: 'Vitamin B12',
@@ -197,7 +192,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       uric_acid: {
-        value: 4.4,
+        value: 5.2,
         unit: 'mg/dL',
         normalRange: '3.5-7.2 mg/dL (men); 2.5-6.0 mg/dL (women)',
         displayName: 'Uric Acid',
@@ -205,15 +200,15 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       sodium: {
-        value: 134,
+        value: 138,
         unit: 'mmol/L',
         normalRange: '135-145 mmol/L',
         displayName: 'Sodium',
         confidence: 0.83,
-        status: 'attention'
+        status: 'normal'
       },
       potassium: {
-        value: 4.8,
+        value: 4.2,
         unit: 'mmol/L',
         normalRange: '3.5-5.0 mmol/L',
         displayName: 'Potassium',
@@ -221,7 +216,7 @@ export default async function handler(req, res) {
         status: 'normal'
       },
       calcium: {
-        value: 9.3,
+        value: 9.8,
         unit: 'mg/dL',
         normalRange: '8.5-10.5 mg/dL',
         displayName: 'Calcium',
@@ -229,17 +224,6 @@ export default async function handler(req, res) {
         status: 'normal'
       }
     };
-
-    // Add slight variations to make it look more realistic
-    const extractedParameters = { ...baseParameters };
-    
-    // Simulate reading actual file content for some parameters
-    if (fileBuffer.length > 0) {
-      console.log('📄 File content preview:', fileBuffer.toString('utf8').substring(0, 100));
-      
-      // You could add actual file parsing logic here
-      // For now, we'll just show that we "processed" the file
-    }
 
     const response = {
       success: true,
@@ -251,10 +235,11 @@ export default async function handler(req, res) {
       totalParameters: Object.keys(extractedParameters).length,
       averageConfidence: Object.values(extractedParameters)
         .reduce((sum, param) => sum + param.confidence, 0) / Object.keys(extractedParameters).length,
-      processingMethod: fileStorage.has(fileId) ? 'memory' : 'filesystem',
       fileInfo: {
-        size: fileBuffer.length,
-        preview: fileBuffer.toString('utf8').substring(0, 200) + '...'
+        originalName: fileData.originalName,
+        size: fileData.fileSize,
+        uploadedAt: fileData.uploadedAt,
+        contentPreview: fileContent.substring(0, 300) + (fileContent.length > 300 ? '...' : '')
       }
     };
 
