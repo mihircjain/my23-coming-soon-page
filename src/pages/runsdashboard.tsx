@@ -358,7 +358,7 @@ const RunsDashboard = () => {
     };
   };
 
-  // Fetch runs from API
+  // Fetch runs from API (last 7 days by default)
   const fetchRuns = async (forceRefresh = false) => {
     try {
       setError('');
@@ -370,7 +370,8 @@ const RunsDashboard = () => {
 
       const params = new URLSearchParams({
         userId: 'mihir_jain',
-        detailed: 'true'
+        detailed: 'true',
+        days: '7' // Get last 7 days
       });
 
       if (forceRefresh) {
@@ -378,16 +379,17 @@ const RunsDashboard = () => {
         params.set('timestamp', Date.now().toString());
       }
 
+      console.log('🔄 Fetching runs from last 7 days...');
       const response = await fetch(`/api/runs?${params.toString()}`);
       
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error:', errorText);
-        throw new Error(`Failed to fetch last week's runs: ${response.status}`);
+        throw new Error(`Failed to fetch runs: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📊 Last week runs data received:', data?.length, 'runs');
+      console.log('📊 Runs data received:', data?.length, 'runs');
 
       if (!Array.isArray(data)) {
         throw new Error('Invalid data format received from API');
@@ -429,6 +431,8 @@ const RunsDashboard = () => {
       setRuns(sortedRuns);
       setLastUpdate(new Date().toLocaleTimeString());
       
+      console.log(`✅ Loaded ${sortedRuns.length} runs from last 7 days`);
+      
       // Create charts after data is loaded
       setTimeout(() => {
         createWeeklyChart();
@@ -436,8 +440,8 @@ const RunsDashboard = () => {
       }, 100);
 
     } catch (error) {
-      console.error('❌ Error fetching last week runs:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch last week runs');
+      console.error('❌ Error fetching runs:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch runs');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -523,14 +527,14 @@ const RunsDashboard = () => {
         
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-green-600 to-teal-600 bg-clip-text text-transparent">
-            🏃‍♂️ Last Week's Runs
+            🏃‍♂️ Last 7 Days Runs
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Detailed analysis of your running activities from last week
+            Detailed analysis of your running activities from the last 7 days
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • {runs.length} runs from last week
+              Last updated: {lastUpdate} • {runs.length} runs from last 7 days
             </p>
           )}
         </div>
