@@ -15,151 +15,91 @@ import { toast, Toaster } from 'sonner';
 
 // Fixed BloodReportUploader component - only the handleUpload function needs to be updated
 
-const BloodReportUploader = ({ onParametersExtracted }) => {
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
+// Updated BloodReportUploader component - handleUpload function only
 
-  // Handle file selection - WORKING VERSION
-  const handleFileSelect = useCallback((event) => {
-    const selectedFile = event.target.files[0];
-    console.log('📄 File selected:', selectedFile);
+const handleUpload = async () => {
+  if (!file) {
+    console.log('❌ No file to upload');
+    toast.error('Please select a file first');
+    return;
+  }
+
+  console.log('🚀 Starting upload process with file:', file.name);
+  setUploading(true);
+  setProcessing(true);
+
+  try {
+    // Create FormData
+    const formData = new FormData();
     
-    if (selectedFile) {
-      console.log('📄 File details:', {
-        name: selectedFile.name,
-        size: selectedFile.size,
-        type: selectedFile.type
-      });
-
-      // Accept both PDF and text files for testing
-      const validTypes = ['application/pdf', 'text/plain'];
-      
-      if (validTypes.includes(selectedFile.type)) {
-        if (selectedFile.size <= 10 * 1024 * 1024) { // 10MB limit
-          setFile(selectedFile);
-          setExtractedData(null);
-          console.log('✅ File accepted');
-        } else {
-          toast.error('File size must be less than 10MB');
-        }
-      } else {
-        toast.error('Please upload a PDF or TXT file');
-      }
-    } else {
-      console.log('❌ No file selected');
-    }
-  }, []);
-
-  // Handle drag and drop - WORKING VERSION
-  const handleDrop = useCallback((event) => {
-    event.preventDefault();
-    const droppedFile = event.dataTransfer.files[0];
-    console.log('🎯 File dropped:', droppedFile);
+    console.log('📦 Creating FormData...');
+    formData.append('file', file);
+    formData.append('userId', 'mihir_jain');
     
-    if (droppedFile) {
-      const validTypes = ['application/pdf', 'text/plain'];
-      if (validTypes.includes(droppedFile.type)) {
-        setFile(droppedFile);
-        setExtractedData(null);
-        console.log('✅ Dropped file accepted');
-      } else {
-        toast.error('Please upload a PDF or TXT file');
-      }
-    }
-  }, []);
-
-  const handleDragOver = useCallback((event) => {
-    event.preventDefault();
-  }, []);
-
-  // FIXED Upload and process file
-  const handleUpload = async () => {
-    if (!file) {
-      console.log('❌ No file to upload');
-      toast.error('Please select a file first');
-      return;
+    // Debug: Log FormData contents
+    console.log('📦 FormData created with:');
+    for (let [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value);
     }
 
-    console.log('🚀 Starting upload process with file:', file.name);
-    setUploading(true);
-    setProcessing(true);
+    console.log('📤 Uploading to /api/blood-report/upload...');
 
-    try {
-      // Create FormData - CRITICAL PART
-      const formData = new FormData();
-      
-      console.log('📦 Creating FormData...');
-      formData.append('file', file);
-      formData.append('userId', 'mihir_jain');
-      
-      // Debug: Log FormData contents
-      console.log('📦 FormData created with:');
-      for (let [key, value] of formData.entries()) {
-        console.log(`  ${key}:`, value);
-      }
+    // Upload file
+    const uploadResponse = await fetch('/api/blood-report/upload', {
+      method: 'POST',
+      body: formData
+      // DO NOT set Content-Type header - let browser set it
+    });
 
-      console.log('📤 Uploading to /api/blood-report/upload...');
+    console.log('📤 Upload response status:', uploadResponse.status);
 
-      // Upload file
-      const uploadResponse = await fetch('/api/blood-report/upload', {
-        method: 'POST',
-        body: formData
-        // DO NOT set Content-Type header - let browser set it
-      });
-
-      console.log('📤 Upload response status:', uploadResponse.status);
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('❌ Upload failed:', errorText);
-        throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
-      }
-
-      const uploadResult = await uploadResponse.json();
-      console.log('✅ Upload successful:', uploadResult);
-      toast.success('File uploaded successfully');
-
-      setUploading(false);
-
-      // FIXED: Process file with AI - now passing filePath
-      console.log('🔄 Starting processing with filePath:', uploadResult.filePath);
-      const processResponse = await fetch('/api/blood-report/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          fileId: uploadResult.fileId,
-          userId: 'mihir_jain',
-          filePath: uploadResult.filePath  // THIS IS THE FIX - pass the filePath
-        })
-      });
-
-      console.log('🔄 Process response status:', processResponse.status);
-
-      if (!processResponse.ok) {
-        const errorText = await processResponse.text();
-        console.error('❌ Processing failed:', errorText);
-        throw new Error(`Processing failed: ${processResponse.status} - ${errorText}`);
-      }
-
-      const processResult = await processResponse.json();
-      console.log('✅ Processing successful:', processResult);
-      setExtractedData(processResult);
-      toast.success('Blood parameters extracted successfully');
-
-    } catch (error) {
-      console.error('❌ Upload/processing error:', error);
-      toast.error(`Error: ${error.message}`);
-    } finally {
-      setUploading(false);
-      setProcessing(false);
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('❌ Upload failed:', errorText);
+      throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
     }
-  };
 
+    const uploadResult = await uploadResponse.json();
+    console.log('✅ Upload successful:', uploadResult);
+    toast.success('File uploaded successfully');
 
+    setUploading(false);
+
+    // SIMPLIFIED: Process file with AI - only need fileId and userId
+    console.log('🔄 Starting processing with fileId:', uploadResult.fileId);
+    const processResponse = await fetch('/api/blood-report/process', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fileId: uploadResult.fileId,
+        userId: 'mihir_jain'
+        // No need to pass filePath anymore - it's all in memory
+      })
+    });
+
+    console.log('🔄 Process response status:', processResponse.status);
+
+    if (!processResponse.ok) {
+      const errorText = await processResponse.text();
+      console.error('❌ Processing failed:', errorText);
+      throw new Error(`Processing failed: ${processResponse.status} - ${errorText}`);
+    }
+
+    const processResult = await processResponse.json();
+    console.log('✅ Processing successful:', processResult);
+    setExtractedData(processResult);
+    toast.success('Blood parameters extracted successfully');
+
+  } catch (error) {
+    console.error('❌ Upload/processing error:', error);
+    toast.error(`Error: ${error.message}`);
+  } finally {
+    setUploading(false);
+    setProcessing(false);
+  }
+};
   // Confirm extracted parameters
   const handleConfirm = async () => {
     if (!extractedData) return;
