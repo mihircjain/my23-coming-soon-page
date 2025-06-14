@@ -1,86 +1,8 @@
-// =============================================================================
-// REAL OCR IMPLEMENTATION FOR VERCEL
-// =============================================================================
-
-// First, install the correct dependencies:
-// npm install pdf-parse @google-cloud/vision multer
-
-// =============================================================================
-// 1. /pages/api/blood-report/upload.js - REAL FILE UPLOAD
-// =============================================================================
-
-import formidable from 'formidable';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-
-// Disable body parser for file uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  try {
-    const form = formidable({
-      uploadDir: '/tmp', // Vercel's temporary directory
-      keepExtensions: true,
-      maxFileSize: 10 * 1024 * 1024, // 10MB limit
-    });
-
-    const [fields, files] = await form.parse(req);
-    const file = Array.isArray(files.file) ? files.file[0] : files.file;
-    const userId = Array.isArray(fields.userId) ? fields.userId[0] : fields.userId;
-
-    if (!file || !userId) {
-      return res.status(400).json({ error: 'File and userId are required' });
-    }
-
-    // Validate file type
-    if (!file.originalFilename?.endsWith('.pdf')) {
-      return res.status(400).json({ error: 'Only PDF files are allowed' });
-    }
-
-    // Generate unique file ID
-    const fileId = uuidv4();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `${timestamp}_${fileId}.pdf`;
-
-    // On Vercel, we store temporarily in /tmp and should upload to cloud storage
-    // For now, we'll keep it in /tmp for processing
-    const tempPath = `/tmp/${fileName}`;
-    await fs.copyFile(file.filepath, tempPath);
-
-    console.log(`📄 File uploaded for ${userId}: ${fileName} (${file.size} bytes)`);
-
-    res.status(200).json({
-      success: true,
-      fileId,
-      fileName,
-      filePath: tempPath,
-      fileSize: file.size,
-      uploadedAt: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'File upload failed: ' + error.message });
-  }
-}
-
-// =============================================================================
-// 2. /pages/api/blood-report/process.js - REAL OCR WITH PDF-PARSE
-// =============================================================================
-
 import pdf from 'pdf-parse';
-import { promises as fs } from 'fs';
+import { readFile, unlink } from 'fs/promises';
+import { glob } from 'glob';
 
-// Blood parameter mappings (same as before)
+// Blood parameter mappings
 const PARAMETER_MAPPINGS = {
   rbc: {
     patterns: ['rbc', 'red blood cell', 'erythrocyte', 'red cell count'],
@@ -162,12 +84,12 @@ const PARAMETER_MAPPINGS = {
   }
 };
 
-// Extract text from PDF using pdf-parse (works on Vercel)
+// Extract text from PDF
 async function extractTextFromPDF(filePath) {
   try {
     console.log('🔍 Extracting text from PDF...');
     
-    const dataBuffer = await fs.readFile(filePath);
+    const dataBuffer = await readFile(filePath);
     const data = await pdf(dataBuffer);
     
     console.log('✅ PDF text extraction completed, length:', data.text.length);
@@ -175,7 +97,7 @@ async function extractTextFromPDF(filePath) {
 
   } catch (error) {
     console.error('PDF extraction error:', error);
-    throw new Error('Failed to extract text from PDF');
+    throw new Error('Failed to extract text from PDF: ' + error.message);
   }
 }
 
@@ -185,6 +107,7 @@ function extractBloodParameters(text) {
   const lines = text.toLowerCase().split('\n');
   
   console.log('🔍 Analyzing text for blood parameters...');
+  console.log('🔍 First 500 chars of text:', text.substring(0, 500));
   
   for (const [paramKey, paramConfig] of Object.entries(PARAMETER_MAPPINGS)) {
     for (const line of lines) {
@@ -286,13 +209,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'FileId and userId are required' });
     }
 
+    console.log(`🔄 Processing request for user: ${userId}, fileId: ${fileId}`);
+
     // Find the uploaded file in /tmp directory
-    const filePath = `/tmp/*${fileId}*.pdf`;
-    const { glob } = await import('glob');
-    const files = await glob(filePath);
+    const pattern = `/tmp/*${fileId}*.pdf`;
+    const files = await glob(pattern);
     
     if (files.length === 0) {
-      return res.status(404).json({ error: 'File not found' });
+      console.error(`❌ File not found with pattern: ${pattern}`);
+      return res.status(404).json({ error: 'File not found. Please upload the file again.' });
     }
 
     const targetFile = files[0];
@@ -300,6 +225,12 @@ export default async function handler(req, res) {
 
     // Extract text from PDF
     const extractedText = await extractTextFromPDF(targetFile);
+
+    if (!extractedText || extractedText.length < 10) {
+      return res.status(400).json({ 
+        error: 'Could not extract readable text from PDF. Please ensure the PDF contains selectable text.' 
+      });
+    }
 
     // Extract blood parameters
     const parameters = extractBloodParameters(extractedText);
@@ -324,15 +255,19 @@ export default async function handler(req, res) {
 
     // Clean up temporary file
     try {
-      await fs.unlink(targetFile);
+      await unlink(targetFile);
+      console.log('🗑️ Cleaned up temporary file');
     } catch (error) {
-      console.warn('Could not delete temporary file:', error);
+      console.warn('⚠️ Could not delete temporary file:', error);
     }
 
     res.status(200).json(result);
 
   } catch (error) {
-    console.error('Processing error:', error);
-    res.status(500).json({ error: 'File processing failed: ' + error.message });
+    console.error('❌ Processing error:', error);
+    res.status(500).json({ 
+      error: 'File processing failed: ' + error.message,
+      details: error.stack
+    });
   }
 }
