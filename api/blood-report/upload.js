@@ -10,9 +10,6 @@ export const config = {
   },
 };
 
-// Global in-memory storage for file data (persists across requests in same container)
-global.fileStorage = global.fileStorage || new Map();
-
 export default async function handler(req, res) {
   console.log('🔍 Upload API called, method:', req.method);
   
@@ -60,49 +57,48 @@ export default async function handler(req, res) {
 
     const fileId = uuidv4();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `${timestamp}_${fileId}_${file.originalFilename}`;
     
     console.log('📄 Reading uploaded file from:', file.filepath);
     const fileBuffer = await readFile(file.filepath);
     console.log('📄 File read successfully, size:', fileBuffer.length);
     
-    // Store file data in memory with all necessary info
-    const fileData = {
+    // Store file in /tmp with a predictable name based on fileId
+    const storedFilePath = path.join(tempDir, `${fileId}.data`);
+    const metadataPath = path.join(tempDir, `${fileId}.meta`);
+    
+    // Save the actual file content
+    await writeFile(storedFilePath, fileBuffer);
+    console.log('💾 File content saved to:', storedFilePath);
+    
+    // Save metadata as JSON
+    const metadata = {
       fileId,
-      fileName,
+      fileName: `${timestamp}_${fileId}_${file.originalFilename}`,
       fileSize: file.size,
       originalName: file.originalFilename,
       uploadedAt: new Date().toISOString(),
       userId,
-      buffer: fileBuffer, // Store the actual buffer
-      mimeType: file.mimetype || 'text/plain'
+      mimeType: file.mimetype || 'text/plain',
+      storedPath: storedFilePath
     };
     
-    // Store in global memory
-    global.fileStorage.set(fileId, fileData);
-    console.log('💾 File stored in memory with ID:', fileId);
-    console.log('💾 Total files in storage:', global.fileStorage.size);
-
-    // Try to also save to /tmp for backup (optional)
-    const tempPath = path.join(tempDir, fileName);
-    try {
-      await writeFile(tempPath, fileBuffer);
-      console.log('💾 File also saved to temp path:', tempPath);
-      fileData.tempPath = tempPath;
-    } catch (tempError) {
-      console.log('⚠️ Could not save to temp path (not critical):', tempError.message);
-    }
+    await writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+    console.log('💾 Metadata saved to:', metadataPath);
     
-    console.log('✅ File uploaded successfully:', fileName);
+    console.log('✅ File uploaded and stored successfully');
 
     const response = {
       success: true,
       fileId,
-      fileName,
+      fileName: metadata.fileName,
       fileSize: file.size,
       originalName: file.originalFilename,
-      uploadedAt: new Date().toISOString(),
-      stored: true
+      uploadedAt: metadata.uploadedAt,
+      stored: true,
+      debug: {
+        storedPath: storedFilePath,
+        metadataPath: metadataPath
+      }
     };
     
     console.log('📤 Sending response:', response);
