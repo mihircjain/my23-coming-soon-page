@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 // import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import Chart from 'chart.js/auto';
+import { db } from '@/lib/firebaseConfig';
+import { collection, addDoc, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
 // Define types for our data
 interface StravaData {
@@ -328,13 +330,15 @@ const OverallJam = () => {
   const [last7DaysData, setLast7DaysData] = useState({});
   const [latestBloodMarkers, setLatestBloodMarkers] = useState(null);
 
-  // Fetch combined data from Firebase - UPDATED with proper run-only HR and Strava calories
+  // UPDATED: Real Firebase data fetching instead of mock data
   const fetchCombinedData = async (forceRefresh = false) => {
     try {
       setLoading(true);
       if (forceRefresh) {
         setRefreshing(true);
       }
+
+      console.log(`🔄 Fetching 7-day health data from Firebase (forceRefresh: ${forceRefresh})...`);
 
       // Get the last 7 days
       const sevenDaysAgo = new Date();
@@ -368,16 +372,109 @@ const OverallJam = () => {
         tempDailyData[dateStr] = dayData;
       }
 
-      console.log(`🔄 Fetching 7-day health data (forceRefresh: ${forceRefresh})...`);
+      // Prepare Firebase queries
+      const nutritionQuery = query(
+        collection(db, "nutritionLogs"),
+        where("date", ">=", dateString),
+        orderBy("date", "desc")
+      );
 
-      // Simulated data processing - replace with actual Firebase calls
-      console.log('📊 Processed sample nutrition and Strava data');
-      
+      const stravaQuery = query(
+        collection(db, "strava_data"),
+        where("userId", "==", "mihir_jain"),
+        orderBy("start_date", "desc"),
+        limit(50)
+      );
+
+      const bloodQuery = query(
+        collection(db, "blood_markers"),
+        where("userId", "==", "mihir_jain"),
+        orderBy("date", "desc"),
+        limit(1)
+      );
+
+      // Execute all queries
+      const [nutritionSnapshot, stravaSnapshot, bloodMarkersSnapshot] = await Promise.all([
+        getDocs(nutritionQuery).catch((error) => {
+          console.error("Error fetching nutrition data:", error);
+          return { docs: [] };
+        }),
+        getDocs(stravaQuery).catch((error) => {
+          console.error("Error fetching Strava data:", error);
+          return { docs: [] };
+        }),
+        getDocs(bloodQuery).catch((error) => {
+          console.error("Error fetching blood markers:", error);
+          return { docs: [] };
+        })
+      ]);
+
+      console.log(`📊 Fetched ${nutritionSnapshot.docs.length} nutrition logs`);
+      console.log(`🏃 Fetched ${stravaSnapshot.docs.length} Strava activities`);
+      console.log(`🩸 Fetched ${bloodMarkersSnapshot.docs.length} blood marker records`);
+
+      // Process nutrition data
+      nutritionSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (tempData[data.date]) {
+          tempData[data.date].caloriesConsumed = data.totals?.calories || 0;
+          tempData[data.date].protein = data.totals?.protein || 0;
+          tempData[data.date].carbs = data.totals?.carbs || 0;
+          tempData[data.date].fat = data.totals?.fat || 0;
+          tempData[data.date].fiber = data.totals?.fiber || 0;
+        }
+      });
+
+      // Process Strava data with run-only heart rate tracking
+      stravaSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
+        
+        if (!activityDate || !tempData[activityDate]) return;
+
+        const activityType = data.type || '';
+        const isRun = activityType.toLowerCase().includes('run');
+
+        // Heart Rate: Only track for runs and average properly
+        if (data.heart_rate != null && isRun) {
+          const currentHR = tempData[activityDate].heartRateRuns;
+          const runCount = tempData[activityDate].runCount;
+          
+          if (currentHR === null) {
+            tempData[activityDate].heartRateRuns = data.heart_rate;
+            tempData[activityDate].runCount = 1;
+          } else {
+            // Calculate weighted average
+            tempData[activityDate].heartRateRuns = ((currentHR * runCount) + data.heart_rate) / (runCount + 1);
+            tempData[activityDate].runCount = runCount + 1;
+          }
+        }
+
+        // Calories: Use direct Strava calories field
+        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
+        tempData[activityDate].caloriesBurned += activityCalories;
+        
+        // Duration and activity types
+        tempData[activityDate].workoutDuration += data.duration || 0;
+
+        if (activityType && !tempData[activityDate].activityTypes.includes(activityType)) {
+          tempData[activityDate].activityTypes.push(activityType);
+        }
+      });
+
+      // Process blood markers
+      if (bloodMarkersSnapshot.docs.length > 0) {
+        const latestDoc = bloodMarkersSnapshot.docs[0];
+        setLatestBloodMarkers(latestDoc.data() as BloodMarkerData);
+        console.log('🩸 Latest blood markers updated');
+      }
+
       // Convert to array and sort by date
       const sortedData = Object.values(tempData).sort((a, b) =>
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
 
+      console.log('✅ Data processing complete');
       setCombinedData(sortedData);
       setLast7DaysData(tempDailyData);
       
@@ -875,11 +972,11 @@ const OverallJam = () => {
                 <TrendingUp className="h-5 w-5 text-gray-700" />
                 Health Trends (Last 7 Days)
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  Updated Data Sources
+                  Live Firebase Data
                 </Badge>
               </CardTitle>
               <p className="text-sm text-gray-700 mt-2">
-                Track your key health metrics with accurate data: HR from runs only, calories direct from Strava.
+                Track your key health metrics with real-time data: HR from runs only, calories direct from Strava.
               </p>
             </CardHeader>
             <CardContent>
@@ -953,7 +1050,7 @@ const OverallJam = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>Comprehensive health data from the last 7 days</span>
+            <span>Live health data from Firebase</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4 text-teal-500" />
