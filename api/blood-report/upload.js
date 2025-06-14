@@ -1,7 +1,6 @@
 // pages/api/blood-report/upload.js
 import formidable from 'formidable';
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
+import { readFile, writeFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 
@@ -11,9 +10,8 @@ export const config = {
   },
 };
 
-// In-memory storage for file data (for demo purposes)
-// In production, you'd use a database or cloud storage
-const fileStorage = new Map();
+// Global in-memory storage for file data (persists across requests in same container)
+global.fileStorage = global.fileStorage || new Map();
 
 export default async function handler(req, res) {
   console.log('🔍 Upload API called, method:', req.method);
@@ -26,15 +24,12 @@ export default async function handler(req, res) {
   try {
     console.log('📄 Starting file upload process');
     
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-      console.log('📁 Created uploads directory');
-    }
+    // Use /tmp directory which is writable in serverless environments
+    const tempDir = '/tmp';
+    console.log('📁 Using temp directory:', tempDir);
 
     const form = formidable({
-      uploadDir: uploadsDir,
+      uploadDir: tempDir,
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024,
     });
@@ -66,28 +61,37 @@ export default async function handler(req, res) {
     const fileId = uuidv4();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `${timestamp}_${fileId}_${file.originalFilename}`;
-    const permanentPath = path.join(uploadsDir, fileName);
     
-    console.log('📄 Reading uploaded file...');
+    console.log('📄 Reading uploaded file from:', file.filepath);
     const fileBuffer = await readFile(file.filepath);
+    console.log('📄 File read successfully, size:', fileBuffer.length);
     
-    console.log('💾 Saving file to permanent location:', permanentPath);
-    await writeFile(permanentPath, fileBuffer);
-    
-    // Also store in memory for immediate access
+    // Store file data in memory with all necessary info
     const fileData = {
       fileId,
       fileName,
-      filePath: permanentPath,
       fileSize: file.size,
       originalName: file.originalFilename,
       uploadedAt: new Date().toISOString(),
       userId,
-      buffer: fileBuffer.toString('base64') // Store as base64 for safety
+      buffer: fileBuffer, // Store the actual buffer
+      mimeType: file.mimetype || 'text/plain'
     };
     
-    fileStorage.set(fileId, fileData);
+    // Store in global memory
+    global.fileStorage.set(fileId, fileData);
     console.log('💾 File stored in memory with ID:', fileId);
+    console.log('💾 Total files in storage:', global.fileStorage.size);
+
+    // Try to also save to /tmp for backup (optional)
+    const tempPath = path.join(tempDir, fileName);
+    try {
+      await writeFile(tempPath, fileBuffer);
+      console.log('💾 File also saved to temp path:', tempPath);
+      fileData.tempPath = tempPath;
+    } catch (tempError) {
+      console.log('⚠️ Could not save to temp path (not critical):', tempError.message);
+    }
     
     console.log('✅ File uploaded successfully:', fileName);
 
@@ -95,10 +99,10 @@ export default async function handler(req, res) {
       success: true,
       fileId,
       fileName,
-      filePath: permanentPath,
       fileSize: file.size,
       originalName: file.originalFilename,
-      uploadedAt: new Date().toISOString()
+      uploadedAt: new Date().toISOString(),
+      stored: true
     };
     
     console.log('📤 Sending response:', response);
@@ -112,6 +116,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
-// Export fileStorage for use in other APIs
-export { fileStorage };
