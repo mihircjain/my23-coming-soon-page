@@ -1,34 +1,29 @@
-// =============================================================================
-// 3. /api/blood-report/confirm.ts
-// =============================================================================
-
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebaseConfig';
+import { db } from '../../../lib/firebaseConfig.js';
 import { doc, setDoc } from 'firebase/firestore';
 
-export async function POST(request: NextRequest) {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    const { userId, reportId, parameters, reportDate } = await request.json();
+    const { userId, reportId, parameters, reportDate } = req.body;
 
     if (!userId || !reportId || !parameters) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
     console.log(`💾 Saving blood parameters for user: ${userId}`);
 
-    // Save to blood_markers collection
-    const bloodMarkersRef = doc(db, 'blood_markers', userId);
-    
     // Convert parameters to the format expected by BodyJam
-    const normalizedMarkers: Record<string, number | string> = {};
+    const normalizedMarkers = {};
     
     for (const [key, param] of Object.entries(parameters)) {
-      normalizedMarkers[key] = (param as any).value;
+      normalizedMarkers[key] = param.value;
     }
 
+    // Save to blood_markers collection
+    const bloodMarkersRef = doc(db, 'blood_markers', userId);
     const bloodMarkersData = {
       userId,
       markers: normalizedMarkers,
@@ -56,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Blood parameters saved successfully for', userId);
 
-    return NextResponse.json({
+    res.status(200).json({
       success: true,
       parameters: normalizedMarkers,
       savedAt: new Date().toISOString()
@@ -64,9 +59,53 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Confirmation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to save parameters: ' + error.message },
-      { status: 500 }
-    );
+    res.status(500).json({ error: 'Failed to save parameters: ' + error.message });
+  }
+}
+
+// =============================================================================
+// 4. /pages/api/blood-markers/[userId].js - NO CHANGES NEEDED  
+// =============================================================================
+
+import { db } from '../../../lib/firebaseConfig.js';
+import { doc, getDoc } from 'firebase/firestore';
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    console.log(`📊 Fetching blood markers for user: ${userId}`);
+
+    const bloodMarkersRef = doc(db, 'blood_markers', userId);
+    const bloodMarkersDoc = await getDoc(bloodMarkersRef);
+
+    if (!bloodMarkersDoc.exists()) {
+      return res.status(200).json({
+        markers: {},
+        lastUpdated: null,
+        message: 'No blood markers found'
+      });
+    }
+
+    const data = bloodMarkersDoc.data();
+    
+    res.status(200).json({
+      markers: data.markers || {},
+      lastUpdated: data.lastUpdated,
+      source: data.source,
+      reportDate: data.reportDate
+    });
+
+  } catch (error) {
+    console.error('Retrieval error:', error);
+    res.status(500).json({ error: 'Failed to fetch blood markers: ' + error.message });
   }
 }
