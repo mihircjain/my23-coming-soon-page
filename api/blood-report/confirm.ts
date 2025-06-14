@@ -1,10 +1,10 @@
 // =============================================================================
-// 3. BLOOD REPORT CONFIRMATION API - /api/blood-report/confirm
+// 3. /api/blood-report/confirm.ts
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseConfig';
-import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     await setDoc(reportRef, reportData);
 
-    console.log('✅ Blood parameters saved successfully');
+    console.log('✅ Blood parameters saved successfully for', userId);
 
     return NextResponse.json({
       success: true,
@@ -70,4 +70,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
