@@ -110,7 +110,9 @@ const RunsDashboard = () => {
 
   const formatPace = (distance: number, time: number) => {
     if (distance === 0 || time === 0) return 'N/A';
-    const paceSeconds = time / distance;
+    // Convert distance from meters to km for pace calculation
+    const distanceKm = distance / 1000;
+    const paceSeconds = time / distanceKm;
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
@@ -118,8 +120,10 @@ const RunsDashboard = () => {
 
   const formatDistance = (distance: number) => {
     if (distance === 0) return '0.00';
-    if (distance < 0.1) return distance.toFixed(3);
-    return distance.toFixed(2);
+    // Convert meters to kilometers
+    const km = distance / 1000;
+    if (km < 0.1) return km.toFixed(3);
+    return km.toFixed(2);
   };
 
   const formatSpeed = (speed: number) => {
@@ -140,8 +144,8 @@ const RunsDashboard = () => {
 
     // Prepare data
     const labels = runs.map((run, index) => `Run ${runs.length - index}`).reverse();
-    const distances = runs.map(run => run.distance).reverse();
-    const paces = runs.map(run => run.moving_time / run.distance / 60).reverse(); // min/km
+    const distances = runs.map(run => run.distance / 1000).reverse(); // convert to km
+    const paces = runs.map(run => run.moving_time / (run.distance / 1000) / 60).reverse(); // min/km
     const heartRates = runs.map(run => run.average_heartrate || 0).reverse();
 
     chartInstances.current.analytics = new Chart(ctx, {
@@ -289,7 +293,7 @@ const RunsDashboard = () => {
       const runDate = run.start_date.split('T')[0];
       if (dailyData.has(runDate)) {
         const day = dailyData.get(runDate);
-        day.distance += run.distance;
+        day.distance += run.distance / 1000; // convert to km
         day.runs += 1;
       }
     });
@@ -328,9 +332,9 @@ const RunsDashboard = () => {
   const calculateAnalytics = () => {
     if (runs.length === 0) return null;
 
-    const totalDistance = runs.reduce((sum, run) => sum + run.distance, 0);
+    const totalDistance = runs.reduce((sum, run) => sum + run.distance, 0); // in meters
     const totalTime = runs.reduce((sum, run) => sum + run.moving_time, 0);
-    const avgPace = totalTime / totalDistance / 60; // min/km
+    const avgPace = totalTime / (totalDistance / 1000) / 60; // min/km
     
     const heartRates = runs.filter(run => run.average_heartrate).map(run => run.average_heartrate!);
     const avgHeartRate = heartRates.length > 0 ? Math.round(heartRates.reduce((sum, hr) => sum + hr, 0) / heartRates.length) : 0;
@@ -342,7 +346,7 @@ const RunsDashboard = () => {
     const gear = runs.find(run => run.gear)?.gear;
     
     return {
-      totalDistance,
+      totalDistance: totalDistance / 1000, // convert to km for display
       totalTime,
       avgPace,
       avgHeartRate,
@@ -393,7 +397,7 @@ const RunsDashboard = () => {
         id: run.id?.toString() || Math.random().toString(),
         name: run.name || 'Unnamed Run',
         start_date: run.start_date,
-        distance: run.distance || 0,
+        distance: run.distance || 0, // Keep in meters, convert in display
         moving_time: run.moving_time || 0,
         elapsed_time: run.elapsed_time || 0,
         total_elevation_gain: run.total_elevation_gain || 0,
