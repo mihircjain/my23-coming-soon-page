@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, RefreshCw, MapPin, Clock, Zap, Heart, Activity, BarChart3, Target, Gauge, Mountain, Footprints, Calendar, TrendingUp, Award, Timer, Trophy, Shoes, Thermometer, Wind } from "lucide-react";
+import { ArrowLeft, RefreshCw, MapPin, Clock, Zap, Heart, Activity, BarChart3, Target, Gauge, Mountain, Footprints, Calendar, TrendingUp, Award, Timer, Trophy, Zap as Shoe, Thermometer, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -760,7 +760,7 @@ const RunsDashboard = () => {
                           {run.gear?.name && (
                             <div className="flex justify-between">
                               <span className="text-gray-600 flex items-center">
-                                <Shoes className="h-3 w-3 mr-1" />
+                                <Footprints className="h-3 w-3 mr-1" />
                                 Shoes:
                               </span>
                               <span className="font-medium text-xs">{run.gear.name} ({run.gear.distance_km}km)</span>
@@ -886,7 +886,7 @@ const RunsDashboard = () => {
                       <Card className="bg-white/80 backdrop-blur-sm">
                         <CardHeader>
                           <CardTitle className="flex items-center">
-                            <Shoes className="h-5 w-5 mr-2 text-orange-600" />
+                            <Footprints className="h-5 w-5 mr-2 text-orange-600" />
                             Gear Tracking
                           </CardTitle>
                         </CardHeader>
@@ -1223,7 +1223,7 @@ const RunsDashboard = () => {
                           <div className="mt-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
-                                <Shoes className="h-5 w-5 mr-2 text-orange-600" />
+                                <Footprints className="h-5 w-5 mr-2 text-orange-600" />
                                 <div>
                                   <div className="font-medium text-orange-800">{selectedRun.gear.name}</div>
                                   {selectedRun.gear.brand_name && (
