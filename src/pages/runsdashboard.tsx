@@ -110,8 +110,8 @@ const RunsDashboard = () => {
 
   const formatPace = (distance: number, time: number) => {
     if (distance === 0 || time === 0) return 'N/A';
-    // Convert distance from meters to km for pace calculation
-    const distanceKm = distance / 1000;
+    // If distance is already in km, don't convert again
+    const distanceKm = distance > 100 ? distance / 1000 : distance;
     const paceSeconds = time / distanceKm;
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
@@ -301,7 +301,7 @@ const RunsDashboard = () => {
     const days = Array.from(dailyData.keys()).sort();
     const distances = days.map(day => dailyData.get(day).distance);
     const labels = days.map(day => {
-      const date = new Date(day);
+      const date = new Date(day + 'T00:00:00'); // Add time to prevent timezone issues
       return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     });
 
@@ -1047,7 +1047,7 @@ const RunsDashboard = () => {
                           </div>
                           <div className="text-center p-3 bg-white rounded-lg shadow-sm">
                             <div className="text-lg font-bold text-red-600">
-                              {selectedRun.average_heartrate || 'N/A'}
+                              {selectedRun.average_heartrate ? Math.round(selectedRun.average_heartrate) : 'N/A'}
                             </div>
                             <div className="text-xs text-gray-600">Avg HR (bpm)</div>
                           </div>
@@ -1101,8 +1101,8 @@ const RunsDashboard = () => {
                                     <td className="py-2 px-3 font-medium">{index + 1} km</td>
                                     <td className="py-2 px-3 text-right">{formatTime(split.moving_time)}</td>
                                     <td className="py-2 px-3 text-right">{formatPace(1, split.moving_time)}</td>
-                                    <td className="py-2 px-3 text-right">{split.average_heartrate || '-'}</td>
-                                    <td className="py-2 px-3 text-right">{split.elevation_difference ? `${split.elevation_difference > 0 ? '+' : ''}${split.elevation_difference}m` : '-'}</td>
+                                    <td className="py-2 px-3 text-right">{split.average_heartrate ? Math.round(split.average_heartrate) : '-'}</td>
+                                    <td className="py-2 px-3 text-right">{split.elevation_difference ? `${split.elevation_difference > 0 ? '+' : ''}${Math.round(split.elevation_difference)}m` : '-'}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1134,7 +1134,7 @@ const RunsDashboard = () => {
                                   {formatTime(effort.moving_time)}
                                 </div>
                                 <div className="text-xs text-gray-600">
-                                  {formatPace(effort.distance / 1000, effort.moving_time)} • {formatDistance(effort.distance / 1000)} km
+                                  {formatPace(effort.distance / 1000, effort.moving_time)} • {formatDistance(effort.distance)} km
                                 </div>
                               </div>
                             ))}
@@ -1171,11 +1171,11 @@ const RunsDashboard = () => {
                                 {selectedRun.laps.map((lap, index) => (
                                   <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                                     <td className="py-2 px-3 font-medium">{lap.name || `Lap ${index + 1}`}</td>
-                                    <td className="py-2 px-3 text-right">{formatDistance(lap.distance / 1000)} km</td>
+                                    <td className="py-2 px-3 text-right">{formatDistance(lap.distance)} km</td>
                                     <td className="py-2 px-3 text-right">{formatTime(lap.moving_time)}</td>
-                                    <td className="py-2 px-3 text-right">{formatPace(lap.distance / 1000, lap.moving_time)}</td>
-                                    <td className="py-2 px-3 text-right">{lap.average_heartrate || '-'}</td>
-                                    <td className="py-2 px-3 text-right">{lap.max_heartrate || '-'}</td>
+                                    <td className="py-2 px-3 text-right">{formatPace(lap.distance, lap.moving_time)}</td>
+                                    <td className="py-2 px-3 text-right">{lap.average_heartrate ? Math.round(lap.average_heartrate) : '-'}</td>
+                                    <td className="py-2 px-3 text-right">{lap.max_heartrate ? Math.round(lap.max_heartrate) : '-'}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1211,7 +1211,7 @@ const RunsDashboard = () => {
                           </div>
                           <div className="text-center p-3 bg-gray-50 rounded-lg">
                             <div className="text-lg font-bold text-gray-600">
-                              {selectedRun.max_heartrate || 'N/A'}
+                              {selectedRun.max_heartrate ? Math.round(selectedRun.max_heartrate) : 'N/A'}
                             </div>
                             <div className="text-xs text-gray-600">Max HR (bpm)</div>
                           </div>
