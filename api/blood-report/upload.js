@@ -1,6 +1,5 @@
 import formidable from 'formidable';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { copyFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 
 // Disable body parser for file uploads
@@ -16,8 +15,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('📄 Upload endpoint called');
+
     const form = formidable({
-      uploadDir: '/tmp', // Vercel's temporary directory
+      uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB limit
     });
@@ -40,10 +41,9 @@ export default async function handler(req, res) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `${timestamp}_${fileId}.pdf`;
 
-    // On Vercel, we store temporarily in /tmp and should upload to cloud storage
-    // For now, we'll keep it in /tmp for processing
+    // Store in /tmp with predictable name for processing
     const tempPath = `/tmp/${fileName}`;
-    await fs.copyFile(file.filepath, tempPath);
+    await copyFile(file.filepath, tempPath);
 
     console.log(`📄 File uploaded for ${userId}: ${fileName} (${file.size} bytes)`);
 
