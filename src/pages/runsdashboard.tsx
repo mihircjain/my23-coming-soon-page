@@ -1006,4 +1006,4 @@ const RunsDashboard = () => {
   );
 };
 
-export default runsdashboard;
+export default RunsDashboard;
