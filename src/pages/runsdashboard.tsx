@@ -275,7 +275,7 @@ const RunsDashboard = () => {
 
       if (!Array.isArray(data)) {
         throw new Error('Invalid data format received from API');
-      }('Invalid data format received from API');
+      }
       }
 
       const processedRuns = data.map((run: any) => ({
