@@ -1,7 +1,3 @@
-// =============================================================================
-// 1. BLOOD REPORT UPLOAD API - /api/blood-report/upload
-// =============================================================================
-
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
@@ -36,26 +32,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique file ID
+    // Generate unique file ID and clean filename
     const fileId = uuidv4();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `${userId}_${timestamp}_${fileId}.pdf`;
+    const fileName = `${timestamp}_${fileId}.pdf`;
 
-    // Create upload directory if it doesn't exist
-    const uploadDir = path.join(process.cwd(), 'uploads', 'blood-reports');
+    // Create user-specific upload directory
+    const uploadDir = path.join(process.cwd(), 'uploads', 'blood-reports', userId);
     try {
       await mkdir(uploadDir, { recursive: true });
     } catch (error) {
       // Directory might already exist
     }
 
-    // Save file to disk
+    // Save file to user-specific directory
     const filePath = path.join(uploadDir, fileName);
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     await writeFile(filePath, buffer);
 
-    console.log(`📄 File uploaded: ${fileName} (${file.size} bytes)`);
+    console.log(`📄 File uploaded for ${userId}: ${fileName} (${file.size} bytes)`);
 
     return NextResponse.json({
       success: true,
@@ -74,4 +70,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
