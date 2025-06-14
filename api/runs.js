@@ -1,9 +1,9 @@
-// /api/runs.js - Fixed version that handles undefined values properly
+// /api/runs.js - Final working version that handles complex stream data properly
 
 import admin from 'firebase-admin';
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Firebase Admin init with ignoreUndefinedProperties                */
+/*  Firebase Admin init                                               */
 /* ──────────────────────────────────────────────────────────────────── */
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -15,16 +15,18 @@ if (!admin.apps.length) {
   });
 }
 
-// Configure Firestore to ignore undefined values
 const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Helper to clean undefined values                                  */
+/*  Helper to clean and simplify complex objects                      */
 /* ──────────────────────────────────────────────────────────────────── */
 const cleanObject = (obj) => {
   if (obj === null || obj === undefined) return null;
-  if (Array.isArray(obj)) return obj.map(cleanObject).filter(item => item !== null && item !== undefined);
+  if (Array.isArray(obj)) {
+    const cleaned = obj.map(cleanObject).filter(item => item !== null && item !== undefined);
+    return cleaned.length > 0 ? cleaned : null;
+  }
   if (typeof obj === 'object') {
     const cleaned = {};
     Object.keys(obj).forEach(key => {
@@ -36,6 +38,36 @@ const cleanObject = (obj) => {
     return Object.keys(cleaned).length > 0 ? cleaned : null;
   }
   return obj;
+};
+
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Simplify streams data for Firestore storage                       */
+/* ──────────────────────────────────────────────────────────────────── */
+const simplifyStreams = (streams) => {
+  if (!streams) return null;
+  
+  try {
+    const simplified = {};
+    
+    // Extract just the data arrays and basic info, not the complex objects
+    Object.keys(streams).forEach(key => {
+      const stream = streams[key];
+      if (stream && stream.data && Array.isArray(stream.data)) {
+        simplified[key] = {
+          type: stream.type || key,
+          data_points: stream.data.length,
+          sample_data: stream.data.slice(0, 10), // First 10 points as sample
+          resolution: stream.resolution || 'high',
+          series_type: stream.series_type || 'time'
+        };
+      }
+    });
+    
+    return Object.keys(simplified).length > 0 ? simplified : null;
+  } catch (error) {
+    console.warn('Error simplifying streams:', error);
+    return null;
+  }
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
@@ -64,13 +96,12 @@ const isRunActivity = (activityType) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Get cached detailed runs - simplified query to avoid index issues */
+/*  Get cached detailed runs                                           */
 /* ──────────────────────────────────────────────────────────────────── */
 const getCachedDetailedRuns = async (userId) => {
   try {
     console.log(`📅 Getting cached detailed runs for ${userId}`);
     
-    // Simple query without date filtering to avoid index issues
     const snapshot = await db
       .collection('detailed_runs')
       .where('userId', '==', userId)
@@ -82,15 +113,12 @@ const getCachedDetailedRuns = async (userId) => {
     
     snapshot.docs.forEach(doc => {
       const data = doc.data();
-      
-      // Filter by date in JavaScript
       const activityDate = new Date(data.start_date);
       if (activityDate >= lastWeekStart && activityDate <= lastWeekEnd) {
         runs.push(data);
       }
     });
     
-    // Sort by date
     runs.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
     
     console.log(`📊 Found ${runs.length} cached detailed runs from last week`);
@@ -130,11 +158,11 @@ const fetchDetailedActivity = async (accessToken, activityId) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Fetch activity streams (per-second data)                          */
+/*  Fetch activity streams (simplified)                               */
 /* ──────────────────────────────────────────────────────────────────── */
 const fetchActivityStreams = async (accessToken, activityId) => {
   try {
-    const keys = 'time,distance,latlng,altitude,velocity_smooth,heartrate,cadence,grade_smooth,moving';
+    const keys = 'time,distance,heartrate,velocity_smooth,altitude,cadence';
     const response = await fetch(
       `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=${keys}&key_by_type=true`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -148,36 +176,10 @@ const fetchActivityStreams = async (accessToken, activityId) => {
     const streams = await response.json();
     console.log(`✅ Got streams for ${activityId} with ${Object.keys(streams).length} data types`);
     
-    return streams;
+    return simplifyStreams(streams);
     
   } catch (error) {
     console.warn(`⚠️ Error fetching streams for ${activityId}:`, error);
-    return null;
-  }
-};
-
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Fetch HR/pace zones                                               */
-/* ──────────────────────────────────────────────────────────────────── */
-const fetchActivityZones = async (accessToken, activityId) => {
-  try {
-    const response = await fetch(
-      `https://www.strava.com/api/v3/activities/${activityId}/zones`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    
-    if (!response.ok) {
-      console.warn(`⚠️ Failed to fetch zones for ${activityId}: ${response.status}`);
-      return null;
-    }
-    
-    const zones = await response.json();
-    console.log(`✅ Got zones for ${activityId}`);
-    
-    return zones;
-    
-  } catch (error) {
-    console.warn(`⚠️ Error fetching zones for ${activityId}:`, error);
     return null;
   }
 };
@@ -201,15 +203,14 @@ const fetchGearInfo = async (accessToken, gearId) => {
     const gear = await response.json();
     console.log(`✅ Got gear info: ${gear.name} (${(gear.distance / 1000).toFixed(0)}km)`);
     
-    return cleanObject({
+    return {
       id: gear.id,
-      name: gear.name,
-      distance: gear.distance,
-      brand_name: gear.brand_name,
-      model_name: gear.model_name,
-      description: gear.description,
-      primary: gear.primary
-    });
+      name: gear.name || 'Unknown Shoe',
+      distance_km: Math.round(gear.distance / 1000),
+      brand_name: gear.brand_name || null,
+      model_name: gear.model_name || null,
+      primary: gear.primary || false
+    };
     
   } catch (error) {
     console.error(`❌ Error fetching gear ${gearId}:`, error);
@@ -232,14 +233,13 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       return null;
     }
     
-    // Get additional data in parallel
-    const [streams, zones, gearInfo] = await Promise.all([
+    // Get additional data in parallel (skip zones for now to avoid complexity)
+    const [streams, gearInfo] = await Promise.all([
       fetchActivityStreams(accessToken, runId),
-      fetchActivityZones(accessToken, runId),
       detailed.gear_id ? fetchGearInfo(accessToken, detailed.gear_id) : null
     ]);
     
-    // Create comprehensive run object with proper null handling
+    // Create comprehensive but Firestore-safe run object
     const comprehensiveRun = cleanObject({
       // Basic info
       userId,
@@ -251,7 +251,7 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       start_date: detailed.start_date,
       start_date_local: detailed.start_date_local,
       date: detailed.start_date.split('T')[0],
-      timezone: detailed.timezone,
+      timezone: detailed.timezone || null,
       
       // Core metrics
       distance: detailed.distance || 0,
@@ -267,8 +267,6 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       has_heartrate: detailed.has_heartrate || false,
       average_heartrate: detailed.average_heartrate || null,
       max_heartrate: detailed.max_heartrate || null,
-      elev_high: detailed.elev_high || null,
-      elev_low: detailed.elev_low || null,
       
       // Additional metrics
       calories: detailed.calories || null,
@@ -279,9 +277,8 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       // Workout classification
       workout_type: detailed.workout_type || null,
       type: detailed.type || 'Run',
-      sport_type: detailed.sport_type || null,
       
-      // Equipment
+      // Equipment (simplified)
       gear_id: detailed.gear_id || null,
       gear: gearInfo,
       
@@ -289,53 +286,58 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       trainer: detailed.trainer || false,
       commute: detailed.commute || false,
       manual: detailed.manual || false,
-      private: detailed.private || false,
       
       // Social metrics
       achievement_count: detailed.achievement_count || 0,
       kudos_count: detailed.kudos_count || 0,
       comment_count: detailed.comment_count || 0,
-      athlete_count: detailed.athlete_count || 0,
-      photo_count: detailed.photo_count || 0,
       
       // Performance metrics
       suffer_score: detailed.suffer_score || null,
-      weighted_average_watts: detailed.weighted_average_watts || null,
-      device_watts: detailed.device_watts || false,
       
-      // Map data
-      map: detailed.map ? cleanObject({
-        id: detailed.map.id,
-        polyline: detailed.map.polyline,
-        summary_polyline: detailed.map.summary_polyline
-      }) : null,
+      // Map data (simplified)
+      map_id: detailed.map?.id || null,
+      has_map: !!detailed.map?.polyline,
       
-      // DETAILED RUNNING DATA
+      // DETAILED RUNNING DATA (the good stuff!)
+      
+      // Kilometer splits - This is the most important for runners
       splits_metric: detailed.splits_metric || [],
-      splits_standard: detailed.splits_standard || [],
-      laps: detailed.laps || [],
-      best_efforts: detailed.best_efforts || [],
-      segment_efforts: detailed.segment_efforts || [],
       
-      // Per-second streams
-      streams: streams || null,
+      // Device laps for interval training
+      laps: detailed.laps ? detailed.laps.map(lap => cleanObject({
+        name: lap.name || null,
+        distance: lap.distance || 0,
+        moving_time: lap.moving_time || 0,
+        average_speed: lap.average_speed || 0,
+        average_heartrate: lap.average_heartrate || null,
+        total_elevation_gain: lap.total_elevation_gain || 0
+      })) : [],
       
-      // HR/pace zones
-      zones: zones || null,
+      // Best efforts (PRs)
+      best_efforts: detailed.best_efforts ? detailed.best_efforts.map(effort => cleanObject({
+        name: effort.name || 'Unknown Distance',
+        distance: effort.distance || 0,
+        moving_time: effort.moving_time || 0,
+        elapsed_time: effort.elapsed_time || 0,
+        start_date_local: effort.start_date_local || null
+      })) : [],
+      
+      // Simplified streams info
+      streams_summary: streams,
       
       // Processing metadata
       fetched_at: new Date().toISOString(),
       has_detailed_data: true,
       has_streams: !!streams,
-      has_zones: !!zones,
-      processing_version: '1.1'
+      processing_version: '2.0'
     });
     
     // Store in detailed_runs collection
     const docRef = db.collection('detailed_runs').doc(`${userId}_${runId}`);
     await docRef.set(comprehensiveRun);
     
-    console.log(`💾 Stored comprehensive run: ${runId} with ${detailed.splits_metric?.length || 0} splits, ${streams ? 'streams' : 'no streams'}, ${zones ? 'zones' : 'no zones'}`);
+    console.log(`💾 ✅ Stored run ${runId}: ${detailed.splits_metric?.length || 0} splits, ${detailed.best_efforts?.length || 0} PRs, ${streams ? 'streams' : 'no streams'}`);
     
     return comprehensiveRun;
     
@@ -360,7 +362,7 @@ const checkRateLimit = async (userId) => {
     }
     
     const data = metadataDoc.data();
-    if (data.apiCalls < 50) {
+    if (data.apiCalls < 30) { // Conservative limit
       await metadataRef.update({ 
         apiCalls: data.apiCalls + 1, 
         lastRefresh: new Date().toISOString() 
@@ -485,7 +487,7 @@ export default async function handler(req, res) {
         // Rate limiting delay
         if (processed % 2 === 0) {
           console.log(`⏳ Processed ${processed}/${runs.length} runs (${errors} errors), brief pause...`);
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
       } catch (error) {
@@ -495,9 +497,9 @@ export default async function handler(req, res) {
       }
     }
     
-    console.log(`✅ Processed ${processed} detailed runs, ${errors} errors`);
+    console.log(`✅ Successfully processed ${processed} detailed runs, ${errors} errors`);
     
-    // Combine with any existing cached runs and sort
+    // Combine with cached runs and deduplicate
     const allRuns = [...detailedRuns, ...cachedRuns];
     const uniqueRuns = [];
     const seenIds = new Set();
@@ -511,18 +513,20 @@ export default async function handler(req, res) {
     
     uniqueRuns.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
     
-    // Log summary
+    // Log detailed summary
     const runsWithSplits = uniqueRuns.filter(r => r.splits_metric && r.splits_metric.length > 0).length;
     const runsWithStreams = uniqueRuns.filter(r => r.has_streams).length;
-    const runsWithZones = uniqueRuns.filter(r => r.has_zones).length;
     const runsWithBestEfforts = uniqueRuns.filter(r => r.best_efforts && r.best_efforts.length > 0).length;
+    const runsWithLaps = uniqueRuns.filter(r => r.laps && r.laps.length > 0).length;
+    const runsWithGear = uniqueRuns.filter(r => r.gear && r.gear.name).length;
     
     console.log(`📊 Final detailed runs summary:`);
     console.log(`   - ${uniqueRuns.length} total runs`);
     console.log(`   - ${runsWithSplits} with km splits`);
-    console.log(`   - ${runsWithStreams} with per-second streams`);
-    console.log(`   - ${runsWithZones} with HR/pace zones`);
-    console.log(`   - ${runsWithBestEfforts} with best efforts`);
+    console.log(`   - ${runsWithBestEfforts} with best efforts (PRs)`);
+    console.log(`   - ${runsWithLaps} with device laps`);
+    console.log(`   - ${runsWithStreams} with stream data`);
+    console.log(`   - ${runsWithGear} with gear info`);
     
     return res.status(200).json(uniqueRuns);
     
