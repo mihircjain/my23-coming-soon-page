@@ -1,9 +1,9 @@
-// /api/runs.js - Complete detailed runs API with full Strava integration
+// /api/runs.js - Fixed version that handles undefined values properly
 
 import admin from 'firebase-admin';
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Firebase Admin init                                               */
+/*  Firebase Admin init with ignoreUndefinedProperties                */
 /* ──────────────────────────────────────────────────────────────────── */
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -14,7 +14,29 @@ if (!admin.apps.length) {
     }),
   });
 }
+
+// Configure Firestore to ignore undefined values
 const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
+
+/* ──────────────────────────────────────────────────────────────────── */
+/*  Helper to clean undefined values                                  */
+/* ──────────────────────────────────────────────────────────────────── */
+const cleanObject = (obj) => {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) return obj.map(cleanObject).filter(item => item !== null && item !== undefined);
+  if (typeof obj === 'object') {
+    const cleaned = {};
+    Object.keys(obj).forEach(key => {
+      const value = cleanObject(obj[key]);
+      if (value !== null && value !== undefined) {
+        cleaned[key] = value;
+      }
+    });
+    return Object.keys(cleaned).length > 0 ? cleaned : null;
+  }
+  return obj;
+};
 
 /* ──────────────────────────────────────────────────────────────────── */
 /*  Get last week's date range                                        */
@@ -42,42 +64,36 @@ const isRunActivity = (activityType) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Get cached detailed runs from new collection                      */
+/*  Get cached detailed runs - simplified query to avoid index issues */
 /* ──────────────────────────────────────────────────────────────────── */
 const getCachedDetailedRuns = async (userId) => {
   try {
-    const { lastWeekStart, lastWeekEnd } = getLastWeekRange();
+    console.log(`📅 Getting cached detailed runs for ${userId}`);
     
-    console.log(`📅 Getting detailed runs from ${lastWeekStart.toISOString()} to ${lastWeekEnd.toISOString()}`);
-    
-    // Query the new detailed_runs collection
+    // Simple query without date filtering to avoid index issues
     const snapshot = await db
       .collection('detailed_runs')
       .where('userId', '==', userId)
-      .orderBy('start_date', 'desc')
-      .limit(50)
+      .limit(20)
       .get();
     
+    const { lastWeekStart, lastWeekEnd } = getLastWeekRange();
     const runs = [];
-    const runIds = new Set();
     
     snapshot.docs.forEach(doc => {
       const data = doc.data();
       
-      // Filter to last week's runs
+      // Filter by date in JavaScript
       const activityDate = new Date(data.start_date);
-      if (activityDate < lastWeekStart || activityDate > lastWeekEnd) {
-        return;
-      }
-      
-      const runId = data.id?.toString();
-      if (!runIds.has(runId)) {
+      if (activityDate >= lastWeekStart && activityDate <= lastWeekEnd) {
         runs.push(data);
-        runIds.add(runId);
       }
     });
     
-    console.log(`📊 Found ${runs.length} detailed runs from cache`);
+    // Sort by date
+    runs.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+    
+    console.log(`📊 Found ${runs.length} cached detailed runs from last week`);
     return runs;
     
   } catch (error) {
@@ -185,16 +201,15 @@ const fetchGearInfo = async (accessToken, gearId) => {
     const gear = await response.json();
     console.log(`✅ Got gear info: ${gear.name} (${(gear.distance / 1000).toFixed(0)}km)`);
     
-    return {
+    return cleanObject({
       id: gear.id,
       name: gear.name,
-      distance: gear.distance, // Total distance in meters
+      distance: gear.distance,
       brand_name: gear.brand_name,
       model_name: gear.model_name,
       description: gear.description,
-      primary: gear.primary,
-      resource_state: gear.resource_state
-    };
+      primary: gear.primary
+    });
     
   } catch (error) {
     console.error(`❌ Error fetching gear ${gearId}:`, error);
@@ -224,8 +239,8 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       detailed.gear_id ? fetchGearInfo(accessToken, detailed.gear_id) : null
     ]);
     
-    // Create comprehensive run object
-    const comprehensiveRun = {
+    // Create comprehensive run object with proper null handling
+    const comprehensiveRun = cleanObject({
       // Basic info
       userId,
       id: runId,
@@ -239,35 +254,35 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       timezone: detailed.timezone,
       
       // Core metrics
-      distance: detailed.distance, // meters
-      moving_time: detailed.moving_time, // seconds
-      elapsed_time: detailed.elapsed_time, // seconds
+      distance: detailed.distance || 0,
+      moving_time: detailed.moving_time || 0,
+      elapsed_time: detailed.elapsed_time || 0,
       total_elevation_gain: detailed.total_elevation_gain || 0,
       
       // Speed data
-      average_speed: detailed.average_speed || 0, // m/s
-      max_speed: detailed.max_speed || 0, // m/s
+      average_speed: detailed.average_speed || 0,
+      max_speed: detailed.max_speed || 0,
       
       // Heart rate data
       has_heartrate: detailed.has_heartrate || false,
-      average_heartrate: detailed.average_heartrate,
-      max_heartrate: detailed.max_heartrate,
-      elev_high: detailed.elev_high,
-      elev_low: detailed.elev_low,
+      average_heartrate: detailed.average_heartrate || null,
+      max_heartrate: detailed.max_heartrate || null,
+      elev_high: detailed.elev_high || null,
+      elev_low: detailed.elev_low || null,
       
       // Additional metrics
-      calories: detailed.calories,
-      average_cadence: detailed.average_cadence,
-      max_cadence: detailed.max_cadence,
-      average_temp: detailed.average_temp,
+      calories: detailed.calories || null,
+      average_cadence: detailed.average_cadence || null,
+      max_cadence: detailed.max_cadence || null,
+      average_temp: detailed.average_temp || null,
       
       // Workout classification
-      workout_type: detailed.workout_type,
-      type: detailed.type,
-      sport_type: detailed.sport_type,
+      workout_type: detailed.workout_type || null,
+      type: detailed.type || 'Run',
+      sport_type: detailed.sport_type || null,
       
       // Equipment
-      gear_id: detailed.gear_id,
+      gear_id: detailed.gear_id || null,
       gear: gearInfo,
       
       // Activity flags
@@ -284,34 +299,25 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       photo_count: detailed.photo_count || 0,
       
       // Performance metrics
-      suffer_score: detailed.suffer_score,
-      weighted_average_watts: detailed.weighted_average_watts,
-      device_watts: detailed.device_watts,
+      suffer_score: detailed.suffer_score || null,
+      weighted_average_watts: detailed.weighted_average_watts || null,
+      device_watts: detailed.device_watts || false,
       
       // Map data
-      map: detailed.map ? {
+      map: detailed.map ? cleanObject({
         id: detailed.map.id,
         polyline: detailed.map.polyline,
-        summary_polyline: detailed.map.summary_polyline,
-        resource_state: detailed.map.resource_state
-      } : null,
+        summary_polyline: detailed.map.summary_polyline
+      }) : null,
       
       // DETAILED RUNNING DATA
-      
-      // 1km auto-splits (key for pace analysis)
       splits_metric: detailed.splits_metric || [],
       splits_standard: detailed.splits_standard || [],
-      
-      // Device/manual laps
       laps: detailed.laps || [],
-      
-      // Best efforts (PRs for common distances)
       best_efforts: detailed.best_efforts || [],
-      
-      // Segment efforts
       segment_efforts: detailed.segment_efforts || [],
       
-      // Per-second streams (if available)
+      // Per-second streams
       streams: streams || null,
       
       // HR/pace zones
@@ -322,10 +328,10 @@ const processAndStoreDetailedRun = async (run, userId, accessToken) => {
       has_detailed_data: true,
       has_streams: !!streams,
       has_zones: !!zones,
-      processing_version: '1.0'
-    };
+      processing_version: '1.1'
+    });
     
-    // Store in new detailed_runs collection
+    // Store in detailed_runs collection
     const docRef = db.collection('detailed_runs').doc(`${userId}_${runId}`);
     await docRef.set(comprehensiveRun);
     
@@ -354,7 +360,7 @@ const checkRateLimit = async (userId) => {
     }
     
     const data = metadataDoc.data();
-    if (data.apiCalls < 50) { // Conservative limit for detailed calls
+    if (data.apiCalls < 50) {
       await metadataRef.update({ 
         apiCalls: data.apiCalls + 1, 
         lastRefresh: new Date().toISOString() 
@@ -458,12 +464,13 @@ export default async function handler(req, res) {
     console.log(`🏃‍♂️ Found ${runs.length} runs to process with detailed data`);
     
     if (runs.length === 0) {
-      return res.status(200).json([]);
+      return res.status(200).json(cachedRuns);
     }
     
     // Process each run with full detailed data
     const detailedRuns = [];
     let processed = 0;
+    let errors = 0;
     
     for (const run of runs) {
       try {
@@ -471,39 +478,53 @@ export default async function handler(req, res) {
         if (detailedRun) {
           detailedRuns.push(detailedRun);
           processed++;
+        } else {
+          errors++;
         }
         
         // Rate limiting delay
-        if (processed % 3 === 0) {
-          console.log(`⏳ Processed ${processed}/${runs.length} runs, brief pause...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (processed % 2 === 0) {
+          console.log(`⏳ Processed ${processed}/${runs.length} runs (${errors} errors), brief pause...`);
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
         
       } catch (error) {
         console.error(`❌ Error processing run ${run.id}:`, error);
+        errors++;
         continue;
       }
     }
     
-    console.log(`✅ Processed ${processed} detailed runs with comprehensive data`);
+    console.log(`✅ Processed ${processed} detailed runs, ${errors} errors`);
     
-    // Sort by date
-    detailedRuns.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+    // Combine with any existing cached runs and sort
+    const allRuns = [...detailedRuns, ...cachedRuns];
+    const uniqueRuns = [];
+    const seenIds = new Set();
+    
+    allRuns.forEach(run => {
+      if (!seenIds.has(run.id)) {
+        uniqueRuns.push(run);
+        seenIds.add(run.id);
+      }
+    });
+    
+    uniqueRuns.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
     
     // Log summary
-    const runsWithSplits = detailedRuns.filter(r => r.splits_metric && r.splits_metric.length > 0).length;
-    const runsWithStreams = detailedRuns.filter(r => r.has_streams).length;
-    const runsWithZones = detailedRuns.filter(r => r.has_zones).length;
-    const runsWithBestEfforts = detailedRuns.filter(r => r.best_efforts && r.best_efforts.length > 0).length;
+    const runsWithSplits = uniqueRuns.filter(r => r.splits_metric && r.splits_metric.length > 0).length;
+    const runsWithStreams = uniqueRuns.filter(r => r.has_streams).length;
+    const runsWithZones = uniqueRuns.filter(r => r.has_zones).length;
+    const runsWithBestEfforts = uniqueRuns.filter(r => r.best_efforts && r.best_efforts.length > 0).length;
     
-    console.log(`📊 Detailed runs summary:`);
-    console.log(`   - ${detailedRuns.length} total runs`);
+    console.log(`📊 Final detailed runs summary:`);
+    console.log(`   - ${uniqueRuns.length} total runs`);
     console.log(`   - ${runsWithSplits} with km splits`);
     console.log(`   - ${runsWithStreams} with per-second streams`);
     console.log(`   - ${runsWithZones} with HR/pace zones`);
     console.log(`   - ${runsWithBestEfforts} with best efforts`);
     
-    return res.status(200).json(detailedRuns);
+    return res.status(200).json(uniqueRuns);
     
   } catch (error) {
     console.error('❌ Detailed runs API error:', error);
