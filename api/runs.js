@@ -73,13 +73,11 @@ const simplifyStreams = (streams) => {
 /* ──────────────────────────────────────────────────────────────────── */
 /*  Get last week's date range                                        */
 /* ──────────────────────────────────────────────────────────────────── */
+
 const getLastWeekRange = () => {
   const now = new Date();
-  const lastWeekEnd = new Date(now.getTime() - (now.getDay() * 24 * 60 * 60 * 1000));
-  lastWeekEnd.setHours(23, 59, 59, 999);
-  
-  const lastWeekStart = new Date(lastWeekEnd.getTime() - (6 * 24 * 60 * 60 * 1000));
-  lastWeekStart.setHours(0, 0, 0, 0);
+  const lastWeekEnd = new Date(now); // Today
+  const lastWeekStart = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000)); // 7 days ago
   
   return { lastWeekStart, lastWeekEnd };
 };
