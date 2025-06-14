@@ -1,7 +1,3 @@
-// =============================================================================
-// COMPLETE BODYJAM.TSX FILE WITH FIXED UPLOAD COMPONENT
-// =============================================================================
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple, Droplet, Upload, RefreshCw, FileText, Loader2, Check, X, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -795,7 +791,6 @@ const BodyJam = () => {
                   </CardContent>
                 </Card>
               ))}
-            </div>
             </div>
           </TabsContent>
           
