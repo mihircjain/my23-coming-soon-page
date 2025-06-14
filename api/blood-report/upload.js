@@ -2,7 +2,6 @@ import formidable from 'formidable';
 import { copyFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 
-// Disable body parser for file uploads
 export const config = {
   api: {
     bodyParser: false,
@@ -20,7 +19,7 @@ export default async function handler(req, res) {
     const form = formidable({
       uploadDir: '/tmp',
       keepExtensions: true,
-      maxFileSize: 10 * 1024 * 1024, // 10MB limit
+      maxFileSize: 10 * 1024 * 1024,
     });
 
     const [fields, files] = await form.parse(req);
@@ -31,21 +30,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'File and userId are required' });
     }
 
-    // Validate file type
-    if (!file.originalFilename?.endsWith('.pdf')) {
-      return res.status(400).json({ error: 'Only PDF files are allowed' });
+    // For now, we'll accept both PDF and text files for testing
+    const isValidFile = file.originalFilename?.endsWith('.pdf') || 
+                       file.originalFilename?.endsWith('.txt') ||
+                       file.mimetype?.includes('text');
+
+    if (!isValidFile) {
+      return res.status(400).json({ 
+        error: 'Please upload a PDF file or text file with blood test results' 
+      });
     }
 
-    // Generate unique file ID
     const fileId = uuidv4();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `${timestamp}_${fileId}.pdf`;
-
-    // Store in /tmp with predictable name for processing
+    const fileName = `${timestamp}_${fileId}_${file.originalFilename}`;
     const tempPath = `/tmp/${fileName}`;
+    
     await copyFile(file.filepath, tempPath);
 
-    console.log(`📄 File uploaded for ${userId}: ${fileName} (${file.size} bytes)`);
+    console.log(`📄 File uploaded for ${userId}: ${fileName}`);
 
     res.status(200).json({
       success: true,
@@ -53,6 +56,7 @@ export default async function handler(req, res) {
       fileName,
       filePath: tempPath,
       fileSize: file.size,
+      originalName: file.originalFilename,
       uploadedAt: new Date().toISOString()
     });
 
