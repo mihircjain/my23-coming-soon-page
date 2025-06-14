@@ -1,6 +1,7 @@
 // pages/api/blood-report/process.js
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
+import path from 'path';
 
 export default async function handler(req, res) {
   console.log('🔍 Process API called, method:', req.method);
@@ -25,43 +26,64 @@ export default async function handler(req, res) {
       });
     }
 
-    // Access global file storage
-    global.fileStorage = global.fileStorage || new Map();
+    const tempDir = '/tmp';
     
-    console.log('💾 Checking file storage...');
-    console.log('💾 Files in storage:', Array.from(global.fileStorage.keys()));
-    console.log('💾 Looking for fileId:', fileId);
-
-    if (!global.fileStorage.has(fileId)) {
-      console.log('❌ File not found in memory storage');
+    // Look for the file and metadata using the fileId
+    const storedFilePath = path.join(tempDir, `${fileId}.data`);
+    const metadataPath = path.join(tempDir, `${fileId}.meta`);
+    
+    console.log('🔍 Looking for file at:', storedFilePath);
+    console.log('🔍 Looking for metadata at:', metadataPath);
+    
+    // Check if files exist
+    const fileExists = existsSync(storedFilePath);
+    const metadataExists = existsSync(metadataPath);
+    
+    console.log('📄 File exists:', fileExists);
+    console.log('📄 Metadata exists:', metadataExists);
+    
+    if (!fileExists) {
+      // List all files in /tmp for debugging
+      const fs = require('fs');
+      try {
+        const tmpFiles = fs.readdirSync(tempDir);
+        console.log('📁 Files in /tmp:', tmpFiles);
+        
+        // Look for any files containing our fileId
+        const relatedFiles = tmpFiles.filter(f => f.includes(fileId));
+        console.log('📁 Related files:', relatedFiles);
+      } catch (listError) {
+        console.log('❌ Could not list /tmp directory:', listError.message);
+      }
+      
       return res.status(404).json({ 
         error: 'File not found in storage',
         fileId,
-        availableFiles: Array.from(global.fileStorage.keys()),
-        storageSize: global.fileStorage.size
+        searchedPaths: {
+          filePath: storedFilePath,
+          metadataPath: metadataPath,
+          fileExists,
+          metadataExists
+        }
       });
     }
 
-    const fileData = global.fileStorage.get(fileId);
-    console.log('📄 Found file data:', {
-      fileId: fileData.fileId,
-      fileName: fileData.fileName,
-      fileSize: fileData.fileSize,
-      originalName: fileData.originalName,
-      bufferSize: fileData.buffer ? fileData.buffer.length : 0
-    });
-
-    const fileBuffer = fileData.buffer;
+    // Read the file content
+    console.log('📄 Reading file content...');
+    const fileBuffer = await readFile(storedFilePath);
+    console.log('📄 File read successfully, size:', fileBuffer.length);
     
-    if (!fileBuffer) {
-      console.log('❌ File buffer is empty');
-      return res.status(404).json({ 
-        error: 'File buffer not found',
-        fileData: { ...fileData, buffer: 'REDACTED' }
-      });
+    // Read metadata if available
+    let metadata = null;
+    if (metadataExists) {
+      try {
+        const metadataContent = await readFile(metadataPath, 'utf8');
+        metadata = JSON.parse(metadataContent);
+        console.log('📄 Metadata loaded:', metadata);
+      } catch (metadataError) {
+        console.log('⚠️ Could not read metadata:', metadataError.message);
+      }
     }
-
-    console.log('📄 File found and ready for processing, size:', fileBuffer.length);
 
     // Get file content as text for analysis
     let fileContent = '';
@@ -236,10 +258,16 @@ export default async function handler(req, res) {
       averageConfidence: Object.values(extractedParameters)
         .reduce((sum, param) => sum + param.confidence, 0) / Object.keys(extractedParameters).length,
       fileInfo: {
-        originalName: fileData.originalName,
-        size: fileData.fileSize,
-        uploadedAt: fileData.uploadedAt,
+        originalName: metadata?.originalName || 'Unknown',
+        size: fileBuffer.length,
+        uploadedAt: metadata?.uploadedAt || new Date().toISOString(),
         contentPreview: fileContent.substring(0, 300) + (fileContent.length > 300 ? '...' : '')
+      },
+      debug: {
+        fileExists,
+        metadataExists,
+        storedFilePath,
+        metadataPath
       }
     };
 
