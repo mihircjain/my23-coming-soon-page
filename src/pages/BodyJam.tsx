@@ -13,13 +13,15 @@ import { toast, Toaster } from 'sonner';
 // BLOOD REPORT UPLOADER COMPONENT - FIXED VERSION
 // =============================================================================
 
+// Fixed BloodReportUploader component - only the handleUpload function needs to be updated
+
 const BloodReportUploader = ({ onParametersExtracted }) => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
 
-  // Handle file selection - FIXED VERSION
+  // Handle file selection - WORKING VERSION
   const handleFileSelect = useCallback((event) => {
     const selectedFile = event.target.files[0];
     console.log('📄 File selected:', selectedFile);
@@ -50,7 +52,7 @@ const BloodReportUploader = ({ onParametersExtracted }) => {
     }
   }, []);
 
-  // Handle drag and drop - FIXED VERSION
+  // Handle drag and drop - WORKING VERSION
   const handleDrop = useCallback((event) => {
     event.preventDefault();
     const droppedFile = event.dataTransfer.files[0];
@@ -72,7 +74,7 @@ const BloodReportUploader = ({ onParametersExtracted }) => {
     event.preventDefault();
   }, []);
 
-  // Upload and process file - FIXED VERSION
+  // FIXED Upload and process file
   const handleUpload = async () => {
     if (!file) {
       console.log('❌ No file to upload');
@@ -89,7 +91,7 @@ const BloodReportUploader = ({ onParametersExtracted }) => {
       const formData = new FormData();
       
       console.log('📦 Creating FormData...');
-      formData.append('file', file); // This must be 'file'
+      formData.append('file', file);
       formData.append('userId', 'mihir_jain');
       
       // Debug: Log FormData contents
@@ -121,8 +123,8 @@ const BloodReportUploader = ({ onParametersExtracted }) => {
 
       setUploading(false);
 
-      // Process file with AI
-      console.log('🔄 Starting processing...');
+      // FIXED: Process file with AI - now passing filePath
+      console.log('🔄 Starting processing with filePath:', uploadResult.filePath);
       const processResponse = await fetch('/api/blood-report/process', {
         method: 'POST',
         headers: {
@@ -130,7 +132,8 @@ const BloodReportUploader = ({ onParametersExtracted }) => {
         },
         body: JSON.stringify({
           fileId: uploadResult.fileId,
-          userId: 'mihir_jain'
+          userId: 'mihir_jain',
+          filePath: uploadResult.filePath  // THIS IS THE FIX - pass the filePath
         })
       });
 
@@ -155,6 +158,7 @@ const BloodReportUploader = ({ onParametersExtracted }) => {
       setProcessing(false);
     }
   };
+
 
   // Confirm extracted parameters
   const handleConfirm = async () => {
