@@ -811,11 +811,11 @@ const Index = () => {
             {/* Second row - Activity, Nutrition, Body */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
              <Button 
-            onClick={() => window.location.href = '/runs'} 
+            onClick={() => window.location.href = '/activity-jam'} 
             className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
           >
             <Footprints className="mr-3 h-5 w-5" />
-            Last Week's Runs
+            Activity Jam
           </Button>
               
               <Button 
