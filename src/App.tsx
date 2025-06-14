@@ -27,6 +27,7 @@ const App = () => (
           <Route path="/body-jam" element={<BodyJam />} />
           <Route path="/overall-jam" element={<OverallJam />} />
           <Route path="/lets-jam" element={<LetsJam />} />
+          <Route path="/runs" element={<runsdashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
