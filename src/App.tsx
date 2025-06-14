@@ -11,6 +11,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import RunsDashboard from './pages/runsdashboard'; // Adjust path as needed
+import RunningCoach from './pages/RunningCoach';
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/overall-jam" element={<OverallJam />} />
           <Route path="/lets-jam" element={<LetsJam />} />
           <Route path="/runs" element={<RunsDashboard />} />
+          <Route path="/running-coach" element={<RunningCoach />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
