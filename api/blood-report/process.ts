@@ -1,5 +1,5 @@
 // =============================================================================
-// 2. BLOOD REPORT PROCESSING API - /api/blood-report/process
+// 2. /api/blood-report/process.ts - CORRECTED VERSION
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -267,70 +267,6 @@ function determineStatus(value: number, paramKey: string): string {
   return 'normal';
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const { fileId, userId } = await request.json();
-
-    if (!fileId || !userId) {
-      return NextResponse.json(
-        { error: 'FileId and userId are required' },
-        { status: 400 }
-      );
-    }
-
-    // Find the uploaded file
-    const uploadDir = path.join(process.cwd(), 'uploads', 'blood-reports');
-    const files = fs.readdirSync(uploadDir);
-    const targetFile = files.find(file => file.includes(fileId));
-
-    if (!targetFile) {
-      return NextResponse.json(
-        { error: 'File not found' },
-        { status: 404 }
-      );
-    }
-
-    const filePath = path.join(uploadDir, targetFile);
-    console.log(`🔄 Processing file: ${targetFile}`);
-
-    // Extract text from PDF
-    const ocrText = await extractTextFromPDF(filePath);
-
-    // Extract blood parameters
-    const parameters = extractBloodParameters(ocrText);
-
-    // Try to extract report date from OCR text
-    const reportDate = extractReportDate(ocrText);
-
-    const result = {
-      reportId: fileId,
-      userId,
-      fileName: targetFile,
-      processedAt: new Date().toISOString(),
-      reportDate,
-      parameters,
-      ocrText: ocrText.substring(0, 1000), // First 1000 chars for debugging
-      summary: {
-        totalParameters: Object.keys(parameters).length,
-        highConfidence: Object.values(parameters).filter((p: any) => p.confidence > 0.8).length,
-        mediumConfidence: Object.values(parameters).filter((p: any) => p.confidence >= 0.5 && p.confidence <= 0.8).length,
-        lowConfidence: Object.values(parameters).filter((p: any) => p.confidence < 0.5).length
-      }
-    };
-
-    console.log('✅ Processing completed:', result.summary);
-
-    return NextResponse.json(result);
-
-  } catch (error) {
-    console.error('Processing error:', error);
-    return NextResponse.json(
-      { error: 'File processing failed: ' + error.message },
-      { status: 500 }
-    );
-  }
-}
-
 // Extract report date from OCR text
 function extractReportDate(ocrText: string): string | null {
   const datePatterns = [
@@ -362,3 +298,74 @@ function extractReportDate(ocrText: string): string | null {
   return null;
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const { fileId, userId } = await request.json();
+
+    if (!fileId || !userId) {
+      return NextResponse.json(
+        { error: 'FileId and userId are required' },
+        { status: 400 }
+      );
+    }
+
+    // Find the uploaded file in user-specific directory
+    const uploadDir = path.join(process.cwd(), 'uploads', 'blood-reports', userId);
+    
+    if (!fs.existsSync(uploadDir)) {
+      return NextResponse.json(
+        { error: 'No files found for user' },
+        { status: 404 }
+      );
+    }
+    
+    const files = fs.readdirSync(uploadDir);
+    const targetFile = files.find(file => file.includes(fileId));
+
+    if (!targetFile) {
+      return NextResponse.json(
+        { error: 'File not found' },
+        { status: 404 }
+      );
+    }
+
+    const filePath = path.join(uploadDir, targetFile);
+    console.log(`🔄 Processing file for ${userId}: ${targetFile}`);
+
+    // Extract text from PDF
+    const ocrText = await extractTextFromPDF(filePath);
+
+    // Extract blood parameters
+    const parameters = extractBloodParameters(ocrText);
+
+    // Try to extract report date from OCR text
+    const reportDate = extractReportDate(ocrText);
+
+    const result = {
+      reportId: fileId,
+      userId,
+      fileName: targetFile,
+      processedAt: new Date().toISOString(),
+      reportDate,
+      parameters,
+      ocrText: ocrText.substring(0, 1000), // First 1000 chars for debugging
+      summary: {
+        totalParameters: Object.keys(parameters).length,
+        highConfidence: Object.values(parameters).filter((p: any) => p.confidence > 0.8).length,
+        mediumConfidence: Object.values(parameters).filter((p: any) => p.confidence >= 0.5 && p.confidence <= 0.8).length,
+        lowConfidence: Object.values(parameters).filter((p: any) => p.confidence < 0.5).length
+      }
+    };
+
+    console.log('✅ Processing completed for', userId, ':', result.summary);
+
+    return NextResponse.json(result);
+
+  } catch (error) {
+    console.error('Processing error:', error);
+    return NextResponse.json(
+      { error: 'File processing failed: ' + error.message },
+      { status: 500 }
+    );
+  }
+}
