@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, RefreshCw, MapPin, Clock, Zap, Heart, Activity, BarChart3, Target, Gauge, Mountain, Footprints, Calendar, TrendingUp, Award } from "lucide-react";
+import { ArrowLeft, RefreshCw, MapPin, Clock, Zap, Heart, Activity, BarChart3, Target, Gauge, Mountain, Footprints, Calendar, TrendingUp, Award, Timer, Trophy, Shoes, Thermometer, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,10 +58,18 @@ interface RunData {
     start_date_local: string;
     achievements?: any[];
   }>;
-  gear_name?: string;
-  gear_distance?: number;
+  gear?: {
+    id: string;
+    name: string;
+    distance_km: number;
+    brand_name?: string;
+    model_name?: string;
+    primary?: boolean;
+  };
   fetched_at: string;
   has_detailed_data: boolean;
+  has_streams?: boolean;
+  streams_summary?: any;
 }
 
 const RunsDashboard = () => {
@@ -76,9 +84,8 @@ const RunsDashboard = () => {
 
   // Chart refs
   const paceChartRef = useRef<HTMLCanvasElement>(null);
-  const heartRateChartRef = useRef<HTMLCanvasElement>(null);
-  const elevationChartRef = useRef<HTMLCanvasElement>(null);
   const splitsChartRef = useRef<HTMLCanvasElement>(null);
+  const weeklyAnalyticsRef = useRef<HTMLCanvasElement>(null);
 
   // Chart instances
   const chartInstances = useRef<{ [key: string]: Chart | null }>({});
@@ -118,6 +125,81 @@ const RunsDashboard = () => {
   const formatSpeed = (speed: number) => {
     if (!speed) return 'N/A';
     return (speed * 3.6).toFixed(1); // Convert m/s to km/h
+  };
+
+  // Create analytics charts
+  const createAnalyticsCharts = () => {
+    if (!weeklyAnalyticsRef.current || runs.length === 0) return;
+
+    const ctx = weeklyAnalyticsRef.current.getContext('2d');
+    if (!ctx) return;
+
+    if (chartInstances.current.analytics) {
+      chartInstances.current.analytics.destroy();
+    }
+
+    // Prepare data
+    const labels = runs.map((run, index) => `Run ${runs.length - index}`).reverse();
+    const distances = runs.map(run => run.distance).reverse();
+    const paces = runs.map(run => run.moving_time / run.distance / 60).reverse(); // min/km
+    const heartRates = runs.map(run => run.average_heartrate || 0).reverse();
+
+    chartInstances.current.analytics = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Distance (km)',
+            data: distances,
+            borderColor: 'rgb(34, 197, 94)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            yAxisID: 'y',
+            tension: 0.4
+          },
+          {
+            label: 'Pace (min/km)',
+            data: paces,
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            yAxisID: 'y1',
+            tension: 0.4
+          },
+          {
+            label: 'Heart Rate (bpm)',
+            data: heartRates,
+            borderColor: 'rgb(239, 68, 68)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            yAxisID: 'y2',
+            tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: { display: true, text: 'Distance (km)' }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: { display: true, text: 'Pace (min/km)' },
+            grid: { drawOnChartArea: false }
+          },
+          y2: {
+            type: 'linear',
+            display: false,
+            position: 'right'
+          }
+        }
+      }
+    });
   };
 
   // Create splits chart for selected run
@@ -181,7 +263,7 @@ const RunsDashboard = () => {
     });
   };
 
-  // Create weekly distance chart (now daily for last week)
+  // Create weekly distance chart
   const createWeeklyChart = () => {
     if (!paceChartRef.current || runs.length === 0) return;
 
@@ -242,7 +324,37 @@ const RunsDashboard = () => {
     });
   };
 
-  // Fetch runs from API (last week only)
+  // Calculate analytics
+  const calculateAnalytics = () => {
+    if (runs.length === 0) return null;
+
+    const totalDistance = runs.reduce((sum, run) => sum + run.distance, 0);
+    const totalTime = runs.reduce((sum, run) => sum + run.moving_time, 0);
+    const avgPace = totalTime / totalDistance / 60; // min/km
+    
+    const heartRates = runs.filter(run => run.average_heartrate).map(run => run.average_heartrate!);
+    const avgHeartRate = heartRates.length > 0 ? Math.round(heartRates.reduce((sum, hr) => sum + hr, 0) / heartRates.length) : 0;
+    
+    const totalSplits = runs.reduce((sum, run) => sum + (run.splits_metric?.length || 0), 0);
+    const totalPRs = runs.reduce((sum, run) => sum + (run.best_efforts?.length || 0), 0);
+    const totalLaps = runs.reduce((sum, run) => sum + (run.laps?.length || 0), 0);
+    
+    const gear = runs.find(run => run.gear)?.gear;
+    
+    return {
+      totalDistance,
+      totalTime,
+      avgPace,
+      avgHeartRate,
+      totalSplits,
+      totalPRs,
+      totalLaps,
+      gear,
+      runsWithStreams: runs.filter(run => run.has_streams).length
+    };
+  };
+
+  // Fetch runs from API
   const fetchRuns = async (forceRefresh = false) => {
     try {
       setError('');
@@ -281,7 +393,7 @@ const RunsDashboard = () => {
         id: run.id?.toString() || Math.random().toString(),
         name: run.name || 'Unnamed Run',
         start_date: run.start_date,
-        distance: run.distance ? run.distance / 1000 : 0, // Convert to km
+        distance: run.distance || 0,
         moving_time: run.moving_time || 0,
         elapsed_time: run.elapsed_time || 0,
         total_elevation_gain: run.total_elevation_gain || 0,
@@ -296,14 +408,14 @@ const RunsDashboard = () => {
         gear_id: run.gear_id,
         temperature: run.temperature,
         description: run.description,
-        polyline: run.map?.polyline,
         splits_metric: run.splits_metric,
         laps: run.laps,
         best_efforts: run.best_efforts,
-        gear_name: run.gear_name,
-        gear_distance: run.gear_distance,
+        gear: run.gear,
         fetched_at: run.fetched_at || new Date().toISOString(),
-        has_detailed_data: run.has_detailed_data || false
+        has_detailed_data: run.has_detailed_data || false,
+        has_streams: run.has_streams || false,
+        streams_summary: run.streams_summary
       }));
 
       const sortedRuns = processedRuns.sort((a: RunData, b: RunData) => 
@@ -314,7 +426,10 @@ const RunsDashboard = () => {
       setLastUpdate(new Date().toLocaleTimeString());
       
       // Create charts after data is loaded
-      setTimeout(() => createWeeklyChart(), 100);
+      setTimeout(() => {
+        createWeeklyChart();
+        createAnalyticsCharts();
+      }, 100);
 
     } catch (error) {
       console.error('❌ Error fetching last week runs:', error);
@@ -328,6 +443,7 @@ const RunsDashboard = () => {
   // Select run and create detailed charts
   const selectRun = (run: RunData) => {
     setSelectedRun(run);
+    setActiveTab("details");
     setTimeout(() => {
       if (run.splits_metric) {
         createSplitsChart(run);
@@ -339,6 +455,8 @@ const RunsDashboard = () => {
     fetchRuns();
     return () => destroyCharts();
   }, []);
+
+  const analytics = calculateAnalytics();
 
   if (error) {
     return (
@@ -496,7 +614,9 @@ const RunsDashboard = () => {
                         {runs.length}
                       </div>
                       <div className="text-sm text-gray-600">Total Runs</div>
-                      <div className="text-xs text-gray-500 mt-1">Last week</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {analytics?.totalSplits} splits, {analytics?.totalPRs} PRs
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -506,7 +626,9 @@ const RunsDashboard = () => {
                         {formatDistance(runs.reduce((sum, run) => sum + run.distance, 0))}
                       </div>
                       <div className="text-sm text-gray-600">Total Distance</div>
-                      <div className="text-xs text-gray-500 mt-1">Kilometers</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Avg pace: {analytics ? `${Math.floor(analytics.avgPace)}:${Math.floor((analytics.avgPace % 1) * 60).toString().padStart(2, '0')}/km` : 'N/A'}
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -516,7 +638,9 @@ const RunsDashboard = () => {
                         {formatTime(runs.reduce((sum, run) => sum + run.moving_time, 0))}
                       </div>
                       <div className="text-sm text-gray-600">Total Time</div>
-                      <div className="text-xs text-gray-500 mt-1">Moving time</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Avg HR: {analytics?.avgHeartRate || 'N/A'} bpm
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -526,7 +650,9 @@ const RunsDashboard = () => {
                         {runs.reduce((sum, run) => sum + (run.calories || 0), 0).toLocaleString()}
                       </div>
                       <div className="text-sm text-gray-600">Total Calories</div>
-                      <div className="text-xs text-gray-500 mt-1">Burned</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {analytics?.runsWithStreams || 0} with streams
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -549,7 +675,7 @@ const RunsDashboard = () => {
                 </Card>
               </section>
 
-              {/* Recent Runs Grid */}
+              {/* Enhanced Runs Grid */}
               <section>
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center">
@@ -558,10 +684,10 @@ const RunsDashboard = () => {
                   </div>
                   <Button 
                     variant="outline" 
-                    onClick={() => setActiveTab("details")}
+                    onClick={() => setActiveTab("analytics")}
                     className="text-sm"
                   >
-                    View All Details
+                    View Analytics
                   </Button>
                 </div>
                 
@@ -577,9 +703,17 @@ const RunsDashboard = () => {
                           <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
                             {run.name}
                           </CardTitle>
-                          <Badge variant="secondary" className="ml-2 shrink-0">
-                            {new Date(run.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </Badge>
+                          <div className="flex gap-1 ml-2 shrink-0">
+                            <Badge variant="secondary">
+                              {new Date(run.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </Badge>
+                            {run.has_detailed_data && (
+                              <Badge variant="outline" className="border-green-300 text-green-600">
+                                <Award className="h-3 w-3 mr-1" />
+                                Detailed
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -623,23 +757,56 @@ const RunsDashboard = () => {
                               <span className="font-medium">{run.total_elevation_gain}m</span>
                             </div>
                           )}
-                          {run.calories && (
+                          {run.gear?.name && (
                             <div className="flex justify-between">
                               <span className="text-gray-600 flex items-center">
-                                <Zap className="h-3 w-3 mr-1" />
-                                Calories:
+                                <Shoes className="h-3 w-3 mr-1" />
+                                Shoes:
                               </span>
-                              <span className="font-medium">{run.calories}</span>
+                              <span className="font-medium text-xs">{run.gear.name} ({run.gear.distance_km}km)</span>
                             </div>
                           )}
-                          {run.has_detailed_data && (
-                            <div className="flex justify-center pt-2">
-                              <Badge variant="outline" className="text-xs border-green-300 text-green-600">
-                                <Award className="h-3 w-3 mr-1" />
-                                Detailed Data Available
-                              </Badge>
+                          {run.best_efforts && run.best_efforts.length > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 flex items-center">
+                                <Trophy className="h-3 w-3 mr-1" />
+                                PRs:
+                              </span>
+                              <span className="font-medium">{run.best_efforts.length} personal records</span>
                             </div>
                           )}
+                          {run.splits_metric && run.splits_metric.length > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 flex items-center">
+                                <Target className="h-3 w-3 mr-1" />
+                                Splits:
+                              </span>
+                              <span className="font-medium">{run.splits_metric.length} km splits available</span>
+                            </div>
+                          )}
+                          {run.laps && run.laps.length > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 flex items-center">
+                                <Timer className="h-3 w-3 mr-1" />
+                                Laps:
+                              </span>
+                              <span className="font-medium">{run.laps.length} device laps</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex justify-center pt-3">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              selectRun(run);
+                            }}
+                            className="text-xs"
+                          >
+                            View Detailed Analysis
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
@@ -649,27 +816,442 @@ const RunsDashboard = () => {
             </TabsContent>
 
             <TabsContent value="analytics" className="space-y-8">
-              <div className="text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <BarChart3 className="h-16 w-16 mx-auto" />
+              {runs.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <BarChart3 className="h-16 w-16 mx-auto" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Advanced Analytics</h3>
+                  <p className="text-gray-600 mb-4">
+                    No running data available for analysis.
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">Advanced Analytics</h3>
-                <p className="text-gray-600 mb-4">
-                  Detailed charts and performance analysis coming soon...
-                </p>
-              </div>
+              ) : (
+                <>
+                  {/* Performance Overview Cards */}
+                  <section>
+                    <div className="flex items-center mb-6">
+                      <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
+                      <h2 className="text-2xl font-semibold text-gray-800">Performance Analytics</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+                        <CardContent className="p-6 text-center">
+                          <div className="text-2xl font-bold text-blue-600 mb-1">
+                            {analytics ? `${Math.floor(analytics.avgPace)}:${Math.floor((analytics.avgPace % 1) * 60).toString().padStart(2, '0')}` : 'N/A'}
+                          </div>
+                          <div className="text-sm text-gray-600">Average Pace</div>
+                          <div className="text-xs text-gray-500 mt-1">min/km across all runs</div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-r from-red-50 to-red-100 border-red-200">
+                        <CardContent className="p-6 text-center">
+                          <div className="text-2xl font-bold text-red-600 mb-1">
+                            {analytics?.avgHeartRate || 'N/A'}
+                          </div>
+                          <div className="text-sm text-gray-600">Avg Heart Rate</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Max: {Math.max(...runs.filter(r => r.max_heartrate).map(r => r.max_heartrate!)) || 'N/A'} bpm
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+                        <CardContent className="p-6 text-center">
+                          <div className="text-2xl font-bold text-green-600 mb-1">
+                            {analytics?.totalSplits || 0}
+                          </div>
+                          <div className="text-sm text-gray-600">Total Splits</div>
+                          <div className="text-xs text-gray-500 mt-1">Kilometer segments analyzed</div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200">
+                        <CardContent className="p-6 text-center">
+                          <div className="text-2xl font-bold text-purple-600 mb-1">
+                            {analytics?.totalPRs || 0}
+                          </div>
+                          <div className="text-sm text-gray-600">Personal Records</div>
+                          <div className="text-xs text-gray-500 mt-1">Best efforts achieved</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </section>
+
+                  {/* Gear Tracking */}
+                  {analytics?.gear && (
+                    <section>
+                      <Card className="bg-white/80 backdrop-blur-sm">
+                        <CardHeader>
+                          <CardTitle className="flex items-center">
+                            <Shoes className="h-5 w-5 mr-2 text-orange-600" />
+                            Gear Tracking
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="text-center p-4 bg-orange-50 rounded-lg">
+                              <div className="text-lg font-bold text-orange-600 mb-1">
+                                {analytics.gear.name}
+                              </div>
+                              <div className="text-sm text-gray-600">Primary Running Shoe</div>
+                              {analytics.gear.brand_name && (
+                                <div className="text-xs text-gray-500 mt-1">{analytics.gear.brand_name}</div>
+                              )}
+                            </div>
+                            <div className="text-center p-4 bg-orange-50 rounded-lg">
+                              <div className="text-lg font-bold text-orange-600 mb-1">
+                                {analytics.gear.distance_km}km
+                              </div>
+                              <div className="text-sm text-gray-600">Total Distance</div>
+                              <div className="text-xs text-gray-500 mt-1">Lifetime mileage</div>
+                            </div>
+                            <div className="text-center p-4 bg-orange-50 rounded-lg">
+                              <div className="text-lg font-bold text-orange-600 mb-1">
+                                {Math.round((analytics.gear.distance_km / 800) * 100)}%
+                              </div>
+                              <div className="text-sm text-gray-600">Shoe Life</div>
+                              <div className="text-xs text-gray-500 mt-1">Based on 800km lifespan</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </section>
+                  )}
+
+                  {/* Weekly Trends Chart */}
+                  <section>
+                    <Card className="bg-white/80 backdrop-blur-sm">
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
+                          Weekly Training Trends
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-80">
+                          <canvas ref={weeklyAnalyticsRef} className="w-full h-full"></canvas>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </section>
+
+                  {/* Weekly Summary Stats */}
+                  <section>
+                    <Card className="bg-white/80 backdrop-blur-sm">
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <Calendar className="h-5 w-5 mr-2 text-purple-600" />
+                          Weekly Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          <div className="text-center p-4 bg-purple-50 rounded-lg">
+                            <div className="text-xl font-bold text-purple-600 mb-1">
+                              {analytics?.totalLaps || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">Device Laps</div>
+                            <div className="text-xs text-gray-500 mt-1">Interval training</div>
+                          </div>
+                          <div className="text-center p-4 bg-purple-50 rounded-lg">
+                            <div className="text-xl font-bold text-purple-600 mb-1">
+                              {analytics?.runsWithStreams || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">With Stream Data</div>
+                            <div className="text-xs text-gray-500 mt-1">Per-second metrics</div>
+                          </div>
+                          <div className="text-center p-4 bg-purple-50 rounded-lg">
+                            <div className="text-xl font-bold text-purple-600 mb-1">
+                              {runs.filter(r => r.average_cadence).length}
+                            </div>
+                            <div className="text-sm text-gray-600">With Cadence</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Avg: {runs.filter(r => r.average_cadence).length > 0 
+                                ? Math.round(runs.filter(r => r.average_cadence).reduce((sum, r) => sum + (r.average_cadence || 0), 0) / runs.filter(r => r.average_cadence).length)
+                                : 'N/A'} spm
+                            </div>
+                          </div>
+                          <div className="text-center p-4 bg-purple-50 rounded-lg">
+                            <div className="text-xl font-bold text-purple-600 mb-1">
+                              {Math.round(runs.reduce((sum, run) => sum + run.total_elevation_gain, 0))}m
+                            </div>
+                            <div className="text-sm text-gray-600">Total Elevation</div>
+                            <div className="text-xs text-gray-500 mt-1">Climbed this week</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </section>
+                </>
+              )}
             </TabsContent>
 
             <TabsContent value="details" className="space-y-8">
-              <div className="text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <Footprints className="h-16 w-16 mx-auto" />
+              {!selectedRun ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <Footprints className="h-16 w-16 mx-auto" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Select a Run</h3>
+                  <p className="text-gray-600 mb-4">
+                    Click any run from the Overview tab to see detailed analysis including splits, PRs, and performance metrics.
+                  </p>
+                  <Button onClick={() => setActiveTab("overview")} variant="outline">
+                    Go to Overview
+                  </Button>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">Run Details</h3>
-                <p className="text-gray-600 mb-4">
-                  Click any run from the Overview tab to see detailed analysis.
-                </p>
-              </div>
+              ) : (
+                <>
+                  {/* Run Header */}
+                  <section>
+                    <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-2xl font-bold text-gray-800">
+                              {selectedRun.name}
+                            </CardTitle>
+                            <p className="text-gray-600 mt-1">
+                              {new Date(selectedRun.start_date).toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Badge variant="secondary" className="text-sm">
+                              {formatDistance(selectedRun.distance)} km
+                            </Badge>
+                            <Badge variant="secondary" className="text-sm">
+                              {formatTime(selectedRun.moving_time)}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                            <div className="text-lg font-bold text-blue-600">
+                              {formatPace(selectedRun.distance, selectedRun.moving_time)}
+                            </div>
+                            <div className="text-xs text-gray-600">Average Pace</div>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                            <div className="text-lg font-bold text-red-600">
+                              {selectedRun.average_heartrate || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">Avg HR (bpm)</div>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                            <div className="text-lg font-bold text-green-600">
+                              {selectedRun.total_elevation_gain}m
+                            </div>
+                            <div className="text-xs text-gray-600">Elevation Gain</div>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                            <div className="text-lg font-bold text-purple-600">
+                              {selectedRun.calories || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">Calories</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </section>
+
+                  {/* Kilometer Splits Chart */}
+                  {selectedRun.splits_metric && selectedRun.splits_metric.length > 0 && (
+                    <section>
+                      <Card className="bg-white/80 backdrop-blur-sm">
+                        <CardHeader>
+                          <CardTitle className="flex items-center">
+                            <Target className="h-5 w-5 mr-2 text-blue-600" />
+                            Kilometer Splits Analysis
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-80 mb-6">
+                            <canvas ref={splitsChartRef} className="w-full h-full"></canvas>
+                          </div>
+                          
+                          {/* Splits Table */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-gray-200">
+                                  <th className="text-left py-2 px-3">Split</th>
+                                  <th className="text-right py-2 px-3">Time</th>
+                                  <th className="text-right py-2 px-3">Pace</th>
+                                  <th className="text-right py-2 px-3">HR</th>
+                                  <th className="text-right py-2 px-3">Elev</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedRun.splits_metric.map((split, index) => (
+                                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <td className="py-2 px-3 font-medium">{index + 1} km</td>
+                                    <td className="py-2 px-3 text-right">{formatTime(split.moving_time)}</td>
+                                    <td className="py-2 px-3 text-right">{formatPace(1, split.moving_time)}</td>
+                                    <td className="py-2 px-3 text-right">{split.average_heartrate || '-'}</td>
+                                    <td className="py-2 px-3 text-right">{split.elevation_difference ? `${split.elevation_difference > 0 ? '+' : ''}${split.elevation_difference}m` : '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </section>
+                  )}
+
+                  {/* Personal Records */}
+                  {selectedRun.best_efforts && selectedRun.best_efforts.length > 0 && (
+                    <section>
+                      <Card className="bg-white/80 backdrop-blur-sm">
+                        <CardHeader>
+                          <CardTitle className="flex items-center">
+                            <Trophy className="h-5 w-5 mr-2 text-yellow-600" />
+                            Personal Records & Best Efforts
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {selectedRun.best_efforts.map((effort, index) => (
+                              <div key={index} className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                                <div className="text-sm font-medium text-yellow-800 mb-1">
+                                  {effort.name}
+                                </div>
+                                <div className="text-lg font-bold text-yellow-600 mb-1">
+                                  {formatTime(effort.moving_time)}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {formatPace(effort.distance / 1000, effort.moving_time)} • {formatDistance(effort.distance / 1000)} km
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </section>
+                  )}
+
+                  {/* Device Laps */}
+                  {selectedRun.laps && selectedRun.laps.length > 0 && (
+                    <section>
+                      <Card className="bg-white/80 backdrop-blur-sm">
+                        <CardHeader>
+                          <CardTitle className="flex items-center">
+                            <Timer className="h-5 w-5 mr-2 text-purple-600" />
+                            Device Laps & Intervals
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-gray-200">
+                                  <th className="text-left py-2 px-3">Lap</th>
+                                  <th className="text-right py-2 px-3">Distance</th>
+                                  <th className="text-right py-2 px-3">Time</th>
+                                  <th className="text-right py-2 px-3">Pace</th>
+                                  <th className="text-right py-2 px-3">Avg HR</th>
+                                  <th className="text-right py-2 px-3">Max HR</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedRun.laps.map((lap, index) => (
+                                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <td className="py-2 px-3 font-medium">{lap.name || `Lap ${index + 1}`}</td>
+                                    <td className="py-2 px-3 text-right">{formatDistance(lap.distance / 1000)} km</td>
+                                    <td className="py-2 px-3 text-right">{formatTime(lap.moving_time)}</td>
+                                    <td className="py-2 px-3 text-right">{formatPace(lap.distance / 1000, lap.moving_time)}</td>
+                                    <td className="py-2 px-3 text-right">{lap.average_heartrate || '-'}</td>
+                                    <td className="py-2 px-3 text-right">{lap.max_heartrate || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </section>
+                  )}
+
+                  {/* Additional Metrics */}
+                  <section>
+                    <Card className="bg-white/80 backdrop-blur-sm">
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <Gauge className="h-5 w-5 mr-2 text-gray-600" />
+                          Additional Metrics
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <div className="text-lg font-bold text-gray-600">
+                              {formatSpeed(selectedRun.max_speed)} km/h
+                            </div>
+                            <div className="text-xs text-gray-600">Max Speed</div>
+                          </div>
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <div className="text-lg font-bold text-gray-600">
+                              {selectedRun.average_cadence || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">Avg Cadence (spm)</div>
+                          </div>
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <div className="text-lg font-bold text-gray-600">
+                              {selectedRun.max_heartrate || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">Max HR (bpm)</div>
+                          </div>
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <div className="text-lg font-bold text-gray-600">
+                              {selectedRun.temperature ? `${selectedRun.temperature}°C` : 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">Temperature</div>
+                          </div>
+                        </div>
+                        
+                        {selectedRun.gear && (
+                          <div className="mt-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <Shoes className="h-5 w-5 mr-2 text-orange-600" />
+                                <div>
+                                  <div className="font-medium text-orange-800">{selectedRun.gear.name}</div>
+                                  {selectedRun.gear.brand_name && (
+                                    <div className="text-sm text-orange-600">{selectedRun.gear.brand_name}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-orange-600">{selectedRun.gear.distance_km}km</div>
+                                <div className="text-xs text-orange-600">Total mileage</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {selectedRun.has_streams && (
+                          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+                            <div className="text-sm text-blue-700">
+                              <Activity className="h-4 w-4 inline mr-1" />
+                              Per-second stream data available for advanced analysis
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </section>
+                </>
+              )}
             </TabsContent>
           </Tabs>
         )}
@@ -679,16 +1261,16 @@ const RunsDashboard = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>🏃‍♂️ Last week's running analytics</span>
+            <span>🏃‍♂️ Advanced running analytics</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <BarChart3 className="h-4 w-4" />
-              Detailed Strava integration
+              {analytics?.totalSplits || 0} splits analyzed
             </span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Award className="h-4 w-4" />
-              Performance tracking
+              <Trophy className="h-4 w-4" />
+              {analytics?.totalPRs || 0} personal records
             </span>
           </div>
           <div className="flex items-center gap-4">
