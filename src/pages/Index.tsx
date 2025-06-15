@@ -818,13 +818,6 @@ const Index = () => {
             Activity Jam
           </Button>
 
-              <Button 
-                onClick={() => window.location.href = '/running-coach'} 
-                className="bg-white/80 backdrop-blur-sm border border-orange-200 hover:bg-white text-orange-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-              >
-                <Target className="mr-3 h-5 w-5" />
-                Running Coach
-              </Button>
               
               <Button 
                 onClick={() => window.location.href = '/nutrition-jam'} 
