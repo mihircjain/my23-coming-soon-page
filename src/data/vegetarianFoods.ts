@@ -48,6 +48,33 @@ export const vegetarianFoods: FoodItem[] = [
   fat: 11.4,
   fiber: 11.1
 },
+    {
+    name: "Farmley Prasadam Makhana",
+    servingSize: "50g",
+    calories: 175,
+    protein: 5,
+    carbs: 39,
+    fat: 0.3,
+    fiber: 7
+  },
+  {
+    name: "McVeggie, McDonalds",
+    servingSize: "169g",
+    calories: 426,
+    protein: 9,
+    carbs: 56,
+    fat: 18,
+    fiber: 5
+  },
+  {
+    name: "Paddu (6 pieces)",
+    servingSize: "120g",
+    calories: 191,
+    protein: 5,
+    carbs: 24.4,
+    fat: 8.1,
+    fiber: 2.6
+  },
 {
   name: "Tiramisu Ice Cream",
   servingSize: "100g",
