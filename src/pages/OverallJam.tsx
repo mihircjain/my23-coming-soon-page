@@ -72,44 +72,25 @@ const WeeklyGoalsTracker: React.FC<{
 
   const weeklyTotals = calculateWeeklyTotals();
 
-  // Weekly Goals - Updated with surplus goal (negative surplus is good)
+  // Weekly Goals - Updated with surplus goal (positive surplus is good)
   const goals = {
     caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "green", shortLabel: "Cal Burn" },
     protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
-    calorieSurplus: { target: -1000, label: "Calorie Surplus (goal: negative)", icon: Target, color: "red", shortLabel: "Cal Surplus" }
+    calorieSurplus: { target: 3500, label: "Calorie Surplus (goal: positive)", icon: Target, color: "emerald", shortLabel: "Cal Surplus" }
   };
 
-  const getProgressColor = (percentage: number, isNegativeGoal = false) => {
-    if (isNegativeGoal) {
-      // For surplus, lower (more negative) is better
-      if (percentage <= -100) return "bg-green-500";
-      if (percentage <= -75) return "bg-teal-500";
-      if (percentage <= -50) return "bg-cyan-500";
-      if (percentage <= 0) return "bg-blue-500";
-      return "bg-red-500"; // Positive surplus is bad
-    } else {
-      // Normal goals
-      if (percentage >= 100) return "bg-green-500";
-      if (percentage >= 75) return "bg-teal-500";
-      if (percentage >= 50) return "bg-cyan-500";
-      return "bg-blue-500";
-    }
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 100) return "bg-green-500";
+    if (percentage >= 75) return "bg-teal-500";
+    if (percentage >= 50) return "bg-cyan-500";
+    return "bg-blue-500";
   };
 
   const getWeeklyRating = () => {
     const scores = Object.keys(goals).map(key => {
       const goal = goals[key as keyof typeof goals];
       const actual = weeklyTotals[key as keyof typeof weeklyTotals];
-      
-      if (key === 'calorieSurplus') {
-        // For surplus, we want negative values. Score based on how negative it is.
-        if (actual <= goal.target) return 100; // Achieved negative surplus goal
-        if (actual <= 0) return 75; // Still negative but not as good
-        if (actual <= Math.abs(goal.target) / 2) return 50; // Small positive surplus
-        return 25; // Large positive surplus
-      } else {
-        return Math.min((actual / goal.target) * 100, 100);
-      }
+      return Math.min((actual / goal.target) * 100, 100);
     });
     
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -242,7 +223,7 @@ const WeeklyGoalsTracker: React.FC<{
                   </div>
                   
                   {/* Surplus */}
-                  <div className={`text-xs font-semibold ${dailySurplus <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={`text-xs font-semibold ${dailySurplus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     Cal Surplus: {dailySurplus >= 0 ? '+' : ''}{Math.round(dailySurplus)}
                   </div>
                 </div>
@@ -250,7 +231,7 @@ const WeeklyGoalsTracker: React.FC<{
             })}
           </div>
           <div className="text-xs text-gray-600 text-center">
-            P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal) • Negative = Good
+            P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal) • Positive = Good
           </div>
         </div>
       </CardContent>
@@ -314,7 +295,7 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
                   <div className="text-gray-500">Protein</div>
                 </div>
                 <div className="text-center">
-                  <div className={`font-semibold ${calorieSurplus <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={`font-semibold ${calorieSurplus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {calorieSurplus >= 0 ? '+' : ''}{Math.round(calorieSurplus)}
                   </div>
                   <div className="text-gray-500">Cal Surplus</div>
@@ -611,8 +592,8 @@ const OverallJam = () => {
           {
             label: 'Calorie Surplus',
             data: calorieSurplusData,
-            borderColor: 'rgba(239, 68, 68, 0.8)',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderColor: 'rgba(34, 197, 94, 0.8)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
             fill: false,
             tension: 0.4,
             borderWidth: 3,
@@ -742,9 +723,9 @@ const OverallJam = () => {
             },
             title: {
               display: true,
-              text: 'Calorie Surplus (negative = good)',
+              text: 'Calorie Surplus (positive = good)',
               font: { size: 12, weight: 'bold' },
-              color: 'rgba(239, 68, 68, 0.8)'
+              color: 'rgba(34, 197, 94, 0.8)'
             }
           },
           'y-protein': {
@@ -867,7 +848,7 @@ const OverallJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Heart rate from runs only • Calories from Strava • Surplus: negative is good
+              Last updated: {lastUpdate} • Heart rate from runs only • Calories from Strava • Surplus: positive is good
             </p>
           )}
         </div>
@@ -889,7 +870,7 @@ const OverallJam = () => {
                 <Heart className="h-5 w-5 text-teal-500" />
                 Last 7 Days Health Overview
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  HR: Runs Only | Cal: Strava Direct | Surplus: Negative = Good
+                  HR: Runs Only | Cal: Strava Direct | Surplus: Positive = Good
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -959,8 +940,8 @@ const OverallJam = () => {
               </div>
             </div>
 
-            {/* Calorie Surplus Card - Updated with red theme since surplus is typically bad */}
-            <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Calorie Surplus Card - Updated with green theme since surplus is good */}
+            <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">Cal Surplus</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
@@ -968,11 +949,11 @@ const OverallJam = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className={`text-3xl font-bold ${calculateAvgCalorieSurplus() <= 0 ? 'text-white' : 'text-red-200'}`}>
+                <p className={`text-3xl font-bold ${calculateAvgCalorieSurplus() >= 0 ? 'text-white' : 'text-red-200'}`}>
                   {calculateAvgCalorieSurplus() >= 0 ? '+' : ''}{calculateAvgCalorieSurplus()}
                 </p>
-                <p className="text-sm text-red-100">cal/day</p>
-                <p className="text-xs text-red-200">Negative = Good</p>
+                <p className="text-sm text-emerald-100">cal/day</p>
+                <p className="text-xs text-emerald-200">Positive = Good</p>
               </div>
             </div>
 
@@ -1003,11 +984,11 @@ const OverallJam = () => {
                 <TrendingUp className="h-5 w-5 text-gray-700" />
                 Health Trends (Last 7 Days)
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  Live Firebase Data • Surplus: Negative = Good
+                  Live Firebase Data • Surplus: Positive = Good
                 </Badge>
               </CardTitle>
               <p className="text-sm text-gray-700 mt-2">
-                Track your key health metrics with real-time data: HR from runs only, calories direct from Strava, surplus tracking (negative is better).
+                Track your key health metrics with real-time data: HR from runs only, calories direct from Strava, surplus tracking (positive is better).
               </p>
             </CardHeader>
             <CardContent>
@@ -1094,8 +1075,8 @@ const OverallJam = () => {
             </span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Target className="h-4 w-4 text-red-500" />
-              Surplus: Negative = Good
+              <Target className="h-4 w-4 text-green-500" />
+              Surplus: Positive = Good
             </span>
           </div>
           <div className="flex items-center gap-4">
