@@ -79,7 +79,7 @@ const WeeklyGoalsTracker: React.FC<{
   // Weekly Goals - Updated colors
   const goals = {
     caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "green", shortLabel: "Cal Burn" },
-    protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
+    protein: { target: 1057, label: "Protein (151×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
     calorieSurplus: { target: 1000, label: "Calorie Surplus", icon: TrendingUp, color: "emerald", shortLabel: "Cal Surplus" }
   };
 
