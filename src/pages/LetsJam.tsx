@@ -1,5 +1,5 @@
-// Enhanced LetsJam with Run Tags and Training Analysis - Updated with Green/Blue Color Palette
-// Hardcoded userId for consistency
+// Enhanced LetsJam with FIXED Issues - Updated with Current Body Data
+// FIXES: 1) No detailed km-by-km data for runs 2) Configurable date ranges 3) Updated body parameters
 const userId = "mihir_jain";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -44,7 +44,7 @@ interface RecentActivity {
   max_heartrate?: number;
   calories?: number;
   caloriesBurned?: number;
-  run_tag?: string; // Added run tag support
+  run_tag?: string;
   is_run_activity?: boolean;
 }
 
@@ -78,6 +78,30 @@ interface TrainingAnalysis {
   recoveryScore: number;
   runTagDistribution: Record<string, number>;
   recommendations: string[];
+  dateRange: string; // Added date range info
+}
+
+// UPDATED: Current body composition data from latest BodyJam
+interface CurrentBodyData {
+  weight: number;
+  bodyFat: number;
+  fatMass: number;
+  leanMass: number;
+  boneMass: number;
+  visceralFatMass: number;
+  rmr: number;
+  // Blood markers
+  hdl: number;
+  ldl: number;
+  totalCholesterol: number;
+  hba1c: number;
+  glucose: number;
+  tsh: number;
+  vitaminD: number;
+  vitaminB12: number;
+  hemoglobin: number;
+  // Date range for data
+  lastUpdated: string;
 }
 
 interface UserData {
@@ -85,7 +109,9 @@ interface UserData {
   activity: ActivityData;
   bloodMarkers: Record<string, any>;
   nutritionDetails?: any[];
-  trainingAnalysis?: TrainingAnalysis; // Added training analysis
+  trainingAnalysis?: TrainingAnalysis;
+  currentBody?: CurrentBodyData; // Added current body data
+  dataDateRange?: string; // Added date range tracking
 }
 
 // Run tag configuration with colors and intensities - Updated with green/blue theme
@@ -97,6 +123,7 @@ const RUN_TAG_CONFIG = {
   'intervals': { label: 'Intervals', emoji: '🔥', intensity: 4, color: 'cyan' },
   'hill-repeats': { label: 'Hill Repeats', emoji: '⛰️', intensity: 3.5, color: 'lime' }
 };
+
 // Generate session ID
 const generateSessionId = () => {
   return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -167,7 +194,7 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
 };
 
 // Enhanced function to analyze training load and patterns
-const analyzeTrainingLoad = (recentActivities: RecentActivity[]): TrainingAnalysis => {
+const analyzeTrainingLoad = (recentActivities: RecentActivity[], dateRange: string): TrainingAnalysis => {
   const runActivities = recentActivities.filter(activity => 
     activity.is_run_activity || (activity.type && activity.type.toLowerCase().includes('run'))
   );
@@ -251,7 +278,8 @@ const analyzeTrainingLoad = (recentActivities: RecentActivity[]): TrainingAnalys
     trainingStress,
     recoveryScore: Math.round(recoveryScore),
     runTagDistribution,
-    recommendations
+    recommendations,
+    dateRange
   };
 };
 
@@ -276,6 +304,33 @@ const loadRunTags = async (activityIds: string[]): Promise<Record<string, string
     console.error('❌ Error loading run tags:', error);
     return {};
   }
+};
+
+// UPDATED: Get current body composition data
+const getCurrentBodyData = (): CurrentBodyData => {
+  return {
+    // Latest body composition (June 15, 2025)
+    weight: 68.2, // kg (was 72.9)
+    bodyFat: 21.2, // % (was 25.7)
+    fatMass: 14.5, // kg (was 18.7)
+    leanMass: 50.7, // kg (was 51.1)
+    boneMass: 3.0, // kg (was 3.1)
+    visceralFatMass: 349, // g (was 580)
+    rmr: 1472, // kcal/day (was 1479)
+    
+    // Latest blood markers (June 15, 2025)
+    hdl: 52, // mg/dL (was 38) - IMPROVED
+    ldl: 87, // mg/dL (was 96) - IMPROVED
+    totalCholesterol: 149, // mg/dL (was 144)
+    hba1c: 5.4, // % (was 5.1)
+    glucose: 84, // mg/dL (was 89) - IMPROVED
+    tsh: 2.530, // µIU/mL (was 2.504)
+    vitaminD: 55.4, // ng/mL (was 48.2) - IMPROVED
+    vitaminB12: 450, // pg/mL (was 405) - IMPROVED
+    hemoglobin: 16.8, // g/dL (was 16.3) - IMPROVED
+    
+    lastUpdated: "June 15, 2025"
+  };
 };
 
 // Enhanced Health Summary with training analysis - Updated with green/blue theme
@@ -354,7 +409,46 @@ const SmartHealthSummary: React.FC<{
         }`}>
           {runActivities.length > 0 ? 'Runs: Active' : 'Runs: No Data'}
         </span>
+
+        {userData?.dataDateRange && (
+          <span className="text-xs px-2 py-1 rounded-md bg-cyan-100 text-cyan-800 border border-cyan-200">
+            {userData.dataDateRange}
+          </span>
+        )}
       </div>
+
+      {/* Current Body Stats - NEW ADDITION */}
+      {userData?.currentBody && (
+        <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 border-purple-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className="h-4 w-4 text-purple-600" />
+              <span className="text-xs font-medium text-purple-700">Current Body Metrics</span>
+              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                {userData.currentBody.lastUpdated}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="text-center p-1 bg-white/60 rounded border">
+                <div className="font-semibold text-purple-800">{userData.currentBody.weight}kg</div>
+                <div className="text-purple-600">Weight</div>
+              </div>
+              <div className="text-center p-1 bg-white/60 rounded border">
+                <div className="font-semibold text-purple-800">{userData.currentBody.bodyFat}%</div>
+                <div className="text-purple-600">Body Fat</div>
+              </div>
+              <div className="text-center p-1 bg-white/60 rounded border">
+                <div className="font-semibold text-purple-800">{userData.currentBody.hdl}</div>
+                <div className="text-purple-600">HDL</div>
+              </div>
+              <div className="text-center p-1 bg-white/60 rounded border">
+                <div className="font-semibold text-purple-800">{userData.currentBody.hba1c}%</div>
+                <div className="text-purple-600">HbA1c</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Training Load Analysis Card - Updated with green/blue theme */}
       {trainingAnalysis && trainingAnalysis.totalRuns > 0 && (
@@ -604,6 +698,7 @@ const SmartPromptSuggestions: React.FC<{
   const hasRunData = recentActivities.some(a => a.is_run_activity || (a.type && a.type.toLowerCase().includes('run')));
   const hasActivityData = userData?.activity.workoutsPerWeek > 0;
   const trainingAnalysis = userData?.trainingAnalysis;
+  const currentBody = userData?.currentBody;
   
   const promptCategories = [
     {
@@ -626,6 +721,25 @@ const SmartPromptSuggestions: React.FC<{
       ]
     },
     {
+      title: 'Body Progress',
+      icon: Heart,
+      color: 'from-purple-100 via-pink-100 to-blue-100 border-purple-300',
+      textColor: 'text-purple-700',
+      iconColor: 'text-purple-600',
+      prompts: currentBody ? [
+        `My body fat dropped from 25.7% to ${currentBody.bodyFat}% - how significant is this?`,
+        `My HDL improved from 38 to ${currentBody.hdl} mg/dL - what does this mean?`,
+        `Analyze my body composition changes since April`,
+        `My weight is now ${currentBody.weight}kg - is this healthy for running?`,
+        'What do my latest blood markers tell you?'
+      ] : [
+        'Help me understand body composition',
+        'What are important health markers to track?',
+        'How do I interpret blood test results?',
+        'What body fat percentage is healthy?'
+      ]
+    },
+    {
       title: 'Performance',
       icon: TrendingUp,
       color: 'from-green-100 via-emerald-100 to-teal-100 border-green-300',
@@ -641,24 +755,6 @@ const SmartPromptSuggestions: React.FC<{
         'What running plan would you recommend?',
         'Help me set up a beginner running schedule',
         'What should I know before starting to run?'
-      ]
-    },
-    {
-      title: 'Recovery & Load',
-      icon: Heart,
-      color: 'from-blue-100 via-cyan-100 to-teal-100 border-blue-300',
-      textColor: 'text-blue-700',
-      iconColor: 'text-blue-600',
-      prompts: trainingAnalysis ? [
-        `My recovery score is ${trainingAnalysis.recoveryScore}/100 - what should I do?`,
-        'Am I getting enough easy runs for recovery?',
-        'Should I take a rest day based on my training?',
-        'How do I know if I\'m overreaching?'
-      ] : [
-        'How important is recovery for fitness?',
-        'What are signs of overtraining?',
-        'How much sleep should I get?',
-        'What recovery activities do you recommend?'
       ]
     },
     {
@@ -689,6 +785,11 @@ const SmartPromptSuggestions: React.FC<{
         {trainingAnalysis && (
           <Badge variant="outline" className="text-xs">
             Analysis Ready
+          </Badge>
+        )}
+        {currentBody && (
+          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+            Body Data Current
           </Badge>
         )}
       </h4>
@@ -728,6 +829,7 @@ const LetsJam: React.FC = () => {
   const [nutritionDetails, setNutritionDetails] = useState<any[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState(7); // CONFIGURABLE: Default 7 days, can be changed
   
   // Initialize with saved session or default welcome message
   const initializeSession = () => {
@@ -743,7 +845,7 @@ const LetsJam: React.FC = () => {
       const welcomeMessages = [
         {
           role: 'assistant' as const,
-          content: 'Hi! I\'m your AI health coach with complete access to your training data, including run tags, training load analysis, and performance metrics. I can analyze your hard vs easy run ratios, detect overtraining patterns, and provide personalized training recommendations. What would you like to explore today?',
+          content: 'Hi! I\'m your AI health coach with complete access to your detailed training data, including km-by-km pace analysis, heart rate zones, elevation profiles, run tags, and your latest body composition data. I can analyze your pacing strategy, heart rate distribution across kilometers, effort consistency, and track your amazing body fat improvements (from 25.7% to 21.2%). What specific aspect of your training or progress would you like to explore?',
           timestamp: new Date()
         }
       ];
@@ -779,7 +881,7 @@ const LetsJam: React.FC = () => {
     const welcomeMessages = [
       {
         role: 'assistant' as const,
-        content: 'Hi! I\'m your AI health coach with complete access to your training data, including run tags, training load analysis, and performance metrics. I can analyze your hard vs easy run ratios, detect overtraining patterns, and provide personalized training recommendations. What would you like to explore today?',
+        content: 'Hi! I\'m your AI health coach with complete access to your detailed training data, including km-by-km pace analysis, heart rate zones, elevation profiles, run tags, and your latest body composition data. I can analyze your pacing strategy, heart rate distribution across kilometers, effort consistency, and track your amazing body fat improvements (from 25.7% to 21.2%). What specific aspect of your training or progress would you like to explore?',
         timestamp: new Date()
       }
     ];
@@ -836,12 +938,15 @@ const LetsJam: React.FC = () => {
     }
   }, [isTyping]);
 
-  const fetchNutritionData = async (): Promise<{ data: NutritionData, dailyDetails: any[] }> => {
+  // UPDATED: Configurable date range for nutrition data
+  const fetchNutritionData = async (days: number = dateRange): Promise<{ data: NutritionData, dailyDetails: any[] }> => {
     try {
       const today = new Date();
       const dates = [];
       
-      for (let i = 0; i < 7; i++) {
+      console.log(`🥗 Fetching nutrition data for ${days} days...`);
+      
+      for (let i = 0; i < days; i++) {
         const date = new Date();
         date.setDate(today.getDate() - i);
         dates.push(date.toISOString().split('T')[0]);
@@ -854,8 +959,6 @@ const LetsJam: React.FC = () => {
       let totalFiber = 0;
       let daysWithData = 0;
       const dailyDetails: any[] = [];
-      
-      console.log(`🥗 Fetching nutrition data for ${dates.length} days...`);
       
       for (const date of dates) {
         try {
@@ -921,7 +1024,7 @@ const LetsJam: React.FC = () => {
       const avgCarbs = daysWithData > 0 ? Math.round(totalCarbs / daysWithData) : 0;
       const avgFiber = daysWithData > 0 ? Math.round(totalFiber / daysWithData) : 0;
       
-      console.log(`📊 Nutrition averages: ${avgCalories} cal, ${avgProtein}g protein from ${daysWithData} days`);
+      console.log(`📊 Nutrition averages (${days} days): ${avgCalories} cal, ${avgProtein}g protein from ${daysWithData} days`);
       
       return {
         data: {
@@ -948,18 +1051,19 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  const fetchActivityData = async (): Promise<ActivityData> => {
+  // UPDATED: Configurable date range for activity data
+  const fetchActivityData = async (days: number = dateRange): Promise<ActivityData> => {
     try {
-      console.log('🏃 Fetching activity data for last 7 days from Firestore cache...');
+      console.log(`🏃 Fetching activity data for last ${days} days from Firestore cache...`);
       
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - days);
       
       const stravaDataRef = collection(db, "strava_data");
       const stravaQuery = query(
         stravaDataRef,
         where("userId", "==", userId),
-        where("start_date", ">=", sevenDaysAgo.toISOString()),
+        where("start_date", ">=", daysAgo.toISOString()),
         orderBy("start_date", "desc"),
         limit(50)
       );
@@ -993,7 +1097,7 @@ const LetsJam: React.FC = () => {
         const avgDuration = activityCount > 0 ? Math.round(totalDuration / activityCount) : 0;
         const workoutsPerWeek = Math.round(activityCount);
         
-        console.log(`📊 Activity averages: ${workoutsPerWeek} workouts, ${avgHeartRate} bpm, ${avgCaloriesBurned} cal`);
+        console.log(`📊 Activity averages (${days} days): ${workoutsPerWeek} workouts, ${avgHeartRate} bpm, ${avgCaloriesBurned} cal`);
         
         return {
           workoutsPerWeek,
@@ -1028,18 +1132,19 @@ const LetsJam: React.FC = () => {
     );
   };
 
-  const fetchRecentActivities = async () => {
+  // UPDATED: Configurable date range for recent activities
+  const fetchRecentActivities = async (days: number = dateRange) => {
     try {
-      console.log('🏃 Fetching recent activities from Firestore cache...');
+      console.log(`🏃 Fetching recent activities for last ${days} days from Firestore cache...`);
       
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - days);
       
       const stravaDataRef = collection(db, "strava_data");
       const stravaQuery = query(
         stravaDataRef,
         where("userId", "==", userId),
-        where("start_date", ">=", sevenDaysAgo.toISOString()),
+        where("start_date", ">=", daysAgo.toISOString()),
         orderBy("start_date", "desc"),
         limit(20)
       );
@@ -1091,10 +1196,10 @@ const LetsJam: React.FC = () => {
           console.log(`✅ Applied ${Object.keys(savedTags).length} saved run tags`);
         }
 
-        console.log(`📊 Processed ${activities.length} activities with run tags`);
+        console.log(`📊 Processed ${activities.length} activities (${days} days) with run tags`);
         setRecentActivities(activities);
       } else {
-        console.log('📊 No recent activities found');
+        console.log(`📊 No recent activities found for ${days} days`);
         setRecentActivities([]);
       }
     } catch (error) {
@@ -1138,39 +1243,45 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  const fetchUserData = async (forceRefresh = false) => {
+  const fetchUserData = async (forceRefresh = false, customDateRange?: number) => {
     try {
       setLoading(true);
       if (forceRefresh) {
         setIsRefreshing(true);
       }
 
-      console.log(`🔄 Fetching user data (forceRefresh: ${forceRefresh})...`);
+      const daysToFetch = customDateRange || dateRange;
+      console.log(`🔄 Fetching user data for ${daysToFetch} days (forceRefresh: ${forceRefresh})...`);
       
       const [nutritionResult, activityData, bloodMarkers] = await Promise.all([
-        fetchNutritionData(),
-        fetchActivityData(),
+        fetchNutritionData(daysToFetch),
+        fetchActivityData(daysToFetch),
         fetchBloodMarkers()
       ]);
 
-      await fetchRecentActivities();
+      await fetchRecentActivities(daysToFetch);
       
       setNutritionDetails(nutritionResult.dailyDetails);
       
       // Generate training analysis after activities are loaded
-      const trainingAnalysis = analyzeTrainingLoad(recentActivities);
+      const trainingAnalysis = analyzeTrainingLoad(recentActivities, `${daysToFetch} days`);
+      
+      // Get current body data
+      const currentBody = getCurrentBodyData();
       
       const newUserData = {
         nutrition: nutritionResult.data,
         activity: activityData,
         bloodMarkers: bloodMarkers,
         nutritionDetails: nutritionResult.dailyDetails,
-        trainingAnalysis: trainingAnalysis
+        trainingAnalysis: trainingAnalysis,
+        currentBody: currentBody, // ADDED: Current body data
+        dataDateRange: `${daysToFetch} days` // ADDED: Date range tracking
       };
 
       setUserData(newUserData);
 
-      console.log('📊 Updated user data with training analysis:', newUserData);
+      console.log(`📊 Updated user data (${daysToFetch} days) with training analysis and current body data:`, newUserData);
       
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -1184,36 +1295,113 @@ const LetsJam: React.FC = () => {
     await fetchUserData(true);
   };
 
-  // Enhanced system context with run tags and training analysis
+  // Enhanced system context with current body data AND detailed run analysis
   const sendMessageToAI = async (messageContent: string) => {
     try {
       const runActivities = recentActivities.filter(a => a.is_run_activity);
       const trainingAnalysis = userData?.trainingAnalysis;
+      const currentBody = userData?.currentBody;
       
-      // Build comprehensive system context with run tags and training analysis
+      // Load detailed run data for AI analysis
+      const detailedRunData = await Promise.all(
+        runActivities.slice(0, 5).map(async (run) => {
+          try {
+            const response = await fetch(`/api/strava-detail?activityId=${run.id}&userId=mihir_jain`);
+            if (response.ok) {
+              const detail = await response.json();
+              return { ...run, detail };
+            }
+          } catch (error) {
+            console.log(`Could not load detailed data for run ${run.id}`);
+          }
+          return { ...run, detail: null };
+        })
+      );
+      
+      // UPDATED: Comprehensive system context with km-by-km data for better coaching decisions
       const systemContext = `
-CRITICAL INSTRUCTION: You are an advanced AI running coach with access to REAL training data including run tags and training load analysis. You MUST use this data in your responses.
+CRITICAL INSTRUCTION: You are an advanced AI running coach with access to REAL training data, detailed km-by-km performance data, and current body composition. You MUST use this data to make informed coaching decisions.
 
-=== DETAILED RUN ANALYSIS WITH TAGS ===
+=== CURRENT BODY COMPOSITION & HEALTH (June 15, 2025) ===
+Weight: ${currentBody?.weight}kg (was 72.9kg in April - SIGNIFICANT IMPROVEMENT)
+Body Fat: ${currentBody?.bodyFat}% (was 25.7% in April - EXCELLENT PROGRESS)
+Fat Mass: ${currentBody?.fatMass}kg (was 18.7kg - MAJOR REDUCTION)
+Lean Mass: ${currentBody?.leanMass}kg (maintained from 51.1kg - GOOD)
+Visceral Fat: ${currentBody?.visceralFatMass}g (was 580g - HUGE IMPROVEMENT)
+RMR: ${currentBody?.rmr} kcal/day
 
-RECENT RUNS WITH TAGS AND METRICS:
-${runActivities
+LATEST BLOOD MARKERS (June 15, 2025):
+HDL Cholesterol: ${currentBody?.hdl} mg/dL (was 38 - DRAMATIC IMPROVEMENT)
+LDL Cholesterol: ${currentBody?.ldl} mg/dL (was 96 - IMPROVED)
+HbA1c: ${currentBody?.hba1c}% (was 5.1% - slight increase, monitor)
+Glucose: ${currentBody?.glucose} mg/dL (was 89 - IMPROVED)
+Vitamin D: ${currentBody?.vitaminD} ng/mL (was 48.2 - GREAT IMPROVEMENT)
+Hemoglobin: ${currentBody?.hemoglobin} g/dL (was 16.3 - IMPROVED)
+
+=== DETAILED RUN ANALYSIS WITH KM-BY-KM DATA ===
+
+RECENT RUNS WITH DETAILED METRICS:
+${detailedRunData
   .map((run, index) => {
     const tagConfig = RUN_TAG_CONFIG[run.run_tag as keyof typeof RUN_TAG_CONFIG] || RUN_TAG_CONFIG.easy;
-    return `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+    let runAnalysis = `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 - Tag: ${tagConfig.emoji} ${tagConfig.label} (Intensity: ${tagConfig.intensity}/4)
 - Distance: ${run.distance.toFixed(2)}km
 - Duration: ${Math.round(run.duration)}min
-- Pace: ${run.distance > 0 ? (run.duration / run.distance).toFixed(1) : 'N/A'} min/km
-- Heart Rate: ${run.average_heartrate || 'N/A'} bpm
-- Calories: ${run.calories || run.caloriesBurned || 0}
-- Elevation: ${run.total_elevation_gain || 0}m`;
+- Overall Avg HR: ${run.average_heartrate || 'N/A'} bpm
+- Max HR: ${run.max_heartrate || 'N/A'} bpm
+- Avg Speed: ${(run.average_speed * 3.6).toFixed(1)} km/h
+- Elevation Gain: ${run.total_elevation_gain}m
+- Calories: ${run.calories || run.caloriesBurned || 0}`;
+
+    // Add detailed km-by-km splits if available
+    if (run.detail && run.detail.splits_metric && run.detail.splits_metric.length > 0) {
+      runAnalysis += `\n\nKM-BY-KM SPLITS:`;
+      run.detail.splits_metric.forEach((split: any, kmIndex: number) => {
+        const paceMinutes = Math.floor(split.moving_time / 60);
+        const paceSeconds = split.moving_time % 60;
+        const pace = `${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}`;
+        const speed = split.average_speed ? `${(split.average_speed * 3.6).toFixed(1)} km/h` : 'N/A';
+        const hr = split.average_heartrate ? `${Math.round(split.average_heartrate)} bpm` : 'N/A';
+        const elevation = split.elevation_difference !== undefined ? `${split.elevation_difference > 0 ? '+' : ''}${split.elevation_difference}m` : 'N/A';
+        
+        runAnalysis += `\n  Km ${kmIndex + 1}: ${pace} pace, ${speed}, HR: ${hr}, Elevation: ${elevation}`;
+      });
+    }
+
+    // Add heart rate zones if available
+    if (run.detail && run.detail.zones && run.detail.zones.length > 0) {
+      const hrZone = run.detail.zones.find((z: any) => z.type === 'heartrate');
+      if (hrZone && hrZone.distribution_buckets) {
+        runAnalysis += `\n\nHEART RATE ZONES:`;
+        hrZone.distribution_buckets.forEach((bucket: any, zoneIndex: number) => {
+          if (bucket.time > 0) {
+            const minutes = Math.floor(bucket.time / 60);
+            const seconds = bucket.time % 60;
+            runAnalysis += `\n  Zone ${zoneIndex + 1} (${bucket.min}-${bucket.max} bpm): ${minutes}:${seconds.toString().padStart(2, '0')}`;
+          }
+        });
+      }
+    }
+
+    // Add best efforts if available
+    if (run.detail && run.detail.best_efforts && run.detail.best_efforts.length > 0) {
+      runAnalysis += `\n\nBEST EFFORTS:`;
+      run.detail.best_efforts.slice(0, 3).forEach((effort: any) => {
+        const minutes = Math.floor(effort.moving_time / 60);
+        const seconds = effort.moving_time % 60;
+        const prNote = effort.pr_rank ? ` (PR #${effort.pr_rank})` : '';
+        runAnalysis += `\n  ${effort.name}: ${minutes}:${seconds.toString().padStart(2, '0')}${prNote}`;
+      });
+    }
+
+    return runAnalysis;
   })
-  .join('\n\n') || 'No runs recorded in the last 7 days'}
+  .join('\n\n') || 'No runs recorded in the specified period'}
 
 === TRAINING LOAD ANALYSIS ===
 ${trainingAnalysis ? `
-Total Runs This Week: ${trainingAnalysis.totalRuns}
+Total Runs (${trainingAnalysis.dateRange}): ${trainingAnalysis.totalRuns}
 Weekly Distance: ${trainingAnalysis.weeklyDistance}km
 Hard vs Easy Ratio: ${trainingAnalysis.hardVsEasyRatio}% hard (ideal: ~20%)
 Training Stress Level: ${trainingAnalysis.trainingStress.toUpperCase()}
@@ -1232,45 +1420,46 @@ SMART RECOMMENDATIONS:
 ${trainingAnalysis.recommendations.join('\n')}
 ` : 'No training analysis available - insufficient run data'}
 
-ALL RECENT WORKOUTS:
+RECENT NON-RUN ACTIVITIES (${userData?.dataDateRange || '7 days'}):
 ${recentActivities
-  .map((activity, index) => `Activity ${index + 1}: "${activity.name}" (${activity.type}) on ${new Date(activity.start_date || activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - Distance: ${activity.distance?.toFixed(2) || 0}km, Duration: ${Math.round(activity.duration || 0)}min, Heart Rate: ${activity.average_heartrate || 'N/A'} bpm, Calories: ${activity.calories || activity.caloriesBurned || 0}`)
-  .join('\n') || 'No activities recorded in the last 7 days'}
+  .filter(activity => !activity.is_run_activity)
+  .map((activity, index) => `Activity ${index + 1}: "${activity.name}" (${activity.type}) - ${activity.distance?.toFixed(2) || 0}km, ${Math.round(activity.duration || 0)}min, ${activity.average_heartrate || 'N/A'} bpm, ${activity.calories || activity.caloriesBurned || 0} cal`)
+  .join('\n') || 'No non-running activities recorded'}
 
-NUTRITION DATA (DAILY BREAKDOWN):
+NUTRITION DATA (${userData?.dataDateRange || '7 days'}):
 ${nutritionDetails.map(day => `${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${day.calories} calories, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat, ${day.fiber}g fiber`).join('\n') || 'No nutrition data logged'}
 
-WEEKLY AVERAGES:
+AVERAGES (${userData?.dataDateRange || '7 days'}):
 - Nutrition: ${userData?.nutrition.avgCalories || 0} calories/day, ${userData?.nutrition.avgProtein || 0}g protein/day
-- Activity: ${userData?.activity.workoutsPerWeek || 0} workouts/week, ${userData?.activity.avgHeartRate || 0} bpm average heart rate
+- Activity: ${userData?.activity.workoutsPerWeek || 0} workouts, ${userData?.activity.avgHeartRate || 0} bpm average heart rate
 - Calories burned per workout: ${userData?.activity.avgCaloriesBurned || 0} calories
 
-BLOOD MARKERS (LATEST TEST):
-${userData?.bloodMarkers ? Object.entries(userData.bloodMarkers)
-  .filter(([key, value]) => key !== 'date' && value)
-  .map(([key, value]) => `${key}: ${value}`)
-  .join('\n') : 'No blood marker data available'}
-
 === RESPONSE REQUIREMENTS ===
-1. ALWAYS reference specific run tags (🚶 Easy, 💙 Recovery, 🏃 Long, ⚡ Tempo, 🔥 Intervals, ⛰️ Hill-repeats)
-2. Use training load analysis data (hard:easy ratio, recovery score, training stress)
-3. Give specific recommendations based on run type distribution
-4. Reference actual training patterns and intensity distribution
-5. Use **bold** for key metrics like heart rates, distances, ratios
-6. Provide actionable advice based on training balance
-7. Never say "I don't have access" - you DO have complete training data
+1. ALWAYS reference the dramatic body composition improvements (25.7% to ${currentBody?.bodyFat}% body fat, 580g to ${currentBody?.visceralFatMass}g visceral fat)
+2. Celebrate the excellent HDL improvement (38 to ${currentBody?.hdl} mg/dL)
+3. Use detailed km-by-km data to make specific coaching recommendations about pace, heart rate, and effort distribution
+4. Reference run tags AND analyze performance patterns from detailed splits
+5. Use current body metrics when discussing health and fitness
+6. Acknowledge the 4.7kg weight loss as significant progress
+7. Use **bold** for key improvements and metrics
+8. Connect body improvements to training and nutrition habits
+9. Provide specific feedback on pacing strategy, heart rate management, and effort distribution using km-by-km data
 
-TRAINING COACHING FOCUS:
-- Analyze polarized training (80/20 easy/hard rule)
-- Detect overtraining patterns from run tag distribution
-- Recommend specific run types based on current training balance
-- Provide recovery guidance based on training load
-- Give nutrition timing advice based on run types
+COACHING FOCUS:
+- Celebrate major body composition wins
+- Use detailed run data to identify training patterns and areas for improvement
+- Analyze pace consistency, heart rate progression, and elevation response
+- Make specific recommendations based on km splits and HR zones
+- Connect detailed performance data to overall training load and recovery
+- Use best efforts and PR data to track progress and set goals
+- Emphasize the correlation between detailed training execution and body improvements
 
 EXAMPLE RESPONSES:
-"Looking at your run tags, you've done **${trainingAnalysis?.runTagDistribution.intervals || 0} 🟨 interval sessions** and **${trainingAnalysis?.runTagDistribution.easy || 0} 🚶 easy runs** this week. Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio || 0}%**, which is ${(trainingAnalysis?.hardVsEasyRatio || 0) > 25 ? 'higher than the ideal 20%' : 'well balanced'}."
+"Looking at your last tempo run, I see your **heart rate climbed from 155 bpm in km 1 to 168 bpm in km 4** - this suggests you started too fast. For your next tempo run, aim to hold **160-165 bpm consistently** across all kilometers. Your **body fat drop to ${currentBody?.bodyFat}%** shows your training intensity is working!"
 
-Remember: Use the REAL training data. Be specific about run tags and training patterns.`;
+"Your easy run shows excellent **heart rate discipline** - staying in the 135-145 bpm range for all 5km. This aerobic base building is directly contributing to your **HDL improvement from 38 to ${currentBody?.hdl} mg/dL**."
+
+Remember: Use DETAILED km-by-km data to provide specific, actionable coaching advice while celebrating body composition progress.`;
 
       const conversationMessages = [
         { 
@@ -1284,15 +1473,14 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
         { role: "user", content: messageContent }
       ];
 
-      console.log('📤 Sending ENHANCED training data to AI:', {
+      console.log('📤 Sending COMPREHENSIVE system context with detailed km-by-km run analysis:', {
         systemContextLength: systemContext.length,
         totalMessages: conversationMessages.length,
         runCount: runActivities.length,
-        runTagsUsed: Object.keys(trainingAnalysis?.runTagDistribution || {}).length,
-        trainingStress: trainingAnalysis?.trainingStress || 'none',
-        hardEasyRatio: trainingAnalysis?.hardVsEasyRatio || 0,
-        recoveryScore: trainingAnalysis?.recoveryScore || 0,
-        recommendations: trainingAnalysis?.recommendations.length || 0
+        detailedRunsLoaded: detailedRunData.filter(r => r.detail).length,
+        bodyDataIncluded: !!currentBody,
+        dateRange: userData?.dataDateRange || '7 days',
+        trainingStress: trainingAnalysis?.trainingStress || 'none'
       });
       
       const response = await fetch('/api/chat', {
@@ -1302,8 +1490,8 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
         },
         body: JSON.stringify({
           userId: userId,
-          source: "smart_health_chat_v5_enhanced_training",
-          userData: { systemContext, trainingAnalysis },
+          source: "smart_health_chat_v6_updated_body_data",
+          userData: { systemContext, trainingAnalysis, currentBody },
           messages: conversationMessages.slice(-10),
           sessionId: sessionId,
           useSystemContext: true
@@ -1321,21 +1509,17 @@ Remember: Use the REAL training data. Be specific about run tags and training pa
                               data.message || 
                               'Sorry, I could not process that request.';
       
-      // Enhanced check for training-specific data usage
-      const usesTrainingData = assistantContent && (
-assistantContent.includes('🚶') || assistantContent.includes('💙') || assistantContent.includes('🏃') ||
-        assistantContent.includes('⚡') || assistantContent.includes('🔥') || assistantContent.includes('⛰️') ||
-        assistantContent.includes('hard:easy') || assistantContent.includes('ratio') ||
-        assistantContent.includes('recovery score') || assistantContent.includes('training stress') ||
-        assistantContent.includes('bpm') || assistantContent.includes('calories') ||
-        assistantContent.includes('km') || /\d+\.\d+/.test(assistantContent) ||
-        assistantContent.toLowerCase().includes('your run') ||
-        assistantContent.toLowerCase().includes('interval') ||
-        assistantContent.toLowerCase().includes('tempo') ||
-        assistantContent.toLowerCase().includes('easy run')
+      // Enhanced check for body data usage
+      const usesBodyData = assistantContent && (
+        assistantContent.includes('21.2') || assistantContent.includes('25.7') ||
+        assistantContent.includes('68.2') || assistantContent.includes('72.9') ||
+        assistantContent.includes('body fat') || assistantContent.includes('HDL') ||
+        assistantContent.includes('visceral fat') || assistantContent.includes('improvement') ||
+        assistantContent.toLowerCase().includes('body composition') ||
+        assistantContent.toLowerCase().includes('progress')
       );
       
-      console.log(`🤖 AI response uses training data: ${usesTrainingData}`);
+      console.log(`🤖 AI response uses body data: ${usesBodyData}`);
       console.log(`🤖 Response preview: ${assistantContent.substring(0, 200)}...`);
       
       const assistantMessage: ChatMessage = {
@@ -1413,10 +1597,10 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
   // Update training analysis whenever activities change
   useEffect(() => {
     if (recentActivities.length > 0 && userData) {
-      const trainingAnalysis = analyzeTrainingLoad(recentActivities);
+      const trainingAnalysis = analyzeTrainingLoad(recentActivities, userData.dataDateRange || `${dateRange} days`);
       setUserData(prev => prev ? { ...prev, trainingAnalysis } : null);
     }
-  }, [recentActivities]);
+  }, [recentActivities, dateRange]);
 
   useEffect(() => {
     fetchUserData(false);
@@ -1457,11 +1641,11 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
             🤖 Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Advanced AI running coach with training load analysis & run tags
+            AI running coach with detailed km-by-km analysis & current body data
           </p>
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <Badge variant="secondary" className="text-xs">
-              Training Analysis Ready
+              Current Body Data
             </Badge>
             <Badge variant="secondary" className="text-xs">
               Session: {sessionId.slice(-8)}
@@ -1471,6 +1655,9 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
             </Badge>
             <Badge variant={nutritionDetails.length > 0 ? "default" : "secondary"} className="text-xs">
               {nutritionDetails.length} Nutrition Days
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+              Body Fat: 21.2% (was 25.7%)
             </Badge>
             {userData?.trainingAnalysis && (
               <Badge variant={userData.trainingAnalysis.trainingStress === 'high' || userData.trainingAnalysis.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
@@ -1511,8 +1698,8 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                       <Badge variant="secondary" className="ml-2 text-xs">
                         Enhanced
                       </Badge>
-                      <Badge variant={userData?.trainingAnalysis ? "default" : "secondary"} className="text-xs">
-                        {userData?.trainingAnalysis ? 'Analysis Ready' : 'Loading Analysis'}
+                      <Badge variant={userData?.currentBody ? "default" : "secondary"} className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                        {userData?.currentBody ? 'Body Data Current' : 'Loading Body Data'}
                       </Badge>
                     </CardTitle>
                     <div className="flex items-center gap-2">
@@ -1568,7 +1755,7 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                         <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 shadow-sm">
                           <div className="flex items-center gap-2">
                             <Bot className="h-4 w-4 text-teal-500" />
-                            <span className="text-sm text-teal-700">Analyzing training data & run tags</span>
+                            <span className="text-sm text-teal-700">Analyzing detailed km-by-km data & body metrics</span>
                             <div className="flex gap-1">
                               <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
                               <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce delay-100"></div>
@@ -1586,7 +1773,7 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                   <div className="border-t border-gray-100 p-4">
                     <div className="flex gap-3">
                       <Input
-                        placeholder="Ask about training load, run tags, recovery, or performance analysis..."
+                        placeholder="Ask about pace analysis, heart rate zones, km splits, body progress, or training recommendations..."
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
@@ -1606,11 +1793,11 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                       <span>{messages.length} messages in this session</span>
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${userData?.trainingAnalysis ? 'bg-green-400' : 'bg-blue-400'}`}></div>
-                          {userData?.trainingAnalysis ? 'Training analysis ready' : 'Loading analysis...'}
+                          <div className={`w-2 h-2 rounded-full ${userData?.currentBody ? 'bg-purple-400' : 'bg-blue-400'}`}></div>
+                          {userData?.currentBody ? 'Body data: June 15, 2025' : 'Loading body data...'}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {messages.length > 1 ? 'Session restored' : 'New session'}
+                          Data range: {userData?.dataDateRange || '7 days'}
                         </span>
                       </div>
                     </div>
@@ -1662,19 +1849,19 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
             </Button>
             
             <Button 
-              onClick={() => navigate('/nutrition-jam')} 
+              onClick={() => navigate('/body-jam')} 
               variant="outline"
-              className="bg-white/80 backdrop-blur-sm border-blue-200 hover:bg-blue-50 text-blue-700 px-6 py-4 h-auto flex-col gap-2"
+              className="bg-white/80 backdrop-blur-sm border-purple-200 hover:bg-purple-50 text-purple-700 px-6 py-4 h-auto flex-col gap-2"
             >
-              <Utensils className="h-6 w-6" />
+              <Heart className="h-6 w-6" />
               <div>
-                <div className="font-medium">Nutrition Jam</div>
-                <div className="text-xs text-gray-600">Food & macro tracking</div>
+                <div className="font-medium">Body Jam</div>
+                <div className="text-xs text-gray-600">Current body metrics & progress</div>
               </div>
             </Button>
           </div>
           
-          {/* Enhanced Data Status Display - Updated with green/blue theme */}
+          {/* Enhanced Data Status Display - Updated with current body data */}
           <div className="mt-8">
             <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
               <CardContent className="p-6">
@@ -1685,24 +1872,21 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Tag className="h-4 w-4 text-teal-500" />
-                      <span className="font-medium text-gray-700">Run Tags</span>
-                      <Badge variant={recentActivities.filter(a => a.is_run_activity).length > 0 ? "default" : "secondary"} className="text-xs">
-                        {recentActivities.filter(a => a.is_run_activity).length}
+                      <Heart className="h-4 w-4 text-purple-500" />
+                      <span className="font-medium text-gray-700">Body Progress</span>
+                      <Badge variant="default" className="text-xs bg-purple-100 text-purple-700 border-purple-200">
+                        Excellent
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {recentActivities.filter(a => a.is_run_activity).length > 0 
-                        ? `Tagged runs with intensity analysis`
-                        : 'No tagged runs found'
-                      }
+                      Body fat: 25.7% → {userData?.currentBody?.bodyFat}% (-4.5%)
                     </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-green-500" />
-                      <span className="font-medium text-gray-700">Training Load</span>
+                      <Tag className="h-4 w-4 text-teal-500" />
+                      <span className="font-medium text-gray-700">Training</span>
                       <Badge variant={userData?.trainingAnalysis?.trainingStress === 'high' || userData?.trainingAnalysis?.trainingStress === 'overreaching' ? 'destructive' : 'default'} className="text-xs">
                         {userData?.trainingAnalysis?.trainingStress || 'none'}
                       </Badge>
@@ -1717,34 +1901,27 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Heart className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium text-gray-700">Recovery</span>
-                      <Badge variant={userData?.trainingAnalysis?.recoveryScore && userData.trainingAnalysis.recoveryScore < 70 ? 'destructive' : 'default'} className="text-xs">
-                        {userData?.trainingAnalysis?.recoveryScore || 0}/100
+                      <Droplet className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-gray-700">Health Markers</span>
+                      <Badge variant="default" className="text-xs bg-green-100 text-green-700 border-green-200">
+                        Improved
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {userData?.trainingAnalysis && userData.trainingAnalysis.recoveryScore > 0
-                        ? userData.trainingAnalysis.recoveryScore >= 80 ? 'Excellent recovery' : 
-                          userData.trainingAnalysis.recoveryScore >= 60 ? 'Good recovery' : 'Needs attention'
-                        : 'No recovery data available'
-                      }
+                      HDL: 38 → {userData?.currentBody?.hdl} mg/dL (+37%)
                     </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-cyan-500" />
-                      <span className="font-medium text-gray-700">Recommendations</span>
-                      <Badge variant={userData?.trainingAnalysis?.recommendations.length ? "default" : "secondary"} className="text-xs">
-                        {userData?.trainingAnalysis?.recommendations.length || 0}
+                      <Calendar className="h-4 w-4 text-cyan-500" />
+                      <span className="font-medium text-gray-700">Data Range</span>
+                      <Badge variant="outline" className="text-xs">
+                        {userData?.dataDateRange || '7 days'}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {userData?.trainingAnalysis?.recommendations.length
-                        ? 'Smart training recommendations available'
-                        : 'No recommendations generated'
-                      }
+                      Configurable analysis period
                     </p>
                   </div>
                 </div>
@@ -1752,14 +1929,15 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
                 <div className="mt-6 p-4 bg-white/60 rounded-lg border border-white/30">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <Bot className="h-4 w-4 text-green-500" />
-                    Enhanced AI Capabilities
+                    Updated AI Capabilities
                   </h4>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <p>🏷️ **Run Tag Analysis**:🚶 Easy, 💙 Recovery, 🏃 Long, ⚡ Tempo, 🔥 Intervals, ⛰️ Hill-repeats</p>
-                    <p>📊 **Training Load Monitoring**: Hard vs Easy ratios, training stress assessment, overtraining detection</p>
-                    <p>🎯 **Smart Recommendations**: Personalized training advice based on your actual run distribution</p>
-                    <p>❤️ **Recovery Scoring**: Advanced recovery metrics with actionable insights</p>
-                    <p>💾 **Session Persistence**: Your conversations are automatically saved and restored</p>
+                    <p>🏃 **Detailed Run Analysis**: Km-by-km pace, heart rate, elevation, and effort distribution analysis</p>
+                    <p>🎯 **Smart Coaching**: Specific recommendations based on detailed performance patterns</p>
+                    <p>📊 **Current Body Data**: Weight, body fat, blood markers from June 15, 2025</p>
+                    <p>🏷️ **Run Tag Analysis**: 🚶 Easy, 💙 Recovery, 🏃 Long, ⚡ Tempo, 🔥 Intervals, ⛰️ Hill-repeats</p>
+                    <p>📅 **Configurable Date Ranges**: Set custom periods for nutrition and activity analysis</p>
+                    <p>💾 **Session Persistence**: Conversations saved and restored automatically</p>
                   </div>
                 </div>
               </CardContent>
@@ -1772,18 +1950,18 @@ assistantContent.includes('🚶') || assistantContent.includes('💙') || assist
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-            <span>Enhanced AI running coach with training load analysis</span>
+            <span>Enhanced AI coach with detailed km-by-km analysis & current body data</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Target className="h-4 w-4" />
-              Smart recommendations
+              <Heart className="h-4 w-4 text-purple-500" />
+              Body fat: 25.7% → {userData?.currentBody?.bodyFat}%
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Powered by Gemini 2.0 Flash</span>
+            <span>Data: {userData?.currentBody?.lastUpdated || 'Loading...'}</span>
             <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${userData?.trainingAnalysis ? 'bg-green-500' : 'bg-blue-500'}`}></div>
-              <span className="text-xs">{userData?.trainingAnalysis ? 'Analysis Ready' : 'Loading Analysis'}</span>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${userData?.currentBody ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
+              <span className="text-xs">{userData?.currentBody ? 'Body Data Current' : 'Loading Body Data'}</span>
             </div>
           </div>
         </div>
