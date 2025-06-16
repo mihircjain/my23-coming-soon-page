@@ -727,16 +727,17 @@ const SmartPromptSuggestions: React.FC<{
       textColor: 'text-purple-700',
       iconColor: 'text-purple-600',
       prompts: currentBody ? [
-        `My body fat dropped from 25.7% to ${currentBody.bodyFat}% - how significant is this?`,
-        `My HDL improved from 38 to ${currentBody.hdl} mg/dL - what does this mean?`,
-        `Analyze my body composition changes since April`,
-        `My weight is now ${currentBody.weight}kg - is this healthy for running?`,
-        'What do my latest blood markers tell you?'
+        'How significant is my recent body fat change?',
+        'What do my latest blood markers tell me?',
+        'Analyze my body composition progress',
+        'Is my current weight healthy for running?',
+        'How are my health markers trending?'
       ] : [
         'Help me understand body composition',
         'What are important health markers to track?',
         'How do I interpret blood test results?',
-        'What body fat percentage is healthy?'
+        'What body fat percentage is healthy?',
+        'How often should I check body composition?'
       ]
     },
     {
@@ -758,23 +759,19 @@ const SmartPromptSuggestions: React.FC<{
       ]
     },
     {
-      title: 'Nutrition',
-      icon: Utensils,
-      color: 'from-emerald-100 via-green-100 to-teal-100 border-emerald-300',
-      textColor: 'text-emerald-700',
-      iconColor: 'text-emerald-600',
-      prompts: hasNutritionData ? [
-        'Is my protein intake adequate for my training?',
-        'Should I eat differently on hard vs easy run days?',
-        'What should I eat before my next tempo run?',
-        'How is my nutrition supporting my recovery?'
-      ] : [
-        'Help me start tracking nutrition',
-        'What should I eat to support my goals?',
-        'How many calories should I consume daily?',
-        'What are good protein sources?'
+      title: 'Smart Examples',
+      icon: MessageSquare,
+      color: 'from-indigo-100 via-purple-100 to-blue-100 border-indigo-300',
+      textColor: 'text-indigo-700',
+      iconColor: 'text-indigo-600',
+      prompts: [
+        'What stretching exercises should I do?', // Generic - minimal data
+        'How was my pace in yesterday\'s run?', // Run-specific - detailed data
+        'What should I eat before a long run?', // Nutrition-focused
+        'Am I losing weight too fast?', // Body-focused  
+        'How do I prevent running injuries?' // General advice
       ]
-    }
+    },
   ];
 
   return (
@@ -845,7 +842,7 @@ const LetsJam: React.FC = () => {
       const welcomeMessages = [
         {
           role: 'assistant' as const,
-          content: 'Hi! I\'m your AI health coach with complete access to your detailed training data, including km-by-km pace analysis, heart rate zones, elevation profiles, run tags, and your latest body composition data. I can analyze your pacing strategy, heart rate distribution across kilometers, effort consistency, and track your amazing body fat improvements (from 25.7% to 21.2%). What specific aspect of your training or progress would you like to explore?',
+          content: 'Hi! I\'m your AI health coach with smart query detection. I only load the data relevant to your specific questions - detailed km-by-km run analysis for performance queries, body composition data for health questions, nutrition data for diet questions, or general guidance for training questions. I can track your amazing progress (body fat: 25.7% → 21.2%!) and provide targeted advice. What would you like to explore?',
           timestamp: new Date()
         }
       ];
@@ -1295,32 +1292,68 @@ const LetsJam: React.FC = () => {
     await fetchUserData(true);
   };
 
-  // Enhanced system context with current body data AND detailed run analysis
+  // Smart query analysis and conditional data sending
   const sendMessageToAI = async (messageContent: string) => {
     try {
+      const query = messageContent.toLowerCase();
+      
+      // Analyze what type of query this is
+      const isRunQuery = /\b(run|running|pace|km|kilometer|tempo|easy|interval|jog|sprint|marathon|5k|10k)\b/i.test(query);
+      const isNutritionQuery = /\b(eat|food|nutrition|calorie|protein|carb|fat|meal|diet|macro)\b/i.test(query);
+      const isBodyQuery = /\b(body|weight|fat|composition|muscle|lean|mass|hdl|ldl|cholesterol|blood|marker)\b/i.test(query);
+      const isTrainingQuery = /\b(train|training|workout|exercise|fitness|recovery|load|stress|overtraining)\b/i.test(query);
+      const isSpecificDateQuery = /\b(yesterday|today|this week|last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(query);
+      const isGenericQuery = !isRunQuery && !isNutritionQuery && !isBodyQuery && !isTrainingQuery;
+      
+      console.log('🔍 Query analysis:', {
+        query: messageContent.substring(0, 50) + '...',
+        isRunQuery,
+        isNutritionQuery, 
+        isBodyQuery,
+        isTrainingQuery,
+        isSpecificDateQuery,
+        isGenericQuery
+      });
+
       const runActivities = recentActivities.filter(a => a.is_run_activity);
       const trainingAnalysis = userData?.trainingAnalysis;
       const currentBody = userData?.currentBody;
       
-      // Load detailed run data for AI analysis
-      const detailedRunData = await Promise.all(
-        runActivities.slice(0, 5).map(async (run) => {
-          try {
-            const response = await fetch(`/api/strava-detail?activityId=${run.id}&userId=mihir_jain`);
-            if (response.ok) {
-              const detail = await response.json();
-              return { ...run, detail };
+      // Conditionally load detailed run data only if needed
+      let detailedRunData: any[] = [];
+      if (isRunQuery || isTrainingQuery) {
+        const runsToAnalyze = isSpecificDateQuery ? runActivities.slice(0, 2) : runActivities.slice(0, 5);
+        detailedRunData = await Promise.all(
+          runsToAnalyze.map(async (run) => {
+            try {
+              const response = await fetch(`/api/strava-detail?activityId=${run.id}&userId=mihir_jain`);
+              if (response.ok) {
+                const detail = await response.json();
+                return { ...run, detail };
+              }
+            } catch (error) {
+              console.log(`Could not load detailed data for run ${run.id}`);
             }
-          } catch (error) {
-            console.log(`Could not load detailed data for run ${run.id}`);
-          }
-          return { ...run, detail: null };
-        })
-      );
+            return { ...run, detail: null };
+          })
+        );
+        console.log(`📊 Loaded detailed data for ${detailedRunData.length} runs`);
+      }
       
-      // UPDATED: Comprehensive system context with km-by-km data for better coaching decisions
-      const systemContext = `
-CRITICAL INSTRUCTION: You are an advanced AI running coach with access to REAL training data, detailed km-by-km performance data, and current body composition. You MUST use this data to make informed coaching decisions.
+      // Build conditional system context based on query type
+      let systemContext = `
+CRITICAL INSTRUCTION: You are an advanced AI running and health coach. Answer the user's specific question using only relevant data provided below.
+
+USER QUERY TYPE: ${isGenericQuery ? 'General/Generic' : [
+  isRunQuery && 'Running/Performance',
+  isNutritionQuery && 'Nutrition', 
+  isBodyQuery && 'Body/Health',
+  isTrainingQuery && 'Training/Fitness'
+].filter(Boolean).join(', ')}`;
+
+      // Add body data for body/health queries or when relevant
+      if (isBodyQuery || isTrainingQuery || isRunQuery) {
+        systemContext += `
 
 === CURRENT BODY COMPOSITION & HEALTH (June 15, 2025) ===
 Weight: ${currentBody?.weight}kg (was 72.9kg in April - SIGNIFICANT IMPROVEMENT)
@@ -1336,7 +1369,12 @@ LDL Cholesterol: ${currentBody?.ldl} mg/dL (was 96 - IMPROVED)
 HbA1c: ${currentBody?.hba1c}% (was 5.1% - slight increase, monitor)
 Glucose: ${currentBody?.glucose} mg/dL (was 89 - IMPROVED)
 Vitamin D: ${currentBody?.vitaminD} ng/mL (was 48.2 - GREAT IMPROVEMENT)
-Hemoglobin: ${currentBody?.hemoglobin} g/dL (was 16.3 - IMPROVED)
+Hemoglobin: ${currentBody?.hemoglobin} g/dL (was 16.3 - IMPROVED)`;
+      }
+
+      // Add detailed run data only for run/training queries
+      if ((isRunQuery || isTrainingQuery) && detailedRunData.length > 0) {
+        systemContext += `
 
 === DETAILED RUN ANALYSIS WITH KM-BY-KM DATA ===
 
@@ -1397,10 +1435,14 @@ ${detailedRunData
 
     return runAnalysis;
   })
-  .join('\n\n') || 'No runs recorded in the specified period'}
+  .join('\n\n')}`;
+      }
+
+      // Add training analysis for training queries
+      if (isTrainingQuery && trainingAnalysis) {
+        systemContext += `
 
 === TRAINING LOAD ANALYSIS ===
-${trainingAnalysis ? `
 Total Runs (${trainingAnalysis.dateRange}): ${trainingAnalysis.totalRuns}
 Weekly Distance: ${trainingAnalysis.weeklyDistance}km
 Hard vs Easy Ratio: ${trainingAnalysis.hardVsEasyRatio}% hard (ideal: ~20%)
@@ -1417,49 +1459,89 @@ ${Object.entries(trainingAnalysis.runTagDistribution)
   .join('\n')}
 
 SMART RECOMMENDATIONS:
-${trainingAnalysis.recommendations.join('\n')}
-` : 'No training analysis available - insufficient run data'}
+${trainingAnalysis.recommendations.join('\n')}`;
+      }
 
-RECENT NON-RUN ACTIVITIES (${userData?.dataDateRange || '7 days'}):
-${recentActivities
-  .filter(activity => !activity.is_run_activity)
-  .map((activity, index) => `Activity ${index + 1}: "${activity.name}" (${activity.type}) - ${activity.distance?.toFixed(2) || 0}km, ${Math.round(activity.duration || 0)}min, ${activity.average_heartrate || 'N/A'} bpm, ${activity.calories || activity.caloriesBurned || 0} cal`)
-  .join('\n') || 'No non-running activities recorded'}
+      // Add nutrition data only for nutrition queries
+      if (isNutritionQuery && nutritionDetails.length > 0) {
+        systemContext += `
 
-NUTRITION DATA (${userData?.dataDateRange || '7 days'}):
-${nutritionDetails.map(day => `${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${day.calories} calories, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat, ${day.fiber}g fiber`).join('\n') || 'No nutrition data logged'}
+=== NUTRITION DATA (${userData?.dataDateRange || '7 days'}) ===
+${nutritionDetails.map(day => `${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}: ${day.calories} calories, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat, ${day.fiber}g fiber`).join('\n')}
 
-AVERAGES (${userData?.dataDateRange || '7 days'}):
-- Nutrition: ${userData?.nutrition.avgCalories || 0} calories/day, ${userData?.nutrition.avgProtein || 0}g protein/day
-- Activity: ${userData?.activity.workoutsPerWeek || 0} workouts, ${userData?.activity.avgHeartRate || 0} bpm average heart rate
-- Calories burned per workout: ${userData?.activity.avgCaloriesBurned || 0} calories
+NUTRITION AVERAGES:
+- Calories: ${userData?.nutrition.avgCalories || 0}/day
+- Protein: ${userData?.nutrition.avgProtein || 0}g/day
+- Carbs: ${userData?.nutrition.avgCarbs || 0}g/day
+- Fat: ${userData?.nutrition.avgFat || 0}g/day`;
+      }
+
+      // Add basic activity summary for training queries
+      if (isTrainingQuery) {
+        const nonRunActivities = recentActivities.filter(a => !a.is_run_activity);
+        if (nonRunActivities.length > 0) {
+          systemContext += `
+
+=== OTHER ACTIVITIES (${userData?.dataDateRange || '7 days'}) ===
+${nonRunActivities.slice(0, 3).map((activity, index) => 
+  `${activity.name} (${activity.type}) - ${activity.distance?.toFixed(2) || 0}km, ${Math.round(activity.duration || 0)}min, ${activity.calories || 0} cal`
+).join('\n')}`;
+        }
+      }
+
+      // Add conditional response requirements based on query type
+      if (!isGenericQuery) {
+        systemContext += `
 
 === RESPONSE REQUIREMENTS ===
-1. ALWAYS reference the dramatic body composition improvements (25.7% to ${currentBody?.bodyFat}% body fat, 580g to ${currentBody?.visceralFatMass}g visceral fat)
-2. Celebrate the excellent HDL improvement (38 to ${currentBody?.hdl} mg/dL)
-3. Use detailed km-by-km data to make specific coaching recommendations about pace, heart rate, and effort distribution
-4. Reference run tags AND analyze performance patterns from detailed splits
-5. Use current body metrics when discussing health and fitness
-6. Acknowledge the 4.7kg weight loss as significant progress
-7. Use **bold** for key improvements and metrics
-8. Connect body improvements to training and nutrition habits
-9. Provide specific feedback on pacing strategy, heart rate management, and effort distribution using km-by-km data
+1. Answer ONLY what the user specifically asks about
+2. Use data from relevant sections above to provide specific, accurate information
+3. Do NOT mention body composition changes unless directly asked about weight/body fat
+4. Do NOT suggest additional training modalities (weight training, etc.) unless requested
+5. Keep response focused and concise - stick to the question asked
+6. Use **bold** for key metrics that directly answer the user's question`;
 
-COACHING FOCUS:
-- Celebrate major body composition wins
-- Use detailed run data to identify training patterns and areas for improvement
-- Analyze pace consistency, heart rate progression, and elevation response
-- Make specific recommendations based on km splits and HR zones
-- Connect detailed performance data to overall training load and recovery
-- Use best efforts and PR data to track progress and set goals
-- Emphasize the correlation between detailed training execution and body improvements
+        if (isRunQuery) {
+          systemContext += `
+7. Focus on running performance, pace, heart rate, or technique as asked
+8. Use km-by-km data only if question is about pace/effort distribution`;
+        }
+        
+        if (isNutritionQuery) {
+          systemContext += `
+7. Focus on nutrition/diet aspects as asked
+8. Use nutrition data to answer specific dietary questions`;
+        }
+        
+        if (isBodyQuery) {
+          systemContext += `
+7. Focus on body composition/health markers as asked
+8. Reference relevant body metrics only when directly related to the question`;
+        }
+        
+        if (isTrainingQuery) {
+          systemContext += `
+7. Focus on training load, recovery, or program structure as asked
+8. Use training analysis to answer questions about workout balance`;
+        }
 
-EXAMPLE RESPONSES:
-"Looking at your last tempo run, I see your **heart rate climbed from 155 bpm in km 1 to 168 bpm in km 4** - this suggests you started too fast. For your next tempo run, aim to hold **160-165 bpm consistently** across all kilometers. Your **body fat drop to ${currentBody?.bodyFat}%** shows your training intensity is working!"
+        systemContext += `
 
-"Your easy run shows excellent **heart rate discipline** - staying in the 135-145 bpm range for all 5km. This aerobic base building is directly contributing to your **HDL improvement from 38 to ${currentBody?.hdl} mg/dL**."
+EXAMPLES OF FOCUSED RESPONSES:
+- Q: "What was my pace in km 3?" A: "In km 3, you ran **5:25 pace** with a heart rate of **162 bpm**."
+- Q: "How many calories did I eat yesterday?" A: "Yesterday you consumed **2,340 calories** with **98g protein**."
+- Q: "Am I overtraining?" A: "Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio}%** - ideal is around 20%, so consider adding more easy runs."
+- Q: "What's a good warm-up?" A: "Start with 5-10 minutes easy jogging, then dynamic stretches like leg swings and butt kicks."`;
 
-Remember: Use DETAILED km-by-km data to provide specific, actionable coaching advice while celebrating body composition progress.`;
+      } else {
+        systemContext += `
+
+=== RESPONSE REQUIREMENTS ===
+1. Answer the general question helpfully without referencing specific personal data
+2. Keep response relevant to the query asked
+3. Provide practical, actionable advice for the topic
+4. Do NOT mention personal metrics unless directly relevant to the general question`;
+      }
 
       const conversationMessages = [
         { 
@@ -1473,14 +1555,20 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
         { role: "user", content: messageContent }
       ];
 
-      console.log('📤 Sending COMPREHENSIVE system context with detailed km-by-km run analysis:', {
+      console.log('📤 Sending SMART context based on query analysis:', {
+        queryType: isGenericQuery ? 'Generic' : [
+          isRunQuery && 'Running',
+          isNutritionQuery && 'Nutrition', 
+          isBodyQuery && 'Body',
+          isTrainingQuery && 'Training'
+        ].filter(Boolean).join('+'),
         systemContextLength: systemContext.length,
         totalMessages: conversationMessages.length,
-        runCount: runActivities.length,
-        detailedRunsLoaded: detailedRunData.filter(r => r.detail).length,
-        bodyDataIncluded: !!currentBody,
-        dateRange: userData?.dataDateRange || '7 days',
-        trainingStress: trainingAnalysis?.trainingStress || 'none'
+        detailedRunsLoaded: detailedRunData.length,
+        bodyDataIncluded: isBodyQuery || isTrainingQuery || isRunQuery,
+        nutritionDataIncluded: isNutritionQuery,
+        runDataIncluded: isRunQuery || isTrainingQuery,
+        trainingAnalysisIncluded: isTrainingQuery
       });
       
       const response = await fetch('/api/chat', {
@@ -1490,8 +1578,27 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
         },
         body: JSON.stringify({
           userId: userId,
-          source: "smart_health_chat_v6_updated_body_data",
-          userData: { systemContext, trainingAnalysis, currentBody },
+          source: "smart_health_chat_v7_conditional_data",
+          userData: { 
+            systemContext, 
+            trainingAnalysis, 
+            currentBody,
+            queryAnalysis: {
+              type: isGenericQuery ? 'generic' : 'specific',
+              categories: [
+                isRunQuery && 'running',
+                isNutritionQuery && 'nutrition', 
+                isBodyQuery && 'body',
+                isTrainingQuery && 'training'
+              ].filter(Boolean),
+              dataIncluded: {
+                detailedRuns: detailedRunData.length,
+                bodyData: isBodyQuery || isTrainingQuery || isRunQuery,
+                nutrition: isNutritionQuery,
+                training: isTrainingQuery
+              }
+            }
+          },
           messages: conversationMessages.slice(-10),
           sessionId: sessionId,
           useSystemContext: true
@@ -1641,7 +1748,7 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
             🤖 Let's Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            AI running coach with detailed km-by-km analysis & current body data
+            AI running coach with smart query detection & conditional data loading
           </p>
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <Badge variant="secondary" className="text-xs">
@@ -1755,7 +1862,7 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
                         <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 shadow-sm">
                           <div className="flex items-center gap-2">
                             <Bot className="h-4 w-4 text-teal-500" />
-                            <span className="text-sm text-teal-700">Analyzing detailed km-by-km data & body metrics</span>
+                            <span className="text-sm text-teal-700">Smart analysis - loading relevant data only</span>
                             <div className="flex gap-1">
                               <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
                               <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce delay-100"></div>
@@ -1773,7 +1880,7 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
                   <div className="border-t border-gray-100 p-4">
                     <div className="flex gap-3">
                       <Input
-                        placeholder="Ask about pace analysis, heart rate zones, km splits, body progress, or training recommendations..."
+                        placeholder="Ask anything - I'll load only the data relevant to your question..."
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
@@ -1932,11 +2039,11 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
                     Updated AI Capabilities
                   </h4>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <p>🏃 **Detailed Run Analysis**: Km-by-km pace, heart rate, elevation, and effort distribution analysis</p>
-                    <p>🎯 **Smart Coaching**: Specific recommendations based on detailed performance patterns</p>
+                    <p>🧠 **Smart Query Detection**: Only loads relevant data based on what you ask</p>
+                    <p>🏃 **Detailed Run Analysis**: Km-by-km pace, HR, elevation when needed</p>
+                    <p>🎯 **Conditional Data Loading**: Efficient, targeted responses</p>
                     <p>📊 **Current Body Data**: Weight, body fat, blood markers from June 15, 2025</p>
                     <p>🏷️ **Run Tag Analysis**: 🚶 Easy, 💙 Recovery, 🏃 Long, ⚡ Tempo, 🔥 Intervals, ⛰️ Hill-repeats</p>
-                    <p>📅 **Configurable Date Ranges**: Set custom periods for nutrition and activity analysis</p>
                     <p>💾 **Session Persistence**: Conversations saved and restored automatically</p>
                   </div>
                 </div>
@@ -1950,7 +2057,7 @@ Remember: Use DETAILED km-by-km data to provide specific, actionable coaching ad
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-            <span>Enhanced AI coach with detailed km-by-km analysis & current body data</span>
+            <span>AI coach with smart query detection & conditional data loading</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4 text-purple-500" />
