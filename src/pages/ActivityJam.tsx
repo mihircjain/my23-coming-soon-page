@@ -1,4 +1,4 @@
-// ActivityJam.tsx - Updated with Detailed Run Analysis
+// ActivityJam.tsx - FULLY OPTIMIZED: Cache-first, minimal API calls, chart caching, no calorie estimation
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X, TrendingUp, MapPin, Timer, Target, Route, ChevronRight } from "lucide-react";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Chart from 'chart.js/auto';
 
-// Run tag types - Updated with green/blue theme
+// Run tag types
 type RunTag = 'easy' | 'tempo' | 'long' | 'recovery' | 'intervals' | 'hill-repeats';
 
 interface RunTagOption {
@@ -135,10 +135,23 @@ const RunDetailModal = ({ activity, onClose }: { activity: ActivityData; onClose
       const response = await fetch(`/api/strava-detail?activityId=${activity.id}&userId=mihir_jain`);
       
       if (!response.ok) {
-        throw new Error(`Failed to load run details: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (response.status === 429 || errorData.isRateLimit) {
+          throw new Error('Strava API rate limit reached. Detailed analysis temporarily unavailable. Please try again in 15 minutes.');
+        }
+        
+        throw new Error(errorData.message || `Failed to load run details: ${response.status}`);
       }
       
       const detail = await response.json();
+      
+      // Check if this is rate-limited basic data
+      if (detail.rate_limited) {
+        console.log('⚠️ Received rate-limited data - showing basic analysis only');
+        setError('⚠️ Showing basic analysis - detailed data temporarily unavailable due to API limits');
+      }
+      
       setRunDetail(detail);
       
       // Create charts with a small delay
@@ -299,7 +312,7 @@ const RunDetailModal = ({ activity, onClose }: { activity: ActivityData; onClose
     const ctx = elevationChartRef.current.getContext('2d');
     if (!ctx) return;
 
-    const distances = streams.distance.map((d: number) => d / 1000); // Convert to km
+    const distances = streams.distance.map((d: number) => d / 1000);
     const elevations = streams.altitude;
 
     try {
@@ -484,10 +497,12 @@ const RunDetailModal = ({ activity, onClose }: { activity: ActivityData; onClose
                         <span className="font-medium">{activity.max_heartrate} bpm</span>
                       </div>
                     )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Calories:</span>
-                      <span className="font-medium">{activity.calories || 'N/A'}</span>
-                    </div>
+                    {activity.calories > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Calories:</span>
+                        <span className="font-medium">{activity.calories}</span>
+                      </div>
+                    )}
                     {runDetail.gear && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Shoes:</span>
@@ -692,14 +707,14 @@ const ActivityJam = () => {
   const distanceChartRef = useRef<HTMLCanvasElement>(null);
   const heartRateChartRef = useRef<HTMLCanvasElement>(null);
 
-  // Chart instances - simplified management
+  // Chart instances
   const chartInstances = useRef<{ [key: string]: Chart | null }>({
     calories: null,
     distance: null,
     heartRate: null
   });
 
-  // Simplified chart data state
+  // Chart data state
   const [chartData, setChartData] = useState<{
     calories: number[];
     distance: number[];
@@ -749,29 +764,6 @@ const ActivityJam = () => {
     if (avgHR && avgHR >= 155 && avgHR <= 170 && distance >= 5) return 'tempo';
 
     return 'easy';
-  };
-
-  // Load run tags from API
-  const loadRunTags = async (activityIds: string[]) => {
-    try {
-      const response = await fetch('/api/run-tags', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load run tags');
-      }
-
-      const data = await response.json();
-      console.log('📥 Loaded run tags from API:', data);
-      return data;
-    } catch (error) {
-      console.error('❌ Error loading run tags:', error);
-      return {};
-    }
   };
 
   // Save run tag to API
@@ -855,7 +847,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Process activities data for charts (no caching, direct processing)
+  // Process activities data for charts
   const processChartData = (activities: ActivityData[]) => {
     console.log('📊 Processing chart data for', activities.length, 'activities');
     
@@ -937,7 +929,7 @@ const ActivityJam = () => {
     };
   };
 
-  // Create calories chart - Updated with green theme
+  // Create calories chart
   const createCaloriesChart = (data: any) => {
     if (!caloriesChartRef.current || !data) return;
 
@@ -959,7 +951,7 @@ const ActivityJam = () => {
           datasets: [{
             label: 'Calories Burned',
             data: data.calories,
-            borderColor: 'rgb(34, 197, 94)', // green-500
+            borderColor: 'rgb(34, 197, 94)',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',
             borderWidth: 2,
             fill: true,
@@ -993,7 +985,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Create distance chart - Updated with blue theme
+  // Create distance chart
   const createDistanceChart = (data: any) => {
     if (!distanceChartRef.current || !data) return;
 
@@ -1015,7 +1007,7 @@ const ActivityJam = () => {
           datasets: [{
             label: 'Distance (km)',
             data: data.distance,
-            backgroundColor: 'rgba(59, 130, 246, 0.8)', // blue-500
+            backgroundColor: 'rgba(59, 130, 246, 0.8)',
             borderColor: 'rgb(59, 130, 246)',
             borderWidth: 1,
             borderRadius: 4
@@ -1046,7 +1038,7 @@ const ActivityJam = () => {
     }
   };
 
-  // Create heart rate chart - Updated with teal theme
+  // Create heart rate chart
   const createHeartRateChart = (data: any) => {
     if (!heartRateChartRef.current || !data) return;
 
@@ -1068,7 +1060,7 @@ const ActivityJam = () => {
           datasets: [{
             label: 'Heart Rate (bpm)',
             data: data.heartRate,
-            borderColor: 'rgb(20, 184, 166)', // teal-500
+            borderColor: 'rgb(20, 184, 166)',
             backgroundColor: 'rgba(20, 184, 166, 0.1)',
             borderWidth: 2,
             fill: true,
@@ -1102,37 +1094,74 @@ const ActivityJam = () => {
     }
   };
 
-  // Create all charts directly
-  const createCharts = (activities: ActivityData[]) => {
-    console.log('📊 Creating charts for', activities.length, 'activities');
+  // OPTIMIZED: Load cached chart data or create new charts
+  const loadOrCreateCharts = async (activities: ActivityData[], forceRecreate = false) => {
+    console.log('📊 Loading or creating charts...');
     
-    // Destroy existing charts first
-    destroyCharts();
-    
-    // Process data
-    const processedData = processChartData(activities);
-    if (!processedData) {
-      console.log('📊 No data to create charts');
-      return;
+    if (!forceRecreate) {
+      // Try to load cached chart data first
+      try {
+        const chartCacheResponse = await fetch('/api/chart-cache?userId=mihir_jain');
+        
+        if (chartCacheResponse.ok) {
+          const cachedChartData = await chartCacheResponse.json();
+          console.log(`📊 Using cached chart data (${cachedChartData.age})`);
+          
+          setChartData(cachedChartData);
+          
+          // Create charts with cached data immediately
+          setTimeout(() => {
+            if (cachedChartData) {
+              createCaloriesChart(cachedChartData);
+              createDistanceChart(cachedChartData);
+              createHeartRateChart(cachedChartData);
+            }
+          }, 100);
+          
+          return; // Use cached charts
+        }
+      } catch (cacheError) {
+        console.log('📊 No cached chart data available, creating fresh charts');
+      }
     }
-
-    // Set chart data state
-    setChartData(processedData);
-
-    // Create charts with a small delay to ensure DOM is ready
-    setTimeout(() => {
-      createCaloriesChart(processedData);
-      createDistanceChart(processedData);
-      createHeartRateChart(processedData);
-    }, 100);
+    
+    // Create fresh charts and cache them
+    console.log('📊 Creating fresh charts...');
+    const processedData = processChartData(activities);
+    
+    if (processedData) {
+      setChartData(processedData);
+      
+      // Create charts
+      setTimeout(() => {
+        createCaloriesChart(processedData);
+        createDistanceChart(processedData);
+        createHeartRateChart(processedData);
+      }, 100);
+      
+      // Cache the chart data for future use
+      try {
+        await fetch('/api/chart-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chartData: processedData,
+            generatedAt: new Date().toISOString()
+          })
+        });
+        console.log('📊 Chart data cached successfully');
+      } catch (cacheError) {
+        console.error('❌ Failed to cache chart data:', cacheError);
+      }
+    }
   };
 
-  // Fetch activities with simplified approach
-  const fetchActivities = async (refreshMode: 'default' | 'today' | '30days' = 'default') => {
+  // Fetch activities with OPTIMIZED cache-first approach
+  const fetchActivities = async (refreshMode: 'cached' | 'today' | 'refresh' = 'cached') => {
     try {
-      if (refreshMode !== 'default') {
+      if (refreshMode !== 'cached') {
         setRefreshing(true);
-        setRefreshType(refreshMode);
+        setRefreshType(refreshMode === 'today' ? 'today' : '30days');
       } else {
         setLoading(true);
       }
@@ -1140,25 +1169,22 @@ const ActivityJam = () => {
       setError('');
       
       const params = new URLSearchParams({
-        userId: 'mihir_jain'
+        userId: 'mihir_jain',
+        mode: refreshMode
       });
 
       // Different refresh strategies
       if (refreshMode === 'today') {
-        params.set('mode', 'today');
-        params.set('refresh', 'true');
         params.set('timestamp', Date.now().toString());
-        console.log('🔄 Today refresh');
-      } else if (refreshMode === '30days') {
-        params.set('days', '30');
+        console.log('📅 Today refresh mode');
+      } else if (refreshMode === 'refresh') {
         params.set('refresh', 'true');
+        params.set('days', '30');
         params.set('preserveTags', 'true');
         params.set('timestamp', Date.now().toString());
-        console.log('🔄 30-day refresh');
+        console.log('🔄 Full refresh mode');
       } else {
-        params.set('mode', 'daily');
-        params.set('maxAge', '24');
-        console.log('⚡ Daily mode');
+        console.log('⚡ Cache-first mode (instant loading)');
       }
       
       const apiUrl = `/api/strava?${params.toString()}`;
@@ -1167,13 +1193,26 @@ const ActivityJam = () => {
       const response = await fetch(apiUrl);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error Response:', errorText);
-        throw new Error(`Failed to fetch activities: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (response.status === 404 && errorData.recommendRefresh) {
+          console.log('📦 No cached data - need initial refresh');
+          setError('No data available. Click "Refresh 30 Days" to load your activities.');
+          return;
+        }
+        
+        throw new Error(errorData.message || `Failed to fetch activities: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📊 Raw API data received:', data?.length, 'activities');
+      console.log('📊 Data received:', data?.length, 'activities');
+      
+      // Log performance info from headers
+      const dataSource = response.headers.get('X-Data-Source');
+      const apiCalls = response.headers.get('X-API-Calls');
+      const isRateLimited = response.headers.get('X-Rate-Limited');
+      
+      console.log(`📈 Performance: Source=${dataSource}, API calls=${apiCalls}${isRateLimited ? ', Rate Limited' : ''}`);
       
       if (!Array.isArray(data)) {
         console.error('❌ Expected array but got:', typeof data, data);
@@ -1200,7 +1239,7 @@ const ActivityJam = () => {
           has_heartrate: activity.has_heartrate || false,
           average_heartrate: activity.average_heartrate || activity.heart_rate,
           max_heartrate: activity.max_heartrate,
-          calories: activity.calories || 0,
+          calories: activity.calories || 0, // Use Strava calories directly
           is_run_activity: isRun
         };
 
@@ -1215,31 +1254,19 @@ const ActivityJam = () => {
         new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
       );
 
-      // Load and apply saved tags
-      const runActivities = sortedActivities.filter(a => a.is_run_activity);
-      if (runActivities.length > 0) {
-        console.log(`🏷️ Loading saved tags for ${runActivities.length} run activities`);
-        const savedTags = await loadRunTags(runActivities.map(a => a.id));
-        
-        sortedActivities.forEach(activity => {
-          if (activity.is_run_activity && savedTags[activity.id]) {
-            activity.run_tag = savedTags[activity.id];
-          }
-        });
-      }
-
       console.log('🏃 Processing complete:', {
         mode: refreshMode,
         totalActivities: sortedActivities.length,
         runActivities: sortedActivities.filter(a => a.is_run_activity).length,
-        taggedRuns: sortedActivities.filter(a => a.is_run_activity && a.run_tag).length
+        dataSource,
+        apiCallsUsed: apiCalls || '0'
       });
 
       setActivities(sortedActivities);
       setLastUpdate(new Date().toLocaleTimeString());
       
-      // Create charts directly
-      createCharts(sortedActivities);
+      // Try to load cached chart data first, then create if needed
+      await loadOrCreateCharts(sortedActivities, dataSource === 'strava-api');
 
     } catch (error) {
       console.error('❌ Error fetching activities:', error);
@@ -1256,16 +1283,16 @@ const ActivityJam = () => {
   };
 
   const handleRefresh30Days = async () => {
-    await fetchActivities('30days');
+    await fetchActivities('refresh');
   };
 
   const handleRefresh = async () => {
-    await fetchActivities('30days');
+    await fetchActivities('refresh');
   };
 
-  // Load on mount
+  // Load on mount - OPTIMIZED: Cache-first for instant loading
   useEffect(() => {
-    fetchActivities('default');
+    fetchActivities('cached'); // Start with cached data for instant loading
     
     // Cleanup charts on unmount
     return () => {
@@ -1338,7 +1365,7 @@ const ActivityJam = () => {
         />
       )}
 
-      {/* Background decoration - Updated with green/blue theme */}
+      {/* Background decoration */}
       <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
       <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
       <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
@@ -1357,9 +1384,10 @@ const ActivityJam = () => {
               variant="outline"
               disabled={refreshing}
               className="hover:bg-white/20"
+              title="Quick refresh - only checks for today's new activities (1 API call)"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === 'today' ? 'animate-spin' : ''}`} />
-              {refreshing && refreshType === 'today' ? 'Refreshing...' : 'Refresh Today'}
+              {refreshing && refreshType === 'today' ? 'Checking Today...' : 'Refresh Today'}
             </Button>
             
             <Button 
@@ -1367,9 +1395,10 @@ const ActivityJam = () => {
               variant="outline"
               disabled={refreshing}
               className="hover:bg-white/20"
+              title="Full refresh - fetches all activities from last 30 days (1 API call)"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === '30days' ? 'animate-spin' : ''}`} />
-              {refreshing && refreshType === '30days' ? 'Refreshing...' : 'Refresh 30 Days'}
+              {refreshing && refreshType === '30days' ? 'Refreshing All...' : 'Refresh 30 Days'}
             </Button>
           </div>
         </div>
@@ -1379,11 +1408,11 @@ const ActivityJam = () => {
             Activity Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Your recent workouts and activities from Strava with smart run tagging and detailed analysis
+            Your recent workouts and activities from Strava with optimized loading, smart run tagging and detailed analysis
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Click runs for detailed analysis • Reliable loading
+              Last updated: {lastUpdate} • Instant cache-first loading • Click runs for detailed analysis
             </p>
           )}
         </div>
@@ -1425,29 +1454,44 @@ const ActivityJam = () => {
                 </Card>
               ))}
             </div>
+            
+            {/* Loading message */}
+            <div className="text-center py-4">
+              <p className="text-gray-600">Loading your cached activities...</p>
+              <p className="text-sm text-gray-500 mt-1">This should be fast! ⚡</p>
+            </div>
           </div>
         ) : activities.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
               <Calendar className="h-16 w-16 mx-auto" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Recent Activities</h3>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Activities Found</h3>
             <p className="text-gray-600 mb-4">
-              No activities found in recent data. Try a full refresh to load all 30 days.
+              {error 
+                ? "Unable to load your activities. Please try refreshing." 
+                : "No cached activities available. Load your activities from Strava to get started."
+              }
             </p>
-            <Button onClick={handleRefresh30Days} disabled={refreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh 30 Days'}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button onClick={handleRefreshToday} disabled={refreshing} variant="outline">
+                <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === 'today' ? 'animate-spin' : ''}`} />
+                {refreshing && refreshType === 'today' ? 'Loading Today...' : 'Load Today'}
+              </Button>
+              <Button onClick={handleRefresh30Days} disabled={refreshing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === '30days' ? 'animate-spin' : ''}`} />
+                {refreshing && refreshType === '30days' ? 'Loading 30 Days...' : 'Load 30 Days'}
+              </Button>
+            </div>
             {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg max-w-md mx-auto">
                 <p className="text-red-600 text-sm">{error}</p>
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Simplified Charts Section */}
+            {/* Charts Section */}
             <section>
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
@@ -1456,19 +1500,19 @@ const ActivityJam = () => {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <div className={`w-2 h-2 rounded-full ${chartData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                  <span>{chartData ? 'Charts loaded' : 'Loading charts...'}</span>
+                  <span>{chartData ? 'Charts ready (cached)' : 'Loading charts...'}</span>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Calories Chart - Updated with green theme */}
+                {/* Calories Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                       <Zap className="h-5 w-5 mr-2 text-green-500" />
                       Calories Burned
                     </CardTitle>
-                    <p className="text-xs text-gray-600">Daily totals from Strava</p>
+                    <p className="text-xs text-gray-600">Daily totals from Strava (when available)</p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-64 relative">
@@ -1486,7 +1530,7 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                {/* Distance Chart - Updated with blue theme */}
+                {/* Distance Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
@@ -1511,7 +1555,7 @@ const ActivityJam = () => {
                   </CardContent>
                 </Card>
 
-                {/* Heart Rate Chart - Updated with teal theme */}
+                {/* Heart Rate Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
@@ -1538,7 +1582,7 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* Quick Stats - Updated with green/blue theme */}
+            {/* Quick Stats */}
             <section>
               <div className="flex items-center mb-6">
                 <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
@@ -1552,7 +1596,7 @@ const ActivityJam = () => {
                       {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
                     </div>
                     <div className="text-sm text-gray-600">Total Calories</div>
-                    <div className="text-xs text-gray-500 mt-1">From Strava</div>
+                    <div className="text-xs text-gray-500 mt-1">From Strava (when available)</div>
                   </CardContent>
                 </Card>
 
@@ -1765,7 +1809,7 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* Summary Stats - Updated with green/blue theme */}
+            {/* Summary Stats */}
             <section>
               <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
                 <CardHeader>
@@ -1786,7 +1830,7 @@ const ActivityJam = () => {
                       <div className="text-2xl font-bold text-blue-600">
                         {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
                       </div>
-                      <div className="text-xs text-gray-600">Total calories burned</div>
+                      <div className="text-xs text-gray-600">Total calories (from Strava)</div>
                     </div>
                     <div className="p-3 bg-white/60 rounded-lg text-center">
                       <div className="text-2xl font-bold text-emerald-600">
@@ -1835,7 +1879,7 @@ const ActivityJam = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>⚡ Simplified reliable charts</span>
+            <span>⚡ Optimized cache-first loading</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Tag className="h-4 w-4" />
@@ -1852,6 +1896,10 @@ const ActivityJam = () => {
             <div className="flex items-center gap-1">
               <div className={`w-2 h-2 rounded-full ${chartData ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}></div>
               <span className="text-xs">{chartData ? 'Charts Ready' : 'Loading Charts'}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <span className="text-xs">Minimal API Usage</span>
             </div>
           </div>
         </div>
