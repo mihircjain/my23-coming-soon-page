@@ -842,7 +842,7 @@ const LetsJam: React.FC = () => {
       const welcomeMessages = [
         {
           role: 'assistant' as const,
-          content: 'Hi! I\'m your AI health coach with smart query detection. I only load the data relevant to your specific questions - detailed km-by-km run analysis for performance queries, body composition data for health questions, nutrition data for diet questions, or general guidance for training questions. I can track your amazing progress (body fat: 25.7% → 21.2%!) and provide targeted advice. What would you like to explore?',
+          content: 'Hi! I\'m your AI health coach with access to your training data, body metrics, and nutrition logs. I can analyze your runs, track your progress, and provide personalized recommendations. What would you like to know?',
           timestamp: new Date()
         }
       ];
@@ -1504,8 +1504,13 @@ ${nonRunActivities.slice(0, 3).map((activity, index) =>
 
         if (isRunQuery) {
           systemContext += `
-7. Focus on running performance, pace, heart rate, or technique as asked
-8. Use km-by-km data only if question is about pace/effort distribution`;
+7. For run queries, ALWAYS provide:
+   - Run tag and type (🚶 Easy, 💙 Recovery, etc.)
+   - Detailed km-by-km splits with pace, heart rate, and elevation when available
+   - Analysis of pace consistency, heart rate progression, and effort distribution
+   - Specific performance insights from the km-by-km data
+8. Do NOT give generic nutrition/hydration/weight training advice unless specifically asked
+9. Focus on analyzing the actual performance data from the splits provided`;
         }
         
         if (isNutritionQuery) {
@@ -1529,9 +1534,9 @@ ${nonRunActivities.slice(0, 3).map((activity, index) =>
         systemContext += `
 
 EXAMPLES OF FOCUSED RESPONSES:
-- Q: "What was my pace in km 3?" A: "In km 3, you ran **5:25 pace** with a heart rate of **162 bpm**."
+- Q: "analyze my run today" A: "Your 💙 Recovery run covered **5.33km** in **31min**. Km-by-km: Km1: 5:41 pace, 136bpm | Km2: 5:47, 147bpm | Km3: 5:50, 151bpm | Km4: 5:48, 157bpm | Km5: 5:46, 154bpm. **Analysis**: Excellent pace consistency (5:41-5:50 range) with controlled heart rate progression - perfect execution for a recovery run."
+- Q: "give detailed" A: "**Detailed km-by-km breakdown**: [show all splits with pace, HR, elevation] **Performance Analysis**: Your heart rate increased gradually from 136 to 157bpm, indicating proper warm-up. Pace stayed consistent around 5:45/km showing good control."
 - Q: "How many calories did I eat yesterday?" A: "Yesterday you consumed **2,340 calories** with **98g protein**."
-- Q: "Am I overtraining?" A: "Your hard:easy ratio is **${trainingAnalysis?.hardVsEasyRatio}%** - ideal is around 20%, so consider adding more easy runs."
 - Q: "What's a good warm-up?" A: "Start with 5-10 minutes easy jogging, then dynamic stretches like leg swings and butt kicks."`;
 
       } else {
@@ -1567,7 +1572,7 @@ EXAMPLES OF FOCUSED RESPONSES:
         totalMessages: conversationMessages.length,
         detailedRunsLoaded: detailedRunData.length,
         bodyDataIncluded: isBodyQuery || isTrainingQuery || isRunQuery,
-        nutritionDataIncluded: isNutritionQuery,
+        nutritionDataIncluded: isNutritionQuery || isTrainingQuery || isRunQuery,
         runDataIncluded: isRunQuery || isTrainingQuery,
         trainingAnalysisIncluded: isTrainingQuery
       });
@@ -1857,17 +1862,17 @@ EXAMPLES OF FOCUSED RESPONSES:
                       </div>
                     ))}
                     
-                    {/* Enhanced typing indicator - Updated with green/blue theme */}
+                    {/* Concise typing indicator */}
                     {isTyping && (
                       <div className="flex justify-start">
-                        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-4 shadow-sm">
+                        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-3 shadow-sm">
                           <div className="flex items-center gap-2">
                             <Bot className="h-4 w-4 text-teal-500" />
-                            <span className="text-sm text-teal-700">Smart analysis - loading relevant data only</span>
+                            <span className="text-sm text-teal-700">Analyzing...</span>
                             <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce delay-200"></div>
+                              <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce"></div>
+                              <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-200"></div>
                             </div>
                           </div>
                         </div>
@@ -1881,7 +1886,7 @@ EXAMPLES OF FOCUSED RESPONSES:
                   <div className="border-t border-gray-100 p-4">
                     <div className="flex gap-3">
                       <Input
-                        placeholder="Ask anything - I'll load only the data relevant to your question..."
+                        placeholder="Ask me about your runs, nutrition, body metrics, or training..."
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
@@ -2058,7 +2063,7 @@ EXAMPLES OF FOCUSED RESPONSES:
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-            <span>AI coach with smart query detection & conditional data loading</span>
+            <span>            AI health coach with smart data analysis</span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
               <Heart className="h-4 w-4 text-purple-500" />
