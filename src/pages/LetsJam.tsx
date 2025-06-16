@@ -1297,8 +1297,9 @@ const LetsJam: React.FC = () => {
     try {
       const query = messageContent.toLowerCase();
       
-      // Analyze what type of query this is
-      const isRunQuery = /\b(run|running|pace|km|kilometer|tempo|easy|interval|jog|sprint|marathon|5k|10k)\b/i.test(query);
+      // Analyze what type of query this is - ENHANCED detection
+      const isRunQuery = /\b(run|running|pace|km|kilometer|tempo|easy|interval|jog|sprint|marathon|5k|10k|today|yesterday|last|recent|this morning|this week)\b/i.test(query) ||
+                        /\b(how was|how did|analyze|tell me|splits|heart rate|hr|bpm)\b/i.test(query);
       const isNutritionQuery = /\b(eat|food|nutrition|calorie|protein|carb|fat|meal|diet|macro)\b/i.test(query);
       const isBodyQuery = /\b(body|weight|fat|composition|muscle|lean|mass|hdl|ldl|cholesterol|blood|marker)\b/i.test(query);
       const isTrainingQuery = /\b(train|training|workout|exercise|fitness|recovery|load|stress|overtraining)\b/i.test(query);
@@ -1462,8 +1463,8 @@ SMART RECOMMENDATIONS:
 ${trainingAnalysis.recommendations.join('\n')}`;
       }
 
-      // Add nutrition data only for nutrition queries
-      if (isNutritionQuery && nutritionDetails.length > 0) {
+      // Add nutrition data for nutrition queries AND training/run queries (since nutrition affects performance)
+      if ((isNutritionQuery || isTrainingQuery || isRunQuery) && nutritionDetails.length > 0) {
         systemContext += `
 
 === NUTRITION DATA (${userData?.dataDateRange || '7 days'}) ===
@@ -1594,7 +1595,7 @@ EXAMPLES OF FOCUSED RESPONSES:
               dataIncluded: {
                 detailedRuns: detailedRunData.length,
                 bodyData: isBodyQuery || isTrainingQuery || isRunQuery,
-                nutrition: isNutritionQuery,
+                nutrition: isNutritionQuery || isTrainingQuery || isRunQuery,
                 training: isTrainingQuery
               }
             }
