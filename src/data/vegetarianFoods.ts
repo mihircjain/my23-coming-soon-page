@@ -338,12 +338,12 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Walnut",
-    servingSize: "6g",
-    calories: 40,
-    protein: 0.9,
-    carbs: 0.6,
-    fat: 3.9,
-    fiber: 0.3
+    servingSize: "9g",
+    calories: 60,
+    protein: 1.3,
+    carbs: 0.9,
+    fat: 5.8,
+    fiber: 0.5
   },
   {
     name: "Raw Whey Protein, Unflavoured",
@@ -356,21 +356,21 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Almonds",
-    servingSize: "6g",
-    calories: 37,
-    protein: 1.3,
-    carbs: 1.3,
-    fat: 3.0,
-    fiber: 0.8
+    servingSize: "9g",
+    calories: 56,
+    protein: 1.9,
+    carbs: 1.9,
+    fat: 4.5,
+    fiber: 1.1
   },
   {
     name: "Nutty Gritties Super Seeds Mix",
-    servingSize: "9g",
-    calories: 64,
-    protein: 2.4,
-    carbs: 1.1,
-    fat: 4.9,
-    fiber: 1.6
+    servingSize: "15g",
+    calories: 107,
+    protein: 4,
+    carbs: 1.9,
+    fat: 8.2,
+    fiber: 2.7
   },
   {
     name: "Skyr High Protein Yogurt, Milky Mist",
