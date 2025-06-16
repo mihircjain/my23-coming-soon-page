@@ -1,28 +1,4 @@
-{userData?.bloodMarkers && Object.keys(userData.bloodMarkers).length > 0 && (
-        <Card className="bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 border-teal-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-teal-700 flex items-center gap-2">
-              <Droplet className="h-4 w-4 text-teal-500" />
-              Blood Markers
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(userData.bloodMarkers).slice(0, 4).map(([key, value]) => (
-                <div key={key} className="text-center bg-teal-50/50 p-2 rounded border border-teal-100">
-                  <div className="text-xs font-medium text-teal-600 uppercase truncate">{key}</div>
-                  <div className="text-sm font-semibold text-teal-800">{value}</div>
-                </div>
-              ))}
-            </div>
-            {Object.keys(userData.bloodMarkers).length > 4 && (
-              <div className="text-center mt-2">
-                <span className="text-xs text-teal-500">+{Object.keys(userData.bloodMarkers).length - 4} more</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}// Enhanced LetsJam with FIXED Issues - Updated with Current Body Data
+// Enhanced LetsJam with FIXED Issues - Updated with Current Body Data
 // FIXES: 1) No detailed km-by-km data for runs 2) Configurable date ranges 3) Updated body parameters
 const userId = "mihir_jain";
 
@@ -902,7 +878,7 @@ const LetsJam: React.FC = () => {
     const welcomeMessages = [
       {
         role: 'assistant' as const,
-        content: 'Hi! I’m your AI running coach. I track every split, heart-rate zone, elevation change, and run tag. Where should we dive in—pacing, HR efficiency, effort consistency, or something else?',
+        content: 'Hi! I\'m your AI health coach with complete access to your detailed training data, including km-by-km pace analysis, heart rate zones, elevation profiles, run tags, and your latest body composition data. I can analyze your pacing strategy, heart rate distribution across kilometers, effort consistency, and track your amazing body fat improvements (from 25.7% to 21.2%). What specific aspect of your training or progress would you like to explore?',
         timestamp: new Date()
       }
     ];
