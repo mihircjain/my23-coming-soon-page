@@ -1,13 +1,15 @@
-// ActivityJam.tsx - Updated with Green/Blue Color Palette
+// ActivityJam.tsx - Updated with Detailed Run Analysis
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X } from "lucide-react";
+import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X, TrendingUp, MapPin, Timer, Target, Route, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Chart from 'chart.js/auto';
 
 // Run tag types - Updated with green/blue theme
@@ -47,6 +49,633 @@ interface ActivityData {
   run_tag?: RunTag;
 }
 
+// Detailed run analysis interface
+interface RunDetail {
+  id: string;
+  summary: ActivityData;
+  splits_metric?: Array<{
+    distance: number;
+    elapsed_time: number;
+    elevation_difference: number;
+    moving_time: number;
+    average_speed: number;
+    pace_zone?: number;
+    average_heartrate?: number;
+  }>;
+  laps?: Array<{
+    name: string;
+    distance: number;
+    moving_time: number;
+    elapsed_time: number;
+    average_speed: number;
+    max_speed: number;
+    average_heartrate?: number;
+    max_heartrate?: number;
+    total_elevation_gain: number;
+  }>;
+  best_efforts?: Array<{
+    name: string;
+    distance: number;
+    moving_time: number;
+    elapsed_time: number;
+    start_date_local: string;
+    pr_rank?: number;
+  }>;
+  zones?: Array<{
+    type: string;
+    distribution_buckets: Array<{
+      min: number;
+      max: number;
+      time: number;
+    }>;
+  }>;
+  gear?: {
+    id: string;
+    name: string;
+    distance: number;
+    brand_name?: string;
+    model_name?: string;
+  };
+  streams?: {
+    time?: number[];
+    distance?: number[];
+    heartrate?: number[];
+    velocity_smooth?: number[];
+    altitude?: number[];
+    grade_smooth?: number[];
+  };
+}
+
+// Detailed Run Analysis Modal Component
+const RunDetailModal = ({ activity, onClose }: { activity: ActivityData; onClose: () => void }) => {
+  const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
+  const [activeTab, setActiveTab] = useState("overview");
+  
+  // Chart refs for detailed analysis
+  const paceChartRef = useRef<HTMLCanvasElement>(null);
+  const hrChartRef = useRef<HTMLCanvasElement>(null);
+  const elevationChartRef = useRef<HTMLCanvasElement>(null);
+  
+  const chartInstances = useRef<{ [key: string]: Chart | null }>({
+    pace: null,
+    hr: null,
+    elevation: null
+  });
+
+  // Load detailed run data
+  const loadRunDetail = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      console.log(`🏃 Loading detailed analysis for run ${activity.id}`);
+      
+      const response = await fetch(`/api/strava-detail?activityId=${activity.id}&userId=mihir_jain`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load run details: ${response.status}`);
+      }
+      
+      const detail = await response.json();
+      setRunDetail(detail);
+      
+      // Create charts with a small delay
+      setTimeout(() => {
+        createDetailCharts(detail);
+      }, 100);
+      
+    } catch (error) {
+      console.error('❌ Error loading run detail:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load run details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Destroy all detail charts
+  const destroyDetailCharts = () => {
+    Object.values(chartInstances.current).forEach(chart => {
+      if (chart) {
+        chart.destroy();
+      }
+    });
+    chartInstances.current = {
+      pace: null,
+      hr: null,
+      elevation: null
+    };
+  };
+
+  // Create detailed analysis charts
+  const createDetailCharts = (detail: RunDetail) => {
+    destroyDetailCharts();
+    
+    if (detail.splits_metric && detail.splits_metric.length > 0) {
+      createPaceChart(detail.splits_metric);
+      createHRChart(detail.splits_metric);
+    }
+    
+    if (detail.streams && detail.streams.distance && detail.streams.altitude) {
+      createElevationChart(detail.streams);
+    }
+  };
+
+  // Create km-by-km pace chart
+  const createPaceChart = (splits: any[]) => {
+    if (!paceChartRef.current) return;
+    
+    const ctx = paceChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const labels = splits.map((_, index) => `km ${index + 1}`);
+    const paces = splits.map(split => {
+      const paceSeconds = split.moving_time;
+      const minutes = Math.floor(paceSeconds / 60);
+      const seconds = paceSeconds % 60;
+      return parseFloat(`${minutes}.${(seconds / 60 * 100).toFixed(0)}`);
+    });
+
+    try {
+      chartInstances.current.pace = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Pace (min/km)',
+            data: paces,
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false }
+            },
+            y: {
+              beginAtZero: false,
+              grid: { color: 'rgba(0,0,0,0.1)' },
+              ticks: {
+                callback: function(value: any) {
+                  const minutes = Math.floor(value);
+                  const seconds = Math.round((value - minutes) * 60);
+                  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error creating pace chart:', error);
+    }
+  };
+
+  // Create km-by-km heart rate chart
+  const createHRChart = (splits: any[]) => {
+    if (!hrChartRef.current || !splits.some(s => s.average_heartrate)) return;
+    
+    const ctx = hrChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const labels = splits.map((_, index) => `km ${index + 1}`);
+    const heartRates = splits.map(split => split.average_heartrate || 0);
+
+    try {
+      chartInstances.current.hr = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Heart Rate (bpm)',
+            data: heartRates,
+            borderColor: 'rgb(20, 184, 166)',
+            backgroundColor: 'rgba(20, 184, 166, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false }
+            },
+            y: {
+              beginAtZero: false,
+              grid: { color: 'rgba(0,0,0,0.1)' }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error creating HR chart:', error);
+    }
+  };
+
+  // Create elevation profile chart
+  const createElevationChart = (streams: any) => {
+    if (!elevationChartRef.current) return;
+    
+    const ctx = elevationChartRef.current.getContext('2d');
+    if (!ctx) return;
+
+    const distances = streams.distance.map((d: number) => d / 1000); // Convert to km
+    const elevations = streams.altitude;
+
+    try {
+      chartInstances.current.elevation = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: distances.map((d: number) => `${d.toFixed(1)}km`),
+          datasets: [{
+            label: 'Elevation (m)',
+            data: elevations,
+            borderColor: 'rgb(34, 197, 94)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.1,
+            pointRadius: 0,
+            pointHoverRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 8 }
+            },
+            y: {
+              grid: { color: 'rgba(0,0,0,0.1)' }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error creating elevation chart:', error);
+    }
+  };
+
+  // Helper functions
+  const formatPace = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Load data when modal opens
+  useEffect(() => {
+    loadRunDetail();
+    
+    return () => {
+      destroyDetailCharts();
+    };
+  }, [activity.id]);
+
+  if (loading) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Loading Run Analysis...</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (error) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Error Loading Run Details</DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-4">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={loadRunDetail}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Try Again
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-600" />
+            Detailed Run Analysis: {activity.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="splits">Km Splits</TabsTrigger>
+            <TabsTrigger value="charts">Charts</TabsTrigger>
+            <TabsTrigger value="efforts">Best Efforts</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {(activity.distance).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-600">Distance (km)</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {formatTime(activity.moving_time)}
+                  </div>
+                  <div className="text-sm text-gray-600">Moving Time</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-teal-600">
+                    {formatPace(activity.moving_time / activity.distance)}
+                  </div>
+                  <div className="text-sm text-gray-600">Avg Pace</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-emerald-600">
+                    {activity.average_heartrate || 'N/A'}
+                  </div>
+                  <div className="text-sm text-gray-600">Avg HR</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Additional Details */}
+            {runDetail && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Run Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Elevation Gain:</span>
+                      <span className="font-medium">{activity.total_elevation_gain}m</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Max Speed:</span>
+                      <span className="font-medium">{((activity.max_speed || 0) * 3.6).toFixed(1)} km/h</span>
+                    </div>
+                    {activity.max_heartrate && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Max HR:</span>
+                        <span className="font-medium">{activity.max_heartrate} bpm</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Calories:</span>
+                      <span className="font-medium">{activity.calories || 'N/A'}</span>
+                    </div>
+                    {runDetail.gear && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Shoes:</span>
+                        <span className="font-medium">{runDetail.gear.name}</span>
+                      </div>
+                    )}
+                    {runDetail.gear && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Shoe Mileage:</span>
+                        <span className="font-medium">{(runDetail.gear.distance / 1000).toFixed(0)} km</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="splits" className="space-y-4">
+            {runDetail?.splits_metric && runDetail.splits_metric.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Kilometre Splits</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {runDetail.splits_metric.map((split, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="font-medium">Km {index + 1}</div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Timer className="h-3 w-3 text-blue-500" />
+                            <span>{formatPace(split.moving_time)}</span>
+                          </div>
+                          {split.average_heartrate && (
+                            <div className="flex items-center gap-1">
+                              <Heart className="h-3 w-3 text-red-500" />
+                              <span>{Math.round(split.average_heartrate)} bpm</span>
+                            </div>
+                          )}
+                          {split.elevation_difference !== undefined && (
+                            <div className="flex items-center gap-1">
+                              <TrendingUp className="h-3 w-3 text-green-500" />
+                              <span>{split.elevation_difference > 0 ? '+' : ''}{split.elevation_difference}m</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center text-gray-500">
+                  <Activity className="h-8 w-8 mx-auto mb-2" />
+                  <p>No split data available for this run</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="charts" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Pace Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center">
+                    <Timer className="h-4 w-4 mr-2 text-blue-500" />
+                    Pace per Kilometre
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <canvas ref={paceChartRef} className="w-full h-full"></canvas>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Heart Rate Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center">
+                    <Heart className="h-4 w-4 mr-2 text-teal-500" />
+                    Heart Rate per Kilometre
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <canvas ref={hrChartRef} className="w-full h-full"></canvas>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Elevation Profile */}
+            {runDetail?.streams?.altitude && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center">
+                    <TrendingUp className="h-4 w-4 mr-2 text-green-500" />
+                    Elevation Profile
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <canvas ref={elevationChartRef} className="w-full h-full"></canvas>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="efforts" className="space-y-4">
+            {runDetail?.best_efforts && runDetail.best_efforts.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Best Efforts / Personal Records</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {runDetail.best_efforts.map((effort, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-orange-500" />
+                          <span className="font-medium">{effort.name}</span>
+                          {effort.pr_rank && effort.pr_rank <= 3 && (
+                            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                              PR #{effort.pr_rank}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span>{formatTime(effort.moving_time)}</span>
+                          <span className="text-gray-500">
+                            {formatPace(effort.moving_time / (effort.distance / 1000))} pace
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center text-gray-500">
+                  <Target className="h-8 w-8 mx-auto mb-2" />
+                  <p>No best efforts data available for this run</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Heart Rate Zones */}
+            {runDetail?.zones && runDetail.zones.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Heart Rate Zones</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {runDetail.zones.map((zone, zoneIndex) => (
+                    <div key={zoneIndex} className="space-y-2">
+                      <h4 className="font-medium">{zone.type} Zones</h4>
+                      <div className="space-y-1">
+                        {zone.distribution_buckets.map((bucket, bucketIndex) => (
+                          <div key={bucketIndex} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                            <span>Zone {bucketIndex + 1} ({bucket.min}-{bucket.max})</span>
+                            <span>{formatTime(bucket.time)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const ActivityJam = () => {
   const navigate = useNavigate();
   const [activities, setActivities] = useState<ActivityData[]>([]);
@@ -56,6 +685,7 @@ const ActivityJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [selectedRunDetail, setSelectedRunDetail] = useState<ActivityData | null>(null);
 
   // Chart refs
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
@@ -216,6 +846,13 @@ const ActivityJam = () => {
   // Get run tag option
   const getRunTagOption = (tag: RunTag): RunTagOption => {
     return RUN_TAG_OPTIONS.find(option => option.value === tag) || RUN_TAG_OPTIONS[0];
+  };
+
+  // Handle run click for detailed analysis
+  const handleRunClick = (activity: ActivityData) => {
+    if (activity.is_run_activity) {
+      setSelectedRunDetail(activity);
+    }
   };
 
   // Process activities data for charts (no caching, direct processing)
@@ -693,6 +1330,14 @@ const ActivityJam = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
+      {/* Detailed Run Analysis Modal */}
+      {selectedRunDetail && (
+        <RunDetailModal
+          activity={selectedRunDetail}
+          onClose={() => setSelectedRunDetail(null)}
+        />
+      )}
+
       {/* Background decoration - Updated with green/blue theme */}
       <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
       <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
@@ -734,11 +1379,11 @@ const ActivityJam = () => {
             Activity Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Your recent workouts and activities from Strava with smart run tagging
+            Your recent workouts and activities from Strava with smart run tagging and detailed analysis
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Simplified charts • Reliable loading
+              Last updated: {lastUpdate} • Click runs for detailed analysis • Reliable loading
             </p>
           )}
         </div>
@@ -927,7 +1572,7 @@ const ActivityJam = () => {
                       {activities.filter(a => a.is_run_activity).length}
                     </div>
                     <div className="text-sm text-gray-600">Running Activities</div>
-                    <div className="text-xs text-gray-500 mt-1">With smart tagging</div>
+                    <div className="text-xs text-gray-500 mt-1">Click for details</div>
                   </CardContent>
                 </Card>
 
@@ -953,7 +1598,7 @@ const ActivityJam = () => {
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     <Tag className="h-4 w-4" />
-                    <span>Click run tags to edit</span>
+                    <span>Click run tags to edit • Click runs for detailed analysis</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {RUN_TAG_OPTIONS.map(option => (
@@ -967,16 +1612,32 @@ const ActivityJam = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {activities.map((activity) => (
-                  <Card key={activity.id} className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all duration-200">
+                  <Card 
+                    key={activity.id} 
+                    className={`bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm transition-all duration-200 ${
+                      activity.is_run_activity 
+                        ? 'hover:shadow-lg hover:scale-105 cursor-pointer hover:border-blue-300' 
+                        : 'hover:shadow-md'
+                    }`}
+                    onClick={() => activity.is_run_activity && handleRunClick(activity)}
+                  >
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
+                        <CardTitle className="text-lg font-semibold text-gray-800 leading-tight flex items-center gap-2">
                           {activity.name}
+                          {activity.is_run_activity && (
+                            <ChevronRight className="h-4 w-4 text-blue-500" />
+                          )}
                         </CardTitle>
                         <div className="flex flex-col gap-1">
                           <Badge variant="secondary" className="ml-2 shrink-0">
                             {activity.type}
                           </Badge>
+                          {activity.is_run_activity && (
+                            <Badge variant="outline" className="ml-2 shrink-0 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                              Click for analysis
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
@@ -1072,7 +1733,10 @@ const ActivityJam = () => {
                                     size="sm" 
                                     variant="ghost" 
                                     className="h-6 w-6 p-0"
-                                    onClick={() => setEditingTag(null)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingTag(null);
+                                    }}
                                   >
                                     <X className="h-3 w-3" />
                                   </Button>
@@ -1081,7 +1745,10 @@ const ActivityJam = () => {
                                 <Badge 
                                   variant="outline" 
                                   className={`text-xs cursor-pointer transition-all duration-200 ${getRunTagOption(activity.run_tag).color} ${getRunTagOption(activity.run_tag).bgColor} hover:bg-opacity-80`}
-                                  onClick={() => setEditingTag(activity.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTag(activity.id);
+                                  }}
                                 >
                                   <Tag className="h-3 w-3 mr-1" />
                                   {getRunTagOption(activity.run_tag).label}
@@ -1176,8 +1843,8 @@ const ActivityJam = () => {
             </span>
             <span className="hidden md:inline">•</span>
             <span className="flex items-center gap-1">
-              <Heart className="h-4 w-4" />
-              Fast loading optimized performance
+              <Route className="h-4 w-4" />
+              Click runs for detailed km-by-km analysis
             </span>
           </div>
           <div className="flex items-center gap-4">
