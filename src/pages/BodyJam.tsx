@@ -17,6 +17,7 @@ interface BloodMarker {
   id: string;
   name: string;
   value: number | string;
+  previousValue?: number | string;
   unit: string;
   normalRange: string;
   explanation: string;
@@ -29,6 +30,7 @@ interface BodyComposition {
   id: string;
   name: string;
   value: number | string;
+  previousValue?: number | string;
   unit: string;
   explanation: string;
   icon: React.ReactNode;
@@ -39,6 +41,7 @@ interface Macro {
   id: string;
   name: string;
   value: number | string;
+  previousValue?: number | string;
   unit: string;
   explanation: string;
   icon: React.ReactNode;
@@ -57,12 +60,13 @@ const BodyJam = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   
-  // Blood marker data with actual values from blood report - Updated with green/blue theme icons
+  // Blood marker data with comparison values from April and June reports
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarker[]>([
     {
       id: "rbc",
       name: "RBC",
-      value: 5.80,
+      value: 5.99,
+      previousValue: 5.80,
       unit: "mill/mm³",
       normalRange: "4.5-5.9 million cells/mcL (men); 4.1-5.1 (women)",
       explanation: "Carries oxygen from lungs to tissues and carbon dioxide back to lungs",
@@ -72,7 +76,8 @@ const BodyJam = () => {
     {
       id: "hemoglobin",
       name: "Hemoglobin",
-      value: 16.3,
+      value: 16.8,
+      previousValue: 16.3,
       unit: "g/dL",
       normalRange: "13.5-17.5 g/dL (men); 12.0-15.5 (women)",
       explanation: "Protein in red blood cells that carries oxygen",
@@ -82,7 +87,8 @@ const BodyJam = () => {
     {
       id: "wbc",
       name: "WBC",
-      value: 5560,
+      value: 5600,
+      previousValue: 5560,
       unit: "cells/mm³",
       normalRange: "4,500-11,000 cells/mcL",
       explanation: "Part of immune system, helps fight infections",
@@ -92,7 +98,8 @@ const BodyJam = () => {
     {
       id: "platelets",
       name: "Platelet Count",
-      value: 309,
+      value: 281,
+      previousValue: 309,
       unit: "10³/µL",
       normalRange: "150,000-450,000 platelets/mcL",
       explanation: "Helps blood clot, prevents excessive bleeding",
@@ -102,17 +109,19 @@ const BodyJam = () => {
     {
       id: "hdl",
       name: "HDL Cholesterol",
-      value: 38,
+      value: 52,
+      previousValue: 38,
       unit: "mg/dL",
       normalRange: "40 mg/dL or higher (men); 50 or higher (women)",
       explanation: "'Good' cholesterol that helps remove other forms of cholesterol",
-      status: "low",
+      status: "good",
       category: "heart"
     },
     {
       id: "ldl",
       name: "LDL Cholesterol",
-      value: 96,
+      value: 87,
+      previousValue: 96,
       unit: "mg/dL",
       normalRange: "Less than 100 mg/dL",
       explanation: "'Bad' cholesterol that can build up in arteries",
@@ -122,7 +131,8 @@ const BodyJam = () => {
     {
       id: "total_cholesterol",
       name: "Total Cholesterol",
-      value: 144,
+      value: 149,
+      previousValue: 144,
       unit: "mg/dL",
       normalRange: "Less than 200 mg/dL",
       explanation: "Fatty substance in blood, needed for cell building",
@@ -132,7 +142,8 @@ const BodyJam = () => {
     {
       id: "triglycerides",
       name: "Triglycerides",
-      value: 50,
+      value: 51,
+      previousValue: 50,
       unit: "mg/dL",
       normalRange: "Less than 150 mg/dL",
       explanation: "Type of fat in blood that stores excess energy",
@@ -142,7 +153,8 @@ const BodyJam = () => {
     {
       id: "vitamin_b12",
       name: "Vitamin B12",
-      value: 405,
+      value: 450,
+      previousValue: 405,
       unit: "pg/mL",
       normalRange: "200-900 pg/mL",
       explanation: "Helps make DNA and red blood cells, supports nerve function",
@@ -152,7 +164,8 @@ const BodyJam = () => {
     {
       id: "vitamin_d",
       name: "Vitamin D",
-      value: 48.2,
+      value: 55.4,
+      previousValue: 48.2,
       unit: "ng/mL",
       normalRange: "20-50 ng/mL",
       explanation: "Helps body absorb calcium, important for bone health",
@@ -162,7 +175,8 @@ const BodyJam = () => {
     {
       id: "hba1c",
       name: "HbA1C",
-      value: 5.1,
+      value: 5.4,
+      previousValue: 5.1,
       unit: "%",
       normalRange: "Below 5.7%",
       explanation: "Average blood glucose levels over the past 2-3 months",
@@ -172,7 +186,8 @@ const BodyJam = () => {
     {
       id: "glucose",
       name: "Glucose (Random)",
-      value: 89,
+      value: 84,
+      previousValue: 89,
       unit: "mg/dL",
       normalRange: "70-140 mg/dL (random); 70-99 mg/dL (fasting)",
       explanation: "Blood sugar level",
@@ -182,7 +197,8 @@ const BodyJam = () => {
     {
       id: "tsh",
       name: "TSH",
-      value: 2.504,
+      value: 2.530,
+      previousValue: 2.504,
       unit: "µIU/mL",
       normalRange: "0.4-4.0 µIU/mL",
       explanation: "Thyroid stimulating hormone, controls thyroid gland function",
@@ -192,7 +208,8 @@ const BodyJam = () => {
     {
       id: "creatinine",
       name: "Creatinine",
-      value: 0.7,
+      value: 0.6,
+      previousValue: 0.7,
       unit: "mg/dL",
       normalRange: "0.7-1.3 mg/dL (men); 0.6-1.1 mg/dL (women)",
       explanation: "Waste product filtered by kidneys, indicator of kidney function",
@@ -202,7 +219,8 @@ const BodyJam = () => {
     {
       id: "uric_acid",
       name: "Uric Acid",
-      value: 4.4,
+      value: 3.6,
+      previousValue: 4.4,
       unit: "mg/dL",
       normalRange: "3.5-7.2 mg/dL (men); 2.5-6.0 mg/dL (women)",
       explanation: "Waste product from breakdown of purines in food",
@@ -212,7 +230,8 @@ const BodyJam = () => {
     {
       id: "calcium",
       name: "Calcium",
-      value: 9.3,
+      value: 9.7,
+      previousValue: 9.3,
       unit: "mg/dL",
       normalRange: "8.5-10.5 mg/dL",
       explanation: "Essential for bone health, muscle function, and nerve signaling",
@@ -222,17 +241,19 @@ const BodyJam = () => {
     {
       id: "sodium",
       name: "Sodium",
-      value: 134,
+      value: 136,
+      previousValue: 134,
       unit: "mmol/L",
       normalRange: "135-145 mmol/L",
       explanation: "Electrolyte that helps maintain fluid balance and nerve/muscle function",
-      status: "low",
+      status: "good",
       category: "electrolytes"
     },
     {
       id: "potassium",
       name: "Potassium",
-      value: 4.8,
+      value: 5.4,
+      previousValue: 4.8,
       unit: "mmol/L",
       normalRange: "3.5-5.0 mmol/L",
       explanation: "Electrolyte essential for heart, muscle, and nerve function",
@@ -241,12 +262,13 @@ const BodyJam = () => {
     }
   ]);
 
-  // Body composition data from DEXA scan - Updated with green/blue theme colors
+  // Body composition data from DEXA scan - Updated with comparison values
   const [bodyComposition, setBodyComposition] = useState<BodyComposition[]>([
     {
       id: "weight",
       name: "Weight",
-      value: 73,
+      value: 68.2,
+      previousValue: 72.9,
       unit: "kg",
       explanation: "Total body weight",
       icon: <Scale className="h-4 w-4 text-green-500" />
@@ -255,6 +277,7 @@ const BodyJam = () => {
       id: "height",
       name: "Height",
       value: 170,
+      previousValue: 170,
       unit: "cm",
       explanation: "Standing height",
       icon: <Activity className="h-4 w-4 text-green-500" />
@@ -262,7 +285,8 @@ const BodyJam = () => {
     {
       id: "age",
       name: "Age",
-      value: 27.8,
+      value: 28.1,
+      previousValue: 27.8,
       unit: "years",
       explanation: "Chronological age",
       icon: <Activity className="h-4 w-4 text-green-500" />
@@ -270,7 +294,8 @@ const BodyJam = () => {
     {
       id: "body_fat",
       name: "Body Fat",
-      value: 25.7,
+      value: 21.2,
+      previousValue: 25.7,
       unit: "%",
       explanation: "Percentage of total body mass that is fat",
       icon: <Heart className="h-4 w-4 text-teal-500" />
@@ -278,7 +303,8 @@ const BodyJam = () => {
     {
       id: "fat_mass",
       name: "Fat Mass",
-      value: 18.7,
+      value: 14.5,
+      previousValue: 18.7,
       unit: "kg",
       explanation: "Total mass of body fat",
       icon: <Heart className="h-4 w-4 text-teal-500" />
@@ -286,7 +312,8 @@ const BodyJam = () => {
     {
       id: "lean_mass",
       name: "Lean Mass",
-      value: 51.1,
+      value: 50.7,
+      previousValue: 51.1,
       unit: "kg",
       explanation: "Total mass of non-fat tissue including muscle, organs, and water",
       icon: <Dumbbell className="h-4 w-4 text-emerald-500" />
@@ -294,7 +321,8 @@ const BodyJam = () => {
     {
       id: "bone_mass",
       name: "Bone Mass",
-      value: 3.1,
+      value: 3.0,
+      previousValue: 3.1,
       unit: "kg",
       explanation: "Total mass of bone mineral content",
       icon: <Activity className="h-4 w-4 text-blue-500" />
@@ -302,7 +330,8 @@ const BodyJam = () => {
     {
       id: "visceral_fat_mass",
       name: "Visceral Fat Mass",
-      value: 580,
+      value: 349,
+      previousValue: 580,
       unit: "g",
       explanation: "Mass of fat surrounding internal organs",
       icon: <Heart className="h-4 w-4 text-cyan-500" />
@@ -310,7 +339,8 @@ const BodyJam = () => {
     {
       id: "visceral_fat_volume",
       name: "Visceral Fat Volume",
-      value: 615,
+      value: 370,
+      previousValue: 615,
       unit: "cm³",
       explanation: "Volume of fat surrounding internal organs",
       icon: <Heart className="h-4 w-4 text-cyan-500" />
@@ -318,7 +348,8 @@ const BodyJam = () => {
     {
       id: "android_gynoid_ratio",
       name: "Android-Gynoid Ratio",
-      value: 1.31,
+      value: 1.18,
+      previousValue: 1.31,
       unit: "",
       explanation: "Ratio of android (abdominal) fat to gynoid (hip/thigh) fat",
       icon: <Activity className="h-4 w-4 text-green-500" />
@@ -326,19 +357,21 @@ const BodyJam = () => {
     {
       id: "rmr",
       name: "RMR",
-      value: 1479,
+      value: 1472,
+      previousValue: 1479,
       unit: "kcal/day",
       explanation: "Resting Metabolic Rate - calories burned at rest",
       icon: <Flame className="h-4 w-4 text-green-500" />
     }
   ]);
 
-  // Maintenance macros - Updated with green/blue theme colors
+  // Maintenance macros - Updated with comparison values
   const [macros, setMacros] = useState<Macro[]>([
     {
       id: "protein",
       name: "Protein",
-      value: 96,
+      value: 90,
+      previousValue: 96,
       unit: "g",
       explanation: "Daily protein intake for maintenance",
       icon: <Dumbbell className="h-4 w-4 text-green-500" />
@@ -346,7 +379,8 @@ const BodyJam = () => {
     {
       id: "carbs",
       name: "Carbs",
-      value: 166,
+      value: 171,
+      previousValue: 166,
       unit: "g",
       explanation: "Daily carbohydrate intake for maintenance",
       icon: <Apple className="h-4 w-4 text-teal-500" />
@@ -355,6 +389,7 @@ const BodyJam = () => {
       id: "fat",
       name: "Fat",
       value: 47,
+      previousValue: 47,
       unit: "g",
       explanation: "Daily fat intake for maintenance",
       icon: <Activity className="h-4 w-4 text-cyan-500" />
@@ -421,7 +456,7 @@ const BodyJam = () => {
     }
   };
 
-  // Format value for display
+  // Format value for display with comparison
   const formatValue = (value: number | string, unit: string) => {
     if (value === null) return '—';
     
@@ -431,6 +466,25 @@ const BodyJam = () => {
     }
     
     return value + (unit ? ' ' + unit : '');
+  };
+
+  // Calculate change percentage
+  const getChangeIndicator = (current: number | string, previous?: number | string) => {
+    if (!previous || typeof current !== 'number' || typeof previous !== 'number') return null;
+    
+    const change = ((current - previous) / previous * 100);
+    const isPositive = change > 0;
+    const isImprovement = 
+      // For these metrics, lower is better
+      current < previous && ['body_fat', 'fat_mass', 'visceral_fat_mass', 'visceral_fat_volume', 'android_gynoid_ratio', 'ldl', 'total_cholesterol', 'triglycerides', 'hba1c', 'glucose'].includes('current') ||
+      // For these metrics, higher is better
+      current > previous && ['hdl', 'vitamin_b12', 'vitamin_d', 'lean_mass'].includes('current');
+    
+    return {
+      percentage: Math.abs(change).toFixed(1),
+      isPositive,
+      isImprovement
+    };
   };
 
   return (
@@ -459,7 +513,7 @@ const BodyJam = () => {
             Track your key health metrics and body composition
           </p>
           <p className="mt-2 text-md font-medium text-green-600">
-            📅 All data shown is from April 7, 2025
+            📅 Latest: June 15, 2025 | Previous: April 7, 2025
           </p>
         </div>
       </header>
@@ -521,8 +575,29 @@ const BodyJam = () => {
                                   </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                  <div className={`text-2xl font-bold ${getStatusColor(marker.status)}`}>
-                                    {formatValue(marker.value, marker.unit)}
+                                  <div className="space-y-1">
+                                    <div className={`text-2xl font-bold ${getStatusColor(marker.status)}`}>
+                                      {formatValue(marker.value, marker.unit)}
+                                    </div>
+                                    {marker.previousValue && (
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-sm text-gray-500">
+                                          Was: {formatValue(marker.previousValue, marker.unit)}
+                                        </span>
+                                        {typeof marker.value === 'number' && typeof marker.previousValue === 'number' && (
+                                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                            marker.value > marker.previousValue 
+                                              ? 'bg-green-100 text-green-700' 
+                                              : marker.value < marker.previousValue
+                                              ? 'bg-blue-100 text-blue-700'
+                                              : 'bg-gray-100 text-gray-700'
+                                          }`}>
+                                            {marker.value > marker.previousValue ? '↗' : marker.value < marker.previousValue ? '↘' : '→'}
+                                            {Math.abs(((marker.value - marker.previousValue) / marker.previousValue * 100)).toFixed(1)}%
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </CardContent>
                               </Card>
@@ -563,8 +638,32 @@ const BodyJam = () => {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="text-2xl font-bold text-gray-800">
-                            {formatValue(item.value, item.unit)}
+                          <div className="space-y-1">
+                            <div className="text-2xl font-bold text-gray-800">
+                              {formatValue(item.value, item.unit)}
+                            </div>
+                            {item.previousValue && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-500">
+                                  Was: {formatValue(item.previousValue, item.unit)}
+                                </span>
+                                {typeof item.value === 'number' && typeof item.previousValue === 'number' && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                    // Determine if the change is good based on the metric
+                                    (['body_fat', 'fat_mass', 'visceral_fat_mass', 'visceral_fat_volume', 'android_gynoid_ratio'].includes(item.id) && item.value < item.previousValue) ||
+                                    (['lean_mass'].includes(item.id) && item.value > item.previousValue)
+                                      ? 'bg-green-100 text-green-700' 
+                                      : (['body_fat', 'fat_mass', 'visceral_fat_mass', 'visceral_fat_volume', 'android_gynoid_ratio'].includes(item.id) && item.value > item.previousValue) ||
+                                        (['lean_mass'].includes(item.id) && item.value < item.previousValue)
+                                      ? 'bg-orange-100 text-orange-700'
+                                      : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {item.value > item.previousValue ? '↗' : item.value < item.previousValue ? '↘' : '→'}
+                                    {Math.abs(((item.value - item.previousValue) / item.previousValue * 100)).toFixed(1)}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -598,8 +697,29 @@ const BodyJam = () => {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="text-2xl font-bold text-gray-800">
-                            {formatValue(item.value, item.unit)}
+                          <div className="space-y-1">
+                            <div className="text-2xl font-bold text-gray-800">
+                              {formatValue(item.value, item.unit)}
+                            </div>
+                            {item.previousValue && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-500">
+                                  Was: {formatValue(item.previousValue, item.unit)}
+                                </span>
+                                {typeof item.value === 'number' && typeof item.previousValue === 'number' && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                    item.value > item.previousValue 
+                                      ? 'bg-blue-100 text-blue-700' 
+                                      : item.value < item.previousValue
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {item.value > item.previousValue ? '↗' : item.value < item.previousValue ? '↘' : '→'}
+                                    {Math.abs(((item.value - item.previousValue) / item.previousValue * 100)).toFixed(1)}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -635,10 +755,10 @@ const BodyJam = () => {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Updated: April 7, 2025</span>
+            <span>Latest Update: June 15, 2025 | Compared to: April 7, 2025</span>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Complete data</span>
+              <span className="text-xs">Progress tracking</span>
             </div>
           </div>
         </div>
