@@ -3,7 +3,7 @@ import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Dru
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-// import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import Chart from 'chart.js/auto';
 import { db } from '@/lib/firebaseConfig';
@@ -38,7 +38,7 @@ interface CombinedData {
   runCount: number; // Track number of runs for proper averaging
 }
 
-// Weekly Goals Tracker Component - Updated with green/blue theme
+// Weekly Goals Tracker Component - Updated with surplus instead of deficit
 const WeeklyGoalsTracker: React.FC<{
   weekData: Record<string, CombinedData>;
   loading: boolean;
@@ -48,7 +48,7 @@ const WeeklyGoalsTracker: React.FC<{
     const totals = {
       caloriesBurned: 0,
       protein: 0,
-      calorieDeficit: 0,
+      calorieSurplus: 0,
       activeDays: 0
     };
 
@@ -58,8 +58,9 @@ const WeeklyGoalsTracker: React.FC<{
       totals.caloriesBurned += day.caloriesBurned || 0;
       totals.protein += day.protein || 0;
       
-      const dailyDeficit = (day.caloriesBurned + BMR) - day.caloriesConsumed;
-      totals.calorieDeficit += dailyDeficit;
+      // Calorie surplus = calories consumed - (calories burned + BMR)
+      const dailySurplus = day.caloriesConsumed - (day.caloriesBurned + BMR);
+      totals.calorieSurplus += dailySurplus;
       
       if (day.caloriesBurned > 0 || day.caloriesConsumed > 0) {
         totals.activeDays += 1;
@@ -71,25 +72,44 @@ const WeeklyGoalsTracker: React.FC<{
 
   const weeklyTotals = calculateWeeklyTotals();
 
-  // Weekly Goals - Updated with green/blue theme
+  // Weekly Goals - Updated with surplus goal (negative surplus is good)
   const goals = {
     caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "green", shortLabel: "Cal Burn" },
     protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
-    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "teal", shortLabel: "Cal Deficit" }
+    calorieSurplus: { target: -1000, label: "Calorie Surplus (goal: negative)", icon: Target, color: "red", shortLabel: "Cal Surplus" }
   };
 
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 100) return "bg-green-500";
-    if (percentage >= 75) return "bg-teal-500";
-    if (percentage >= 50) return "bg-cyan-500";
-    return "bg-blue-500";
+  const getProgressColor = (percentage: number, isNegativeGoal = false) => {
+    if (isNegativeGoal) {
+      // For surplus, lower (more negative) is better
+      if (percentage <= -100) return "bg-green-500";
+      if (percentage <= -75) return "bg-teal-500";
+      if (percentage <= -50) return "bg-cyan-500";
+      if (percentage <= 0) return "bg-blue-500";
+      return "bg-red-500"; // Positive surplus is bad
+    } else {
+      // Normal goals
+      if (percentage >= 100) return "bg-green-500";
+      if (percentage >= 75) return "bg-teal-500";
+      if (percentage >= 50) return "bg-cyan-500";
+      return "bg-blue-500";
+    }
   };
 
   const getWeeklyRating = () => {
     const scores = Object.keys(goals).map(key => {
       const goal = goals[key as keyof typeof goals];
       const actual = weeklyTotals[key as keyof typeof weeklyTotals];
-      return Math.min((actual / goal.target) * 100, 100);
+      
+      if (key === 'calorieSurplus') {
+        // For surplus, we want negative values. Score based on how negative it is.
+        if (actual <= goal.target) return 100; // Achieved negative surplus goal
+        if (actual <= 0) return 75; // Still negative but not as good
+        if (actual <= Math.abs(goal.target) / 2) return 50; // Small positive surplus
+        return 25; // Large positive surplus
+      } else {
+        return Math.min((actual / goal.target) * 100, 100);
+      }
     });
     
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -135,7 +155,16 @@ const WeeklyGoalsTracker: React.FC<{
         <div className="grid grid-cols-3 gap-3">
           {Object.entries(goals).map(([key, goal]) => {
             const actual = weeklyTotals[key as keyof typeof weeklyTotals];
-            const percentage = Math.min((actual / goal.target) * 100, 100);
+            const isNegativeGoal = key === 'calorieSurplus';
+            let percentage;
+            
+            if (isNegativeGoal) {
+              // For surplus, calculate how well we're doing relative to negative goal
+              percentage = (actual / goal.target) * 100;
+            } else {
+              percentage = Math.min((actual / goal.target) * 100, 100);
+            }
+            
             const IconComponent = goal.icon;
             
             return (
@@ -149,29 +178,33 @@ const WeeklyGoalsTracker: React.FC<{
                 </div>
                 
                 <div className="text-sm font-bold text-gray-800 mb-2">
-                  {Math.round(actual).toLocaleString()}
+                  {actual >= 0 && key === 'calorieSurplus' ? '+' : ''}{Math.round(actual).toLocaleString()}
                   {key === 'protein' ? 'g' : ' cal'}
                   <span className="text-xs text-gray-600">
-                    /{goal.target.toLocaleString()}{key === 'protein' ? 'g' : ' cal'}
+                    /{goal.target < 0 ? '' : goal.target.toLocaleString()}{goal.target < 0 ? Math.abs(goal.target).toLocaleString() + ' cal' : (key === 'protein' ? 'g' : ' cal')}
                   </span>
                 </div>
                 
                 <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
                   <div 
-                    className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(percentage)}`}
-                    style={{ width: `${Math.min(percentage, 100)}%` }}
+                    className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(percentage, isNegativeGoal)}`}
+                    style={{ width: `${Math.min(Math.abs(percentage), 100)}%` }}
                   />
                 </div>
                 
-                <div className={`text-xs font-semibold ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-teal-600' : 'text-blue-600'}`}>
-                  {Math.round(percentage)}%
+                <div className={`text-xs font-semibold ${
+                  isNegativeGoal 
+                    ? (actual <= goal.target ? 'text-green-600' : actual <= 0 ? 'text-teal-600' : 'text-red-600')
+                    : (percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-teal-600' : 'text-blue-600')
+                }`}>
+                  {isNegativeGoal ? (actual <= goal.target ? '✓' : actual <= 0 ? '~' : '⚠') : `${Math.round(percentage)}%`}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Compact Daily Breakdown - Updated with green/blue theme */}
+        {/* Compact Daily Breakdown - Updated with surplus */}
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-gray-700 text-center">This Week</h4>
           <div className="grid grid-cols-7 gap-1">
@@ -183,7 +216,7 @@ const WeeklyGoalsTracker: React.FC<{
               const isToday = dateStr === new Date().toISOString().split('T')[0];
               
               const BMR = 1479;
-              const dailyDeficit = ((dayData.caloriesBurned || 0) + BMR) - (dayData.caloriesConsumed || 0);
+              const dailySurplus = (dayData.caloriesConsumed || 0) - ((dayData.caloriesBurned || 0) + BMR);
               const protein = dayData.protein || 0;
               const burned = dayData.caloriesBurned || 0;
               
@@ -208,16 +241,16 @@ const WeeklyGoalsTracker: React.FC<{
                     Cal Burn: {Math.round(burned)}
                   </div>
                   
-                  {/* Deficit */}
-                  <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-teal-600' : 'text-cyan-600'}`}>
-                    Cal Deficit: {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
+                  {/* Surplus */}
+                  <div className={`text-xs font-semibold ${dailySurplus <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Cal Surplus: {dailySurplus >= 0 ? '+' : ''}{Math.round(dailySurplus)}
                   </div>
                 </div>
               );
             })}
           </div>
           <div className="text-xs text-gray-600 text-center">
-            P: Protein (g) • Cal Burn: Burned (cal) • Cal Deficit: Deficit (cal)
+            P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal) • Negative = Good
           </div>
         </div>
       </CardContent>
@@ -225,13 +258,13 @@ const WeeklyGoalsTracker: React.FC<{
   );
 };
 
-// Daily Health Box Component - Updated with green/blue theme
+// Daily Health Box Component - Updated with surplus
 const DailyHealthBox = ({ data, date, isToday, onClick }) => {
   const hasData = data.caloriesConsumed > 0 || data.caloriesBurned > 0 || data.heartRateRuns > 0;
   
-  // Calculate calorie deficit: calories burned + BMR - calories consumed
+  // Calculate calorie surplus: calories consumed - (calories burned + BMR)
   const BMR = 1479;
-  const calorieDeficit = data.caloriesBurned + BMR - data.caloriesConsumed;
+  const calorieSurplus = data.caloriesConsumed - (data.caloriesBurned + BMR);
 
   return (
     <Card 
@@ -262,7 +295,7 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
 
           {hasData ? (
             <>
-              {/* Key Metrics - Updated with green/blue theme */}
+              {/* Key Metrics */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="text-center">
                   <div className="font-semibold text-emerald-600">{Math.round(data.caloriesConsumed)}</div>
@@ -274,21 +307,21 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
                 </div>
               </div>
 
-              {/* Additional metrics - Updated with green/blue theme */}
+              {/* Additional metrics - Updated with surplus */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="text-center">
                   <div className="font-semibold text-blue-600">{Math.round(data.protein)}g</div>
                   <div className="text-gray-500">Protein</div>
                 </div>
                 <div className="text-center">
-                  <div className={`font-semibold ${calorieDeficit >= 0 ? 'text-teal-600' : 'text-cyan-600'}`}>
-                    {calorieDeficit >= 0 ? '+' : ''}{Math.round(calorieDeficit)}
+                  <div className={`font-semibold ${calorieSurplus <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {calorieSurplus >= 0 ? '+' : ''}{Math.round(calorieSurplus)}
                   </div>
-                  <div className="text-gray-500">Cal Deficit</div>
+                  <div className="text-gray-500">Cal Surplus</div>
                 </div>
               </div>
 
-              {/* Heart Rate for Runs Only - Updated with green/blue theme */}
+              {/* Heart Rate for Runs Only */}
               {data.heartRateRuns && (
                 <div className="text-center text-xs">
                   <div className="font-semibold text-teal-600 flex items-center justify-center gap-1">
@@ -321,8 +354,7 @@ const DailyHealthBox = ({ data, date, isToday, onClick }) => {
 };
 
 const OverallJam = () => {
-  // const navigate = useNavigate();
-  const navigate = (path: string) => console.log(`Navigate to ${path}`);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState('');
@@ -500,7 +532,7 @@ const OverallJam = () => {
     await fetchCombinedData(true);
   };
 
-  // UPDATED: Enhanced chart rendering with run-only heart rate and green/blue theme
+  // UPDATED: Enhanced chart rendering with surplus instead of deficit
   const renderCombinedChart = (data) => {
     const container = document.getElementById('combined-health-chart');
     if (!container) return;
@@ -521,9 +553,9 @@ const OverallJam = () => {
       return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     });
 
-    // Calculate calorie deficit for each day
+    // Calculate calorie surplus for each day
     const BMR = 1479;
-    const calorieDeficitData = data.map(d => d.caloriesBurned + BMR - d.caloriesConsumed);
+    const calorieSurplusData = data.map(d => d.caloriesConsumed - (d.caloriesBurned + BMR));
 
     // Calculate data ranges for better scaling
     const proteinData = data.map(d => d.protein).filter(p => p > 0);
@@ -542,10 +574,10 @@ const OverallJam = () => {
     const caloriesRange = caloriesMax - caloriesMin;
     const caloriesPadding = Math.max(50, caloriesRange * 0.1);
 
-    const deficitMin = Math.min(...calorieDeficitData);
-    const deficitMax = Math.max(...calorieDeficitData);
-    const deficitRange = deficitMax - deficitMin;
-    const deficitPadding = Math.max(100, deficitRange * 0.1);
+    const surplusMin = Math.min(...calorieSurplusData);
+    const surplusMax = Math.max(...calorieSurplusData);
+    const surplusRange = surplusMax - surplusMin;
+    const surplusPadding = Math.max(100, surplusRange * 0.1);
 
     new Chart(canvas, {
       type: 'line',
@@ -577,16 +609,16 @@ const OverallJam = () => {
             yAxisID: 'y-calories'
           },
           {
-            label: 'Calorie Deficit',
-            data: calorieDeficitData,
-            borderColor: 'rgba(20, 184, 166, 0.8)',
-            backgroundColor: 'rgba(20, 184, 166, 0.1)',
+            label: 'Calorie Surplus',
+            data: calorieSurplusData,
+            borderColor: 'rgba(239, 68, 68, 0.8)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
             fill: false,
             tension: 0.4,
             borderWidth: 3,
             pointRadius: 5,
             pointHoverRadius: 8,
-            yAxisID: 'y-deficit'
+            yAxisID: 'y-surplus'
           },
           {
             label: 'Protein (g)',
@@ -694,25 +726,25 @@ const OverallJam = () => {
               color: 'rgba(34, 197, 94, 0.8)'
             }
           },
-          'y-deficit': {
+          'y-surplus': {
             type: 'linear',
             display: true,
             position: 'right',
             grid: { display: false },
-            min: deficitMin - deficitPadding,
-            max: deficitMax + deficitPadding,
+            min: surplusMin - surplusPadding,
+            max: surplusMax + surplusPadding,
             ticks: { 
               font: { size: 11 },
-              stepSize: Math.max(100, Math.round(deficitRange / 6)),
+              stepSize: Math.max(100, Math.round(surplusRange / 6)),
               callback: function(value) {
                 return (value >= 0 ? '+' : '') + Math.round(value) + ' cal';
               }
             },
             title: {
               display: true,
-              text: 'Calorie Deficit',
+              text: 'Calorie Surplus (negative = good)',
               font: { size: 12, weight: 'bold' },
-              color: 'rgba(20, 184, 166, 0.8)'
+              color: 'rgba(239, 68, 68, 0.8)'
             }
           },
           'y-protein': {
@@ -775,12 +807,12 @@ const OverallJam = () => {
     return Math.round(sum / validData.length);
   };
 
-  // Calculate average calorie deficit
-  const calculateAvgCalorieDeficit = () => {
+  // Calculate average calorie surplus
+  const calculateAvgCalorieSurplus = () => {
     const BMR = 1479;
     const validData = combinedData.filter(d => d.caloriesConsumed > 0 || d.caloriesBurned > 0);
     if (validData.length === 0) return 0;
-    const sum = validData.reduce((total, d) => total + (d.caloriesBurned + BMR - d.caloriesConsumed), 0);
+    const sum = validData.reduce((total, d) => total + (d.caloriesConsumed - (d.caloriesBurned + BMR)), 0);
     return Math.round(sum / validData.length);
   };
 
@@ -835,7 +867,7 @@ const OverallJam = () => {
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Heart rate from runs only • Calories from Strava
+              Last updated: {lastUpdate} • Heart rate from runs only • Calories from Strava • Surplus: negative is good
             </p>
           )}
         </div>
@@ -849,7 +881,7 @@ const OverallJam = () => {
           <WeeklyGoalsTracker weekData={last7DaysData} loading={loading} />
         </section>
 
-         {/* 7-Day Health Overview - Updated with green/blue theme */}
+         {/* 7-Day Health Overview - Updated with surplus */}
         <section className="mb-8">
           <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
             <CardHeader>
@@ -857,7 +889,7 @@ const OverallJam = () => {
                 <Heart className="h-5 w-5 text-teal-500" />
                 Last 7 Days Health Overview
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  HR: Runs Only | Cal: Strava Direct
+                  HR: Runs Only | Cal: Strava Direct | Surplus: Negative = Good
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -869,9 +901,7 @@ const OverallJam = () => {
                     data={last7DaysData[date] || {}}
                     date={date}
                     isToday={date === new Date().toISOString().split('T')[0]}
-                    onClick={() => {
-                      console.log(`Clicked on ${date}`);
-                    }}
+                    onClick={() => navigate(`/daily-details/${date}`)}
                   />
                 ))}
               </div>
@@ -879,7 +909,7 @@ const OverallJam = () => {
           </Card>
         </section>
 
-        {/* Weekly Averages Section - Updated with green/blue theme */}
+        {/* Weekly Averages Section - Updated with surplus */}
         <section className="mb-8">
           <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
             Weekly Averages
@@ -929,19 +959,20 @@ const OverallJam = () => {
               </div>
             </div>
 
-            {/* Calorie Deficit Card - Updated with teal theme */}
-            <div className="bg-gradient-to-br from-teal-400 to-cyan-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+            {/* Calorie Surplus Card - Updated with red theme since surplus is typically bad */}
+            <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Cal Deficit</h3>
+                <h3 className="text-lg font-semibold text-white">Cal Surplus</h3>
                 <div className="w-10 h-10 bg-white/30 rounded-lg flex items-center justify-center">
                   <TrendingUp className="h-5 w-5 text-white" />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className={`text-3xl font-bold ${calculateAvgCalorieDeficit() >= 0 ? 'text-white' : 'text-cyan-200'}`}>
-                  {calculateAvgCalorieDeficit() >= 0 ? '+' : ''}{calculateAvgCalorieDeficit()}
+                <p className={`text-3xl font-bold ${calculateAvgCalorieSurplus() <= 0 ? 'text-white' : 'text-red-200'}`}>
+                  {calculateAvgCalorieSurplus() >= 0 ? '+' : ''}{calculateAvgCalorieSurplus()}
                 </p>
-                <p className="text-sm text-teal-100">cal/day</p>
+                <p className="text-sm text-red-100">cal/day</p>
+                <p className="text-xs text-red-200">Negative = Good</p>
               </div>
             </div>
 
@@ -964,7 +995,7 @@ const OverallJam = () => {
           </div>
         </section>
 
-        {/* Combined Chart Section - Updated with green/blue theme */}
+        {/* Combined Chart Section - Updated with surplus */}
         <section className="mb-8">
           <Card className="bg-gradient-to-r from-green-200 to-blue-200 rounded-2xl p-6 text-gray-800 shadow-lg">
             <CardHeader>
@@ -972,11 +1003,11 @@ const OverallJam = () => {
                 <TrendingUp className="h-5 w-5 text-gray-700" />
                 Health Trends (Last 7 Days)
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  Live Firebase Data
+                  Live Firebase Data • Surplus: Negative = Good
                 </Badge>
               </CardTitle>
               <p className="text-sm text-gray-700 mt-2">
-                Track your key health metrics with real-time data: HR from runs only, calories direct from Strava.
+                Track your key health metrics with real-time data: HR from runs only, calories direct from Strava, surplus tracking (negative is better).
               </p>
             </CardHeader>
             <CardContent>
@@ -1046,7 +1077,7 @@ const OverallJam = () => {
         </section>
       </main>
 
-      {/* Enhanced Footer - Updated with green/blue theme */}
+      {/* Enhanced Footer - Updated with surplus info */}
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center gap-4 mb-2 md:mb-0">
@@ -1060,6 +1091,11 @@ const OverallJam = () => {
             <span className="flex items-center gap-1">
               <Flame className="h-4 w-4 text-green-500" />
               Cal: Strava direct
+            </span>
+            <span className="hidden md:inline">•</span>
+            <span className="flex items-center gap-1">
+              <Target className="h-4 w-4 text-red-500" />
+              Surplus: Negative = Good
             </span>
           </div>
           <div className="flex items-center gap-4">
