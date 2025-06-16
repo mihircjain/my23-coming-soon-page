@@ -1,5 +1,5 @@
-// api/strava.js - FIXED: Preserves run tags during refresh
-// Vercel serverless function – fetch Strava activities with smart caching and tag preservation
+// api/strava.js - ENHANCED: Now supports detailed run analysis integration
+// Vercel serverless function – fetch Strava activities with smart caching, tag preservation, and detailed analysis support
 
 import admin from 'firebase-admin';
 
@@ -77,7 +77,8 @@ const loadExistingRunTags = async (userId) => {
           userOverride: data.userOverride === true,
           taggedBy: data.taggedBy || 'auto',
           taggedAt: data.taggedAt,
-          originalSuggestion: data.originalSuggestion
+          originalSuggestion: data.originalSuggestion,
+          hasDetailedAnalysis: data.hasDetailedAnalysis === true // NEW: Track if detailed analysis exists
         });
         
         if (data.userOverride === true) {
@@ -91,6 +92,46 @@ const loadExistingRunTags = async (userId) => {
     
   } catch (error) {
     console.error('❌ Error loading existing run tags:', error);
+    return new Map();
+  }
+};
+
+/* ──────────────────────────────────────────────────────────────────── */
+/*  NEW: Check if detailed analysis exists for activities            */
+/* ──────────────────────────────────────────────────────────────────── */
+const checkDetailedAnalysisAvailability = async (userId, activityIds) => {
+  try {
+    console.log(`🔍 Checking detailed analysis availability for ${activityIds.length} activities`);
+    
+    const detailedAnalysisMap = new Map();
+    const batchSize = 10; // Process in batches to avoid overwhelming Firestore
+    
+    for (let i = 0; i < activityIds.length; i += batchSize) {
+      const batch = activityIds.slice(i, i + batchSize);
+      const promises = batch.map(async (activityId) => {
+        const docRef = db.collection('strava_detailed').doc(`${userId}_${activityId}`);
+        const doc = await docRef.get();
+        return { activityId, exists: doc.exists, data: doc.exists ? doc.data() : null };
+      });
+      
+      const results = await Promise.all(promises);
+      results.forEach(({ activityId, exists, data }) => {
+        detailedAnalysisMap.set(activityId, {
+          hasDetailedAnalysis: exists,
+          lastAnalyzed: data?.cached_at || null,
+          hasKmSplits: data?.splits_metric?.length > 0 || false,
+          hasStreams: !!data?.streams,
+          hasZones: data?.zones?.length > 0 || false,
+          hasGearInfo: !!data?.gear
+        });
+      });
+    }
+    
+    console.log(`✅ Checked detailed analysis for ${detailedAnalysisMap.size} activities`);
+    return detailedAnalysisMap;
+    
+  } catch (error) {
+    console.error('❌ Error checking detailed analysis availability:', error);
     return new Map();
   }
 };
@@ -128,23 +169,26 @@ const cleanupDuplicates = async (userId, strategy = 'activityId') => {
           docId: doc.id,
           data: data,
           fetchedAt: new Date(data.fetched_at || data.start_date || '1970-01-01'),
-          hasUserTag: data.userOverride === true
+          hasUserTag: data.userOverride === true,
+          hasDetailedAnalysis: data.hasDetailedAnalysis === true
         });
       });
       
-      // Find duplicates and mark older ones for deletion (preserve user tags)
+      // Find duplicates and mark older ones for deletion (preserve user tags and detailed analysis)
       activityGroups.forEach((docs, activityId) => {
         if (docs.length > 1) {
-          // Sort: user-tagged first, then by newest fetch time
+          // Sort: user-tagged first, then detailed analysis, then by newest fetch time
           docs.sort((a, b) => {
             if (a.hasUserTag && !b.hasUserTag) return -1;
             if (!a.hasUserTag && b.hasUserTag) return 1;
+            if (a.hasDetailedAnalysis && !b.hasDetailedAnalysis) return -1;
+            if (!a.hasDetailedAnalysis && b.hasDetailedAnalysis) return 1;
             return b.fetchedAt.getTime() - a.fetchedAt.getTime();
           });
           
           const [keeper, ...toDelete] = docs;
           
-          console.log(`🔍 Activity ${activityId}: keeping ${keeper.docId}${keeper.hasUserTag ? ' (user-tagged)' : ''}, deleting ${toDelete.length} duplicates`);
+          console.log(`🔍 Activity ${activityId}: keeping ${keeper.docId}${keeper.hasUserTag ? ' (user-tagged)' : ''}${keeper.hasDetailedAnalysis ? ' (detailed)' : ''}, deleting ${toDelete.length} duplicates`);
           duplicatesToDelete.push(...toDelete.map(doc => doc.docRef));
         }
       });
@@ -216,9 +260,9 @@ const canRefreshData = async (userId) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Get cached data from Firestore - ENHANCED for incremental mode   */
+/*  Get cached data from Firestore - ENHANCED for detailed analysis  */
 /* ──────────────────────────────────────────────────────────────────── */
-const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
+const getCachedData = async (userId, daysBack = 30, includeRunTags = true, includeDetailedInfo = true) => {
   try {
     // Calculate cutoff date from TODAY
     const cutoffDate = new Date();
@@ -258,6 +302,8 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
         const existing = activityMap.get(activityId);
         const existingUserTagged = existing.userOverride === true;
         const currentUserTagged = data.userOverride === true;
+        const existingHasDetailed = existing.hasDetailedAnalysis === true;
+        const currentHasDetailed = data.hasDetailedAnalysis === true;
         
         let shouldReplace = false;
         
@@ -267,8 +313,14 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
         } else if (!currentUserTagged && existingUserTagged) {
           // Existing has user tag, current doesn't - keep existing
           shouldReplace = false;
+        } else if (currentHasDetailed && !existingHasDetailed) {
+          // Current has detailed analysis, existing doesn't
+          shouldReplace = true;
+        } else if (!currentHasDetailed && existingHasDetailed) {
+          // Existing has detailed analysis, current doesn't - keep existing
+          shouldReplace = false;
         } else {
-          // Both have same tag status, use newer fetch time
+          // Both have same tag/detailed status, use newer fetch time
           const existingTime = new Date(existing.fetched_at || existing.start_date);
           const currentTime = new Date(data.fetched_at || data.start_date);
           shouldReplace = currentTime > existingTime;
@@ -285,11 +337,38 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
     });
     
     const cachedActivities = Array.from(activityMap.values());
+    
+    // ENHANCED: Add detailed analysis availability info for runs
+    if (includeDetailedInfo) {
+      const runActivities = cachedActivities.filter(a => a.is_run_activity);
+      if (runActivities.length > 0) {
+        const detailedAnalysisMap = await checkDetailedAnalysisAvailability(
+          userId, 
+          runActivities.map(a => a.id)
+        );
+        
+        cachedActivities.forEach(activity => {
+          if (activity.is_run_activity && detailedAnalysisMap.has(activity.id)) {
+            const detailedInfo = detailedAnalysisMap.get(activity.id);
+            activity.hasDetailedAnalysis = detailedInfo.hasDetailedAnalysis;
+            activity.detailedAnalysisInfo = detailedInfo;
+          }
+        });
+      }
+    }
+    
     console.log(`📊 Found ${snapshot.docs.length} documents, ${cachedActivities.length} unique activities`);
     
     // Log if duplicates were found
     if (snapshot.docs.length > cachedActivities.length) {
       console.log(`⚠️ Found ${snapshot.docs.length - cachedActivities.length} duplicate documents`);
+    }
+    
+    // Log detailed analysis stats
+    if (includeDetailedInfo) {
+      const runsWithDetailed = cachedActivities.filter(a => a.is_run_activity && a.hasDetailedAnalysis).length;
+      const totalRuns = cachedActivities.filter(a => a.is_run_activity).length;
+      console.log(`🔍 ${runsWithDetailed}/${totalRuns} runs have detailed analysis available`);
     }
     
     return cachedActivities;
@@ -356,17 +435,27 @@ const removeDuplicateActivities = (activities) => {
     if (!activityMap.has(activityId)) {
       activityMap.set(activityId, activity);
     } else {
-      // Prefer user-tagged versions
+      // Prefer user-tagged versions, then detailed analysis, then newer data
       const existing = activityMap.get(activityId);
+      let shouldReplace = false;
+      
       if (activity.userOverride === true && existing.userOverride !== true) {
-        activityMap.set(activityId, activity);
+        shouldReplace = true;
       } else if (existing.userOverride !== true && activity.userOverride !== true) {
-        // Both auto-tagged or untagged, use newer data
-        const existingTime = new Date(existing.fetched_at || existing.start_date);
-        const currentTime = new Date(activity.fetched_at || activity.start_date);
-        if (currentTime > existingTime) {
-          activityMap.set(activityId, activity);
+        if (activity.hasDetailedAnalysis === true && existing.hasDetailedAnalysis !== true) {
+          shouldReplace = true;
+        } else if (existing.hasDetailedAnalysis !== true && activity.hasDetailedAnalysis !== true) {
+          // Both auto-tagged and no detailed analysis, use newer data
+          const existingTime = new Date(existing.fetched_at || existing.start_date);
+          const currentTime = new Date(activity.fetched_at || activity.start_date);
+          if (currentTime > existingTime) {
+            shouldReplace = true;
+          }
         }
+      }
+      
+      if (shouldReplace) {
+        activityMap.set(activityId, activity);
       }
     }
   });
@@ -397,7 +486,7 @@ const estimateCalories = (activity) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────── */
-/*  Main handler - ENHANCED with run tag preservation                */
+/*  Main handler - ENHANCED with detailed analysis support           */
 /* ──────────────────────────────────────────────────────────────────── */
 export default async function handler(req, res) {
   try {
@@ -412,11 +501,12 @@ export default async function handler(req, res) {
     const cleanupStrategy = req.query.cleanupStrategy || 'activityId';
     const deepClean = req.query.deepClean === 'true';
     const preserveTags = req.query.preserveTags !== 'false'; // Default to true
+    const includeDetailedInfo = req.query.includeDetailed !== 'false'; // Default to true
     
     // NEW: Incremental mode - only fetch today's data + return cached older data
     const mode = req.query.mode || 'full'; // 'full' or 'incremental'
     
-    console.log(`🚀 Strava API request: userId=${userId}, mode=${mode}, forceRefresh=${forceRefresh}, daysBack=${daysBack}, preserveTags=${preserveTags}`);
+    console.log(`🚀 Strava API request: userId=${userId}, mode=${mode}, forceRefresh=${forceRefresh}, daysBack=${daysBack}, preserveTags=${preserveTags}, includeDetailed=${includeDetailedInfo}`);
     console.log(`🧹 Cleanup options: cleanup=${cleanup}, strategy=${cleanupStrategy}, deepClean=${deepClean}`);
     
     // CRITICAL: Load existing run tags before any operations
@@ -443,7 +533,7 @@ export default async function handler(req, res) {
       
       try {
         // 1. Get cached data for last 29 days (excluding today)
-        const cachedData = await getCachedData(userId, daysBack - 1, true);
+        const cachedData = await getCachedData(userId, daysBack - 1, true, includeDetailedInfo);
         
         // 2. Check if we have today's data cached already
         const todaysCached = await getTodaysCachedData(userId);
@@ -601,7 +691,8 @@ export default async function handler(req, res) {
             photo_count: activity.photo_count,
             suffer_score: activity.suffer_score,
             fetched_at: now,
-            is_run_activity: isRun
+            is_run_activity: isRun,
+            hasDetailedAnalysis: false // Will be updated when detailed analysis is performed
           };
 
           // Add run tag info if it's a run
@@ -646,13 +737,13 @@ export default async function handler(req, res) {
         
       } catch (incrementalError) {
         console.error('❌ Incremental mode failed, falling back to cached data:', incrementalError);
-        const fallbackData = await getCachedData(userId, daysBack, true);
+        const fallbackData = await getCachedData(userId, daysBack, true, includeDetailedInfo);
         return res.status(200).json(fallbackData);
       }
     }
     
-    // FULL MODE: Complete refresh WITH TAG PRESERVATION
-    console.log('🔄 Full mode - fetching all activities from Strava with tag preservation');
+    // FULL MODE: Complete refresh WITH TAG PRESERVATION AND DETAILED ANALYSIS SUPPORT
+    console.log('🔄 Full mode - fetching all activities from Strava with enhanced features');
     
     // Rate limit check for full refresh
     if (forceRefresh) {
@@ -661,7 +752,7 @@ export default async function handler(req, res) {
       const canRefresh = await canRefreshData(userId);
       if (!canRefresh) {
         console.log('❌ Force refresh denied - daily limit reached');
-        const cachedData = await getCachedData(userId, daysBack, true);
+        const cachedData = await getCachedData(userId, daysBack, true, includeDetailedInfo);
         return res.status(200).json(cachedData);
       }
     } else {
@@ -669,13 +760,13 @@ export default async function handler(req, res) {
       
       if (!canRefresh) {
         console.log('📦 Serving cached data (refresh limit reached)');
-        const cachedData = await getCachedData(userId, daysBack, true);
+        const cachedData = await getCachedData(userId, daysBack, true, includeDetailedInfo);
         return res.status(200).json(cachedData);
       }
     }
     
     // Try to get cached data first
-    const cachedData = await getCachedData(userId, daysBack, true);
+    const cachedData = await getCachedData(userId, daysBack, true, includeDetailedInfo);
     
     // Better cache freshness logic
     if (!forceRefresh && cachedData.length > 0) {
@@ -767,7 +858,7 @@ export default async function handler(req, res) {
     const activitiesData = await listResp.json();
     console.log(`✅ Fetched ${activitiesData.length} activities from Strava API`);
 
-    /* ––– Process activities with ENHANCED run tag preservation ––– */
+    /* ––– Process activities with ENHANCED features ––– */
     const summaries = [];
     const batch = db.batch();
     const now = new Date().toISOString();
@@ -849,7 +940,9 @@ export default async function handler(req, res) {
         photo_count: activity.photo_count,
         suffer_score: activity.suffer_score,
         fetched_at: now,
-        is_run_activity: isRun
+        is_run_activity: isRun,
+        hasDetailedAnalysis: false, // Will be updated when detailed analysis is performed
+        detailedAnalysisAvailable: isRun // Runs are eligible for detailed analysis
       };
 
       // Add run tag info if it's a run
@@ -862,6 +955,7 @@ export default async function handler(req, res) {
         summary.originalSuggestion = runTagInfo.originalSuggestion;
         summary.autoClassified = runTagInfo.autoClassified || false;
         summary.confidenceScore = runTagInfo.confidenceScore || 0.0;
+        summary.hasDetailedAnalysis = runTagInfo.hasDetailedAnalysis || false;
       }
 
       summaries.push(summary);
@@ -874,15 +968,16 @@ export default async function handler(req, res) {
     // Commit all writes at once
     if (summaries.length > 0) {
       await batch.commit();
-      console.log(`💾 Cached ${summaries.length} activities to Firestore with enhanced run tag preservation`);
+      console.log(`💾 Cached ${summaries.length} activities to Firestore with enhanced features`);
       
-      // Enhanced run tagging stats
+      // Enhanced stats
       const runActivities = summaries.filter(a => a.is_run_activity);
       const taggedRuns = runActivities.filter(a => a.run_tag);
       const userModifiedRuns = taggedRuns.filter(a => a.userOverride === true);
+      const runsEligibleForDetailed = runActivities.length;
       
-      console.log(`🏃 Enhanced run tagging stats:`);
-      console.log(`   - ${runActivities.length} runs found`);
+      console.log(`🏃 Enhanced processing stats:`);
+      console.log(`   - ${runActivities.length} runs found (${runsEligibleForDetailed} eligible for detailed analysis)`);
       console.log(`   - ${taggedRuns.length} tagged runs`);
       console.log(`   - ${preservedTagsCount} tags preserved from existing data`);
       console.log(`   - ${newTagsCount} new auto-tags generated`);
@@ -903,15 +998,16 @@ export default async function handler(req, res) {
       new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
     );
 
-    // Log sample activities with tag preservation info
+    // Log sample activities with enhanced info
     if (sortedSummaries.length > 0) {
-      console.log('📋 Sample activities being returned (with tag preservation):');
+      console.log('📋 Sample activities being returned (with enhanced features):');
       sortedSummaries.slice(0, 3).forEach((activity, index) => {
         let runInfo = '';
         if (activity.is_run_activity) {
           const tagStatus = activity.userOverride === true ? 'user-modified' : 'auto-tagged';
           const wasPreserved = existingRunTags.has(activity.id) ? ' [PRESERVED]' : ' [NEW]';
-          runInfo = ` (${activity.run_tag || 'untagged'} ${tagStatus}${wasPreserved})`;
+          const detailedStatus = activity.hasDetailedAnalysis ? ' [DETAILED]' : ' [BASIC]';
+          runInfo = ` (${activity.run_tag || 'untagged'} ${tagStatus}${wasPreserved}${detailedStatus})`;
         }
         console.log(`${index + 1}. ${activity.name}${runInfo} - ${new Date(activity.start_date).toLocaleDateString()}`);
       });
@@ -933,7 +1029,8 @@ export default async function handler(req, res) {
     try {
       const userId = req.query.userId || 'mihir_jain';
       const daysBack = parseInt(req.query.days) || 30;
-      const cachedData = await getCachedData(userId, daysBack, true);
+      const includeDetailedInfo = req.query.includeDetailed !== 'false';
+      const cachedData = await getCachedData(userId, daysBack, true, includeDetailedInfo);
       console.log(`📦 Serving ${cachedData.length} cached activities due to error`);
       return res.status(200).json(cachedData);
     } catch (cacheError) {
