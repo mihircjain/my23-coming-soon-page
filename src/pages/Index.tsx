@@ -47,7 +47,6 @@ const WeeklyGoalsTracker: React.FC<{
   loading: boolean;
 }> = ({ weekData, loading }) => {
   // Calculate weekly totals
-// Calculate weekly totals
   const calculateWeeklyTotals = () => {
     const totals = {
       caloriesBurned: 0,
@@ -62,7 +61,9 @@ const WeeklyGoalsTracker: React.FC<{
       totals.caloriesBurned += day.caloriesBurned || 0;
       totals.protein += day.protein || 0;
       
-      const dailySurplus = day.caloriesConsumed - (day.caloriesBurned + BMR);
+      const caloriesConsumed = day.caloriesConsumed || 0;
+      const caloriesBurned = day.caloriesBurned || 0;
+      const dailySurplus = caloriesConsumed - (caloriesBurned + BMR);
       totals.calorieSurplus += dailySurplus;
       
       if (day.caloriesBurned > 0 || day.caloriesConsumed > 0) {
@@ -72,7 +73,6 @@ const WeeklyGoalsTracker: React.FC<{
 
     return totals;
   };
-  
 
   const weeklyTotals = calculateWeeklyTotals();
 
@@ -80,7 +80,7 @@ const WeeklyGoalsTracker: React.FC<{
   const goals = {
     caloriesBurned: { target: 3500, label: "Calories Burned", icon: Flame, color: "green", shortLabel: "Cal Burn" },
     protein: { target: 980, label: "Protein (140g×7)", icon: Utensils, color: "blue", shortLabel: "Protein" },
-    calorieDeficit: { target: 1000, label: "Calorie Deficit", icon: Target, color: "emerald", shortLabel: "Cal Deficit" }
+    calorieSurplus: { target: 1000, label: "Calorie Surplus", icon: TrendingUp, color: "emerald", shortLabel: "Cal Surplus" }
   };
 
   const getProgressColor = (percentage: number) => {
@@ -188,9 +188,10 @@ const WeeklyGoalsTracker: React.FC<{
               const isToday = dateStr === new Date().toISOString().split('T')[0];
               
               const BMR = 1479;
-              const dailyDeficit = ((dayData.caloriesBurned || 0) + BMR) - (dayData.caloriesConsumed || 0);
+              const caloriesConsumed = dayData.caloriesConsumed || 0;
+              const caloriesBurned = dayData.caloriesBurned || 0;
+              const dailySurplus = caloriesConsumed - (caloriesBurned + BMR);
               const protein = dayData.protein || 0;
-              const burned = dayData.caloriesBurned || 0;
               
               return (
                 <div 
@@ -210,19 +211,19 @@ const WeeklyGoalsTracker: React.FC<{
                   
                   {/* Calories Burned */}
                   <div className="text-xs text-green-600 font-medium">
-                    Cal Burn: {Math.round(burned)}
+                    Cal Burn: {Math.round(caloriesBurned)}
                   </div>
                   
-                  {/* Deficit */}
-                  <div className={`text-xs font-semibold ${dailyDeficit >= 0 ? 'text-emerald-600' : 'text-teal-600'}`}>
-                    Cal Deficit: {dailyDeficit >= 0 ? '+' : ''}{Math.round(dailyDeficit)}
+                  {/* Surplus */}
+                  <div className={`text-xs font-semibold ${dailySurplus >= 0 ? 'text-emerald-600' : 'text-teal-600'}`}>
+                    Cal Surplus: {dailySurplus >= 0 ? '+' : ''}{Math.round(dailySurplus)}
                   </div>
                 </div>
               );
             })}
           </div>
           <div className="text-xs text-gray-600 text-center">
-            P: Protein (g) • Cal Burn: Burned (cal) • Cal Deficit: Deficit (cal)
+            P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal)
           </div>
         </div>
       </CardContent>
