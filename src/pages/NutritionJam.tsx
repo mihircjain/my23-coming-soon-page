@@ -687,12 +687,12 @@ const NutritionJam = () => {
       foods: [
         { foodId: "Oats, Quaker", calories: 163, protein: 4.7, carbs: 27.4, fat: 3.8, fiber: 4.0, quantity: 1, unit: "serving" },
         { foodId: "Omani Dates, Happilo", calories: 68, protein: 0.6, carbs: 18.0, fat: 0.1, fiber: 1.9, quantity: 1, unit: "serving" },
-        { foodId: "Almonds", calories: 37, protein: 1.3, carbs: 1.3, fat: 3.0, fiber: 0.8, quantity: 1, unit: "serving" },
+        { foodId: "Almonds", calories: 56, protein: 1.9, carbs: 1.9, fat: 4.5, fiber: 1.1, quantity: 1, unit: "serving" },
         { foodId: "Skyr High Protein Yogurt, Milky Mist", calories: 100, protein: 12.0, carbs: 9.5, fat: 1.5, fiber: 0.0, quantity: 1, unit: "serving" },
         { foodId: "Raw Whey Protein, Unflavoured", calories: 178, protein: 35.6, carbs: 3.5, fat: 2.4, fiber: 0.4, quantity: 1, unit: "serving" },
-        { foodId: "Nutty Gritties Super Seeds Mix", calories: 64, protein: 2.4, carbs: 1.1, fat: 4.9, fiber: 1.6, quantity: 1, unit: "serving" },
+        { foodId: "Nutty Gritties Super Seeds Mix", calories: 107, protein: 4, carbs: 1.9, fat: 8, fiber: 2.7, quantity: 1, unit: "serving" },
         { foodId: "Slim n Trim Skimmed Milk, Amul", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0, quantity: 1, unit: "serving" },
-        { foodId: "Walnut", calories: 40, protein: 0.9, carbs: 0.6, fat: 3.9, fiber: 0.3, quantity: 1, unit: "serving" },
+        { foodId: "Walnut", calories: 60, protein: 1.3, carbs: 0.8, fat: 5.8, fiber: 0.35, quantity: 1, unit: "serving" },
         { foodId: "Mango", calories: 96, protein: 0.8, carbs: 22.0, fat: 0.5, fiber: 2.6, quantity: 1, unit: "serving" }
       ]
     },
@@ -701,6 +701,7 @@ const NutritionJam = () => {
       name: "Evening Smoothie",
       foods: [
         { foodId: "Cocoa Whey Protein, The Whole Truth", calories: 191, protein: 34.1, carbs: 8.6, fat: 2.1, fiber: 2.1, quantity: 1, unit: "serving" },
+        { foodId: "Oats, Quaker", calories: 163, protein: 4.7, carbs: 27.4, fat: 3.8, fiber: 4.0, quantity: 1, unit: "serving" },
         { foodId: "Slim n Trim Skimmed Milk, Amul", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0, quantity: 1, unit: "serving" }
       ]
     },
