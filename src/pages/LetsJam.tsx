@@ -1300,6 +1300,7 @@ const LetsJam: React.FC = () => {
       // Analyze what type of query this is - ENHANCED detection
       const isRunQuery = /\b(run|running|pace|km|kilometer|tempo|easy|interval|jog|sprint|marathon|5k|10k|today|yesterday|last|recent|this morning|this week)\b/i.test(query) ||
                         /\b(how was|how did|analyze|tell me|splits|heart rate|hr|bpm)\b/i.test(query);
+      const needsDetailedAnalysis = /\b(analyze|detailed|breakdown|splits|how did|performance)\b/i.test(query);
       const isNutritionQuery = /\b(eat|food|nutrition|calorie|protein|carb|fat|meal|diet|macro)\b/i.test(query);
       const isBodyQuery = /\b(body|weight|fat|composition|muscle|lean|mass|hdl|ldl|cholesterol|blood|marker)\b/i.test(query);
       const isTrainingQuery = /\b(train|training|workout|exercise|fitness|recovery|load|stress|overtraining)\b/i.test(query);
@@ -1509,8 +1510,9 @@ ${nonRunActivities.slice(0, 3).map((activity, index) =>
    - Detailed km-by-km splits with pace, heart rate, and elevation when available
    - Analysis of pace consistency, heart rate progression, and effort distribution
    - Specific performance insights from the km-by-km data
-8. Do NOT give generic nutrition/hydration/weight training advice unless specifically asked
-9. Focus on analyzing the actual performance data from the splits provided`;
+8. If query contains "analyze", "breakdown", "detailed", "how did", or "performance" - provide FULL detailed analysis immediately
+9. Do NOT give generic nutrition/hydration/weight training advice unless specifically asked
+10. Focus on analyzing the actual performance data from the splits provided`;
         }
         
         if (isNutritionQuery) {
@@ -1534,10 +1536,20 @@ ${nonRunActivities.slice(0, 3).map((activity, index) =>
         systemContext += `
 
 EXAMPLES OF FOCUSED RESPONSES:
-- Q: "analyze my run today" A: "Your 💙 Recovery run covered **5.33km** in **31min**. Km-by-km: Km1: 5:41 pace, 136bpm | Km2: 5:47, 147bpm | Km3: 5:50, 151bpm | Km4: 5:48, 157bpm | Km5: 5:46, 154bpm. **Analysis**: Excellent pace consistency (5:41-5:50 range) with controlled heart rate progression - perfect execution for a recovery run."
-- Q: "give detailed" A: "**Detailed km-by-km breakdown**: [show all splits with pace, HR, elevation] **Performance Analysis**: Your heart rate increased gradually from 136 to 157bpm, indicating proper warm-up. Pace stayed consistent around 5:45/km showing good control."
-- Q: "How many calories did I eat yesterday?" A: "Yesterday you consumed **2,340 calories** with **98g protein**."
-- Q: "What's a good warm-up?" A: "Start with 5-10 minutes easy jogging, then dynamic stretches like leg swings and butt kicks."`;
+- Q: "analyze my run today" A: "Your 💙 Recovery run covered **5.33km** in **31min**. 
+
+**KM-BY-KM BREAKDOWN:**
+Km1: 5:41 pace, 136bpm, +2m elevation
+Km2: 5:47 pace, 147bpm, +1m elevation  
+Km3: 5:50 pace, 151bpm, +3m elevation
+Km4: 5:48 pace, 157bpm, -1m elevation
+Km5: 5:46 pace, 154bpm, +0m elevation
+
+**PERFORMANCE ANALYSIS:** 
+Excellent pace consistency (5:41-5:50 range). Heart rate increased gradually from 136→157bpm showing proper warm-up. Perfect execution for recovery run - stayed controlled throughout."
+
+- Q: "how was my run" A: "Your run was a **5.33km Recovery run** in **31min**. You maintained consistent **5:45 avg pace** with **149bpm avg HR**. Good controlled effort for recovery."
+- Q: "How many calories did I eat yesterday?" A: "Yesterday you consumed **2,340 calories** with **98g protein**."`;
 
       } else {
         systemContext += `
