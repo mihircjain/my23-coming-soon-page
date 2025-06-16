@@ -1,4 +1,4 @@
-// api/strava.js - OPTIMIZED: Cache-first approach, minimal API calls
+// api/strava.js - OPTIMIZED: Cache-first approach, minimal API calls, no calorie estimation
 // Serves cached data by default, only refreshes when explicitly requested
 
 import admin from 'firebase-admin';
@@ -16,32 +16,6 @@ if (!admin.apps.length) {
   });
 }
 const db = admin.firestore();
-
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Fast calorie estimation (no API calls needed)                    */
-/* ──────────────────────────────────────────────────────────────────── */
-const estimateCalories = (activity) => {
-  // If we already have calories, use them
-  if (activity.calories && activity.calories > 0) return activity.calories;
-  
-  const minutes = Math.round((activity.moving_time || activity.duration * 60 || 0) / 60);
-  const type = (activity.type || '').toLowerCase();
-  
-  // Calorie estimation based on activity type and duration
-  if (type.includes('run')) {
-    return Math.round(minutes * 12); // ~12 cal/min running
-  } else if (type.includes('bike') || type.includes('cycling')) {
-    return Math.round(minutes * 10); // ~10 cal/min cycling
-  } else if (type.includes('walk')) {
-    return Math.round(minutes * 5); // ~5 cal/min walking
-  } else if (type.includes('strength') || type.includes('weighttraining')) {
-    return Math.round(minutes * 8); // ~8 cal/min strength
-  } else if (type.includes('swim')) {
-    return Math.round(minutes * 11); // ~11 cal/min swimming
-  }
-  
-  return Math.round(minutes * 7); // ~7 cal/min general activity
-};
 
 /* ──────────────────────────────────────────────────────────────────── */
 /*  Auto-classify runs for tagging system                            */
@@ -154,12 +128,10 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
       const activityId = data.id || doc.id.split('_')[1];
       
       if (!activityMap.has(activityId)) {
-        // Process the activity data
+        // Process the activity data - use calories as-is from Strava
         const processedActivity = {
           ...data,
-          // Ensure calories are available (estimate if missing)
-          calories: estimateCalories(data),
-          // Add run tag info if it's a run and has been tagged
+          calories: data.calories || 0, // Use Strava calories directly, 0 if none
           is_run_activity: data.type?.toLowerCase().includes('run') || false
         };
         
@@ -196,7 +168,7 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
         if (shouldReplace) {
           const processedActivity = {
             ...data,
-            calories: estimateCalories(data),
+            calories: data.calories || 0, // Use Strava calories directly, 0 if none
             is_run_activity: data.type?.toLowerCase().includes('run') || false
           };
           
@@ -346,7 +318,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
   const activitiesData = await listResp.json();
   console.log(`✅ Fetched ${activitiesData.length} activities from Strava API (using 1 API call)`);
 
-  /* ––– Process activities WITHOUT individual API calls ──── */
+  /* ──── Process activities WITHOUT individual API calls ──── */
   const summaries = [];
   const batch = db.batch();
   const now = new Date().toISOString();
@@ -357,8 +329,8 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
     const activityId = activity.id.toString();
     const minutes = Math.round(activity.moving_time / 60);
     
-    // NO API CALLS FOR CALORIES - just estimate or use what Strava provides
-    const calories = estimateCalories(activity);
+    // Use Strava calories directly - NO ESTIMATION, NO ADDITIONAL API CALLS
+    const calories = activity.calories || 0;
 
     const isRun = activity.type?.toLowerCase().includes('run');
     
@@ -406,7 +378,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
       heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
       average_heartrate: activity.average_heartrate,
       max_heartrate: activity.max_heartrate,
-      calories: calories, // No API calls needed!
+      calories: calories, // Use Strava calories directly - no estimation
       achievement_count: activity.achievement_count,
       kudos_count: activity.kudos_count,
       comment_count: activity.comment_count,
@@ -448,6 +420,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
     const runActivities = summaries.filter(a => a.is_run_activity);
     const taggedRuns = runActivities.filter(a => a.run_tag);
     const userModifiedRuns = taggedRuns.filter(a => a.userOverride === true);
+    const activitiesWithCalories = summaries.filter(a => a.calories > 0);
     
     console.log(`🏃 Processing stats:`);
     console.log(`   - ${runActivities.length} runs found`);
@@ -455,7 +428,8 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
     console.log(`   - ${preservedTagsCount} tags preserved from existing data`);
     console.log(`   - ${newTagsCount} new auto-tags generated`);
     console.log(`   - ${userModifiedRuns.length} user-modified tags preserved`);
-    console.log(`   - Total API calls used: 1 (token + list)`);
+    console.log(`   - ${activitiesWithCalories.length} activities with Strava calories`);
+    console.log(`   - Total API calls used: 1 (token + list only)`);
   }
 
   return summaries.sort((a, b) => 
