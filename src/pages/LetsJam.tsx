@@ -1297,14 +1297,14 @@ const LetsJam: React.FC = () => {
     try {
       const query = messageContent.toLowerCase();
       
-      // Analyze what type of query this is - ENHANCED detection
-      const isRunQuery = /\b(run|running|pace|km|kilometer|tempo|easy|interval|jog|sprint|marathon|5k|10k|today|yesterday|last|recent|this morning|this week)\b/i.test(query) ||
+      // Analyze what type of query this is - ENHANCED detection for immediate detailed response
+      const isRunQuery = /\b(run|running|pace|km|kilometer|tempo|easy|interval|jog|sprint|marathon|5k|10k|today|yesterday|last|recent|this morning|this week|14th|june|from)\b/i.test(query) ||
                         /\b(how was|how did|analyze|tell me|splits|heart rate|hr|bpm)\b/i.test(query);
-      const needsDetailedAnalysis = /\b(analyze|detailed|breakdown|splits|how did|performance)\b/i.test(query);
+      const needsDetailedAnalysis = /\b(analyze|detailed|breakdown|splits|how did|performance|km by km)\b/i.test(query) || isRunQuery; // ALWAYS detailed for run queries
       const isNutritionQuery = /\b(eat|food|nutrition|calorie|protein|carb|fat|meal|diet|macro)\b/i.test(query);
       const isBodyQuery = /\b(body|weight|fat|composition|muscle|lean|mass|hdl|ldl|cholesterol|blood|marker)\b/i.test(query);
       const isTrainingQuery = /\b(train|training|workout|exercise|fitness|recovery|load|stress|overtraining)\b/i.test(query);
-      const isSpecificDateQuery = /\b(yesterday|today|this week|last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(query);
+      const isSpecificDateQuery = /\b(yesterday|today|this week|last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|14th|june|from)\b/i.test(query);
       const isGenericQuery = !isRunQuery && !isNutritionQuery && !isBodyQuery && !isTrainingQuery;
       
       console.log('🔍 Query analysis:', {
@@ -1505,14 +1505,13 @@ ${nonRunActivities.slice(0, 3).map((activity, index) =>
 
         if (isRunQuery) {
           systemContext += `
-7. For run queries, ALWAYS provide:
-   - Run tag and type (🚶 Easy, 💙 Recovery, etc.)
-   - Detailed km-by-km splits with pace, heart rate, and elevation when available
-   - Analysis of pace consistency, heart rate progression, and effort distribution
-   - Specific performance insights from the km-by-km data
-8. If query contains "analyze", "breakdown", "detailed", "how did", or "performance" - provide FULL detailed analysis immediately
-9. Do NOT give generic nutrition/hydration/weight training advice unless specifically asked
-10. Focus on analyzing the actual performance data from the splits provided`;
+7. For ANY run query, IMMEDIATELY provide detailed km-by-km analysis without asking for clarification
+8. If user asks "analyze my runs from [date]" - show ALL runs from that date with full km-by-km breakdown
+9. ALWAYS include: run tag, distance, duration, HR data, pace per km, elevation per km
+10. NEVER ask "which run?" or "need more direction" - just provide the analysis
+11. NEVER provide advice about: weight training, nutrition timing, hydration strategies, form tips, recovery protocols
+12. Focus ONLY on analyzing the actual performance data from the specific run(s)
+13. End analysis after performance insights - no recommendations unless specifically asked`;
         }
         
         if (isNutritionQuery) {
@@ -1536,17 +1535,15 @@ ${nonRunActivities.slice(0, 3).map((activity, index) =>
         systemContext += `
 
 EXAMPLES OF FOCUSED RESPONSES:
-- Q: "analyze my run today" A: "Your 💙 Recovery run covered **5.33km** in **31min**. 
+- Q: "analyze my runs from 14th june" A: "Your 🏃 Long run on June 14th: **18.01km** in **95min**, avg HR **152.5bpm**
 
 **KM-BY-KM BREAKDOWN:**
-Km1: 5:41 pace, 136bpm, +2m elevation
-Km2: 5:47 pace, 147bpm, +1m elevation  
-Km3: 5:50 pace, 151bpm, +3m elevation
-Km4: 5:48 pace, 157bpm, -1m elevation
-Km5: 5:46 pace, 154bpm, +0m elevation
+Km1: 5:38, 132bpm, -4.4m | Km2: 5:30, 139bpm, +5.4m | Km3: 5:26, 141bpm, -6.6m
+Km4: 5:33, 146bpm, -0.2m | Km5: 5:19, 150bpm, -1.4m | Km6: 5:20, 153bpm, -0.4m
+[...continue for all 18km...]
 
 **PERFORMANCE ANALYSIS:** 
-Excellent pace consistency (5:41-5:50 range). Heart rate increased gradually from 136→157bpm showing proper warm-up. Perfect execution for recovery run - stayed controlled throughout."
+Excellent pace consistency (5:08-5:30 range) for majority of run. Heart rate progression 132→157bpm shows controlled effort distribution. Strong finish with negative splits in final 4km."
 
 - Q: "how was my run" A: "Your run was a **5.33km Recovery run** in **31min**. You maintained consistent **5:45 avg pace** with **149bpm avg HR**. Good controlled effort for recovery."
 - Q: "How many calories did I eat yesterday?" A: "Yesterday you consumed **2,340 calories** with **98g protein**."`;
