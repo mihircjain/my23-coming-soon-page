@@ -47,11 +47,12 @@ const WeeklyGoalsTracker: React.FC<{
   loading: boolean;
 }> = ({ weekData, loading }) => {
   // Calculate weekly totals
+// Calculate weekly totals
   const calculateWeeklyTotals = () => {
     const totals = {
       caloriesBurned: 0,
       protein: 0,
-      calorieDeficit: 0,
+      calorieSurplus: 0,
       activeDays: 0
     };
 
@@ -61,8 +62,8 @@ const WeeklyGoalsTracker: React.FC<{
       totals.caloriesBurned += day.caloriesBurned || 0;
       totals.protein += day.protein || 0;
       
-      const dailyDeficit = (day.caloriesBurned + BMR) - day.caloriesConsumed;
-      totals.calorieDeficit += dailyDeficit;
+      const dailySurplus = day.caloriesConsumed - (day.caloriesBurned + BMR);
+      totals.calorieSurplus += dailySurplus;
       
       if (day.caloriesBurned > 0 || day.caloriesConsumed > 0) {
         totals.activeDays += 1;
@@ -71,6 +72,7 @@ const WeeklyGoalsTracker: React.FC<{
 
     return totals;
   };
+  
 
   const weeklyTotals = calculateWeeklyTotals();
 
