@@ -210,27 +210,42 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
       <CardContent>
         {/* Weekly Averages Summary */}
         <div className="mb-6 p-4 bg-white/60 rounded-lg border border-green-200">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 text-center">Weekly Averages</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-3 text-center">Weekly Averages vs Daily Goals</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="text-center p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
               <div className="text-lg font-bold text-green-700">{weeklyAverages.calories}</div>
               <div className="text-xs text-green-800 font-medium">Avg Calories</div>
+              <div className="text-xs text-green-600 mt-1">
+                {Math.round((weeklyAverages.calories / 2300) * 100)}% of 2300
+              </div>
             </div>
             <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
               <div className="text-lg font-bold text-blue-700">{weeklyAverages.protein}g</div>
               <div className="text-xs text-blue-800 font-medium">Avg Protein</div>
+              <div className="text-xs text-blue-600 mt-1">
+                {Math.round((weeklyAverages.protein / 150) * 100)}% of 150g
+              </div>
             </div>
             <div className="text-center p-3 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg border border-emerald-200">
               <div className="text-lg font-bold text-emerald-700">{weeklyAverages.carbs}g</div>
               <div className="text-xs text-emerald-800 font-medium">Avg Carbs</div>
+              <div className="text-xs text-emerald-600 mt-1">
+                {Math.round((weeklyAverages.carbs / 311) * 100)}% of 311g
+              </div>
             </div>
             <div className="text-center p-3 bg-gradient-to-br from-teal-50 to-teal-100 rounded-lg border border-teal-200">
               <div className="text-lg font-bold text-teal-700">{weeklyAverages.fat}g</div>
               <div className="text-xs text-teal-800 font-medium">Avg Fat</div>
+              <div className="text-xs text-teal-600 mt-1">
+                {Math.round((weeklyAverages.fat / 51) * 100)}% of 51g
+              </div>
             </div>
             <div className="text-center p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
               <div className="text-lg font-bold text-green-600">{weeklyAverages.fiber}g</div>
               <div className="text-xs text-green-700 font-medium">Avg Fiber</div>
+              <div className="text-xs text-green-600 mt-1">
+                Daily intake
+              </div>
             </div>
           </div>
         </div>
@@ -357,7 +372,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
 const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   const totals = log?.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   const hasData = log?.entries?.length > 0;
-  const calorieGoal = 2000;
+  const calorieGoal = 2300;
   const caloriePercent = Math.min((totals.calories / calorieGoal) * 100, 100);
 
   const formatDate = (dateValue) => {
@@ -435,18 +450,30 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
               <div className="text-center bg-white/60 rounded-lg py-3 border border-blue-200">
                 <div className="font-bold text-blue-700 text-lg">{Math.round(totals.protein)}g</div>
                 <div className="text-blue-800 text-xs">Protein</div>
+                <div className="text-blue-600 text-xs mt-1">
+                  {Math.round((totals.protein / 150) * 100)}%
+                </div>
               </div>
               <div className="text-center bg-white/60 rounded-lg py-3 border border-emerald-200">
                 <div className="font-bold text-emerald-600 text-lg">{Math.round(totals.carbs)}g</div>
                 <div className="text-emerald-700 text-xs">Carbs</div>
+                <div className="text-emerald-600 text-xs mt-1">
+                  {Math.round((totals.carbs / 311) * 100)}%
+                </div>
               </div>
               <div className="text-center bg-white/60 rounded-lg py-3 border border-teal-200">
                 <div className="font-bold text-teal-600 text-lg">{Math.round(totals.fat)}g</div>
                 <div className="text-teal-700 text-xs">Fat</div>
+                <div className="text-teal-600 text-xs mt-1">
+                  {Math.round((totals.fat / 51) * 100)}%
+                </div>
               </div>
               <div className="text-center bg-white/60 rounded-lg py-3 border border-green-200">
                 <div className="font-bold text-green-600 text-lg">{Math.round(totals.fiber || 0)}g</div>
                 <div className="text-green-700 text-xs">Fiber</div>
+                <div className="text-green-600 text-xs mt-1">
+                  Daily
+                </div>
               </div>
             </div>
 
@@ -669,6 +696,7 @@ const CombinedMealCard = ({ preset, onClick }) => {
     </Card>
   );
 };
+
 const NutritionJam = () => {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -1169,23 +1197,23 @@ const NutritionJam = () => {
                             <div className="text-2xl font-bold text-green-700">
                               {Math.round(currentLog?.totals?.calories || 0)}
                             </div>
-                            <div className="text-sm text-gray-500">/ 2000 goal</div>
+                            <div className="text-sm text-gray-500">/ 2300 goal</div>
                           </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-3">
                           <div
                             className="bg-gradient-to-r from-green-400 to-blue-500 h-3 rounded-full transition-all duration-500"
                             style={{
-                              width: `${Math.min(((currentLog?.totals?.calories || 0) / 2000) * 100, 100)}%`
+                              width: `${Math.min(((currentLog?.totals?.calories || 0) / 2300) * 100, 100)}%`
                             }}
                           />
                         </div>
                         <div className="text-center text-sm text-gray-600">
-                          {Math.round(((currentLog?.totals?.calories || 0) / 2000) * 100)}% of daily goal
+                          {Math.round(((currentLog?.totals?.calories || 0) / 2300) * 100)}% of daily goal
                         </div>
                       </div>
 
-                      {/* Macros Grid - Green/Blue theme */}
+                      {/* Macros Grid - Green/Blue theme with goals */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
                           <Target className="h-5 w-5 mx-auto mb-2 text-blue-600" />
@@ -1193,6 +1221,9 @@ const NutritionJam = () => {
                             {Math.round(currentLog?.totals?.protein || 0)}g
                           </div>
                           <div className="text-xs text-blue-800 font-medium">Protein</div>
+                          <div className="text-xs text-blue-600 mt-1">
+                            {Math.round(((currentLog?.totals?.protein || 0) / 150) * 100)}% of 150g
+                          </div>
                         </div>
                         <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
                           <Activity className="h-5 w-5 mx-auto mb-2 text-emerald-600" />
@@ -1200,6 +1231,9 @@ const NutritionJam = () => {
                             {Math.round(currentLog?.totals?.carbs || 0)}g
                           </div>
                           <div className="text-xs text-emerald-700 font-medium">Carbs</div>
+                          <div className="text-xs text-emerald-600 mt-1">
+                            {Math.round(((currentLog?.totals?.carbs || 0) / 311) * 100)}% of 311g
+                          </div>
                         </div>
                         <div className="text-center p-4 bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl border border-teal-200">
                           <div className="w-5 h-5 mx-auto mb-2 bg-teal-600 rounded-full"></div>
@@ -1207,6 +1241,9 @@ const NutritionJam = () => {
                             {Math.round(currentLog?.totals?.fat || 0)}g
                           </div>
                           <div className="text-xs text-teal-700 font-medium">Fat</div>
+                          <div className="text-xs text-teal-600 mt-1">
+                            {Math.round(((currentLog?.totals?.fat || 0) / 51) * 100)}% of 51g
+                          </div>
                         </div>
                         <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
                           <div className="w-5 h-5 mx-auto mb-2 bg-green-600 rounded-sm"></div>
@@ -1214,6 +1251,9 @@ const NutritionJam = () => {
                             {Math.round(currentLog?.totals?.fiber || 0)}g
                           </div>
                           <div className="text-xs text-green-700 font-medium">Fiber</div>
+                          <div className="text-xs text-green-600 mt-1">
+                            Daily intake
+                          </div>
                         </div>
                       </div>
 
