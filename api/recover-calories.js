@@ -1,10 +1,8 @@
-// scripts/recover-calories.js - Run with Vercel CLI
-// Usage: vercel env pull .env.local && node scripts/recover-calories.js
+// api/recover-calories.js - Quick calorie recovery you can run via URL
 
-require('dotenv').config({ path: '.env.local' });
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
 
-// Initialize Firebase Admin
+// Initialize Firebase Admin (same as your other files)
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -14,23 +12,24 @@ if (!admin.apps.length) {
     }),
   });
 }
+
 const db = admin.firestore();
 
-async function recoverCalories() {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run') || args.includes('--dry');
-  const maxActivities = parseInt(args.find(arg => arg.startsWith('--max='))?.split('=')[1]) || 30;
-  const userId = 'mihir_jain';
-
-  console.log(`🔥 Calorie Recovery Script`);
-  console.log(`   Mode: ${dryRun ? 'DRY RUN' : 'LIVE'}${dryRun ? ' (no changes will be made)' : ''}`);
-  console.log(`   Max activities: ${maxActivities}`);
-  console.log(`   User: ${userId}`);
-  console.log('');
-
+export default async function handler(req, res) {
   try {
+    // Simple auth check
+    const secret = req.query.secret;
+    if (secret !== process.env.ADMIN_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized - check ADMIN_SECRET' });
+    }
+
+    const mode = req.query.mode || 'dry'; // 'dry' or 'live'
+    const maxActivities = parseInt(req.query.max) || 20;
+    const userId = 'mihir_jain';
+
+    console.log(`🔥 Calorie recovery: mode=${mode}, max=${maxActivities}`);
+
     // Find activities with 0 calories
-    console.log('🔍 Finding activities with 0 calories...');
     const snapshot = await db
       .collection('strava_data')
       .where('userId', '==', userId)
@@ -40,8 +39,11 @@ async function recoverCalories() {
       .get();
 
     if (snapshot.empty) {
-      console.log('✅ No activities found with 0 calories');
-      process.exit(0);
+      return res.json({
+        success: true,
+        message: 'No activities with 0 calories found',
+        recoveredCount: 0
+      });
     }
 
     // Prioritize runs and recent activities
@@ -50,6 +52,7 @@ async function recoverCalories() {
       data: doc.data()
     }));
 
+    // Sort: runs first, then by date
     activities.sort((a, b) => {
       const aIsRun = a.data.type?.toLowerCase().includes('run') ? 1 : 0;
       const bIsRun = b.data.type?.toLowerCase().includes('run') ? 1 : 0;
@@ -60,20 +63,43 @@ async function recoverCalories() {
 
     activities = activities.slice(0, maxActivities);
 
-    console.log(`📊 Found ${activities.length} activities to check`);
-    console.log(`   Runs: ${activities.filter(a => a.data.type?.toLowerCase().includes('run')).length}`);
-    console.log(`   Other: ${activities.filter(a => !a.data.type?.toLowerCase().includes('run')).length}`);
-    console.log('');
+    console.log(`🔍 Found ${activities.length} activities to check`);
 
-    // Get Strava token
-    console.log('🔑 Getting Strava access token...');
+    if (mode === 'dry') {
+      // Dry run - just return what we would check
+      const summary = activities.map(({ data }) => ({
+        id: data.id,
+        name: data.name,
+        type: data.type,
+        date: data.start_date?.split('T')[0],
+        isRun: data.type?.toLowerCase().includes('run')
+      }));
+
+      return res.json({
+        success: true,
+        mode: 'dry',
+        message: `Dry run: Found ${activities.length} activities to check for calories`,
+        activitiesToCheck: summary,
+        nextStep: `Run with mode=live to actually recover calories`,
+        estimatedApiCalls: activities.length + 1
+      });
+    }
+
+    // Live mode - actually recover calories
+    const { 
+      VITE_STRAVA_CLIENT_ID: clientId,
+      VITE_STRAVA_CLIENT_SECRET: clientSecret,
+      VITE_STRAVA_REFRESH_TOKEN: refreshToken 
+    } = process.env;
+
+    // Get access token
     const tokenResp = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client_id: process.env.VITE_STRAVA_CLIENT_ID,
-        client_secret: process.env.VITE_STRAVA_CLIENT_SECRET,
-        refresh_token: process.env.VITE_STRAVA_REFRESH_TOKEN,
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
         grant_type: 'refresh_token',
       }),
     });
@@ -83,114 +109,94 @@ async function recoverCalories() {
     }
 
     const { access_token: accessToken } = await tokenResp.json();
-    console.log('✅ Token obtained');
-    console.log('');
-
-    // Process activities
+    
     let recoveredCount = 0;
+    let apiCallsUsed = 1; // Token refresh
     let skippedCount = 0;
-    let apiCallsUsed = 1;
     const recoveredActivities = [];
 
-    console.log(`🔄 ${dryRun ? 'Testing' : 'Recovering'} calorie data...`);
-    console.log('─'.repeat(80));
-
-    for (let i = 0; i < activities.length; i++) {
-      const { docRef, data } = activities[i];
-      const activityId = data.id;
-      
-      // Rate limit check
-      if (apiCallsUsed >= 90) {
-        console.log(`⚠️  Rate limit protection: stopping at ${apiCallsUsed} API calls`);
+    // Process activities
+    for (const { docRef, data } of activities) {
+      if (apiCallsUsed >= 80) {
+        console.log(`⚠️ Rate limit protection: stopping at ${apiCallsUsed} calls`);
         break;
       }
 
-      process.stdout.write(`[${i+1}/${activities.length}] ${data.type}: ${data.name.substring(0, 30)}...`);
-
       try {
-        // Fetch from Strava
+        console.log(`🔍 Checking ${data.type}: ${data.name} (${data.id})`);
+        
         const detailResp = await fetch(
-          `https://www.strava.com/api/v3/activities/${activityId}`,
+          `https://www.strava.com/api/v3/activities/${data.id}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         
         apiCallsUsed++;
-
+        
         if (!detailResp.ok) {
-          console.log(` ❌ Failed (${detailResp.status})`);
+          if (detailResp.status === 429) {
+            console.log(`⚠️ Rate limited, stopping`);
+            break;
+          }
+          console.log(`❌ Failed to fetch ${data.id}: ${detailResp.status}`);
           skippedCount++;
           continue;
         }
-
+        
         const detailData = await detailResp.json();
-
+        
         if (detailData.calories && detailData.calories > 0) {
-          console.log(` 🔥 ${detailData.calories} calories`);
+          console.log(`🔥 FOUND calories for ${data.id}: ${detailData.calories}`);
           
-          if (!dryRun) {
-            await docRef.update({
-              calories: detailData.calories,
-              calories_recovered: true,
-              calories_recovery_date: new Date().toISOString(),
-              calories_recovery_source: 'cli_script'
-            });
-          }
-
+          await docRef.update({
+            calories: detailData.calories,
+            calories_recovered: true,
+            calories_recovery_date: new Date().toISOString()
+          });
+          
           recoveredActivities.push({
+            id: data.id,
             name: data.name,
             type: data.type,
             calories: detailData.calories,
-            date: data.start_date.split('T')[0]
+            date: data.start_date?.split('T')[0]
           });
           
           recoveredCount++;
         } else {
-          console.log(` ❌ No calories`);
+          console.log(`❌ No calories in Strava for ${data.id}`);
           skippedCount++;
         }
-
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-
+        
+        // Rate limiting delay
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
       } catch (error) {
-        console.log(` ❌ Error: ${error.message}`);
+        console.error(`❌ Error with ${data.id}:`, error);
         skippedCount++;
       }
     }
 
-    console.log('─'.repeat(80));
-    console.log('');
-    console.log(`✅ ${dryRun ? 'Test' : 'Recovery'} complete:`);
-    console.log(`   ${dryRun ? 'Recoverable' : 'Recovered'}: ${recoveredCount} activities`);
-    console.log(`   Skipped: ${skippedCount} activities`);
-    console.log(`   API calls used: ${apiCallsUsed}/600 (${Math.round(apiCallsUsed/600*100)}%)`);
-    
-    if (recoveredCount > 0) {
-      console.log('');
-      console.log(`📋 ${dryRun ? 'Recoverable' : 'Recovered'} activities:`);
-      recoveredActivities.forEach(activity => {
-        console.log(`   ${activity.date} | ${activity.type.padEnd(12)} | ${activity.calories.toString().padStart(3)} cal | ${activity.name}`);
-      });
-    }
+    console.log(`✅ Recovery complete: ${recoveredCount} recovered, ${skippedCount} skipped, ${apiCallsUsed} API calls`);
 
-    if (dryRun && recoveredCount > 0) {
-      console.log('');
-      console.log('🚀 To actually recover the data, run:');
-      console.log('   node scripts/recover-calories.js --live');
-    }
+    return res.json({
+      success: true,
+      mode: 'live',
+      recoveredCount,
+      skippedCount,
+      apiCallsUsed,
+      recoveredActivities,
+      summary: {
+        message: `Successfully recovered calories for ${recoveredCount} activities`,
+        apiUsage: `${apiCallsUsed}/600 (${Math.round(apiCallsUsed/600*100)}%)`,
+        nextSteps: recoveredCount > 0 ? 'Refresh your app to see updated calories' : 'No calories were found to recover'
+      }
+    });
 
   } catch (error) {
     console.error('❌ Recovery failed:', error);
-    process.exit(1);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 }
-
-// Run the script
-recoverCalories().then(() => {
-  console.log('');
-  console.log('✨ Script completed');
-  process.exit(0);
-}).catch(error => {
-  console.error('💥 Script failed:', error);
-  process.exit(1);
-});
