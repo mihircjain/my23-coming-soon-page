@@ -29,13 +29,12 @@ export default async function handler(req, res) {
 
     console.log(`🔥 Calorie recovery: mode=${mode}, max=${maxActivities}`);
 
-    // Find activities with 0 calories
+    // Find activities with 0 calories (no orderBy to avoid index requirement)
     const snapshot = await db
       .collection('strava_data')
       .where('userId', '==', userId)
       .where('calories', '==', 0)
-      .orderBy('start_date', 'desc')
-      .limit(maxActivities * 2)
+      .limit(maxActivities * 3)
       .get();
 
     if (snapshot.empty) {
