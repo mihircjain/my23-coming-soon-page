@@ -1,284 +1,196 @@
-// api/strava.js - FIXED: Preserve existing calorie data during refresh
+// scripts/recover-calories.js - Run with Vercel CLI
+// Usage: vercel env pull .env.local && node scripts/recover-calories.js
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Load existing activity data to preserve calories and other data    */
-/* ──────────────────────────────────────────────────────────────────── */
-const loadExistingActivityData = async (userId, activityIds) => {
-  try {
-    console.log(`🔍 Loading existing data for ${activityIds.length} activities to preserve calories...`);
-    
-    const existingData = new Map();
-    
-    // Batch fetch existing activities
-    const batches = [];
-    for (let i = 0; i < activityIds.length; i += 10) { // Firestore 'in' query limit is 10
-      const batch = activityIds.slice(i, i + 10);
-      batches.push(batch);
-    }
-    
-    for (const batch of batches) {
-      const snapshot = await db
-        .collection('strava_data')
-        .where('userId', '==', userId)
-        .where('id', 'in', batch)
-        .get();
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        const activityId = data.id?.toString();
-        if (activityId) {
-          existingData.set(activityId, {
-            calories: data.calories || 0,
-            hasDetailedAnalysis: data.hasDetailedAnalysis || false,
-            detailedAnalysisData: data.detailedAnalysisData || null,
-            // Preserve any other data that might be lost
-            suffer_score: data.suffer_score,
-            weather: data.weather,
-            gear: data.gear
-          });
-        }
-      });
-    }
-    
-    console.log(`✅ Loaded existing data for ${existingData.size} activities`);
-    return existingData;
-    
-  } catch (error) {
-    console.error('❌ Error loading existing activity data:', error);
-    return new Map();
-  }
-};
+require('dotenv').config({ path: '.env.local' });
+const admin = require('firebase-admin');
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Fetch fresh data from Strava API (FIXED: preserve calories)       */
-/* ──────────────────────────────────────────────────────────────────── */
-const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = true) => {
-  console.log('🔄 Fetching fresh data from Strava API (this will use rate limit)');
-  
-  // Load existing run tags first
-  let existingRunTags = new Map();
-  if (preserveTags) {
-    existingRunTags = await loadExistingRunTags(userId);
-  }
-  
-  /* ––– Strava credentials ––– */
-  const { 
-    VITE_STRAVA_CLIENT_ID: clientId,
-    VITE_STRAVA_CLIENT_SECRET: clientSecret,
-    VITE_STRAVA_REFRESH_TOKEN: refreshToken 
-  } = process.env;
-  
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Missing Strava credentials');
-  }
-
-  /* ––– Refresh access token ––– */
-  console.log('🔑 Refreshing Strava access token...');
-  const tokenResp = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     }),
   });
-  
-  if (!tokenResp.ok) {
-    throw new Error(`Strava token refresh failed: ${tokenResp.status}`);
-  }
-  
-  const { access_token: accessToken } = await tokenResp.json();
+}
+const db = admin.firestore();
 
-  /* ––– Fetch activities with proper date filtering ––– */
-  console.log('📊 Fetching activities from Strava API...');
-  
-  const today = new Date();
-  const startDate = new Date();
-  startDate.setDate(today.getDate() - daysBack);
-  startDate.setHours(0, 0, 0, 0);
-  
-  const after = Math.floor(startDate.getTime() / 1000);
-  const before = Math.floor(today.getTime() / 1000);
-  
-  console.log(`📅 Fetching activities from ${startDate.toDateString()} to ${today.toDateString()}`);
-  
-  const stravaUrl = `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${after}&before=${before}`;
-  
-  const listResp = await fetch(stravaUrl, { 
-    headers: { 
-      Authorization: `Bearer ${accessToken}`
-    } 
-  });
+async function recoverCalories() {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run') || args.includes('--dry');
+  const maxActivities = parseInt(args.find(arg => arg.startsWith('--max='))?.split('=')[1]) || 30;
+  const userId = 'mihir_jain';
 
-  /* ─── Rate limit check ─── */
-  const usageHdr = listResp.headers.get('x-ratelimit-usage') || '0,0';
-  const [shortUse] = usageHdr.split(',').map(Number);
-  console.log(`📊 Rate limit usage: ${shortUse}/600 (15min window)`);
-  
-  if (shortUse >= 550) {
-    console.warn('⚠️ Approaching Strava rate limit');
-  }
-  
-  if (!listResp.ok) {
-    throw new Error(`Strava API error: ${listResp.status}`);
-  }
-  
-  const activitiesData = await listResp.json();
-  console.log(`✅ Fetched ${activitiesData.length} activities from Strava API (using 1 API call)`);
+  console.log(`🔥 Calorie Recovery Script`);
+  console.log(`   Mode: ${dryRun ? 'DRY RUN' : 'LIVE'}${dryRun ? ' (no changes will be made)' : ''}`);
+  console.log(`   Max activities: ${maxActivities}`);
+  console.log(`   User: ${userId}`);
+  console.log('');
 
-  /* ──── FIXED: Load existing activity data to preserve calories ──── */
-  const activityIds = activitiesData.map(a => a.id.toString());
-  const existingActivityData = await loadExistingActivityData(userId, activityIds);
+  try {
+    // Find activities with 0 calories
+    console.log('🔍 Finding activities with 0 calories...');
+    const snapshot = await db
+      .collection('strava_data')
+      .where('userId', '==', userId)
+      .where('calories', '==', 0)
+      .orderBy('start_date', 'desc')
+      .limit(maxActivities * 2)
+      .get();
 
-  /* ──── Process activities WITHOUT individual API calls ──── */
-  const summaries = [];
-  const batch = db.batch();
-  const now = new Date().toISOString();
-  let preservedTagsCount = 0;
-  let newTagsCount = 0;
-  let preservedCaloriesCount = 0;
-  let newCaloriesCount = 0;
-
-  for (const activity of activitiesData) {
-    const activityId = activity.id.toString();
-    const minutes = Math.round(activity.moving_time / 60);
-    
-    // FIXED: Preserve existing calorie data if Strava doesn't provide it
-    const existingActivity = existingActivityData.get(activityId);
-    let calories = 0;
-    
-    if (activity.calories && activity.calories > 0) {
-      // Use fresh calories from Strava if available
-      calories = activity.calories;
-      newCaloriesCount++;
-    } else if (existingActivity && existingActivity.calories > 0) {
-      // Preserve existing calorie data if Strava doesn't provide it
-      calories = existingActivity.calories;
-      preservedCaloriesCount++;
-      console.log(`🔥 Preserving calories for ${activityId}: ${calories} (Strava didn't provide fresh data)`);
-    } else {
-      // No calories available from either source
-      calories = 0;
+    if (snapshot.empty) {
+      console.log('✅ No activities found with 0 calories');
+      process.exit(0);
     }
 
-    const isRun = activity.type?.toLowerCase().includes('run');
-    
-    // Enhanced tag preservation logic
-    let runTagInfo = null;
-    if (isRun) {
-      if (preserveTags && existingRunTags.has(activityId)) {
-        // Use existing tag (preserve user modifications)
-        runTagInfo = existingRunTags.get(activityId);
-        preservedTagsCount++;
-        console.log(`🏷️ Preserving tag for ${activityId}: ${runTagInfo.runType} (${runTagInfo.userOverride ? 'user-modified' : 'auto-tagged'})`);
-      } else {
-        // Generate new auto tag
-        const autoTag = autoTagRun(activity);
-        runTagInfo = {
-          runType: autoTag,
-          run_tag: autoTag,
-          userOverride: false,
-          taggedBy: 'auto',
-          taggedAt: now,
-          originalSuggestion: autoTag,
-          autoClassified: true,
-          confidenceScore: 0.8
-        };
-        newTagsCount++;
+    // Prioritize runs and recent activities
+    let activities = snapshot.docs.map(doc => ({
+      docRef: doc.ref,
+      data: doc.data()
+    }));
+
+    activities.sort((a, b) => {
+      const aIsRun = a.data.type?.toLowerCase().includes('run') ? 1 : 0;
+      const bIsRun = b.data.type?.toLowerCase().includes('run') ? 1 : 0;
+      
+      if (aIsRun !== bIsRun) return bIsRun - aIsRun;
+      return new Date(b.data.start_date) - new Date(a.data.start_date);
+    });
+
+    activities = activities.slice(0, maxActivities);
+
+    console.log(`📊 Found ${activities.length} activities to check`);
+    console.log(`   Runs: ${activities.filter(a => a.data.type?.toLowerCase().includes('run')).length}`);
+    console.log(`   Other: ${activities.filter(a => !a.data.type?.toLowerCase().includes('run')).length}`);
+    console.log('');
+
+    // Get Strava token
+    console.log('🔑 Getting Strava access token...');
+    const tokenResp = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.VITE_STRAVA_CLIENT_ID,
+        client_secret: process.env.VITE_STRAVA_CLIENT_SECRET,
+        refresh_token: process.env.VITE_STRAVA_REFRESH_TOKEN,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!tokenResp.ok) {
+      throw new Error(`Token refresh failed: ${tokenResp.status}`);
+    }
+
+    const { access_token: accessToken } = await tokenResp.json();
+    console.log('✅ Token obtained');
+    console.log('');
+
+    // Process activities
+    let recoveredCount = 0;
+    let skippedCount = 0;
+    let apiCallsUsed = 1;
+    const recoveredActivities = [];
+
+    console.log(`🔄 ${dryRun ? 'Testing' : 'Recovering'} calorie data...`);
+    console.log('─'.repeat(80));
+
+    for (let i = 0; i < activities.length; i++) {
+      const { docRef, data } = activities[i];
+      const activityId = data.id;
+      
+      // Rate limit check
+      if (apiCallsUsed >= 90) {
+        console.log(`⚠️  Rate limit protection: stopping at ${apiCallsUsed} API calls`);
+        break;
+      }
+
+      process.stdout.write(`[${i+1}/${activities.length}] ${data.type}: ${data.name.substring(0, 30)}...`);
+
+      try {
+        // Fetch from Strava
+        const detailResp = await fetch(
+          `https://www.strava.com/api/v3/activities/${activityId}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        
+        apiCallsUsed++;
+
+        if (!detailResp.ok) {
+          console.log(` ❌ Failed (${detailResp.status})`);
+          skippedCount++;
+          continue;
+        }
+
+        const detailData = await detailResp.json();
+
+        if (detailData.calories && detailData.calories > 0) {
+          console.log(` 🔥 ${detailData.calories} calories`);
+          
+          if (!dryRun) {
+            await docRef.update({
+              calories: detailData.calories,
+              calories_recovered: true,
+              calories_recovery_date: new Date().toISOString(),
+              calories_recovery_source: 'cli_script'
+            });
+          }
+
+          recoveredActivities.push({
+            name: data.name,
+            type: data.type,
+            calories: detailData.calories,
+            date: data.start_date.split('T')[0]
+          });
+          
+          recoveredCount++;
+        } else {
+          console.log(` ❌ No calories`);
+          skippedCount++;
+        }
+
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error) {
+        console.log(` ❌ Error: ${error.message}`);
+        skippedCount++;
       }
     }
 
-    const summary = {
-      userId,
-      id: activityId,
-      start_date: activity.start_date,
-      date: activity.start_date.split('T')[0],
-      name: activity.name,
-      type: activity.type,
-      distance: activity.distance / 1000, // Convert to km
-      moving_time: activity.moving_time,
-      elapsed_time: activity.elapsed_time,
-      duration: minutes,
-      total_elevation_gain: activity.total_elevation_gain || 0,
-      elevation_gain: activity.total_elevation_gain || 0,
-      average_speed: activity.average_speed,
-      max_speed: activity.max_speed,
-      has_heartrate: activity.has_heartrate || false,
-      heart_rate: activity.has_heartrate ? activity.average_heartrate : null,
-      average_heartrate: activity.average_heartrate,
-      max_heartrate: activity.max_heartrate,
-      calories: calories, // FIXED: Now preserves existing calories when Strava doesn't provide them
-      achievement_count: activity.achievement_count,
-      kudos_count: activity.kudos_count,
-      comment_count: activity.comment_count,
-      athlete_count: activity.athlete_count,
-      photo_count: activity.photo_count,
-      suffer_score: activity.suffer_score || (existingActivity?.suffer_score), // Preserve existing if available
-      fetched_at: now,
-      is_run_activity: isRun,
-      hasDetailedAnalysis: existingActivity?.hasDetailedAnalysis || false, // Preserve detailed analysis
-      detailedAnalysisAvailable: isRun
-    };
-
-    // Preserve other existing data if available
-    if (existingActivity) {
-      if (existingActivity.detailedAnalysisData) {
-        summary.detailedAnalysisData = existingActivity.detailedAnalysisData;
-      }
-      if (existingActivity.weather) {
-        summary.weather = existingActivity.weather;
-      }
-      if (existingActivity.gear) {
-        summary.gear = existingActivity.gear;
-      }
+    console.log('─'.repeat(80));
+    console.log('');
+    console.log(`✅ ${dryRun ? 'Test' : 'Recovery'} complete:`);
+    console.log(`   ${dryRun ? 'Recoverable' : 'Recovered'}: ${recoveredCount} activities`);
+    console.log(`   Skipped: ${skippedCount} activities`);
+    console.log(`   API calls used: ${apiCallsUsed}/600 (${Math.round(apiCallsUsed/600*100)}%)`);
+    
+    if (recoveredCount > 0) {
+      console.log('');
+      console.log(`📋 ${dryRun ? 'Recoverable' : 'Recovered'} activities:`);
+      recoveredActivities.forEach(activity => {
+        console.log(`   ${activity.date} | ${activity.type.padEnd(12)} | ${activity.calories.toString().padStart(3)} cal | ${activity.name}`);
+      });
     }
 
-    // Add run tag info if it's a run
-    if (isRun && runTagInfo) {
-      summary.run_tag = runTagInfo.run_tag;
-      summary.runType = runTagInfo.runType;
-      summary.userOverride = runTagInfo.userOverride || false;
-      summary.taggedBy = runTagInfo.taggedBy;
-      summary.taggedAt = runTagInfo.taggedAt;
-      summary.originalSuggestion = runTagInfo.originalSuggestion;
-      summary.autoClassified = runTagInfo.autoClassified || false;
-      summary.confidenceScore = runTagInfo.confidenceScore || 0.0;
-      summary.hasDetailedAnalysis = runTagInfo.hasDetailedAnalysis || false;
+    if (dryRun && recoveredCount > 0) {
+      console.log('');
+      console.log('🚀 To actually recover the data, run:');
+      console.log('   node scripts/recover-calories.js --live');
     }
 
-    summaries.push(summary);
-
-    // Save to Firestore
-    const docRef = db.collection('strava_data').doc(`${userId}_${activity.id}`);
-    batch.set(docRef, summary, { merge: true });
+  } catch (error) {
+    console.error('❌ Recovery failed:', error);
+    process.exit(1);
   }
+}
 
-  // Commit all writes at once
-  if (summaries.length > 0) {
-    await batch.commit();
-    console.log(`💾 Cached ${summaries.length} activities to Firestore (total API calls: 1)`);
-    
-    // Enhanced stats
-    const runActivities = summaries.filter(a => a.is_run_activity);
-    const taggedRuns = runActivities.filter(a => a.run_tag);
-    const userModifiedRuns = taggedRuns.filter(a => a.userOverride === true);
-    const activitiesWithCalories = summaries.filter(a => a.calories > 0);
-    
-    console.log(`🏃 Processing stats:`);
-    console.log(`   - ${runActivities.length} runs found`);
-    console.log(`   - ${taggedRuns.length} tagged runs`);
-    console.log(`   - ${preservedTagsCount} tags preserved from existing data`);
-    console.log(`   - ${newTagsCount} new auto-tags generated`);
-    console.log(`   - ${userModifiedRuns.length} user-modified tags preserved`);
-    console.log(`   - ${activitiesWithCalories.length} activities with calories`);
-    console.log(`   - ${newCaloriesCount} fresh calories from Strava`);
-    console.log(`   - ${preservedCaloriesCount} calories preserved from cache`); // NEW: Track preserved calories
-    console.log(`   - Total API calls used: 1 (token + list only)`);
-  }
-
-  return summaries.sort((a, b) => 
-    new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-  );
-};
+// Run the script
+recoverCalories().then(() => {
+  console.log('');
+  console.log('✨ Script completed');
+  process.exit(0);
+}).catch(error => {
+  console.error('💥 Script failed:', error);
+  process.exit(1);
+});
