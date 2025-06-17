@@ -29,13 +29,19 @@ export default async function handler(req, res) {
 
     console.log(`🔥 Calorie recovery: mode=${mode}, max=${maxActivities}`);
 
-    // Find activities with 0 calories (no orderBy to avoid index requirement)
-    const snapshot = await db
+    // Find activities with 0 calories (filter by type if specified)
+    let query = db
       .collection('strava_data')
       .where('userId', '==', userId)
-      .where('calories', '==', 0)
-      .limit(maxActivities * 3)
-      .get();
+      .where('calories', '==', 0);
+
+    const activityType = req.query.type; // e.g., ?type=WeightTraining
+    if (activityType) {
+      query = query.where('type', '==', activityType);
+      console.log(`🔍 Filtering for ${activityType} activities only`);
+    }
+
+    const snapshot = await query.limit(maxActivities * 3).get();
 
     if (snapshot.empty) {
       return res.json({
