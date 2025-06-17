@@ -1331,15 +1331,20 @@ const LetsJam: React.FC = () => {
               const response = await fetch(`/api/strava-detail?activityId=${run.id}&userId=mihir_jain`);
               if (response.ok) {
                 const detail = await response.json();
+                console.log(`✅ Loaded detailed data for run ${run.id}: ${run.name}`);
                 return { ...run, detail };
+              } else {
+                console.log(`❌ Failed to load detailed data for run ${run.id}: ${response.status}`);
               }
             } catch (error) {
-              console.log(`Could not load detailed data for run ${run.id}`);
+              console.log(`❌ Error loading detailed data for run ${run.id}:`, error);
             }
             return { ...run, detail: null };
           })
         );
-        console.log(`📊 Loaded detailed data for ${detailedRunData.length} runs`);
+        
+        const successfulLoads = detailedRunData.filter(run => run.detail !== null).length;
+        console.log(`📊 Successfully loaded detailed data for ${successfulLoads}/${detailedRunData.length} runs`);
       }
       
       // Build conditional system context based on query type
@@ -1376,12 +1381,17 @@ Hemoglobin: ${currentBody?.hemoglobin} g/dL (was 16.3 - IMPROVED)`;
 
       // Add detailed run data only for run/training queries
       if ((isRunQuery || isTrainingQuery) && detailedRunData.length > 0) {
+        // Filter to only include runs with actual detailed data
+        const runsWithDetailedData = detailedRunData.filter(run => run.detail && run.detail.splits_metric);
+        const runsWithBasicDataOnly = detailedRunData.filter(run => !run.detail || !run.detail.splits_metric);
+        
         systemContext += `
 
-=== DETAILED RUN ANALYSIS WITH KM-BY-KM DATA ===
+=== CRITICAL: ONLY USE REAL DATA BELOW - NEVER FABRICATE OR HALLUCINATE ===
 
-RECENT RUNS WITH DETAILED METRICS:
-${detailedRunData
+RUNS WITH DETAILED KM-BY-KM DATA (${runsWithDetailedData.length} runs):
+${runsWithDetailedData.length === 0 ? 'NO DETAILED DATA AVAILABLE - DO NOT MAKE UP SPLITS' : 
+  runsWithDetailedData
   .map((run, index) => {
     const tagConfig = RUN_TAG_CONFIG[run.run_tag as keyof typeof RUN_TAG_CONFIG] || RUN_TAG_CONFIG.easy;
     let runAnalysis = `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -1394,9 +1404,9 @@ ${detailedRunData
 - Elevation Gain: ${run.total_elevation_gain}m
 - Calories: ${run.calories || run.caloriesBurned || 0}`;
 
-    // Add detailed km-by-km splits if available
+    // ONLY add km-by-km if we actually have the data
     if (run.detail && run.detail.splits_metric && run.detail.splits_metric.length > 0) {
-      runAnalysis += `\n\nKM-BY-KM SPLITS:`;
+      runAnalysis += `\n\nKM-BY-KM SPLITS (REAL DATA):`;
       run.detail.splits_metric.forEach((split: any, kmIndex: number) => {
         const paceMinutes = Math.floor(split.moving_time / 60);
         const paceSeconds = split.moving_time % 60;
@@ -1407,13 +1417,15 @@ ${detailedRunData
         
         runAnalysis += `\n  Km ${kmIndex + 1}: ${pace} pace, ${speed}, HR: ${hr}, Elevation: ${elevation}`;
       });
+    } else {
+      runAnalysis += `\n\nKM-BY-KM SPLITS: NO DETAILED DATA AVAILABLE`;
     }
 
-    // Add heart rate zones if available
+    // Add heart rate zones only if we actually have the data
     if (run.detail && run.detail.zones && run.detail.zones.length > 0) {
       const hrZone = run.detail.zones.find((z: any) => z.type === 'heartrate');
       if (hrZone && hrZone.distribution_buckets) {
-        runAnalysis += `\n\nHEART RATE ZONES:`;
+        runAnalysis += `\n\nHEART RATE ZONES (REAL DATA):`;
         hrZone.distribution_buckets.forEach((bucket: any, zoneIndex: number) => {
           if (bucket.time > 0) {
             const minutes = Math.floor(bucket.time / 60);
@@ -1424,9 +1436,9 @@ ${detailedRunData
       }
     }
 
-    // Add best efforts if available
+    // Add best efforts only if we actually have the data
     if (run.detail && run.detail.best_efforts && run.detail.best_efforts.length > 0) {
-      runAnalysis += `\n\nBEST EFFORTS:`;
+      runAnalysis += `\n\nBEST EFFORTS (REAL DATA):`;
       run.detail.best_efforts.slice(0, 3).forEach((effort: any) => {
         const minutes = Math.floor(effort.moving_time / 60);
         const seconds = effort.moving_time % 60;
@@ -1437,7 +1449,19 @@ ${detailedRunData
 
     return runAnalysis;
   })
-  .join('\n\n')}`;
+  .join('\n\n')}
+
+RUNS WITH ONLY BASIC DATA (${runsWithBasicDataOnly.length} runs):
+${runsWithBasicDataOnly.map((run, index) => {
+  const tagConfig = RUN_TAG_CONFIG[run.run_tag as keyof typeof RUN_TAG_CONFIG] || RUN_TAG_CONFIG.easy;
+  return `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date || run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+- Tag: ${tagConfig.emoji} ${tagConfig.label}
+- Distance: ${run.distance.toFixed(2)}km, Duration: ${Math.round(run.duration)}min
+- Avg HR: ${run.average_heartrate || 'N/A'} bpm
+- NO DETAILED SPLITS AVAILABLE`;
+}).join('\n\n')}
+
+WARNING: NEVER FABRICATE DATA. If detailed splits are not provided above, say "detailed splits not available" instead of making up data.`;
       }
 
       // Add training analysis for training queries
