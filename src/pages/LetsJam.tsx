@@ -99,6 +99,7 @@ interface UserData {
   recentRuns: RunData[];
   recentNutrition: DailyNutrition[];
   currentBody: BodyMetrics;
+  bmr?: number; // Basal Metabolic Rate
   weeklyStats: {
     totalDistance: number;
     totalRuns: number;
@@ -494,14 +495,28 @@ const buildContextForQuery = async (query: string, userData: UserData) => {
   const lowercaseQuery = query.toLowerCase();
   const timeRange = extractTimeRange(query);
   
-  const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm|burn|burned|deficit|calories burned)\b/i.test(query);
-  const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet|burn|burned|deficit|consumed)\b/i.test(query);
-  const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(query);
+  let needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm|burn|burned|deficit|calories burned|analyze|detail)\b/i.test(query);
+  let needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet|burn|burned|deficit|consumed|suggest|what.*eat|should.*eat)\b/i.test(query);
+  let needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(query);
   
-  console.log(`🎯 Query analysis: needs runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, timeRange=${timeRange.label}`);
-  console.log(`🔍 Query keywords detected: burn=${/burn/i.test(query)}, deficit=${/deficit/i.test(query)}, calories=${/calorie/i.test(query)}`);
+  // Special handling for different query types
+  const isCalorieDeficitQuery = /\b(deficit|burned.*deficit|calorie.*deficit)\b/i.test(query);
+  const isDetailAnalysis = /\b(analyze|detail|analysis|breakdown)\b/i.test(query);
+  const wantsAdvice = /\b(suggest|recommend|advice|should|need|more|increase)\b/i.test(query);
+  const isFoodSuggestion = /\b(what.*eat|should.*eat|suggest.*food|recommend.*food|what.*have|food.*suggest)\b/i.test(query);
   
-  // Debug: Show available data dates
+  console.log(`🎯 Query analysis: runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, deficit=${isCalorieDeficitQuery}, detail=${isDetailAnalysis}, advice=${wantsAdvice}, foodSuggestion=${isFoodSuggestion}`);
+  
+  // For calorie deficit, we need BOTH run and nutrition data + BMR
+  if (isCalorieDeficitQuery) {
+    needsRunData = true;
+    needsNutritionData = true;
+  }
+  
+  // For food suggestions, we need nutrition data to analyze current intake
+  if (isFoodSuggestion) {
+    needsNutritionData = true;
+  }
   console.log(`📊 Available nutrition dates: ${userData.recentNutrition.map(d => d.date).join(', ')}`);
   console.log(`📊 Available run dates: ${userData.recentRuns.map(r => new Date(r.start_date).toISOString().split('T')[0]).join(', ')}`);
   console.log(`📊 Today's date: ${new Date().toISOString().split('T')[0]}`);
@@ -525,10 +540,10 @@ TIME RANGE REQUESTED: ${timeRange.description}
 `;
 
   let hasAnyData = false;
+  let relevantRuns: RunData[] = [];
+  let relevantNutrition: DailyNutrition[] = [];
 
   if (needsRunData) {
-    let relevantRuns: RunData[] = [];
-    
     // ENHANCED: Use specific date matching for today/yesterday queries
     if (timeRange.label === 'today') {
       relevantRuns = userData.recentRuns.filter(run => {
@@ -586,8 +601,6 @@ TIME RANGE REQUESTED: ${timeRange.description}
   }
   
   if (needsNutritionData) {
-    let relevantNutrition: DailyNutrition[] = [];
-    
     // ENHANCED: Use specific date matching for today/yesterday queries
     if (timeRange.label === 'today') {
       relevantNutrition = userData.recentNutrition.filter(day => isTodayDate(day.date));
@@ -645,9 +658,67 @@ TIME RANGE REQUESTED: ${timeRange.description}
     context += `Last Updated: ${userData.currentBody.lastUpdated}\n\n`;
   }
   
+  // Add BMR information for calorie calculations
+  if (isCalorieDeficitQuery || isFoodSuggestion) {
+    context += `=== METABOLIC DATA ===\n`;
+    if (userData.bmr) {
+      context += `BMR (Basal Metabolic Rate): ${userData.bmr} calories/day\n`;
+    } else {
+      context += `BMR: NOT PROVIDED - Ask user to provide their BMR for accurate deficit calculation\n`;
+    }
+    context += `\n`;
+  }
+  
+  // Add nutritional analysis for food suggestions
+  if (isFoodSuggestion && relevantNutrition.length > 0) {
+    const todayNutrition = relevantNutrition.find(day => isTodayDate(day.date));
+    if (todayNutrition) {
+      context += `=== NUTRITIONAL ANALYSIS FOR FOOD SUGGESTIONS ===\n`;
+      context += `Current intake analysis:\n`;
+      context += `- Total Calories: ${Math.round(todayNutrition.totals.calories)}\n`;
+      context += `- Protein: ${Math.round(todayNutrition.totals.protein)}g\n`;
+      context += `- Carbs: ${Math.round(todayNutrition.totals.carbs)}g\n`;
+      context += `- Fat: ${Math.round(todayNutrition.totals.fat)}g\n`;
+      context += `- Fiber: ${Math.round(todayNutrition.totals.fiber)}g\n`;
+      
+      // Calculate nutritional adequacy
+      const proteinTarget = 1.6 * (userData.currentBody.weight || 70); // 1.6g per kg body weight
+      const carbTarget = 4 * (userData.currentBody.weight || 70); // 4g per kg for active individuals
+      const fiberTarget = 25; // 25g recommended daily
+      
+      context += `\nNutritional targets vs actual:\n`;
+      context += `- Protein target: ${Math.round(proteinTarget)}g (current: ${Math.round(todayNutrition.totals.protein)}g)\n`;
+      context += `- Carb target: ${Math.round(carbTarget)}g (current: ${Math.round(todayNutrition.totals.carbs)}g)\n`;
+      context += `- Fiber target: ${fiberTarget}g (current: ${Math.round(todayNutrition.totals.fiber)}g)\n`;
+      
+      context += `\nFood sources already consumed today:\n`;
+      todayNutrition.entries.forEach((food) => {
+        context += `- ${food.foodId}\n`;
+      });
+      context += `\n`;
+    }
+  }
+  
   if (!hasAnyData) {
     context += `=== NO RELEVANT DATA AVAILABLE ===\n`;
     context += `No data found for the requested time period and data type.\n\n`;
+  }
+  
+  // Add special instructions for calorie deficit calculations
+  if (isCalorieDeficitQuery && hasAnyData) {
+    context += `=== CALORIE DEFICIT CALCULATION INSTRUCTIONS ===\n`;
+    context += `To calculate calorie deficit for ${timeRange.label}:\n`;
+    if (userData.bmr) {
+      context += `1. Total Daily Energy Expenditure = BMR (${userData.bmr}) + Activity Calories from runs\n`;
+      context += `2. Find calories consumed from nutrition data\n`;
+      context += `3. Calculate: Deficit = Total Daily Energy Expenditure - Calories Consumed\n`;
+      context += `4. If result is negative, it's a calorie surplus\n`;
+      context += `5. Show the exact calculation: (${userData.bmr} BMR + X activity calories) - Y consumed calories = Z deficit\n\n`;
+    } else {
+      context += `1. BMR is required but not provided - ask user for their BMR\n`;
+      context += `2. Cannot calculate accurate deficit without BMR\n`;
+      context += `3. Activity calories alone don't represent total energy expenditure\n\n`;
+    }
   }
   
   context += `RESPONSE INSTRUCTIONS:
@@ -656,9 +727,11 @@ TIME RANGE REQUESTED: ${timeRange.description}
 - Be direct and factual - answer the EXACT question asked
 - Use **bold** for key numbers
 - Do NOT make up any information
-- Do NOT give advice, suggestions, or recommendations unless explicitly asked
-- Do NOT add workout plans, nutrition timing, or recovery protocols
-- Keep responses focused and concise
+- FOR CALORIE DEFICIT: Calculate as (BMR + Activity Calories) - Calories Consumed. Show the math. If BMR missing, ask for it.
+- FOR DETAILED ANALYSIS: Provide splits breakdown, pacing analysis, heart rate zones, elevation
+- FOR FOOD SUGGESTIONS: First analyze current nutritional intake, identify gaps, then suggest specific foods to fill those gaps
+- FOR ADVICE/SUGGESTIONS: Give specific recommendations when explicitly requested
+- Maintain conversation context for follow-up questions
 
 `;
   
@@ -666,11 +739,28 @@ TIME RANGE REQUESTED: ${timeRange.description}
 };
 
 // AI Chat functionality
-const chatWithAI = async (message: string, userData: UserData): Promise<string> => {
+const chatWithAI = async (message: string, userData: UserData, conversationHistory: Message[]): Promise<string> => {
   try {
     console.log('🤖 Sending message to AI:', message);
     
     const context = await buildContextForQuery(message, userData);
+    
+    // Build conversation messages including recent history for context
+    const messages = [
+      { role: 'system', content: context }
+    ];
+    
+    // Add last 4 messages for context (2 exchanges)
+    const recentHistory = conversationHistory.slice(-4);
+    recentHistory.forEach(msg => {
+      messages.push({
+        role: msg.role,
+        content: msg.content
+      });
+    });
+    
+    // Add current message
+    messages.push({ role: 'user', content: message });
     
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -678,10 +768,7 @@ const chatWithAI = async (message: string, userData: UserData): Promise<string> 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages: [
-          { role: 'system', content: context },
-          { role: 'user', content: message }
-        ],
+        messages: messages,
         userData: {
           systemContext: context
         },
@@ -807,7 +894,8 @@ const SmartHealthSummary: React.FC<{
               'Analyze my splits from yesterday',
               'Show me my heart rate data',
               'Was my pacing consistent?',
-              'How many calories did I burn?'
+              'How many calories did I burn?',
+              'Analyze in detail'
             ] : [
               'Connect Strava to see running prompts'
             ]}
@@ -823,9 +911,10 @@ const SmartHealthSummary: React.FC<{
             prompts={hasNutritionData ? [
               'What did I eat today?',
               'How many calories yesterday?',
-              'What foods do I eat most?',
-              'Am I getting enough protein?',
-              'What is my calorie deficit today?'
+              'What should I eat for dinner?',
+              'Suggest foods for more protein',
+              'What is my calorie deficit today?',
+              'Am I eating enough carbs?'
             ] : [
               'No nutrition data available yet'
             ]}
@@ -851,7 +940,8 @@ const SmartHealthSummary: React.FC<{
           />
 
           <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
-            <strong>Note:</strong> Currently tracking running activities only. Weight training and other workouts are not yet tracked.
+            <strong>Note:</strong> Currently tracking running activities only. Weight training and other workouts are not yet tracked.<br/>
+            <strong>BMR:</strong> {userData.bmr ? `${userData.bmr} cal/day included in deficit calculations` : 'Not set - provide for accurate deficit calculations'}
           </div>
 
           {/* Quick Stats - FIXED */}
@@ -900,6 +990,7 @@ const LetsJam: React.FC = () => {
       weight: 0, bodyFat: 0, leanMass: 0, hdl: 0, ldl: 0, 
       glucose: 0, hba1c: 0, vitaminD: 0, lastUpdated: ''
     },
+    bmr: 1479, // User's BMR - in real app this would be fetched from user profile
     weeklyStats: { totalDistance: 0, totalRuns: 0, avgPace: 0, avgCalories: 0 }
   });
   const [loading, setLoading] = useState(true);
@@ -982,6 +1073,7 @@ const LetsJam: React.FC = () => {
           weight: 0, bodyFat: 0, leanMass: 0, hdl: 0, ldl: 0, 
           glucose: 0, hba1c: 0, vitaminD: 0, lastUpdated: ''
         },
+        bmr: userData.bmr || 1479, // Preserve existing BMR or use default
         weeklyStats
       };
 
@@ -1011,7 +1103,7 @@ const LetsJam: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const aiResponse = await chatWithAI(message.trim(), userData);
+      const aiResponse = await chatWithAI(message.trim(), userData, messages);
       
       const assistantMessage: Message = {
         role: 'assistant',
