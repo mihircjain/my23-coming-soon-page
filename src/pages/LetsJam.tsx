@@ -112,6 +112,52 @@ interface UserData {
 const dataCache = new Map();
 const CACHE_TTL = 3 * 60 * 1000; // 3 minutes
 
+// Helper functions for date range checking and formatting
+const isWithinDays = (date: Date, days: number): boolean => {
+  const now = new Date();
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays <= days;
+};
+
+const isDateInRange = (date: Date, days: number, offset: number): boolean => {
+  const now = new Date();
+  const startRange = new Date(now.getTime() - (offset + days) * 24 * 60 * 60 * 1000);
+  const endRange = new Date(now.getTime() - offset * 24 * 60 * 60 * 1000);
+  return date >= startRange && date <= endRange;
+};
+
+const formatPace = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatTime = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
+
+const getRunTagDescription = (tag: string): string => {
+  const descriptions = {
+    'easy': 'conversational pace, base building',
+    'tempo': 'comfortably hard, sustained effort',
+    'intervals': 'high intensity with rest periods',
+    'long': 'extended duration, aerobic base',
+    'recovery': 'very easy pace, active recovery',
+    'hill-repeats': 'uphill intervals for strength',
+    'race': 'race effort or time trial',
+    'untagged': 'no specific training type assigned'
+  };
+  return descriptions[tag] || 'unknown training type';
+};
+
 const getCachedData = async (key: string, fetchFn: () => Promise<any>) => {
   const cached = dataCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -129,61 +175,95 @@ const getCachedData = async (key: string, fetchFn: () => Promise<any>) => {
 const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
   return getCachedData(`runs_${days}`, async () => {
     try {
+      console.log(`🏃 Fetching run data for ${days} days...`);
+      
       const params = new URLSearchParams({
         userId: userId,
         mode: 'cached'
       });
       
       const response = await fetch(`/api/strava?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch runs');
+      if (!response.ok) {
+        console.warn('Failed to fetch Strava data:', response.status);
+        return [];
+      }
       
       const data = await response.json();
       
-      // Filter and process run activities
+      if (!Array.isArray(data) || data.length === 0) {
+        console.log('No Strava activities found');
+        return [];
+      }
+      
+      // Filter for actual run activities with real data
       const runActivities = data
         .filter((activity: any) => 
-          activity.type && activity.type.toLowerCase().includes('run')
+          activity.type && 
+          activity.type.toLowerCase().includes('run') &&
+          activity.distance > 0 &&
+          activity.moving_time > 0 &&
+          activity.start_date
         )
         .map((activity: any) => ({
           id: activity.id?.toString() || Math.random().toString(),
           name: activity.name || 'Unnamed Run',
           type: activity.type,
           start_date: activity.start_date,
-          distance: activity.distance || 0,
-          moving_time: activity.moving_time || 0,
-          total_elevation_gain: activity.total_elevation_gain || 0,
-          average_speed: activity.average_speed || 0,
-          average_heartrate: activity.average_heartrate,
-          max_heartrate: activity.max_heartrate,
-          calories: activity.calories || 0,
+          distance: Number(activity.distance) || 0,
+          moving_time: Number(activity.moving_time) || 0,
+          total_elevation_gain: Number(activity.total_elevation_gain) || 0,
+          average_speed: Number(activity.average_speed) || 0,
+          average_heartrate: activity.average_heartrate ? Number(activity.average_heartrate) : undefined,
+          max_heartrate: activity.max_heartrate ? Number(activity.max_heartrate) : undefined,
+          calories: activity.calories ? Number(activity.calories) : undefined,
           is_run_activity: true,
           run_tag: activity.run_tag || 'easy'
         }))
-        .slice(0, 5); // Recent 5 runs
+        .filter(run => {
+          // Additional validation - only include runs within the time range
+          const runDate = new Date(run.start_date);
+          const now = new Date();
+          const diffDays = Math.ceil((now.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays <= days;
+        })
+        .slice(0, 10); // Limit to recent 10 runs max
       
-      // Load detailed data for recent runs if needed
+      // Load detailed data for recent runs only if we have run activities
+      if (runActivities.length === 0) {
+        console.log('No valid run activities found in date range');
+        return [];
+      }
+      
       const runsWithDetails = await Promise.all(
-        runActivities.map(async (run: RunData) => {
+        runActivities.slice(0, 3).map(async (run: RunData) => { // Only load details for 3 most recent
           try {
             const detailResponse = await fetch(`/api/strava-detail?activityId=${run.id}&userId=${userId}`);
             if (detailResponse.ok) {
               const detail = await detailResponse.json();
+              
+              // Only include valid detailed data
               return {
                 ...run,
-                splits_metric: detail.splits_metric || [],
-                best_efforts: detail.best_efforts || [],
-                zones: detail.zones || []
+                splits_metric: detail.splits_metric && detail.splits_metric.length > 0 ? detail.splits_metric : undefined,
+                best_efforts: detail.best_efforts && detail.best_efforts.length > 0 ? detail.best_efforts : undefined,
+                zones: detail.zones && detail.zones.length > 0 ? detail.zones : undefined
               };
             }
           } catch (error) {
-            console.warn(`Failed to load details for run ${run.id}`);
+            console.warn(`Failed to load details for run ${run.id}:`, error);
           }
           return run;
         })
       );
       
-      console.log(`✅ Loaded ${runsWithDetails.length} runs with details`);
-      return runsWithDetails;
+      // Merge detailed runs with basic runs
+      const finalRuns = [
+        ...runsWithDetails,
+        ...runActivities.slice(3) // Basic data for remaining runs
+      ];
+      
+      console.log(`✅ Loaded ${finalRuns.length} valid runs (${runsWithDetails.filter(r => r.splits_metric).length} with detailed splits)`);
+      return finalRuns;
       
     } catch (error) {
       console.error('Error fetching runs:', error);
@@ -195,7 +275,7 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
 const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]> => {
   return getCachedData(`nutrition_${days}`, async () => {
     try {
-      // Get last 7 days of nutrition data
+      console.log(`📊 Fetching nutrition data for ${days} days...`);
       const nutritionData: DailyNutrition[] = [];
       const today = new Date();
       
@@ -205,30 +285,42 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
         const dateString = date.toISOString().split('T')[0];
         
         try {
-          // Use your nutrition utility functions
+          // Try to get actual Firestore nutrition data
           const response = await fetch(`/api/nutrition?date=${dateString}&userId=${userId}`);
           if (response.ok) {
             const dayData = await response.json();
+            
+            // Only include if we have real entries with actual food data
             if (dayData && dayData.entries && dayData.entries.length > 0) {
-              nutritionData.push({
-                date: dateString,
-                entries: dayData.entries,
-                totals: dayData.totals || {
-                  calories: 0,
-                  protein: 0,
-                  carbs: 0,
-                  fat: 0,
-                  fiber: 0
-                }
-              });
+              // Validate entries have real food data
+              const validEntries = dayData.entries.filter(entry => 
+                entry.foodId && 
+                entry.foodId !== 'Unknown Food' && 
+                entry.calories > 0
+              );
+              
+              if (validEntries.length > 0) {
+                nutritionData.push({
+                  date: dateString,
+                  entries: validEntries,
+                  totals: dayData.totals || {
+                    calories: validEntries.reduce((sum, e) => sum + (e.calories * e.quantity), 0),
+                    protein: validEntries.reduce((sum, e) => sum + (e.protein * e.quantity), 0),
+                    carbs: validEntries.reduce((sum, e) => sum + (e.carbs * e.quantity), 0),
+                    fat: validEntries.reduce((sum, e) => sum + (e.fat * e.quantity), 0),
+                    fiber: validEntries.reduce((sum, e) => sum + (e.fiber * e.quantity), 0)
+                  }
+                });
+                console.log(`✅ Valid nutrition data found for ${dateString}: ${validEntries.length} food items`);
+              }
             }
           }
         } catch (error) {
-          console.warn(`Failed to load nutrition for ${dateString}`);
+          console.warn(`Failed to load nutrition for ${dateString}:`, error);
         }
       }
       
-      console.log(`✅ Loaded nutrition for ${nutritionData.length} days`);
+      console.log(`📊 Final nutrition data: ${nutritionData.length} days with real food entries`);
       return nutritionData;
       
     } catch (error) {
@@ -255,69 +347,154 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
   });
 };
 
-// Smart context building based on query analysis
-const buildContextForQuery = (query: string, userData: UserData) => {
+// Extract time range from user query
+const extractTimeRange = (query: string) => {
   const lowercaseQuery = query.toLowerCase();
+  const today = new Date();
+  
+  // Today/yesterday
+  if (lowercaseQuery.includes('today') || lowercaseQuery.includes('this morning')) {
+    return { days: 1, label: 'today', description: 'today\'s data' };
+  }
+  
+  if (lowercaseQuery.includes('yesterday')) {
+    return { days: 2, label: 'yesterday', description: 'yesterday\'s data', offset: 1 };
+  }
+  
+  // This week/last week
+  if (lowercaseQuery.includes('this week') || lowercaseQuery.includes('past week')) {
+    return { days: 7, label: 'this week', description: 'this week\'s data' };
+  }
+  
+  if (lowercaseQuery.includes('last week')) {
+    return { days: 7, label: 'last week', description: 'last week\'s data', offset: 7 };
+  }
+  
+  // Month ranges
+  if (lowercaseQuery.includes('this month') || lowercaseQuery.includes('past month')) {
+    return { days: 30, label: 'this month', description: 'this month\'s data' };
+  }
+  
+  // Specific number patterns
+  const dayMatches = lowercaseQuery.match(/(?:last|past)\s+(\d+)\s+days?/);
+  if (dayMatches) {
+    const days = parseInt(dayMatches[1]);
+    return { days, label: `last ${days} days`, description: `last ${days} days of data` };
+  }
+  
+  const weekMatches = lowercaseQuery.match(/(?:last|past)\s+(\d+)\s+weeks?/);
+  if (weekMatches) {
+    const weeks = parseInt(weekMatches[1]);
+    const days = weeks * 7;
+    return { days, label: `last ${weeks} weeks`, description: `last ${weeks} weeks of data` };
+  }
+  
+  // Recent activity patterns
+  if (lowercaseQuery.includes('recent') || lowercaseQuery.includes('latest')) {
+    return { days: 3, label: 'recent', description: 'recent data (3 days)' };
+  }
+  
+  // Default based on data type
+  if (/\b(run|running|pace|workout|exercise)\b/.test(lowercaseQuery)) {
+    return { days: 7, label: 'recent runs', description: 'last 7 days of running data' };
+  }
+  
+  if (/\b(food|eat|nutrition|meal)\b/.test(lowercaseQuery)) {
+    return { days: 3, label: 'recent nutrition', description: 'last 3 days of nutrition data' };
+  }
+  
+  // Default fallback
+  return { days: 7, label: 'recent activity', description: 'last 7 days of data' };
+};
+
+// Smart context building based on query analysis and time range
+const buildContextForQuery = async (query: string, userData: UserData) => {
+  const lowercaseQuery = query.toLowerCase();
+  
+  // Extract time range from query
+  const timeRange = extractTimeRange(query);
   
   // Determine what data is relevant
   const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm)\b/i.test(query);
   const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet)\b/i.test(query);
   const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(query);
   
-  let context = `You are a helpful health coach. Answer the user's question directly using their real data.\n\n`;
+  console.log(`🎯 Query analysis: needs runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, timeRange=${timeRange.label}`);
   
-  // Add relevant data sections
+  let context = `You are a helpful health coach. Answer ONLY what the user asks. DO NOT give unsolicited advice.
+
+CRITICAL RULES:
+1. Answer the specific question asked - nothing more
+2. Use ONLY the real data provided below
+3. NEVER make up or fabricate data
+4. NO unsolicited training advice, nutrition timing, sleep advice, or recovery protocols
+5. Keep responses concise and focused
+6. If no data is available, say "No data available" instead of making something up
+
+QUERY: "${query}"
+TIME RANGE: ${timeRange.description}
+
+`;
+  
+  // Add relevant data sections ONLY if real data exists
   if (needsRunData && userData.recentRuns.length > 0) {
-    context += `=== RECENT RUNS ===\n`;
-    userData.recentRuns.forEach((run, index) => {
-      context += `Run ${index + 1}: "${run.name}" on ${new Date(run.start_date).toLocaleDateString()}\n`;
-      context += `- Distance: ${run.distance.toFixed(2)}km\n`;
-      context += `- Duration: ${Math.round(run.moving_time / 60)}min\n`;
-      context += `- Avg HR: ${run.average_heartrate || 'N/A'} bpm\n`;
-      context += `- Tag: ${run.run_tag}\n`;
-      
-      if (run.splits_metric && run.splits_metric.length > 0) {
-        context += `- KM SPLITS:\n`;
-        run.splits_metric.forEach((split, kmIndex) => {
-          const pace = split.moving_time;
-          const minutes = Math.floor(pace / 60);
-          const seconds = pace % 60;
-          const hr = split.average_heartrate ? ` HR:${Math.round(split.average_heartrate)}` : '';
-          const elevation = split.elevation_difference ? ` ${split.elevation_difference > 0 ? '+' : ''}${split.elevation_difference}m` : '';
-          context += `  Km ${kmIndex + 1}: ${minutes}:${seconds.toString().padStart(2, '0')}${hr}${elevation}\n`;
-        });
-      }
-      context += '\n';
+    const relevantRuns = userData.recentRuns.filter(run => {
+      const runDate = new Date(run.start_date);
+      return timeRange.offset ? 
+        isDateInRange(runDate, timeRange.days, timeRange.offset) :
+        isWithinDays(runDate, timeRange.days);
     });
+    
+    if (relevantRuns.length > 0) {
+      context += `=== ACTUAL RUNNING DATA (${timeRange.label.toUpperCase()}) ===\n`;
+      relevantRuns.forEach((run, index) => {
+        const runDate = new Date(run.start_date);
+        context += `"${run.name}" - ${runDate.toLocaleDateString()}\n`;
+        context += `Distance: ${run.distance.toFixed(2)}km, Duration: ${Math.round(run.moving_time / 60)}min\n`;
+        context += `Run Type: ${run.run_tag}\n`;
+        context += `Avg HR: ${run.average_heartrate || 'N/A'} bpm\n`;
+        context += `Avg Pace: ${formatPace(run.moving_time / run.distance)}/km\n`;
+        
+        if (run.splits_metric && run.splits_metric.length > 0) {
+          context += `KM SPLITS:\n`;
+          run.splits_metric.forEach((split, kmIndex) => {
+            const pace = split.moving_time;
+            const minutes = Math.floor(pace / 60);
+            const seconds = pace % 60;
+            const hr = split.average_heartrate ? ` (${Math.round(split.average_heartrate)}bpm)` : '';
+            context += `  Km ${kmIndex + 1}: ${minutes}:${seconds.toString().padStart(2, '0')}/km${hr}\n`;
+          });
+        }
+        context += '\n';
+      });
+    } else {
+      context += `=== NO RUNNING DATA AVAILABLE for ${timeRange.label} ===\n\n`;
+    }
   }
   
   if (needsNutritionData && userData.recentNutrition.length > 0) {
-    context += `=== RECENT NUTRITION ===\n`;
-    userData.recentNutrition.forEach((day) => {
-      context += `${new Date(day.date).toLocaleDateString()}: ${day.totals.calories} cal, ${day.totals.protein}g protein\n`;
-      if (day.entries.length > 0) {
-        context += `Foods eaten:\n`;
-        day.entries.forEach((food) => {
-          context += `- ${food.foodId}: ${food.quantity} ${food.unit} (${Math.round(food.calories * food.quantity)} cal, ${Math.round(food.protein * food.quantity)}g protein)\n`;
-        });
-      }
-      context += '\n';
+    const relevantNutrition = userData.recentNutrition.filter(day => {
+      const dayDate = new Date(day.date);
+      return timeRange.offset ?
+        isDateInRange(dayDate, timeRange.days, timeRange.offset) :
+        isWithinDays(dayDate, timeRange.days);
     });
     
-    // Extract common foods for recommendations
-    const allFoods = userData.recentNutrition.flatMap(day => day.entries);
-    const foodFrequency = allFoods.reduce((acc, food) => {
-      acc[food.foodId] = (acc[food.foodId] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const commonFoods = Object.entries(foodFrequency)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-      .map(([food]) => food);
-    
-    if (commonFoods.length > 0) {
-      context += `Common foods you eat: ${commonFoods.join(', ')}\n\n`;
+    if (relevantNutrition.length > 0) {
+      context += `=== ACTUAL NUTRITION DATA (${timeRange.label.toUpperCase()}) ===\n`;
+      relevantNutrition.forEach((day) => {
+        context += `${new Date(day.date).toLocaleDateString()}: ${day.totals.calories} cal, ${day.totals.protein}g protein\n`;
+        if (day.entries.length > 0) {
+          context += `ACTUAL FOODS EATEN:\n`;
+          day.entries.forEach((food) => {
+            const totalCals = Math.round(food.calories * food.quantity);
+            context += `- ${food.foodId}: ${food.quantity} ${food.unit} (${totalCals}cal)\n`;
+          });
+        }
+        context += '\n';
+      });
+    } else {
+      context += `=== NO NUTRITION DATA AVAILABLE for ${timeRange.label} ===\n\n`;
     }
   }
   
@@ -325,14 +502,23 @@ const buildContextForQuery = (query: string, userData: UserData) => {
     context += `=== CURRENT BODY METRICS ===\n`;
     context += `Weight: ${userData.currentBody.weight}kg\n`;
     context += `Body Fat: ${userData.currentBody.bodyFat}%\n`;
-    context += `Lean Mass: ${userData.currentBody.leanMass}kg\n`;
     context += `HDL: ${userData.currentBody.hdl} mg/dL\n`;
     context += `LDL: ${userData.currentBody.ldl} mg/dL\n`;
     context += `Glucose: ${userData.currentBody.glucose} mg/dL\n`;
-    context += `HbA1c: ${userData.currentBody.hba1c}%\n`;
-    context += `Vitamin D: ${userData.currentBody.vitaminD} ng/mL\n`;
     context += `Last updated: ${userData.currentBody.lastUpdated}\n\n`;
   }
+  
+  // Add response format instructions
+  context += `RESPONSE FORMAT:
+- Be direct and concise
+- Answer only what was asked
+- Use **bold** for key metrics
+- NO training advice unless specifically requested
+- NO nutrition timing advice unless asked
+- NO recovery protocols unless asked
+- End your response after answering the question
+
+`;
   
   return context;
 };
@@ -605,11 +791,11 @@ const SmartPromptSuggestions: React.FC<{
       textColor: 'text-blue-700',
       iconColor: 'text-blue-600',
       prompts: hasRunData ? [
-        'Analyze my recent running performance',
-        'How was my pace in my last run?',
-        'Show me my heart rate zones from yesterday',
-        'Compare my easy runs vs tempo runs',
-        'What do my km splits tell me?'
+        'How was my run today?',
+        'Analyze my pace from yesterday\'s run',
+        'Show me this week\'s running performance',
+        'Compare my easy runs vs tempo runs this month',
+        'What do my km splits tell me from my last 3 runs?'
       ] : [
         'How do I start a running routine?',
         'What pace should I run at?',
@@ -624,10 +810,10 @@ const SmartPromptSuggestions: React.FC<{
       textColor: 'text-green-700',
       iconColor: 'text-green-600',
       prompts: hasNutritionData ? [
-        'What foods should I eat more of?',
+        'What did I eat today?',
         'Analyze my protein intake this week',
-        'Recommend foods similar to what I eat',
-        'Am I eating enough calories?',
+        'Recommend foods similar to what I ate yesterday',
+        'Am I eating enough calories this week?',
         'What should I eat before my next run?'
       ] : [
         'Help me plan a healthy meal',
@@ -644,7 +830,7 @@ const SmartPromptSuggestions: React.FC<{
       iconColor: 'text-purple-600',
       prompts: hasBodyData ? [
         'How are my health markers trending?',
-        'Is my current weight healthy?',
+        'Is my current weight healthy for running?',
         'What do my blood test results mean?',
         'How can I improve my body composition?'
       ] : [
@@ -655,17 +841,17 @@ const SmartPromptSuggestions: React.FC<{
       ]
     },
     {
-      title: 'Quick Questions',
-      icon: MessageSquare,
+      title: 'Time-Based Questions',
+      icon: Clock,
       color: 'from-teal-100 to-cyan-100 border-teal-300',
       textColor: 'text-teal-700',
       iconColor: 'text-teal-600',
       prompts: [
-        'What should I focus on this week?',
-        'Am I making progress?',
-        'What exercises should I do?',
-        'How can I recover better?',
-        'Is my training balanced?'
+        'What should I focus on today?',
+        'How was my week compared to last week?',
+        'Show me my progress over the last month',
+        'What did I do differently yesterday?',
+        'Am I improving over the past 2 weeks?'
       ]
     }
   ];
@@ -843,14 +1029,31 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Send message to AI with smart context
+  // Send message to AI with smart context and dynamic data fetching
   const sendMessageToAI = async (messageContent: string) => {
     try {
-      if (!userData) {
-        throw new Error('No user data available');
-      }
-
-      const context = buildContextForQuery(messageContent, userData);
+      // Extract time range from user query
+      const timeRange = extractTimeRange(messageContent);
+      console.log(`🎯 Detected time range: ${timeRange.label} (${timeRange.days} days)`);
+      
+      // Determine what data types are needed
+      const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm)\b/i.test(messageContent);
+      const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet)\b/i.test(messageContent);
+      const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(messageContent);
+      
+      // Fetch only the data we need for this specific time range
+      const [dynamicRunData, dynamicNutritionData] = await Promise.all([
+        needsRunData ? fetchRecentRuns(timeRange.days) : Promise.resolve([]),
+        needsNutritionData ? fetchRecentNutrition(timeRange.days) : Promise.resolve([])
+      ]);
+      
+      // Build context with fresh, targeted data
+      const context = await buildContextForQuery(messageContent, {
+        recentRuns: dynamicRunData,
+        recentNutrition: dynamicNutritionData,
+        currentBody: needsBodyData ? userData?.currentBody || null : null,
+        weeklyStats: userData?.weeklyStats || { totalDistance: 0, totalRuns: 0, avgPace: 0, avgCalories: 0 }
+      });
       
       const conversationMessages = [
         { role: "system", content: context },
@@ -861,7 +1064,7 @@ const LetsJam: React.FC = () => {
         { role: "user", content: messageContent }
       ];
 
-      console.log('📤 Sending message with smart context');
+      console.log(`📤 Sending message with dynamic context (${timeRange.label})`);
       
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -1154,9 +1357,15 @@ const LetsJam: React.FC = () => {
           <div className="flex items-center gap-4">
             <span>AI health coach with real Firestore data</span>
             <span className="hidden md:inline">•</span>
-            <span>Smart context loading based on your questions</span>
+            <span>Smart time-based analysis (today, yesterday, this week, last month)</span>
           </div>
           <div className="flex items-center gap-4">
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+              Dynamic Date Ranges
+            </span>
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+              Run Tags Maintained
+            </span>
             <div className="flex items-center gap-1">
               <div className={`w-2 h-2 rounded-full animate-pulse ${userData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
               <span className="text-xs">{userData ? 'Data Ready' : 'Loading Data'}</span>
