@@ -1298,7 +1298,7 @@ const ActivityJam = () => {
       setLastUpdate(new Date().toLocaleTimeString());
       
       // Try to load cached chart data first, then create if needed
-      await loadOrCreateCharts(sortedActivities, dataSource === 'strava-api');
+      await loadOrCreateCharts(sortedActivities, refreshMode !== 'cached' || dataSource?.includes('strava'));
 
     } catch (error) {
       console.error('❌ Error fetching activities:', error);
