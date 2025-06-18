@@ -20,9 +20,9 @@ import {
   Clock
 } from 'lucide-react';
 
-// Import Firestore utilities that match your other components
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore';
+// Import Firestore utilities
+import { getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 // Type definitions
 interface Message {
@@ -55,22 +55,7 @@ interface RunData {
     average_speed: number;
     average_heartrate?: number;
   }>;
-  best_efforts?: Array<{
-    id: number;
-    resource_state: number;
-    name: string;
-    activity: { id: number };
-    athlete: { id: number };
-    elapsed_time: number;
-    moving_time: number;
-    start_date: string;
-    start_date_local: string;
-    distance: number;
-    start_index: number;
-    end_index: number;
-    pr_rank?: number;
-    achievements: any[];
-  }>;
+  best_efforts?: any[];
   zones?: any[];
 }
 
@@ -129,14 +114,13 @@ interface TimeRange {
   offset?: number;
 }
 
-// Initialize Firebase (using same pattern as your other components)
+// Initialize Firebase
 let db: any = null;
 
 const initializeFirebase = () => {
   if (db) return db;
   
   try {
-    // Use existing Firebase app if already initialized
     const app = getApps().length > 0 ? getApps()[0] : null;
     if (app) {
       db = getFirestore(app);
@@ -151,7 +135,7 @@ const initializeFirebase = () => {
   }
 };
 
-// Cache for data to prevent excessive API calls
+// Cache for data
 const dataCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -170,15 +154,77 @@ const getCachedData = async <T extends unknown>(key: string, fetchFn: () => Prom
   return data;
 };
 
-// Real data fetching functions using your actual Firestore structure
+// Utility functions
+const formatPace = (totalSeconds: number): string => {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const formatTime = (totalSeconds: number): string => {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+// Time range extraction
+const extractTimeRange = (query: string): TimeRange => {
+  const lowerQuery = query.toLowerCase();
+  
+  if (lowerQuery.includes('today')) {
+    return { label: 'today', days: 1, description: 'Today only', offset: 0 };
+  }
+  if (lowerQuery.includes('yesterday')) {
+    return { label: 'yesterday', days: 1, description: 'Yesterday only', offset: 1 };
+  }
+  if (lowerQuery.includes('this week')) {
+    return { label: 'this week', days: 7, description: 'This week' };
+  }
+  if (lowerQuery.includes('last week')) {
+    return { label: 'last week', days: 7, description: 'Last week', offset: 7 };
+  }
+  if (lowerQuery.includes('this month')) {
+    return { label: 'this month', days: 30, description: 'This month' };
+  }
+  if (lowerQuery.includes('last month')) {
+    return { label: 'last month', days: 30, description: 'Last month', offset: 30 };
+  }
+  
+  return { label: 'recent', days: 7, description: 'Recent data (last 7 days)' };
+};
+
+// Date utilities
+const isWithinDays = (date: Date, days: number): boolean => {
+  const now = new Date();
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= days;
+};
+
+const isDateInRange = (date: Date, days: number, offset: number): boolean => {
+  const now = new Date();
+  const startOffset = offset;
+  const endOffset = offset + days;
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= startOffset && diffDays <= endOffset;
+};
+
+// Data fetching functions
 const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
   return getCachedData(`runs_${days}`, async () => {
     try {
       console.log(`🏃 Fetching run data for ${days} days...`);
       
       const params = new URLSearchParams({
-        userId: "testUser123",
-        mode: 'cached'
+        userId: "mihir_jain",
+        mode: 'cached',
+        days: days.toString()
       });
       
       const response = await fetch(`/api/strava?${params.toString()}`);
@@ -194,7 +240,6 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
         return [];
       }
       
-      // Filter for actual run activities with real data
       const runActivities = data
         .filter((activity: any) => 
           activity.type && 
@@ -216,31 +261,28 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
           max_heartrate: activity.max_heartrate ? Number(activity.max_heartrate) : undefined,
           calories: activity.calories ? Number(activity.calories) : undefined,
           is_run_activity: true,
-          run_tag: activity.run_tag || 'easy'
+          run_tag: activity.run_tag || activity.runType || 'easy'
         }))
         .filter(run => {
-          // Additional validation - only include runs within the time range
           const runDate = new Date(run.start_date);
           const now = new Date();
           const diffDays = Math.ceil((now.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24));
           return diffDays >= 0 && diffDays <= days;
         })
-        .slice(0, 10); // Limit to recent 10 runs max
+        .slice(0, 10);
       
-      // Load detailed data for recent runs only if we have run activities
       if (runActivities.length === 0) {
         console.log('No valid run activities found in date range');
         return [];
       }
       
       const runsWithDetails = await Promise.all(
-        runActivities.slice(0, 3).map(async (run: RunData) => { // Only load details for 3 most recent
+        runActivities.slice(0, 3).map(async (run: RunData) => {
           try {
-            const detailResponse = await fetch(`/api/strava-detail?activityId=${run.id}&userId=testUser123`);
+            const detailResponse = await fetch(`/api/strava-detail?activityId=${run.id}&userId=mihir_jain`);
             if (detailResponse.ok) {
               const detail = await detailResponse.json();
               
-              // Only include valid detailed data
               return {
                 ...run,
                 splits_metric: detail.splits_metric && detail.splits_metric.length > 0 ? detail.splits_metric : undefined,
@@ -255,13 +297,12 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
         })
       );
       
-      // Merge detailed runs with basic runs
       const finalRuns = [
         ...runsWithDetails,
-        ...runActivities.slice(3) // Basic data for remaining runs
+        ...runActivities.slice(3)
       ];
       
-      console.log(`✅ Loaded ${finalRuns.length} valid runs (${runsWithDetails.filter(r => r.splits_metric).length} with detailed splits)`);
+      console.log(`✅ Loaded ${finalRuns.length} valid runs`);
       return finalRuns;
       
     } catch (error) {
@@ -271,11 +312,10 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
   });
 };
 
-// Use Firestore directly for nutrition data (matching your actual structure)
 const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]> => {
   return getCachedData(`nutrition_${days}`, async () => {
     try {
-      console.log(`📊 Fetching nutrition data for ${days} days directly from Firestore...`);
+      console.log(`📊 Fetching nutrition data for ${days} days...`);
       
       const firestore = initializeFirebase();
       if (!firestore) {
@@ -292,32 +332,26 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
         const dateString = date.toISOString().split('T')[0];
         
         try {
-          // Access Firestore directly using your actual structure
           const logRef = doc(firestore, "nutritionLogs", dateString);
           const logSnapshot = await getDoc(logRef);
           
           if (logSnapshot.exists()) {
             const logData = logSnapshot.data();
             
-            // Check if we have valid nutrition data using totals (since individual entries don't have nutrition)
             if (logData && logData.totals && logData.totals.calories > 0) {
               const entries = logData.entries || [];
               
-              // Validate entries have real food names
               const validEntries = entries.filter((entry: any) => 
                 entry && 
                 entry.foodId && 
                 typeof entry.foodId === 'string' &&
                 entry.foodId.length > 0 &&
                 entry.foodId !== 'Unknown Food' && 
-                entry.foodId !== 'unknown' &&
-                !entry.foodId.toLowerCase().includes('test') &&
                 entry.quantity &&
                 Number(entry.quantity) > 0
               );
               
-              if (validEntries.length > 0 && logData.totals.calories > 0) {
-                // Use the stored totals since individual entries don't have nutrition data
+              if (validEntries.length > 0) {
                 const totals = {
                   calories: Number(logData.totals.calories) || 0,
                   protein: Number(logData.totals.protein) || 0,
@@ -326,12 +360,10 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
                   fiber: Number(logData.totals.fiber) || 0
                 };
                 
-                // Add estimated nutrition per food item for display
                 const entriesWithNutrition = validEntries.map((entry: any) => ({
                   foodId: entry.foodId,
                   quantity: Number(entry.quantity) || 1,
                   unit: entry.unit || 'serving',
-                  // Estimate calories per item (for display only)
                   calories: Math.round(totals.calories / validEntries.length),
                   protein: Math.round(totals.protein / validEntries.length),
                   carbs: Math.round(totals.carbs / validEntries.length),
@@ -347,14 +379,8 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
                 });
                 
                 console.log(`✅ Valid nutrition data found for ${dateString}: ${validEntries.length} foods, ${Math.round(totals.calories)} calories`);
-              } else {
-                console.log(`⚠️ No valid food entries found for ${dateString}`);
               }
-            } else {
-              console.log(`📭 No nutrition totals for ${dateString}`);
             }
-          } else {
-            console.log(`📭 No nutrition log document for ${dateString}`);
           }
         } catch (error) {
           console.warn(`Failed to load nutrition for ${dateString}:`, error);
@@ -362,20 +388,6 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
       }
       
       console.log(`📊 Final nutrition data: ${nutritionData.length} days with real food entries`);
-      
-      // Debug log the actual data we're returning
-      if (nutritionData.length > 0) {
-        console.log('🍎 Nutrition data summary:');
-        nutritionData.forEach(day => {
-          console.log(`  ${day.date}: ${day.entries.length} foods, ${Math.round(day.totals.calories)} cal`);
-          day.entries.slice(0, 3).forEach((food: any) => {
-            console.log(`    - ${food.foodId}: ${food.quantity} ${food.unit}`);
-          });
-        });
-      } else {
-        console.log('⚠️ No valid nutrition data found for any day in the requested range');
-      }
-      
       return nutritionData;
       
     } catch (error) {
@@ -385,7 +397,6 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
   });
 };
 
-// Get body metrics from Firestore directly (matching your blood_markers structure)
 const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
   return getCachedData('body_metrics', async () => {
     try {
@@ -397,8 +408,7 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
         return null;
       }
       
-      // Try to get from blood_markers collection first
-      const bloodMarkersRef = doc(firestore, "blood_markers", "testUser123");
+      const bloodMarkersRef = doc(firestore, "blood_markers", "mihir_jain");
       const bloodMarkersSnapshot = await getDoc(bloodMarkersRef);
       
       if (bloodMarkersSnapshot.exists()) {
@@ -406,7 +416,6 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
         
         console.log('✅ Loaded body metrics from blood_markers collection');
         
-        // Parse string values with units (your format: "38 mg/dL")
         const parseValue = (value: string) => {
           if (!value) return 0;
           const match = value.toString().match(/^([0-9.]+)/);
@@ -426,7 +435,6 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
         };
       }
       
-      // Also try to get from nutritionLogs if they contain body data
       const today = new Date().toISOString().split('T')[0];
       const nutritionRef = doc(firestore, "nutritionLogs", today);
       const nutritionSnapshot = await getDoc(nutritionRef);
@@ -467,103 +475,11 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
   });
 };
 
-// Utility functions
-const formatPace = (totalSeconds: number): string => {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = Math.round(totalSeconds % 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
-
-const formatTime = (totalSeconds: number): string => {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = Math.round(totalSeconds % 60);
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
-
-const getRunTagDescription = (tag: string): string => {
-  const descriptions: Record<string, string> = {
-    'easy': 'Conversational pace, aerobic base building',
-    'tempo': 'Comfortably hard, threshold effort',
-    'interval': 'High intensity with recovery periods',
-    'long': 'Extended distance at easy pace',
-    'recovery': 'Very easy pace for active recovery',
-    'race': 'Competition or time trial effort'
-  };
-  return descriptions[tag] || 'General training run';
-};
-
-// Time range extraction from queries
-const extractTimeRange = (query: string): TimeRange => {
-  const lowerQuery = query.toLowerCase();
-  
-  // Specific day references
-  if (lowerQuery.includes('today')) {
-    return { label: 'today', days: 1, description: 'Today only', offset: 0 };
-  }
-  if (lowerQuery.includes('yesterday')) {
-    return { label: 'yesterday', days: 1, description: 'Yesterday only', offset: 1 };
-  }
-  
-  // Week references
-  if (lowerQuery.includes('this week')) {
-    return { label: 'this week', days: 7, description: 'This week' };
-  }
-  if (lowerQuery.includes('last week')) {
-    return { label: 'last week', days: 7, description: 'Last week', offset: 7 };
-  }
-  
-  // Month references
-  if (lowerQuery.includes('this month')) {
-    return { label: 'this month', days: 30, description: 'This month' };
-  }
-  if (lowerQuery.includes('last month')) {
-    return { label: 'last month', days: 30, description: 'Last month', offset: 30 };
-  }
-  
-  // Number-based ranges
-  const numberMatch = lowerQuery.match(/(\d+)\s*(day|week|month)/);
-  if (numberMatch) {
-    const num = parseInt(numberMatch[1]);
-    const unit = numberMatch[2];
-    const multiplier = unit === 'week' ? 7 : unit === 'month' ? 30 : 1;
-    const days = num * multiplier;
-    return { label: `${num} ${unit}${num > 1 ? 's' : ''}`, days, description: `Last ${num} ${unit}${num > 1 ? 's' : ''}` };
-  }
-  
-  // Default to recent data
-  return { label: 'recent', days: 7, description: 'Recent data (last 7 days)' };
-};
-
-// Date range checking utilities
-const isWithinDays = (date: Date, days: number): boolean => {
-  const now = new Date();
-  const diffTime = now.getTime() - date.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  return diffDays >= 0 && diffDays <= days;
-};
-
-const isDateInRange = (date: Date, days: number, offset: number): boolean => {
-  const now = new Date();
-  const startOffset = offset;
-  const endOffset = offset + days;
-  const diffTime = now.getTime() - date.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  return diffDays >= startOffset && diffDays <= endOffset;
-};
-
-// Smart context building - STRICT version that prevents AI hallucination
+// Context building
 const buildContextForQuery = async (query: string, userData: UserData) => {
   const lowercaseQuery = query.toLowerCase();
-  
-  // Extract time range from query
   const timeRange = extractTimeRange(query);
   
-  // Determine what data is relevant
   const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm)\b/i.test(query);
   const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet)\b/i.test(query);
   const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(query);
@@ -586,7 +502,6 @@ TIME RANGE REQUESTED: ${timeRange.description}
 
 `;
 
-  // Add data sections only if we have real data
   let hasAnyData = false;
 
   if (needsRunData) {
@@ -698,14 +613,24 @@ const chatWithAI = async (message: string, userData: UserData): Promise<string> 
     
     const context = await buildContextForQuery(message, userData);
     
-    const response = await fetch('/api/ai-chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: context,
-        temperature: 0.1 // Low temperature for factual responses
+        messages: [
+          { role: 'system', content: context },
+          { role: 'user', content: message }
+        ],
+        userData: {
+          systemContext: context
+        },
+        userId: 'mihir_jain',
+        source: 'LetsJam',
+        sessionId: `letsjam_${Date.now()}`,
+        useSystemContext: true,
+        temperature: 0.1
       }),
     });
 
@@ -715,14 +640,38 @@ const chatWithAI = async (message: string, userData: UserData): Promise<string> 
 
     const data = await response.json();
     console.log('✅ AI response received');
-    return data.message || data.response || 'Sorry, I couldn\'t process that request.';
+    
+    const aiMessage = data.choices?.[0]?.message?.content || 
+                     data.message || 
+                     data.response || 
+                     'Sorry, I couldn\'t process that request.';
+    
+    return aiMessage;
   } catch (error) {
     console.error('❌ Error chatting with AI:', error);
     return 'Sorry, I\'m having trouble connecting to the AI service right now. Please try again later.';
   }
 };
 
-// Health Summary Component
+// Message Content Component
+const MessageContent: React.FC<{ content: string }> = ({ content }) => {
+  const formatContent = (text: string) => {
+    return text.split(/(\*\*.*?\*\*)/).map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
+  return (
+    <div className="whitespace-pre-wrap">
+      {formatContent(content)}
+    </div>
+  );
+};
+
+// Health Summary Component - FIXED LAYOUT
 const SmartHealthSummary: React.FC<{
   userData: UserData;
   onRefresh: () => void;
@@ -732,6 +681,17 @@ const SmartHealthSummary: React.FC<{
   const hasRunData = userData.recentRuns.length > 0;
   const hasNutritionData = userData.recentNutrition.length > 0;
   const hasBodyData = userData.currentBody.weight > 0;
+
+  const PromptButton: React.FC<{ prompt: string; onClick: (prompt: string) => void }> = ({ prompt, onClick }) => (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => onClick(prompt)}
+      className="text-xs p-2 h-auto text-left justify-start hover:bg-blue-50 border-blue-200 w-full"
+    >
+      {prompt}
+    </Button>
+  );
 
   const PromptSection: React.FC<{
     title: string;
@@ -744,17 +704,13 @@ const SmartHealthSummary: React.FC<{
         {icon}
         <span>{title}</span>
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
+      <div className="space-y-1">
         {prompts.map((prompt, index) => (
-          <Button
+          <PromptButton
             key={index}
-            variant="outline"
-            size="sm"
-            onClick={() => onPromptClick(prompt)}
-            className="text-xs p-2 h-auto text-left justify-start hover:bg-blue-50 border-blue-200"
-          >
-            {prompt}
-          </Button>
+            prompt={prompt}
+            onClick={onPromptClick}
+          />
         ))}
       </div>
     </div>
@@ -790,9 +746,8 @@ const SmartHealthSummary: React.FC<{
             prompts={hasRunData ? [
               'How was my run today?',
               'Analyze my splits from yesterday',
-              'Show me my heart rate data from my last run',
-              'Was my pacing consistent?',
-              'How many easy vs hard runs this week?'
+              'Show me my heart rate data',
+              'Was my pacing consistent?'
             ] : [
               'Connect Strava to see running prompts'
             ]}
@@ -807,10 +762,9 @@ const SmartHealthSummary: React.FC<{
             icon={<Apple className="h-4 w-4 text-orange-600" />}
             prompts={hasNutritionData ? [
               'What did I eat today?',
-              'How many calories did I have yesterday?',
-              'What foods do I eat most often?',
-              'Am I getting enough protein?',
-              'Show me my nutrition from this week'
+              'How many calories yesterday?',
+              'What foods do I eat most?',
+              'Am I getting enough protein?'
             ] : [
               'No nutrition data available yet'
             ]}
@@ -827,8 +781,7 @@ const SmartHealthSummary: React.FC<{
               'How was my week overall?',
               'Am I making progress?',
               'What should I focus on?',
-              'Compare today vs yesterday',
-              'Show me my recent activity summary'
+              'Show me my recent activity'
             ]}
             onPromptClick={(prompt) => {
               const event = new CustomEvent('sendPrompt', { detail: prompt });
@@ -836,10 +789,10 @@ const SmartHealthSummary: React.FC<{
             }}
           />
 
-          {/* Quick Stats */}
+          {/* Quick Stats - FIXED */}
           <div className="pt-3 border-t border-gray-200 space-y-2">
             <h4 className="text-sm font-medium text-gray-700">Quick Stats</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="space-y-1 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-600">Runs this week:</span>
                 <span className="font-medium">{userData.weeklyStats.totalRuns}</span>
@@ -856,7 +809,7 @@ const SmartHealthSummary: React.FC<{
               )}
               {hasBodyData && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Latest weight:</span>
+                  <span className="text-gray-600">Weight:</span>
                   <span className="font-medium">{userData.currentBody.weight}kg</span>
                 </div>
               )}
@@ -868,31 +821,10 @@ const SmartHealthSummary: React.FC<{
   );
 };
 
-// Message Content Component
-const MessageContent: React.FC<{ content: string }> = ({ content }) => {
-  // Convert **text** to bold
-  const formatContent = (text: string) => {
-    return text.split(/(\*\*.*?\*\*)/).map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={index}>{part.slice(2, -2)}</strong>;
-      }
-      return part;
-    });
-  };
-
-  return (
-    <div className="whitespace-pre-wrap">
-      {formatContent(content)}
-    </div>
-  );
-};
-
 // Main component
 const LetsJam: React.FC = () => {
-  // Configuration
-  const userId = "testUser123"; // You can make this dynamic later
+  const userId = "mihir_jain";
   
-  // State management
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -908,9 +840,11 @@ const LetsJam: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Auto-scroll to latest AI message start
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to AI message start
   const scrollToLatestAIMessage = () => {
-    // Find the last AI message element
     const messagesContainer = messagesContainerRef.current;
     if (messagesContainer) {
       const aiMessages = messagesContainer.querySelectorAll('[data-role="assistant"]');
@@ -918,41 +852,35 @@ const LetsJam: React.FC = () => {
         const lastAIMessage = aiMessages[aiMessages.length - 1];
         lastAIMessage.scrollIntoView({ 
           behavior: 'smooth',
-          block: 'start' // Scroll to start of AI message
+          block: 'start'
         });
         console.log('📍 Scrolled to start of AI response');
       }
     }
   };
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll behavior
   useEffect(() => {
     if (isTyping) {
-      // While typing, scroll to bottom
       if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
     } else if (messages.length > 0) {
-      // After AI responds, scroll to start of AI message
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.role === 'assistant') {
         setTimeout(() => {
           scrollToLatestAIMessage();
-        }, 200); // Small delay to ensure content is rendered
+        }, 200);
       }
     }
   }, [messages, isTyping]);
 
-  // Fetch all user data with better validation
+  // Fetch user data
   const fetchUserData = async (forceRefresh = false) => {
     try {
       setLoading(true);
       if (forceRefresh) {
         setIsRefreshing(true);
-        dataCache.clear(); // Clear cache on force refresh
+        dataCache.clear();
       }
 
       console.log('🔄 Fetching user data...');
@@ -1003,7 +931,7 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Handle sending messages
+  // Handle messages
   const handleSendMessage = async (message: string = inputMessage) => {
     if (!message.trim()) return;
 
@@ -1040,7 +968,7 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Listen for prompt events from sidebar
+  // Listen for prompt events
   useEffect(() => {
     const handlePromptEvent = (event: CustomEvent) => {
       handleSendMessage(event.detail);
@@ -1108,112 +1036,108 @@ const LetsJam: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          
+          {/* Left Column - Chat Interface */}
+          <div className="xl:col-span-3 space-y-4">
             
-            {/* Left Column - Chat Interface (Expandable) */}
-            <div className="xl:col-span-4 space-y-4">
+            <Card className="bg-white/90 backdrop-blur-sm border border-white/20 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Bot className="h-5 w-5 text-blue-600" />
+                  Health Coach Chat
+                  <Badge variant="secondary" className="ml-auto">
+                    {userData.recentRuns.length} runs • {userData.recentNutrition.length} days nutrition
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
               
-              {/* Chat Interface */}
-              <Card className="bg-white/90 backdrop-blur-sm border border-white/20 shadow-lg">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Bot className="h-5 w-5 text-blue-600" />
-                    Health Coach Chat
-                    <Badge variant="secondary" className="ml-auto">
-                      {userData.recentRuns.length} runs • {userData.recentNutrition.length} days nutrition
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                
-                <CardContent className="p-0">
-                  <div 
-                    ref={messagesContainerRef}
-                    className="p-4 space-y-4 min-h-[400px] overflow-y-auto"
-                    style={{ 
-                      maxHeight: 'calc(100vh - 400px)', // Dynamic height based on viewport
-                      height: 'auto' // Let it grow naturally
-                    }}
-                  >
-                    {messages.map((message, index) => (
-                      <div
-                        key={index}
-                        data-role={message.role}
-                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div className={`max-w-[85%] ${
-                          message.role === 'user' 
-                            ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white' 
-                            : 'bg-gradient-to-r from-blue-50 to-cyan-50 text-gray-800 border border-blue-200'
-                        } rounded-lg p-4`}>
-                          <MessageContent content={message.content} />
-                          <div className={`text-xs mt-2 ${
-                            message.role === 'user' ? 'text-green-100' : 'text-blue-500'
-                          }`}>
-                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {isTyping && (
-                      <div className="flex justify-start">
-                        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-3">
-                          <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4 text-teal-500" />
-                            <span className="text-sm text-teal-700">Analyzing your real data...</span>
-                            <div className="flex gap-1">
-                              <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce"></div>
-                              <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-200"></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div ref={messagesEndRef} />
-                  </div>
-                </CardContent>
-                
-                {/* Input Section */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50/50">
-                  <div className="flex gap-2">
-                    <Input
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Ask about your runs, nutrition, or health data..."
-                      className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      disabled={isTyping}
-                    />
-                    <Button 
-                      onClick={() => handleSendMessage()}
-                      disabled={!inputMessage.trim() || isTyping}
-                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+              <CardContent className="p-0">
+                <div 
+                  ref={messagesContainerRef}
+                  className="p-4 space-y-4 min-h-[500px] overflow-y-auto"
+                  style={{ 
+                    maxHeight: 'calc(100vh - 400px)',
+                    height: 'auto'
+                  }}
+                >
+                  {messages.map((message, index) => (
+                    <div
+                      key={index}
+                      data-role={message.role}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
+                      <div className={`max-w-[85%] ${
+                        message.role === 'user' 
+                          ? 'bg-gradient-to-r from-green-500 to-teal-500 text-white' 
+                          : 'bg-gradient-to-r from-blue-50 to-cyan-50 text-gray-800 border border-blue-200'
+                      } rounded-lg p-4`}>
+                        <MessageContent content={message.content} />
+                        <div className={`text-xs mt-2 ${
+                          message.role === 'user' ? 'text-green-100' : 'text-blue-500'
+                        }`}>
+                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {isTyping && (
+                    <div className="flex justify-start">
+                      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-teal-500" />
+                          <span className="text-sm text-teal-700">Analyzing your real data...</span>
+                          <div className="flex gap-1">
+                            <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce"></div>
+                            <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-100"></div>
+                            <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-200"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div ref={messagesEndRef} />
                 </div>
-              </Card>
-            </div>
-
-            {/* Right Column - Health Summary (Compact) */}
-            <div className="xl:col-span-1">
-              <Card className="bg-white/80 backdrop-blur-sm border border-white/20 sticky top-6">
-                <CardContent className="p-4">
-                  <SmartHealthSummary
-                    userData={userData}
-                    onRefresh={() => fetchUserData(true)}
-                    isRefreshing={isRefreshing}
-                    loading={loading}
+              </CardContent>
+              
+              <div className="p-4 border-t border-gray-200 bg-gray-50/50">
+                <div className="flex gap-2">
+                  <Input
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask about your runs, nutrition, or health data..."
+                    className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                    disabled={isTyping}
                   />
-                </CardContent>
-              </Card>
-            </div>
-            
+                  <Button 
+                    onClick={() => handleSendMessage()}
+                    disabled={!inputMessage.trim() || isTyping}
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
           </div>
+
+          {/* Right Column - Health Summary */}
+          <div className="xl:col-span-1">
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/20 sticky top-6">
+              <CardContent className="p-4">
+                <SmartHealthSummary
+                  userData={userData}
+                  onRefresh={() => fetchUserData(true)}
+                  isRefreshing={isRefreshing}
+                  loading={loading}
+                />
+              </CardContent>
+            </Card>
+          </div>
+          
         </div>
       </div>
     </div>
