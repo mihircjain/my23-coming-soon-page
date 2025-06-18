@@ -1,6 +1,3 @@
-
-const userId = "mihir_jain";
-
 import {React , useState, useEffect, useRef } from 'react';
 import { Bot, Send, RefreshCw, Activity, Utensils, Heart, TrendingUp, Target, Zap, Calendar, BarChart3, ArrowLeft, MessageSquare, Flame, Droplet, Clock, Tag, AlertTriangle, CheckCircle, Coffee, Apple } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+
+
+const userId = "mihir_jain";
 
 // Interfaces for real Firestore data
 interface RunData {
