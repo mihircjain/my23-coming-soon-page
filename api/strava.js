@@ -1,14 +1,11 @@
-// api/strava.js - FIXED: Proper calorie fetching from detailed endpoint
-// ✅ Summary endpoint for activity list (fast)
-// ✅ Detailed endpoint for missing calories (per activity)
-// ✅ Rate-limit aware
-// ✅ Preserves existing calories and run tags
+// api/strava.js - COMPREHENSIVE: Fetches calories for ALL activities
+// ✅ Summary endpoint for activity list (1 API call)
+// ✅ Detailed endpoint for EVERY activity to get calories (N API calls)
+// ✅ Rate-limit aware with batching
+// ✅ Comprehensive logging
 
 import admin from 'firebase-admin';
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Firebase Admin init                                               */
-/* ──────────────────────────────────────────────────────────────────── */
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -21,14 +18,9 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Auto-classify runs for tagging system                            */
-/* ──────────────────────────────────────────────────────────────────── */
+// Auto-classify runs
 const autoTagRun = (activity) => {
-  if (!activity.type?.toLowerCase().includes('run')) {
-    return null;
-  }
-
+  if (!activity.type?.toLowerCase().includes('run')) return null;
   const distance = activity.distance || 0;
   const timeInMinutes = (activity.moving_time || 0) / 60;
   const paceMinPerKm = distance > 0 ? timeInMinutes / distance : 999;
@@ -42,17 +34,12 @@ const autoTagRun = (activity) => {
   if (avgHR && avgHR > 170 && distance <= 8) return 'intervals';
   if (paceMinPerKm < 5.0 && distance >= 5 && distance <= 12) return 'tempo';
   if (avgHR && avgHR >= 155 && avgHR <= 170 && distance >= 5) return 'tempo';
-
   return 'easy';
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Load existing run tags to preserve user modifications             */
-/* ──────────────────────────────────────────────────────────────────── */
+// Load existing run tags
 const loadExistingRunTags = async (userId) => {
   try {
-    console.log('🏷️ Loading existing run tags...');
-    
     const snapshot = await db
       .collection('strava_data')
       .where('userId', '==', userId)
@@ -60,46 +47,34 @@ const loadExistingRunTags = async (userId) => {
       .get();
     
     const existingTags = new Map();
-    let userModifiedCount = 0;
-    
     snapshot.docs.forEach(doc => {
       const data = doc.data();
       const activityId = data.id?.toString();
-      
       if (activityId && data.runType) {
         existingTags.set(activityId, {
           runType: data.runType,
           run_tag: data.run_tag || data.runType,
           userOverride: data.userOverride === true,
           taggedBy: data.taggedBy || 'auto',
-          taggedAt: data.taggedAt,
-          originalSuggestion: data.originalSuggestion,
-          hasDetailedAnalysis: data.hasDetailedAnalysis === true
+          taggedAt: data.taggedAt
         });
-        
-        if (data.userOverride === true) {
-          userModifiedCount++;
-        }
       }
     });
     
-    console.log(`✅ Loaded ${existingTags.size} existing run tags (${userModifiedCount} user-modified)`);
+    console.log(`✅ Loaded ${existingTags.size} existing run tags`);
     return existingTags;
-    
   } catch (error) {
     console.error('❌ Error loading existing run tags:', error);
     return new Map();
   }
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Load existing activity data to preserve calories                  */
-/* ──────────────────────────────────────────────────────────────────── */
-const loadExistingActivityData = async (userId, activityIds) => {
+// Load existing calories to avoid re-fetching
+const loadExistingCalories = async (userId, activityIds) => {
   try {
-    console.log(`🔍 Loading existing data for ${activityIds.length} activities...`);
+    console.log(`🔍 Loading existing calories for ${activityIds.length} activities...`);
     
-    const existingData = new Map();
+    const existingCalories = new Map();
     
     // Process in batches of 10 (Firestore 'in' query limit)
     for (let i = 0; i < activityIds.length; i += 10) {
@@ -116,32 +91,25 @@ const loadExistingActivityData = async (userId, activityIds) => {
         const data = doc.data();
         const activityId = data.id?.toString();
         if (activityId) {
-          existingData.set(activityId, {
+          existingCalories.set(activityId, {
             calories: data.calories || 0,
             calorie_source: data.calorie_source || 'unknown',
-            hasDetailedAnalysis: data.hasDetailedAnalysis || false,
-            // Preserve other data
-            suffer_score: data.suffer_score,
-            gear: data.gear,
-            calories_recovered: data.calories_recovered,
-            last_calorie_fetch: data.last_calorie_fetch
+            last_calorie_fetch: data.last_calorie_fetch,
+            hasCalories: data.calories > 0
           });
         }
       });
     }
     
-    console.log(`✅ Loaded existing data for ${existingData.size} activities`);
-    return existingData;
-    
+    console.log(`✅ Loaded existing calories for ${existingCalories.size} activities`);
+    return existingCalories;
   } catch (error) {
-    console.error('❌ Error loading existing activity data:', error);
+    console.error('❌ Error loading existing calories:', error);
     return new Map();
   }
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Check Strava rate limit from response headers                    */
-/* ──────────────────────────────────────────────────────────────────── */
+// Check rate limits
 const checkRateLimit = (response) => {
   const usage = response.headers.get('x-ratelimit-usage');
   const limit = response.headers.get('x-ratelimit-limit');
@@ -157,73 +125,60 @@ const checkRateLimit = (response) => {
       daily,
       fifteenMinLimit,
       dailyLimit,
-      nearLimit: fifteenMin >= fifteenMinLimit * 0.8 || daily >= dailyLimit * 0.8
+      nearLimit: fifteenMin >= fifteenMinLimit * 0.85 || daily >= dailyLimit * 0.85,
+      remaining15min: fifteenMinLimit - fifteenMin,
+      remainingDaily: dailyLimit - daily
     };
   }
   return null;
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  🔥 NEW: Fetch calories from detailed endpoint                     */
-/* ──────────────────────────────────────────────────────────────────── */
-const fetchCaloriesForActivity = async (accessToken, activityId) => {
-  try {
-    const detailedUrl = `https://www.strava.com/api/v3/activities/${activityId}`;
-    
-    const response = await fetch(detailedUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    
-    const rateLimitInfo = checkRateLimit(response);
-    
-    if (!response.ok) {
-      if (response.status === 429) {
-        return { rateLimited: true, rateLimitInfo };
-      }
-      throw new Error(`Failed to fetch activity ${activityId}: ${response.status}`);
-    }
-    
-    const detailedActivity = await response.json();
-    
-    return {
-      id: activityId,
-      calories: detailedActivity.calories || 0,
-      rateLimited: false,
-      rateLimitInfo
-    };
-    
-  } catch (error) {
-    console.error(`❌ Error fetching calories for ${activityId}:`, error);
-    throw error;
-  }
-};
-
-/* ──────────────────────────────────────────────────────────────────── */
-/*  🔥 NEW: Fetch missing calories for activities                     */
-/* ──────────────────────────────────────────────────────────────────── */
-const fetchMissingCalories = async (accessToken, activities, existingData) => {
-  // Find activities that need calories
-  const activitiesNeedingCalories = activities.filter(activity => {
+// 🔥 COMPREHENSIVE: Fetch calories for ALL activities
+const fetchAllCalories = async (accessToken, activities, existingCalories) => {
+  console.log(`🔥 COMPREHENSIVE CALORIE FETCHING for ${activities.length} activities`);
+  
+  // Identify activities that need calorie fetching
+  const activitiesNeedingCalories = [];
+  const activitiesWithCalories = [];
+  
+  activities.forEach(activity => {
     const activityId = activity.id?.toString();
-    const existing = existingData.get(activityId);
+    const existing = existingCalories.get(activityId);
     
-    // Skip if we already have calories
-    if (existing && existing.calories > 0) {
-      return false;
+    if (existing && existing.hasCalories) {
+      activitiesWithCalories.push({
+        id: activityId,
+        name: activity.name,
+        type: activity.type,
+        calories: existing.calories,
+        source: existing.calorie_source
+      });
+    } else {
+      activitiesNeedingCalories.push({
+        id: activityId,
+        name: activity.name,
+        type: activity.type,
+        date: activity.start_date?.split('T')[0]
+      });
     }
-    
-    // Only fetch for activity types that Strava calculates calories for
-    const activityType = (activity.type || '').toLowerCase();
-    return activityType.includes('run') || 
-           activityType.includes('walk') || 
-           activityType.includes('hike') || 
-           activityType.includes('ride') || 
-           activityType.includes('bike');
   });
   
-  console.log(`🔥 Found ${activitiesNeedingCalories.length} activities needing calories`);
+  console.log(`📊 CALORIE STATUS:`);
+  console.log(`   - ${activitiesWithCalories.length} activities already have calories`);
+  console.log(`   - ${activitiesNeedingCalories.length} activities need calories`);
+  
+  // Log activities with existing calories
+  activitiesWithCalories.forEach(activity => {
+    console.log(`✅ HAS CALORIES: ${activity.type} "${activity.name}" = ${activity.calories} (${activity.source})`);
+  });
+  
+  // Log activities needing calories
+  activitiesNeedingCalories.forEach(activity => {
+    console.log(`❓ NEEDS CALORIES: ${activity.type} "${activity.name}" (${activity.date})`);
+  });
   
   if (activitiesNeedingCalories.length === 0) {
+    console.log('✅ All activities already have calories!');
     return { calorieData: new Map(), fetched: 0, rateLimited: false };
   }
   
@@ -231,57 +186,109 @@ const fetchMissingCalories = async (accessToken, activities, existingData) => {
     calorieData: new Map(),
     fetched: 0,
     failed: 0,
-    rateLimited: false
+    rateLimited: false,
+    details: []
   };
   
-  // Limit to prevent rate limiting - be conservative
-  const maxRequests = 15;
+  // Be more aggressive with fetching - try to get all missing calories
+  const maxRequests = Math.min(activitiesNeedingCalories.length, 30); // Increase limit
   const activitiesToFetch = activitiesNeedingCalories.slice(0, maxRequests);
   
-  console.log(`🔄 Fetching calories for ${activitiesToFetch.length} activities (max ${maxRequests})`);
+  console.log(`🔄 FETCHING CALORIES: ${activitiesToFetch.length} activities (max ${maxRequests})`);
   
-  for (const activity of activitiesToFetch) {
+  for (let i = 0; i < activitiesToFetch.length; i++) {
+    const activity = activitiesToFetch[i];
+    
     try {
-      const calorieData = await fetchCaloriesForActivity(accessToken, activity.id);
+      console.log(`📡 [${i+1}/${activitiesToFetch.length}] Fetching: ${activity.type} "${activity.name}" (${activity.date})`);
       
-      if (calorieData.rateLimited) {
-        console.log('🚫 Rate limited, stopping calorie fetching');
-        results.rateLimited = true;
-        break;
+      const detailedUrl = `https://www.strava.com/api/v3/activities/${activity.id}`;
+      const response = await fetch(detailedUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      
+      const rateLimitInfo = checkRateLimit(response);
+      
+      if (!response.ok) {
+        if (response.status === 429) {
+          console.log('🚫 RATE LIMITED - stopping calorie fetching');
+          results.rateLimited = true;
+          break;
+        }
+        throw new Error(`HTTP ${response.status}`);
       }
       
-      if (calorieData.calories > 0) {
-        results.calorieData.set(activity.id?.toString(), {
-          calories: calorieData.calories,
+      const detailedActivity = await response.json();
+      const calories = detailedActivity.calories || 0;
+      
+      if (calories > 0) {
+        results.calorieData.set(activity.id, {
+          calories: calories,
           calorie_source: 'strava_detailed_api',
           last_calorie_fetch: new Date().toISOString()
         });
         
-        console.log(`✅ Found ${calorieData.calories} calories for activity ${activity.id}`);
+        console.log(`✅ FOUND CALORIES: ${activity.type} "${activity.name}" = ${calories} calories`);
         results.fetched++;
       } else {
-        console.log(`⚠️ No calories for activity ${activity.id}`);
+        console.log(`⚠️ NO CALORIES: ${activity.type} "${activity.name}" - Strava returned 0`);
+        // Still save that we checked, to avoid re-checking
+        results.calorieData.set(activity.id, {
+          calories: 0,
+          calorie_source: 'strava_detailed_api_no_calories',
+          last_calorie_fetch: new Date().toISOString()
+        });
         results.failed++;
       }
       
-      // Small delay to be nice to the API
-      await new Promise(resolve => setTimeout(resolve, 200));
+      results.details.push({
+        id: activity.id,
+        name: activity.name,
+        type: activity.type,
+        calories: calories,
+        success: calories > 0
+      });
+      
+      // Rate limiting protection
+      if (rateLimitInfo?.nearLimit) {
+        console.log(`⚠️ Near rate limit - remaining: ${rateLimitInfo.remaining15min} (15min), ${rateLimitInfo.remainingDaily} (daily)`);
+        
+        if (rateLimitInfo.remaining15min < 5) {
+          console.log('🚫 Stopping due to rate limit proximity');
+          results.rateLimited = true;
+          break;
+        }
+      }
+      
+      // Add delay between requests to be nice to API
+      if (i < activitiesToFetch.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 150)); // 150ms delay
+      }
       
     } catch (error) {
-      console.error(`❌ Failed to fetch calories for ${activity.id}:`, error);
+      console.error(`❌ Failed to fetch calories for ${activity.id}: ${error.message}`);
       results.failed++;
+      results.details.push({
+        id: activity.id,
+        name: activity.name,
+        type: activity.type,
+        calories: 0,
+        success: false,
+        error: error.message
+      });
     }
   }
   
-  console.log(`🎯 Calorie fetching complete: ${results.fetched} found, ${results.failed} failed`);
+  console.log(`🎯 CALORIE FETCHING COMPLETE:`);
+  console.log(`   - ${results.fetched} activities got calories`);
+  console.log(`   - ${results.failed} activities had no calories`);
+  console.log(`   - Rate limited: ${results.rateLimited ? 'Yes' : 'No'}`);
   
   return results;
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Get cached data from Firestore                                   */
-/* ──────────────────────────────────────────────────────────────────── */
-const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
+// Get cached data
+const getCachedData = async (userId, daysBack = 30) => {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysBack);
@@ -289,8 +296,6 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
     
     const today = new Date();
     today.setHours(23, 59, 59, 999);
-    
-    console.log(`📅 Getting cached data from ${cutoffDate.toISOString()}`);
     
     const snapshot = await db
       .collection('strava_data')
@@ -301,50 +306,29 @@ const getCachedData = async (userId, daysBack = 30, includeRunTags = true) => {
       .limit(200)
       .get();
     
-    const activityMap = new Map();
-    
-    snapshot.docs.forEach(doc => {
+    const activities = snapshot.docs.map(doc => {
       const data = doc.data();
-      const activityId = data.id || doc.id.split('_')[1];
-      
-      if (!activityMap.has(activityId)) {
-        const processedActivity = {
-          ...data,
-          calories: data.calories || 0,
-          is_run_activity: data.type?.toLowerCase().includes('run') || false
-        };
-        
-        if (includeRunTags && processedActivity.is_run_activity) {
-          processedActivity.run_tag = data.runType || null;
-        }
-        
-        activityMap.set(activityId, processedActivity);
-      }
+      return {
+        ...data,
+        calories: data.calories || 0,
+        is_run_activity: data.type?.toLowerCase().includes('run') || false,
+        run_tag: data.runType || null
+      };
     });
     
-    const cachedActivities = Array.from(activityMap.values());
-    
-    console.log(`📊 Found ${cachedActivities.length} cached activities`);
-    
-    return cachedActivities;
+    console.log(`📦 Cached: ${activities.length} activities`);
+    return activities;
   } catch (error) {
     console.error('❌ Error fetching cached data:', error);
     return [];
   }
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  🔥 ENHANCED: Fetch fresh data with calorie fetching               */
-/* ──────────────────────────────────────────────────────────────────── */
-const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = true) => {
-  console.log('🔄 Fetching fresh data from Strava API with calorie fetching');
+// 🔥 MAIN: Fetch fresh data with comprehensive calorie fetching
+const fetchFreshDataFromStrava = async (userId, daysBack = 30) => {
+  console.log('🚀 COMPREHENSIVE STRAVA FETCH with calorie fetching for ALL activities');
   
-  // Load existing run tags first
-  let existingRunTags = new Map();
-  if (preserveTags) {
-    existingRunTags = await loadExistingRunTags(userId);
-  }
-  
+  // Get credentials
   const { 
     VITE_STRAVA_CLIENT_ID: clientId,
     VITE_STRAVA_CLIENT_SECRET: clientSecret,
@@ -356,7 +340,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
   }
 
   // Get access token
-  console.log('🔑 Refreshing Strava access token...');
+  console.log('🔑 Getting Strava access token...');
   const tokenResp = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -374,7 +358,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
   
   const { access_token: accessToken } = await tokenResp.json();
 
-  // 1. Fetch activities from summary endpoint (fast, no calories)
+  // 1. Get activities from summary endpoint (fast)
   const today = new Date();
   const startDate = new Date();
   startDate.setDate(today.getDate() - daysBack);
@@ -385,7 +369,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
   
   const stravaUrl = `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${after}&before=${before}`;
   
-  console.log('📡 Fetching activity list from summary endpoint...');
+  console.log(`📡 Fetching activities from ${startDate.toDateString()} to ${today.toDateString()}`);
   const listResp = await fetch(stravaUrl, { 
     headers: { Authorization: `Bearer ${accessToken}` } 
   });
@@ -395,61 +379,45 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
   }
   
   const activitiesData = await listResp.json();
-  console.log(`✅ Fetched ${activitiesData.length} activities from summary endpoint`);
+  console.log(`✅ Got ${activitiesData.length} activities from summary endpoint`);
 
-  // 2. Load existing calorie data
+  // 2. Load existing data
   const activityIds = activitiesData.map(a => a.id.toString());
-  const existingActivityData = await loadExistingActivityData(userId, activityIds);
+  const existingRunTags = await loadExistingRunTags(userId);
+  const existingCalories = await loadExistingCalories(userId, activityIds);
 
-  // 3. Fetch missing calories from detailed endpoint
-  const calorieResults = await fetchMissingCalories(accessToken, activitiesData, existingActivityData);
+  // 3. Fetch calories for ALL activities
+  const calorieResults = await fetchAllCalories(accessToken, activitiesData, existingCalories);
 
-  // 4. Process activities with calorie data
+  // 4. Build final activities with all data
   const summaries = [];
   const batch = db.batch();
   const now = new Date().toISOString();
-  let preservedTagsCount = 0;
-  let newTagsCount = 0;
-  let preservedCaloriesCount = 0;
-  let newCaloriesCount = 0;
-  let detailedCaloriesCount = 0;
 
   for (const activity of activitiesData) {
     const activityId = activity.id.toString();
     const isRun = activity.type?.toLowerCase().includes('run');
     
-    // Handle calories with priority: detailed API > existing > summary > 0
-    const existingActivity = existingActivityData.get(activityId);
-    const detailedCalories = calorieResults.calorieData.get(activityId);
+    // Get calories (priority: new fetch > existing > 0)
+    const fetchedCalories = calorieResults.calorieData.get(activityId);
+    const existingCalorieData = existingCalories.get(activityId);
     
     let calories = 0;
     let calorieSource = 'none';
     
-    if (detailedCalories && detailedCalories.calories > 0) {
-      // New calories from detailed API
-      calories = detailedCalories.calories;
-      calorieSource = 'strava_detailed_api';
-      newCaloriesCount++;
-      detailedCaloriesCount++;
-      console.log(`🆕 Fresh calories from detailed API for ${activityId}: ${calories}`);
-    } else if (activity.calories && activity.calories > 0) {
-      // Calories from summary (rare)
-      calories = activity.calories;
-      calorieSource = 'strava_summary';
-      newCaloriesCount++;
-    } else if (existingActivity && existingActivity.calories > 0) {
-      // Preserve existing calories
-      calories = existingActivity.calories;
-      calorieSource = existingActivity.calorie_source || 'preserved';
-      preservedCaloriesCount++;
+    if (fetchedCalories) {
+      calories = fetchedCalories.calories;
+      calorieSource = fetchedCalories.calorie_source;
+    } else if (existingCalorieData && existingCalorieData.hasCalories) {
+      calories = existingCalorieData.calories;
+      calorieSource = existingCalorieData.calorie_source;
     }
 
     // Handle run tags
     let runTagInfo = null;
     if (isRun) {
-      if (preserveTags && existingRunTags.has(activityId)) {
+      if (existingRunTags.has(activityId)) {
         runTagInfo = existingRunTags.get(activityId);
-        preservedTagsCount++;
       } else {
         const autoTag = autoTagRun(activity);
         runTagInfo = {
@@ -459,11 +427,10 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
           taggedBy: 'auto',
           taggedAt: now
         };
-        newTagsCount++;
       }
     }
 
-    // Build summary
+    // Build activity summary
     const summary = {
       userId,
       id: activityId,
@@ -471,7 +438,7 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
       date: activity.start_date.split('T')[0],
       name: activity.name,
       type: activity.type,
-      distance: activity.distance / 1000, // Convert to km
+      distance: activity.distance / 1000,
       moving_time: activity.moving_time,
       elapsed_time: activity.elapsed_time,
       total_elevation_gain: activity.total_elevation_gain || 0,
@@ -480,25 +447,18 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
       has_heartrate: activity.has_heartrate || false,
       average_heartrate: activity.average_heartrate,
       max_heartrate: activity.max_heartrate,
-      calories: calories, // 🔥 CALORIES FROM DETAILED API OR PRESERVED
+      calories: calories, // 🔥 CALORIES FROM COMPREHENSIVE FETCHING
       calorie_source: calorieSource,
-      achievement_count: activity.achievement_count,
-      kudos_count: activity.kudos_count,
-      comment_count: activity.comment_count,
-      athlete_count: activity.athlete_count,
-      photo_count: activity.photo_count,
-      suffer_score: activity.suffer_score || (existingActivity?.suffer_score),
       fetched_at: now,
-      is_run_activity: isRun,
-      hasDetailedAnalysis: existingActivity?.hasDetailedAnalysis || false
+      is_run_activity: isRun
     };
 
-    // Add detailed calorie metadata if fetched
-    if (detailedCalories) {
-      summary.last_calorie_fetch = detailedCalories.last_calorie_fetch;
+    // Add calorie fetch metadata
+    if (fetchedCalories) {
+      summary.last_calorie_fetch = fetchedCalories.last_calorie_fetch;
     }
 
-    // Add run tag info
+    // Add run tags
     if (isRun && runTagInfo) {
       summary.run_tag = runTagInfo.run_tag;
       summary.runType = runTagInfo.runType;
@@ -510,28 +470,23 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
     summaries.push(summary);
 
     // Save to Firestore
-    const docRef = db.collection('strava_data').doc(`${userId}_${activity.id}`);
+    const docRef = db.collection('strava_data').doc(`${userId}_${activityId}`);
     batch.set(docRef, summary, { merge: true });
   }
 
-  // Commit all writes
+  // Commit all data
   if (summaries.length > 0) {
     await batch.commit();
     
     const activitiesWithCalories = summaries.filter(a => a.calories > 0);
-    const runActivities = summaries.filter(a => a.is_run_activity);
+    const totalCalories = summaries.reduce((sum, a) => sum + (a.calories || 0), 0);
     
-    console.log(`💾 Cached ${summaries.length} activities to Firestore`);
-    console.log(`🏃 FINAL STATS:`);
-    console.log(`   - ${summaries.length} activities processed`);
-    console.log(`   - ${runActivities.length} runs found`);
-    console.log(`   - ${preservedTagsCount} run tags preserved`);
-    console.log(`   - ${newTagsCount} new run tags generated`);
-    console.log(`   - ${activitiesWithCalories.length} activities with calories`);
-    console.log(`   - ${detailedCaloriesCount} calories fetched from detailed API`);
-    console.log(`   - ${preservedCaloriesCount} calories preserved from cache`);
-    console.log(`   - API calls used: ${1 + calorieResults.fetched} (1 summary + ${calorieResults.fetched} detailed)`);
-    console.log(`   - Rate limited: ${calorieResults.rateLimited ? 'Yes' : 'No'}`);
+    console.log(`💾 FINAL RESULTS:`);
+    console.log(`   - ${summaries.length} total activities processed`);
+    console.log(`   - ${activitiesWithCalories.length} activities have calories`);
+    console.log(`   - ${totalCalories.toLocaleString()} total calories`);
+    console.log(`   - ${calorieResults.fetched} new calories fetched`);
+    console.log(`   - API calls: ${1 + calorieResults.fetched + calorieResults.failed} (1 summary + ${calorieResults.fetched + calorieResults.failed} detailed)`);
   }
 
   return summaries.sort((a, b) => 
@@ -539,12 +494,10 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30, preserveTags = tr
   );
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Main handler                                                      */
-/* ──────────────────────────────────────────────────────────────────── */
+// Main handler
 export default async function handler(req, res) {
   try {
-    console.log('🚀 Enhanced Strava API handler with calorie fetching');
+    console.log('🚀 COMPREHENSIVE Strava API with calorie fetching for ALL activities');
     
     if (req.method !== 'GET') {
       return res.status(405).json({ error: 'Method not allowed' });
@@ -555,85 +508,57 @@ export default async function handler(req, res) {
     const daysBack = parseInt(req.query.days) || 30;
     const mode = req.query.mode || 'cached';
     
-    console.log(`📊 Request: userId=${userId}, mode=${mode}, daysBack=${daysBack}, forceRefresh=${forceRefresh}`);
+    console.log(`📊 Request: userId=${userId}, mode=${mode}, daysBack=${daysBack}`);
     
-    // CACHE-FIRST: Default mode for instant loading
+    // Cache-first mode
     if (!forceRefresh && mode === 'cached') {
-      console.log('⚡ Cache-first mode - serving cached data instantly');
-      
-      const cachedData = await getCachedData(userId, daysBack, true);
+      const cachedData = await getCachedData(userId, daysBack);
       
       if (cachedData.length > 0) {
-        console.log(`📦 Serving ${cachedData.length} cached activities (0 API calls)`);
-        
-        res.setHeader('Cache-Control', 'public, max-age=300');
+        console.log(`📦 Serving ${cachedData.length} cached activities`);
         res.setHeader('X-Data-Source', 'firestore-cache');
         res.setHeader('X-API-Calls', '0');
-        
         return res.status(200).json(cachedData);
       } else {
         return res.status(404).json({ 
           error: 'No cached data available',
-          message: 'Please refresh to load data from Strava',
           recommendRefresh: true
         });
       }
     }
     
-    // REFRESH MODES: Fetch fresh data with calories
+    // Refresh modes
     if (forceRefresh || mode === 'refresh' || mode === 'today') {
-      console.log(`🔄 ${mode} mode - fetching fresh data with calories`);
-      
       const refreshDays = mode === 'today' ? 1 : daysBack;
-      const freshData = await fetchFreshDataFromStrava(userId, refreshDays, true);
+      const freshData = await fetchFreshDataFromStrava(userId, refreshDays);
       
-      if (mode === 'today') {
-        // Combine with cached data for today mode
-        const cachedData = await getCachedData(userId, daysBack - 1, true);
-        const combinedData = [...freshData, ...cachedData];
-        const uniqueData = Array.from(
-          new Map(combinedData.map(activity => [activity.id, activity])).values()
-        ).sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
-        
-        res.setHeader('X-Data-Source', 'today-refresh-with-calories');
-        res.setHeader('X-API-Calls', '1+');
-        return res.status(200).json(uniqueData);
-      }
-      
-      res.setHeader('X-Data-Source', 'strava-api-with-calories');
+      res.setHeader('X-Data-Source', 'strava-comprehensive-calories');
       res.setHeader('X-API-Calls', '1+');
       
       return res.status(200).json(freshData);
     }
     
-    // DEFAULT FALLBACK
-    const cachedData = await getCachedData(userId, daysBack, true);
-    
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    // Default fallback
+    const cachedData = await getCachedData(userId, daysBack);
     res.setHeader('X-Data-Source', 'default-cache');
     res.setHeader('X-API-Calls', '0');
-    
     return res.status(200).json(cachedData);
     
   } catch (error) {
-    console.error('❌ Enhanced Strava API error:', error);
+    console.error('❌ Comprehensive Strava API error:', error);
     
-    // Ultimate fallback to cached data
+    // Fallback to cached data
     try {
       const userId = req.query.userId || 'mihir_jain';
       const daysBack = parseInt(req.query.days) || 30;
-      const fallbackData = await getCachedData(userId, daysBack, true);
+      const fallbackData = await getCachedData(userId, daysBack);
       
       if (fallbackData.length > 0) {
-        console.log(`📦 Error fallback: serving ${fallbackData.length} cached activities`);
-        
         res.setHeader('X-Data-Source', 'error-fallback');
-        res.setHeader('X-API-Calls', '0');
-        
         return res.status(200).json(fallbackData);
       }
     } catch (fallbackError) {
-      console.error('❌ Ultimate fallback failed:', fallbackError);
+      console.error('❌ Fallback failed:', fallbackError);
     }
     
     return res.status(500).json({ 
