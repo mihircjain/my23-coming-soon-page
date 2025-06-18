@@ -340,6 +340,7 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
       
       const nutritionData: DailyNutrition[] = [];
       const today = new Date();
+      let offlineErrors = 0;
       
       for (let i = 0; i < days; i++) {
         const date = new Date(today);
@@ -397,9 +398,18 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
               }
             }
           }
-        } catch (error) {
-          console.warn(`Failed to load nutrition for ${dateString}:`, error);
+        } catch (error: any) {
+          if (error.code === 'failed-precondition' || error.message?.includes('offline')) {
+            offlineErrors++;
+            console.warn(`🔌 Firebase offline - failed to load nutrition for ${dateString}`);
+          } else {
+            console.warn(`Failed to load nutrition for ${dateString}:`, error);
+          }
         }
+      }
+      
+      if (offlineErrors > 0) {
+        console.log(`🔌 Firebase appears to be offline (${offlineErrors} offline errors). Nutrition data unavailable.`);
       }
       
       console.log(`📊 Final nutrition data: ${nutritionData.length} days with real food entries`);
@@ -701,7 +711,13 @@ TIME RANGE REQUESTED: ${timeRange.description}
   
   if (!hasAnyData) {
     context += `=== NO RELEVANT DATA AVAILABLE ===\n`;
-    context += `No data found for the requested time period and data type.\n\n`;
+    context += `No data found for the requested time period and data type.\n`;
+    
+    // Check if this might be due to Firebase being offline
+    if (needsNutritionData && userData.recentNutrition.length === 0) {
+      context += `Note: Nutrition data appears unavailable (possibly due to connectivity issues).\n`;
+    }
+    context += `\n`;
   }
   
   // Add special instructions for calorie deficit calculations
@@ -728,10 +744,11 @@ TIME RANGE REQUESTED: ${timeRange.description}
 - Use **bold** for key numbers
 - Do NOT make up any information
 - FOR CALORIE DEFICIT: Calculate as (BMR + Activity Calories) - Calories Consumed. Show the math. If BMR missing, ask for it.
-- FOR DETAILED ANALYSIS: Provide splits breakdown, pacing analysis, heart rate zones, elevation
+- FOR DETAILED ANALYSIS: Provide ONLY splits breakdown, pacing analysis, heart rate zones, elevation data. DO NOT add training advice, schedules, or recommendations.
 - FOR FOOD SUGGESTIONS: First analyze current nutritional intake, identify gaps, then suggest specific foods to fill those gaps
-- FOR ADVICE/SUGGESTIONS: Give specific recommendations when explicitly requested
+- FOR ADVICE/SUGGESTIONS: Give specific recommendations ONLY when user explicitly asks for advice/suggestions/recommendations
 - Maintain conversation context for follow-up questions
+- NEVER add unsolicited training schedules, workout plans, nutrition timing, or recovery protocols
 
 `;
   
@@ -891,11 +908,11 @@ const SmartHealthSummary: React.FC<{
             icon={<Dumbbell className="h-4 w-4 text-green-600" />}
             prompts={hasRunData ? [
               'How was my run today?',
-              'Analyze my splits from yesterday',
+              'Analyze my run in detail',
+              'What advice for my training?',
               'Show me my heart rate data',
-              'Was my pacing consistent?',
               'How many calories did I burn?',
-              'Analyze in detail'
+              'Was my pacing consistent?'
             ] : [
               'Connect Strava to see running prompts'
             ]}
@@ -912,7 +929,7 @@ const SmartHealthSummary: React.FC<{
               'What did I eat today?',
               'How many calories yesterday?',
               'What should I eat for dinner?',
-              'Suggest foods for more protein',
+              'Give me nutrition advice',
               'What is my calorie deficit today?',
               'Am I eating enough carbs?'
             ] : [
@@ -940,7 +957,7 @@ const SmartHealthSummary: React.FC<{
           />
 
           <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
-            <strong>Note:</strong> Currently tracking running activities only. Weight training and other workouts are not yet tracked.<br/>
+            <strong>Status:</strong> Running data ✅ | Nutrition data {hasNutritionData ? '✅' : '❌ (check connection)'}<br/>
             <strong>BMR:</strong> {userData.bmr ? `${userData.bmr} cal/day included in deficit calculations` : 'Not set - provide for accurate deficit calculations'}
           </div>
 
