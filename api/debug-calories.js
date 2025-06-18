@@ -32,8 +32,8 @@ export default async function handler(req, res) {
 
   try {
     const userId = req.query.userId || 'mihir_jain';
-    const startDate = req.query.startDate || '2024-05-18';
-    const endDate = req.query.endDate || '2024-05-22';
+    const startDate = req.query.startDate || '2025-05-18';
+    const endDate = req.query.endDate || '2025-05-22';
     
     console.log(`🔍 Debugging calories for ${userId} from ${startDate} to ${endDate}`);
     
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     
     // Calculate daily totals
     const dailyTotals = {};
-    const targetDates = ['2024-05-18', '2024-05-19', '2024-05-20', '2024-05-21', '2024-05-22'];
+    const targetDates = ['2025-05-18', '2025-05-19', '2025-05-20', '2025-05-21', '2025-05-22'];
     
     targetDates.forEach(date => {
       const dayActivities = dailyBreakdown.get(date) || [];
@@ -104,8 +104,8 @@ export default async function handler(req, res) {
     const june18Snapshot = await db
       .collection('strava_data')
       .where('userId', '==', userId)
-      .where('start_date', '>=', '2024-06-18T00:00:00Z')
-      .where('start_date', '<=', '2024-06-18T23:59:59Z')
+      .where('start_date', '>=', '2025-06-18T00:00:00Z')
+      .where('start_date', '<=', '2025-06-18T23:59:59Z')
       .get();
     
     const june18Activities = june18Snapshot.docs.map(doc => {
