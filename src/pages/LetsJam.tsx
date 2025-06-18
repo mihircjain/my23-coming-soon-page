@@ -198,12 +198,12 @@ const extractTimeRange = (query: string): TimeRange => {
   return { label: 'recent', days: 7, description: 'Recent data (last 7 days)' };
 };
 
-// Date utilities
+// Date utilities - FIXED for proper today/date matching
 const isWithinDays = (date: Date, days: number): boolean => {
   const now = new Date();
   const diffTime = now.getTime() - date.getTime();
   const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  return diffDays >= 0 && diffDays <= days;
+  return diffDays >= -0.5 && diffDays <= days + 0.5; // More lenient for timezone issues
 };
 
 const isDateInRange = (date: Date, days: number, offset: number): boolean => {
@@ -212,7 +212,21 @@ const isDateInRange = (date: Date, days: number, offset: number): boolean => {
   const endOffset = offset + days;
   const diffTime = now.getTime() - date.getTime();
   const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  return diffDays >= startOffset && diffDays <= endOffset;
+  return diffDays >= startOffset - 0.5 && diffDays <= endOffset + 0.5; // More lenient
+};
+
+// ENHANCED: Check if a date string matches today specifically
+const isTodayDate = (dateString: string): boolean => {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  return dateString === today;
+};
+
+// ENHANCED: Check if a date string matches yesterday specifically  
+const isYesterdayDate = (dateString: string): boolean => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayString = yesterday.toISOString().split('T')[0];
+  return dateString === yesterdayString;
 };
 
 // Data fetching functions
@@ -486,6 +500,11 @@ const buildContextForQuery = async (query: string, userData: UserData) => {
   
   console.log(`🎯 Query analysis: needs runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, timeRange=${timeRange.label}`);
   
+  // Debug: Show available data dates
+  console.log(`📊 Available nutrition dates: ${userData.recentNutrition.map(d => d.date).join(', ')}`);
+  console.log(`📊 Available run dates: ${userData.recentRuns.map(r => new Date(r.start_date).toISOString().split('T')[0]).join(', ')}`);
+  console.log(`📊 Today's date: ${new Date().toISOString().split('T')[0]}`);
+  
   let context = `You are a data analyst. You can ONLY use the data provided below. DO NOT make up any information.
 
 STRICT RULES:
@@ -505,12 +524,31 @@ TIME RANGE REQUESTED: ${timeRange.description}
   let hasAnyData = false;
 
   if (needsRunData) {
-    const relevantRuns = userData.recentRuns.filter(run => {
-      const runDate = new Date(run.start_date);
-      return timeRange.offset ? 
-        isDateInRange(runDate, timeRange.days, timeRange.offset) :
-        isWithinDays(runDate, timeRange.days);
-    });
+    let relevantRuns: RunData[] = [];
+    
+    // ENHANCED: Use specific date matching for today/yesterday queries
+    if (timeRange.label === 'today') {
+      relevantRuns = userData.recentRuns.filter(run => {
+        const runDateString = new Date(run.start_date).toISOString().split('T')[0];
+        return isTodayDate(runDateString);
+      });
+      console.log(`🔍 Today run filter: found ${relevantRuns.length} matching runs for today`);
+    } else if (timeRange.label === 'yesterday') {
+      relevantRuns = userData.recentRuns.filter(run => {
+        const runDateString = new Date(run.start_date).toISOString().split('T')[0];
+        return isYesterdayDate(runDateString);
+      });
+      console.log(`🔍 Yesterday run filter: found ${relevantRuns.length} matching runs for yesterday`);
+    } else {
+      // Use the existing logic for other time ranges
+      relevantRuns = userData.recentRuns.filter(run => {
+        const runDate = new Date(run.start_date);
+        return timeRange.offset ? 
+          isDateInRange(runDate, timeRange.days, timeRange.offset) :
+          isWithinDays(runDate, timeRange.days);
+      });
+      console.log(`🔍 Time range run filter (${timeRange.label}): found ${relevantRuns.length} matching runs`);
+    }
     
     if (relevantRuns.length > 0) {
       hasAnyData = true;
@@ -539,16 +577,30 @@ TIME RANGE REQUESTED: ${timeRange.description}
       });
     } else {
       context += `=== NO RUN DATA FOUND for ${timeRange.label} ===\n\n`;
+      console.log(`⚠️ No run data found for ${timeRange.label}. Available dates: ${userData.recentRuns.map(r => new Date(r.start_date).toISOString().split('T')[0]).join(', ')}`);
     }
   }
   
   if (needsNutritionData) {
-    const relevantNutrition = userData.recentNutrition.filter(day => {
-      const dayDate = new Date(day.date);
-      return timeRange.offset ?
-        isDateInRange(dayDate, timeRange.days, timeRange.offset) :
-        isWithinDays(dayDate, timeRange.days);
-    });
+    let relevantNutrition: DailyNutrition[] = [];
+    
+    // ENHANCED: Use specific date matching for today/yesterday queries
+    if (timeRange.label === 'today') {
+      relevantNutrition = userData.recentNutrition.filter(day => isTodayDate(day.date));
+      console.log(`🔍 Today nutrition filter: found ${relevantNutrition.length} matching days for today`);
+    } else if (timeRange.label === 'yesterday') {
+      relevantNutrition = userData.recentNutrition.filter(day => isYesterdayDate(day.date));
+      console.log(`🔍 Yesterday nutrition filter: found ${relevantNutrition.length} matching days for yesterday`);
+    } else {
+      // Use the existing logic for other time ranges
+      relevantNutrition = userData.recentNutrition.filter(day => {
+        const dayDate = new Date(day.date);
+        return timeRange.offset ?
+          isDateInRange(dayDate, timeRange.days, timeRange.offset) :
+          isWithinDays(dayDate, timeRange.days);
+      });
+      console.log(`🔍 Time range nutrition filter (${timeRange.label}): found ${relevantNutrition.length} matching days`);
+    }
     
     if (relevantNutrition.length > 0) {
       hasAnyData = true;
@@ -574,6 +626,7 @@ TIME RANGE REQUESTED: ${timeRange.description}
       });
     } else {
       context += `=== NO NUTRITION DATA FOUND for ${timeRange.label} ===\n\n`;
+      console.log(`⚠️ No nutrition data found for ${timeRange.label}. Available dates: ${userData.recentNutrition.map(d => d.date).join(', ')}`);
     }
   }
   
