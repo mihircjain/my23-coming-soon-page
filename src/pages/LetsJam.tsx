@@ -155,7 +155,7 @@ const initializeFirebase = () => {
 const dataCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const getCachedData = async <T>(key: string, fetchFn: () => Promise<T>): Promise<T> => {
+const getCachedData = async <T extends unknown>(key: string, fetchFn: () => Promise<T>): Promise<T> => {
   const cached = dataCache.get(key);
   const now = Date.now();
   
