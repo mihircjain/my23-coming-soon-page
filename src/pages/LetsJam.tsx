@@ -494,11 +494,12 @@ const buildContextForQuery = async (query: string, userData: UserData) => {
   const lowercaseQuery = query.toLowerCase();
   const timeRange = extractTimeRange(query);
   
-  const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm)\b/i.test(query);
-  const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet)\b/i.test(query);
+  const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm|burn|burned|deficit|calories burned)\b/i.test(query);
+  const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet|burn|burned|deficit|consumed)\b/i.test(query);
   const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(query);
   
   console.log(`🎯 Query analysis: needs runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, timeRange=${timeRange.label}`);
+  console.log(`🔍 Query keywords detected: burn=${/burn/i.test(query)}, deficit=${/deficit/i.test(query)}, calories=${/calorie/i.test(query)}`);
   
   // Debug: Show available data dates
   console.log(`📊 Available nutrition dates: ${userData.recentNutrition.map(d => d.date).join(', ')}`);
@@ -511,10 +512,12 @@ STRICT RULES:
 1. Use ONLY the exact data provided in the sections below
 2. If no data is provided for something, say "No data available"
 3. NEVER fabricate food items, run splits, or any other data
-4. NEVER give training advice, nutrition advice, or recommendations unless specifically asked
-5. Be direct and factual only
+4. NEVER give training advice, nutrition advice, or recommendations unless EXPLICITLY asked for advice
+5. Be direct and factual only - answer EXACTLY what is asked, nothing more
 6. If asked about food and no food data is provided, say "No nutrition data found for [time period]"
 7. If asked about runs and no run data is provided, say "No run data found for [time period]"
+8. DO NOT provide workout suggestions, recovery protocols, nutrition timing, or any advice unless specifically requested
+9. Answer the specific question asked - do not add extra information or suggestions
 
 USER QUERY: "${query}"
 TIME RANGE REQUESTED: ${timeRange.description}
@@ -561,6 +564,7 @@ TIME RANGE REQUESTED: ${timeRange.description}
         if (run.average_heartrate) context += `Average HR: ${run.average_heartrate} bpm\n`;
         if (run.max_heartrate) context += `Max HR: ${run.max_heartrate} bpm\n`;
         context += `Average Pace: ${formatPace(run.moving_time / run.distance)}/km\n`;
+        if (run.calories) context += `Calories Burned: ${run.calories}\n`;
         
         if (run.splits_metric && run.splits_metric.length > 0) {
           context += `KM SPLITS:\n`;
@@ -649,10 +653,12 @@ TIME RANGE REQUESTED: ${timeRange.description}
   context += `RESPONSE INSTRUCTIONS:
 - Answer ONLY using the data provided above
 - If no data is shown, say "No data available for [requested time period]"
-- Be direct and factual
+- Be direct and factual - answer the EXACT question asked
 - Use **bold** for key numbers
 - Do NOT make up any information
-- Do NOT give advice unless specifically requested
+- Do NOT give advice, suggestions, or recommendations unless explicitly asked
+- Do NOT add workout plans, nutrition timing, or recovery protocols
+- Keep responses focused and concise
 
 `;
   
@@ -800,7 +806,8 @@ const SmartHealthSummary: React.FC<{
               'How was my run today?',
               'Analyze my splits from yesterday',
               'Show me my heart rate data',
-              'Was my pacing consistent?'
+              'Was my pacing consistent?',
+              'How many calories did I burn?'
             ] : [
               'Connect Strava to see running prompts'
             ]}
@@ -817,7 +824,8 @@ const SmartHealthSummary: React.FC<{
               'What did I eat today?',
               'How many calories yesterday?',
               'What foods do I eat most?',
-              'Am I getting enough protein?'
+              'Am I getting enough protein?',
+              'What is my calorie deficit today?'
             ] : [
               'No nutrition data available yet'
             ]}
@@ -841,6 +849,10 @@ const SmartHealthSummary: React.FC<{
               window.dispatchEvent(event);
             }}
           />
+
+          <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
+            <strong>Note:</strong> Currently tracking running activities only. Weight training and other workouts are not yet tracked.
+          </div>
 
           {/* Quick Stats - FIXED */}
           <div className="pt-3 border-t border-gray-200 space-y-2">
