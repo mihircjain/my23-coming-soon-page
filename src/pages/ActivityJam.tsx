@@ -848,7 +848,9 @@ const ActivityJam = () => {
   };
 
   // Process activities data for charts
+// Process activities data for charts
   const processChartData = (activities: ActivityData[]) => {
+    console.log('📊 DEBUGGING CHART PROCESSING');
     console.log('📊 Processing chart data for', activities.length, 'activities');
     
     if (activities.length === 0) {
@@ -856,10 +858,25 @@ const ActivityJam = () => {
       return null;
     }
 
+    // 🔥 DEBUG: Check for May 2025 and June 18 activities specifically
+    const targetDates = ['2025-05-18', '2025-05-19', '2025-05-20', '2025-05-21', '2025-05-22', '2025-06-18'];
+    const targetActivities = activities.filter(a => {
+      const date = a.start_date.split('T')[0];
+      return targetDates.includes(date);
+    });
+
+    console.log('🔥 TARGET ACTIVITIES FOUND (May 18-22 + June 18):');
+    targetActivities.forEach(activity => {
+      const date = activity.start_date.split('T')[0];
+      console.log(`   ${date}: ${activity.type} "${activity.name}" - ${activity.calories} calories, ${activity.distance} km, HR: ${activity.average_heartrate || 'N/A'}`);
+    });
+
     // Sort activities by date
     const sortedActivities = [...activities].sort((a, b) => 
       new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
     );
+
+    console.log(`📊 Date range: ${sortedActivities[0]?.start_date?.split('T')[0]} to ${sortedActivities[sortedActivities.length-1]?.start_date?.split('T')[0]}`);
 
     // Group by date
     const dailyData = new Map();
@@ -885,6 +902,23 @@ const ActivityJam = () => {
         dayData.heartRateTotal += activity.average_heartrate;
         dayData.heartRateCount += 1;
       }
+
+      // 🔥 DEBUG: Log target activities being processed
+      if (targetDates.includes(date)) {
+        console.log(`🔄 Processing ${date}: ${activity.type} "${activity.name}" - adding ${activity.calories} calories, ${activity.distance} km`);
+        console.log(`   → Day total now: ${dayData.calories} calories, ${dayData.distance} km, HR count: ${dayData.heartRateCount}`);
+      }
+    });
+
+    // 🔥 DEBUG: Check final daily data for target dates
+    console.log('🔥 FINAL DAILY DATA for target dates:');
+    targetDates.forEach(date => {
+      if (dailyData.has(date)) {
+        const dayData = dailyData.get(date);
+        console.log(`   ${date}: ${dayData.calories} calories, ${dayData.distance.toFixed(2)} km, HR: ${dayData.heartRateCount > 0 ? Math.round(dayData.heartRateTotal / dayData.heartRateCount) : 'N/A'}`);
+      } else {
+        console.log(`   ${date}: NO DATA`);
+      }
     });
 
     // Convert to arrays
@@ -904,11 +938,27 @@ const ActivityJam = () => {
       })
     };
 
+    // 🔥 DEBUG: Check final chart data for target dates
+    console.log('🔥 FINAL CHART DATA for target dates:');
+    dates.forEach((date, index) => {
+      if (targetDates.includes(date)) {
+        const label = labels[index];
+        const calories = chartData.calories[index];
+        const distance = chartData.distance[index];
+        const heartRate = chartData.heartRate[index];
+        console.log(`   ${date} (${label}): ${calories} calories, ${distance} km, ${heartRate} bpm`);
+      }
+    });
+
     console.log('📊 Processed chart data:', {
       labels: chartData.labels.length,
       calories: chartData.calories.length,
       distance: chartData.distance.length,
-      heartRate: chartData.heartRate.length
+      heartRate: chartData.heartRate.length,
+      totalCalories: chartData.calories.reduce((sum, cal) => sum + cal, 0),
+      daysWithCalories: chartData.calories.filter(cal => cal > 0).length,
+      daysWithDistance: chartData.distance.filter(dist => dist > 0).length,
+      daysWithHR: chartData.heartRate.filter(hr => hr > 0).length
     });
 
     return chartData;
