@@ -1,4 +1,83 @@
-// Improved LetsJam - Efficient Health Coach with Real Firestore Data
+// Smart context building - STRICT version that prevents AI hallucination
+const buildContextForQuery = async (query: string, userData: UserData) => {
+  const lowercaseQuery = query.toLowerCase();
+  
+  // Extract time range from query
+  const timeRange = extractTimeRange(query);
+  
+  // Determine what data is relevant
+  const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm)\b/i.test(query);
+  const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet)\b/i.test(query);
+  const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(query);
+  
+  console.log(`🎯 Query analysis: needs runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, timeRange=${timeRange.label}`);
+  
+  let context = `You are a data analyst. You can ONLY use the data provided below. DO NOT make up any information.
+
+STRICT RULES:
+1. Use ONLY the exact data provided in the sections below
+2. If no data is provided for something, say "No data available"
+3. NEVER fabricate food items, run splits, or any other data
+4. NEVER give training advice, nutrition advice, or recommendations unless specifically asked
+5. Be direct and factual only
+6. If asked about food and no food data is provided, say "No nutrition data found for [time period]"
+7. If asked about runs and no run data is provided, say "No run data found for [time period]"
+
+USER QUERY: "${query}"
+TIME RANGE REQUESTED: ${timeRange.description}
+
+`;
+
+  // Add data sections only if we have real data
+  let hasAnyData = false;
+
+  if (needsRunData) {
+    const relevantRuns = userData.recentRuns.filter(run => {
+      const runDate = new Date(run.start_date);
+      return timeRange.offset ? 
+        isDateInRange(runDate, timeRange.days, timeRange.offset) :
+        isWithinDays(runDate, timeRange.days);
+    });
+    
+    if (relevantRuns.length > 0) {
+      hasAnyData = true;
+      context += `=== ACTUAL RUN DATA (${timeRange.label}) ===\n`;
+      relevantRuns.forEach((run, index) => {
+        context += `RUN: "${run.name}" on ${new Date(run.start_date).toLocaleDateString()}\n`;
+        context += `Distance: ${run.distance.toFixed(2)}km\n`;
+        context += `Duration: ${Math.round(run.moving_time / 60)} minutes\n`;
+        context += `Run Type: ${run.run_tag}\n`;
+        if (run.average_heartrate) context += `Average HR: ${run.average_heartrate} bpm\n`;
+        if (run.max_heartrate) context += `Max HR: ${run.max_heartrate} bpm\n`;
+        context += `Average Pace: ${formatPace(run.moving_time / run.distance)}/km\n`;
+        
+        if (run.splits_metric && run.splits_metric.length > 0) {
+          context += `KM SPLITS:\n`;
+          run.splits_metric.forEach((split, kmIndex) => {
+            const pace = split.moving_time;
+            const minutes = Math.floor(pace / 60);
+            const seconds = pace % 60;
+            const hr = split.average_heartrate ? ` (HR: ${Math.round(split.average_heartrate)}bpm)` : '';
+            const elev = split.elevation_difference !== undefined ? ` (${split.elevation_difference > 0 ? '+' : ''}${split.elevation_difference}m)` : '';
+            context += `  Km ${kmIndex + 1}: ${minutes}:${seconds.toString().padStart(2, '0')}/km${hr}${elev}\n`;
+          });
+        }
+        context += `\n`;
+      });
+    } else {
+      context += `=== NO RUN DATA FOUND for ${timeRange.label} ===\n\n`;
+    }
+  }
+  
+  if (needsNutritionData) {
+    const relevantNutrition = userData.recentNutrition.filter(day => {
+      const dayDate = new Date(day.date);
+      return timeRange.offset ?
+        isDateInRange(dayDate, timeRange.days, timeRange.offset) :
+        isWithinDays(dayDate, timeRange.days);
+    });
+    
+    if (relevantNutrition.length > 0) {// Improved LetsJam - Efficient Health Coach with Real Firestore Data
 const userId = "mihir_jain";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -172,6 +251,7 @@ const getCachedData = async (key: string, fetchFn: () => Promise<any>) => {
 };
 
 // Real data fetching functions using your Firestore patterns
+// Real data fetching functions using your actual Firestore structure
 const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
   return getCachedData(`runs_${days}`, async () => {
     try {
@@ -272,10 +352,41 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
   });
 };
 
+// Import Firestore utilities that NutritionJam uses
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore';
+
+// Initialize Firebase (using same pattern as your other components)
+let db: any = null;
+
+const initializeFirebase = () => {
+  if (db) return db;
+  
+  try {
+    // Use the same Firebase config as your other components
+    const app = getApps().length === 0 ? initializeApp({
+      // Your Firebase config will be automatically loaded
+    }) : getApps()[0];
+    db = getFirestore(app);
+    return db;
+  } catch (error) {
+    console.error('Failed to initialize Firebase:', error);
+    return null;
+  }
+};
+
+// Use Firestore directly for nutrition data (matching your actual structure)
 const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]> => {
   return getCachedData(`nutrition_${days}`, async () => {
     try {
-      console.log(`📊 Fetching nutrition data for ${days} days...`);
+      console.log(`📊 Fetching nutrition data for ${days} days directly from Firestore...`);
+      
+      const firestore = initializeFirebase();
+      if (!firestore) {
+        console.log('⚠️ Firebase not available');
+        return [];
+      }
+      
       const nutritionData: DailyNutrition[] = [];
       const today = new Date();
       
@@ -285,35 +396,69 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
         const dateString = date.toISOString().split('T')[0];
         
         try {
-          // Try to get actual Firestore nutrition data
-          const response = await fetch(`/api/nutrition?date=${dateString}&userId=${userId}`);
-          if (response.ok) {
-            const dayData = await response.json();
+          // Access Firestore directly using your actual structure
+          const logRef = doc(firestore, "nutritionLogs", dateString);
+          const logSnapshot = await getDoc(logRef);
+          
+          if (logSnapshot.exists()) {
+            const logData = logSnapshot.data();
             
-            // Only include if we have real entries with actual food data
-            if (dayData && dayData.entries && dayData.entries.length > 0) {
-              // Validate entries have real food data
-              const validEntries = dayData.entries.filter(entry => 
+            // Check if we have valid nutrition data using totals (since individual entries don't have nutrition)
+            if (logData && logData.totals && logData.totals.calories > 0) {
+              const entries = logData.entries || [];
+              
+              // Validate entries have real food names
+              const validEntries = entries.filter((entry: any) => 
+                entry && 
                 entry.foodId && 
+                typeof entry.foodId === 'string' &&
+                entry.foodId.length > 0 &&
                 entry.foodId !== 'Unknown Food' && 
-                entry.calories > 0
+                entry.foodId !== 'unknown' &&
+                !entry.foodId.toLowerCase().includes('test') &&
+                entry.quantity &&
+                Number(entry.quantity) > 0
               );
               
-              if (validEntries.length > 0) {
+              if (validEntries.length > 0 && logData.totals.calories > 0) {
+                // Use the stored totals since individual entries don't have nutrition data
+                const totals = {
+                  calories: Number(logData.totals.calories) || 0,
+                  protein: Number(logData.totals.protein) || 0,
+                  carbs: Number(logData.totals.carbs) || 0,
+                  fat: Number(logData.totals.fat) || 0,
+                  fiber: Number(logData.totals.fiber) || 0
+                };
+                
+                // Add estimated nutrition per food item for display
+                const entriesWithNutrition = validEntries.map((entry: any) => ({
+                  foodId: entry.foodId,
+                  quantity: Number(entry.quantity) || 1,
+                  unit: entry.unit || 'serving',
+                  // Estimate calories per item (for display only)
+                  calories: Math.round(totals.calories / validEntries.length),
+                  protein: Math.round(totals.protein / validEntries.length),
+                  carbs: Math.round(totals.carbs / validEntries.length),
+                  fat: Math.round(totals.fat / validEntries.length),
+                  fiber: Math.round(totals.fiber / validEntries.length),
+                  timestamp: new Date().toISOString()
+                }));
+                
                 nutritionData.push({
                   date: dateString,
-                  entries: validEntries,
-                  totals: dayData.totals || {
-                    calories: validEntries.reduce((sum, e) => sum + (e.calories * e.quantity), 0),
-                    protein: validEntries.reduce((sum, e) => sum + (e.protein * e.quantity), 0),
-                    carbs: validEntries.reduce((sum, e) => sum + (e.carbs * e.quantity), 0),
-                    fat: validEntries.reduce((sum, e) => sum + (e.fat * e.quantity), 0),
-                    fiber: validEntries.reduce((sum, e) => sum + (e.fiber * e.quantity), 0)
-                  }
+                  entries: entriesWithNutrition,
+                  totals: totals
                 });
-                console.log(`✅ Valid nutrition data found for ${dateString}: ${validEntries.length} food items`);
+                
+                console.log(`✅ Valid nutrition data found for ${dateString}: ${validEntries.length} foods, ${Math.round(totals.calories)} calories`);
+              } else {
+                console.log(`⚠️ No valid food entries found for ${dateString}`);
               }
+            } else {
+              console.log(`📭 No nutrition totals for ${dateString}`);
             }
+          } else {
+            console.log(`📭 No nutrition log document for ${dateString}`);
           }
         } catch (error) {
           console.warn(`Failed to load nutrition for ${dateString}:`, error);
@@ -321,6 +466,20 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
       }
       
       console.log(`📊 Final nutrition data: ${nutritionData.length} days with real food entries`);
+      
+      // Debug log the actual data we're returning
+      if (nutritionData.length > 0) {
+        console.log('🍎 Nutrition data summary:');
+        nutritionData.forEach(day => {
+          console.log(`  ${day.date}: ${day.entries.length} foods, ${Math.round(day.totals.calories)} cal`);
+          day.entries.slice(0, 3).forEach((food: any) => {
+            console.log(`    - ${food.foodId}: ${food.quantity} ${food.unit}`);
+          });
+        });
+      } else {
+        console.log('⚠️ No valid nutrition data found for any day in the requested range');
+      }
+      
       return nutritionData;
       
     } catch (error) {
@@ -330,20 +489,90 @@ const fetchRecentNutrition = async (days: number = 7): Promise<DailyNutrition[]>
   });
 };
 
+// Get body metrics from Firestore directly (matching your blood_markers structure)
 const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
   return getCachedData('body_metrics', async () => {
     try {
-      // Using your body metrics pattern
-      const response = await fetch(`/api/body-metrics?userId=${userId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Loaded current body metrics');
-        return data;
+      console.log('📊 Fetching body metrics from Firestore...');
+      
+      const firestore = initializeFirebase();
+      if (!firestore) {
+        console.log('⚠️ Firebase not available');
+        return null;
       }
+      
+      // Try to get from blood_markers collection first
+      const bloodMarkersRef = doc(firestore, "blood_markers", userId);
+      const bloodMarkersSnapshot = await getDoc(bloodMarkersRef);
+      
+      if (bloodMarkersSnapshot.exists()) {
+        const data = bloodMarkersSnapshot.data();
+        
+        console.log('✅ Loaded body metrics from blood_markers collection');
+        
+        // Parse string values with units (your format: "38 mg/dL")
+        const parseValue = (value: string) => {
+          if (!value) return 0;
+          const match = value.toString().match(/^([0-9.]+)/);
+          return match ? Number(match[1]) : 0;
+        };
+        
+        return {
+          weight: data.weight || 0,
+          bodyFat: data.bodyFat || 0,
+          leanMass: data.leanMass || 0,
+          hdl: parseValue(data["HDL Cholesterol"]),
+          ldl: parseValue(data["LDL Cholesterol"]),
+          glucose: parseValue(data["Glucose (Random)"]),
+          hba1c: parseValue(data["HbA1C"]),
+          vitaminD: parseValue(data["Vitamin D"]),
+          lastUpdated: data.date || 'Unknown'
+        };
+      }
+      
+      // Also try to get from nutritionLogs if they contain body data
+      const today = new Date().toISOString().split('T')[0];
+      const nutritionRef = doc(firestore, "nutritionLogs", today);
+      const nutritionSnapshot = await getDoc(nutritionRef);
+      
+      if (nutritionSnapshot.exists()) {
+        const data = nutritionSnapshot.data();
+        
+        if (data && Object.keys(data).some(key => key.includes('Cholesterol') || key.includes('Glucose'))) {
+          console.log('✅ Found body metrics in nutritionLogs');
+          
+          const parseValue = (value: string) => {
+            if (!value) return 0;
+            const match = value.toString().match(/^([0-9.]+)/);
+            return match ? Number(match[1]) : 0;
+          };
+          
+          return {
+            weight: data.weight || 0,
+            bodyFat: data.bodyFat || 0,
+            leanMass: data.leanMass || 0,
+            hdl: parseValue(data["HDL Cholesterol"]),
+            ldl: parseValue(data["LDL Cholesterol"]),
+            glucose: parseValue(data["Glucose (Random)"]),
+            hba1c: parseValue(data["HbA1C"]),
+            vitaminD: parseValue(data["Vitamin D"]),
+            lastUpdated: data.date || today
+          };
+        }
+      }
+      
+      console.log('📭 No body metrics found in Firestore');
+      return null;
+      
     } catch (error) {
       console.error('Error fetching body metrics:', error);
+      return null;
     }
-    return null;
+  });
+}; {
+      console.error('Error fetching body metrics:', error);
+      return null;
+    }
   });
 };
 
@@ -792,10 +1021,10 @@ const SmartPromptSuggestions: React.FC<{
       iconColor: 'text-blue-600',
       prompts: hasRunData ? [
         'How was my run today?',
-        'Analyze my pace from yesterday\'s run',
-        'Show me this week\'s running performance',
-        'Compare my easy runs vs tempo runs this month',
-        'What do my km splits tell me from my last 3 runs?'
+        'Analyze my splits from yesterday',
+        'Show me my heart rate data from my last run',
+        'Was my pacing consistent?',
+        'How many easy vs hard runs this week?'
       ] : [
         'How do I start a running routine?',
         'What pace should I run at?',
@@ -811,10 +1040,10 @@ const SmartPromptSuggestions: React.FC<{
       iconColor: 'text-green-600',
       prompts: hasNutritionData ? [
         'What did I eat today?',
-        'Analyze my protein intake this week',
-        'Recommend foods similar to what I ate yesterday',
-        'Am I eating enough calories this week?',
-        'What should I eat before my next run?'
+        'How many calories did I have yesterday?',
+        'What foods do I eat most often?',
+        'Am I getting enough protein?',
+        'Show me my nutrition from this week'
       ] : [
         'Help me plan a healthy meal',
         'What foods are good for runners?',
@@ -847,11 +1076,11 @@ const SmartPromptSuggestions: React.FC<{
       textColor: 'text-teal-700',
       iconColor: 'text-teal-600',
       prompts: [
-        'What should I focus on today?',
-        'How was my week compared to last week?',
-        'Show me my progress over the last month',
-        'What did I do differently yesterday?',
-        'Am I improving over the past 2 weeks?'
+        'How was my week overall?',
+        'Am I making progress?',
+        'What should I focus on?',
+        'Compare today vs yesterday',
+        'Show me my recent activity summary'
       ]
     }
   ];
@@ -877,7 +1106,7 @@ const SmartPromptSuggestions: React.FC<{
           </Badge>
         )}
       </h4>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
         {promptCategories.map((category, categoryIndex) => (
           <Card key={categoryIndex} className={`bg-gradient-to-br ${category.color} cursor-pointer hover:shadow-md transition-all duration-200`}>
             <CardHeader className="pb-2">
@@ -954,7 +1183,25 @@ const LetsJam: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   
+  // Auto-scroll to latest AI message start
+  const scrollToLatestAIMessage = () => {
+    // Find the last AI message element
+    const messagesContainer = messagesContainerRef.current;
+    if (messagesContainer) {
+      const aiMessages = messagesContainer.querySelectorAll('[data-role="assistant"]');
+      if (aiMessages.length > 0) {
+        const lastAIMessage = aiMessages[aiMessages.length - 1];
+        lastAIMessage.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start' // Scroll to start of AI message
+        });
+        console.log('📍 Scrolled to start of AI response');
+      }
+    }
+  };
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   // Save messages to storage
   useEffect(() => {
@@ -963,23 +1210,31 @@ const LetsJam: React.FC = () => {
     }
   }, [messages, sessionId]);
 
-  // Auto-scroll to latest message
-  const scrollToLatestMessage = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-  
+  // Auto-scroll behavior
   useEffect(() => {
-    scrollToLatestMessage();
+    if (isTyping) {
+      // While typing, scroll to bottom
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else if (messages.length > 0) {
+      // After AI responds, scroll to start of AI message
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant') {
+        setTimeout(() => {
+          scrollToLatestAIMessage();
+        }, 200); // Small delay to ensure content is rendered
+      }
+    }
   }, [messages, isTyping]);
 
-  // Fetch all user data
+  // Fetch all user data with better validation
   const fetchUserData = async (forceRefresh = false) => {
     try {
       setLoading(true);
       if (forceRefresh) {
         setIsRefreshing(true);
+        dataCache.clear(); // Clear cache on force refresh
       }
 
       console.log('🔄 Fetching user data...');
@@ -989,6 +1244,14 @@ const LetsJam: React.FC = () => {
         fetchRecentNutrition(7),
         fetchCurrentBodyMetrics()
       ]);
+
+      console.log('📊 Data fetch results:', {
+        runs: recentRuns.length,
+        nutritionDays: recentNutrition.length,
+        hasBodyData: !!currentBody,
+        runsWithSplits: recentRuns.filter(r => r.splits_metric?.length > 0).length,
+        totalFoodEntries: recentNutrition.reduce((sum, day) => sum + day.entries.length, 0)
+      });
 
       const weeklyStats = {
         totalDistance: recentRuns.reduce((sum, run) => sum + run.distance, 0),
@@ -1005,15 +1268,8 @@ const LetsJam: React.FC = () => {
         recentRuns,
         recentNutrition,
         currentBody: currentBody || {
-          weight: 0,
-          bodyFat: 0,
-          leanMass: 0,
-          hdl: 0,
-          ldl: 0,
-          glucose: 0,
-          hba1c: 0,
-          vitaminD: 0,
-          lastUpdated: ''
+          weight: 0, bodyFat: 0, leanMass: 0, hdl: 0, ldl: 0, 
+          glucose: 0, hba1c: 0, vitaminD: 0, lastUpdated: ''
         },
         weeklyStats
       };
@@ -1220,10 +1476,10 @@ const LetsJam: React.FC = () => {
       {/* Main content */}
       <main className="relative z-10 px-6 md:px-12 py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
             
-            {/* Left Column - Chat Interface */}
-            <div className="lg:col-span-3 space-y-4">
+            {/* Left Column - Chat Interface (Expandable) */}
+            <div className="xl:col-span-4 space-y-4">
               
               {/* Smart Prompt Suggestions */}
               <SmartPromptSuggestions 
@@ -1260,10 +1516,18 @@ const LetsJam: React.FC = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="p-4 space-y-4 min-h-[400px] max-h-[600px] overflow-y-auto">
+                  <div 
+                    ref={messagesContainerRef}
+                    className="p-4 space-y-4 min-h-[400px] overflow-y-auto"
+                    style={{ 
+                      maxHeight: 'calc(100vh - 400px)', // Dynamic height based on viewport
+                      height: 'auto' // Let it grow naturally
+                    }}
+                  >
                     {messages.map((message, index) => (
                       <div
                         key={index}
+                        data-role={message.role}
                         className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         <div className={`max-w-[85%] ${
@@ -1286,7 +1550,7 @@ const LetsJam: React.FC = () => {
                         <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-lg p-3">
                           <div className="flex items-center gap-2">
                             <Bot className="h-4 w-4 text-teal-500" />
-                            <span className="text-sm text-teal-700">Analyzing your data...</span>
+                            <span className="text-sm text-teal-700">Analyzing your real data...</span>
                             <div className="flex gap-1">
                               <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce"></div>
                               <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce delay-100"></div>
@@ -1334,8 +1598,8 @@ const LetsJam: React.FC = () => {
               </Card>
             </div>
             
-            {/* Right Column - Health Summary */}
-            <div className="lg:col-span-1">
+            {/* Right Column - Health Summary (Compact) */}
+            <div className="xl:col-span-1">
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 sticky top-6">
                 <CardContent className="p-4">
                   <SmartHealthSummary
@@ -1355,16 +1619,19 @@ const LetsJam: React.FC = () => {
       <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-            <span>AI health coach with real Firestore data</span>
+            <span>AI health coach with validated real data only</span>
             <span className="hidden md:inline">•</span>
-            <span>Smart time-based analysis (today, yesterday, this week, last month)</span>
+            <span>Smart scrolling to AI responses</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-              Dynamic Date Ranges
+              Validated Data Only
             </span>
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-              Run Tags Maintained
+              Auto-Scroll to AI Response
+            </span>
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+              Dynamic Chat Expansion
             </span>
             <div className="flex items-center gap-1">
               <div className={`w-2 h-2 rounded-full animate-pulse ${userData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
