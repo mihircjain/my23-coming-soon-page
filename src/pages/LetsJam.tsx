@@ -1,15 +1,36 @@
-import {React , useState, useEffect, useRef } from 'react';
-import { Bot, Send, RefreshCw, Activity, Utensils, Heart, TrendingUp, Target, Zap, Calendar, BarChart3, ArrowLeft, MessageSquare, Flame, Droplet, Clock, Tag, AlertTriangle, CheckCircle, Coffee, Apple } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Zap, 
+  MessageCircle, 
+  Send, 
+  RefreshCw, 
+  Heart, 
+  Activity, 
+  Target, 
+  TrendingUp,
+  Bot,
+  User,
+  Apple,
+  Dumbbell,
+  Calendar,
+  Clock
+} from 'lucide-react';
 
+// Import Firestore utilities that match your other components
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore';
 
-const userId = "mihir_jain";
+// Type definitions
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
 
-// Interfaces for real Firestore data
 interface RunData {
   id: string;
   name: string;
@@ -23,46 +44,45 @@ interface RunData {
   max_heartrate?: number;
   calories?: number;
   is_run_activity: boolean;
-  run_tag?: string;
-  splits_metric?: KmSplit[];
-  best_efforts?: BestEffort[];
-  zones?: HeartRateZone[];
-}
-
-interface KmSplit {
-  distance: number;
-  elapsed_time: number;
-  elevation_difference: number;
-  moving_time: number;
-  average_speed: number;
-  average_heartrate?: number;
-}
-
-interface BestEffort {
-  name: string;
-  distance: number;
-  moving_time: number;
-  pr_rank?: number;
-}
-
-interface HeartRateZone {
-  type: string;
-  distribution_buckets: Array<{
-    min: number;
-    max: number;
-    time: number;
+  run_tag: string;
+  splits_metric?: Array<{
+    distance: number;
+    elapsed_time: number;
+    elevation_difference: number;
+    moving_time: number;
+    pace_zone: number;
+    split: number;
+    average_speed: number;
+    average_heartrate?: number;
   }>;
+  best_efforts?: Array<{
+    id: number;
+    resource_state: number;
+    name: string;
+    activity: { id: number };
+    athlete: { id: number };
+    elapsed_time: number;
+    moving_time: number;
+    start_date: string;
+    start_date_local: string;
+    distance: number;
+    start_index: number;
+    end_index: number;
+    pr_rank?: number;
+    achievements: any[];
+  }>;
+  zones?: any[];
 }
 
 interface FoodEntry {
   foodId: string;
+  quantity: number;
+  unit: string;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
   fiber: number;
-  quantity: number;
-  unit: string;
   timestamp: string;
 }
 
@@ -90,12 +110,6 @@ interface BodyMetrics {
   lastUpdated: string;
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
-
 interface UserData {
   recentRuns: RunData[];
   recentNutrition: DailyNutrition[];
@@ -108,70 +122,54 @@ interface UserData {
   };
 }
 
-// Efficient data cache
-const dataCache = new Map();
-const CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+interface TimeRange {
+  label: string;
+  days: number;
+  description: string;
+  offset?: number;
+}
 
-// Helper functions for date range checking and formatting
-const isWithinDays = (date: Date, days: number): boolean => {
-  const now = new Date();
-  const diffTime = now.getTime() - date.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays >= 0 && diffDays <= days;
-};
+// Initialize Firebase (using same pattern as your other components)
+let db: any = null;
 
-const isDateInRange = (date: Date, days: number, offset: number): boolean => {
-  const now = new Date();
-  const startRange = new Date(now.getTime() - (offset + days) * 24 * 60 * 60 * 1000);
-  const endRange = new Date(now.getTime() - offset * 24 * 60 * 60 * 1000);
-  return date >= startRange && date <= endRange;
-};
-
-const formatPace = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
-};
-
-const formatTime = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
+const initializeFirebase = () => {
+  if (db) return db;
   
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  try {
+    // Use existing Firebase app if already initialized
+    const app = getApps().length > 0 ? getApps()[0] : null;
+    if (app) {
+      db = getFirestore(app);
+      return db;
+    } else {
+      console.log('⚠️ Firebase app not initialized - nutrition data will be unavailable');
+      return null;
+    }
+  } catch (error) {
+    console.error('Failed to initialize Firebase:', error);
+    return null;
   }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
-const getRunTagDescription = (tag: string): string => {
-  const descriptions = {
-    'easy': 'conversational pace, base building',
-    'tempo': 'comfortably hard, sustained effort',
-    'intervals': 'high intensity with rest periods',
-    'long': 'extended duration, aerobic base',
-    'recovery': 'very easy pace, active recovery',
-    'hill-repeats': 'uphill intervals for strength',
-    'race': 'race effort or time trial',
-    'untagged': 'no specific training type assigned'
-  };
-  return descriptions[tag] || 'unknown training type';
-};
+// Cache for data to prevent excessive API calls
+const dataCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const getCachedData = async (key: string, fetchFn: () => Promise<any>) => {
+const getCachedData = async <T>(key: string, fetchFn: () => Promise<T>): Promise<T> => {
   const cached = dataCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`📦 Using cached data for ${key}`);
+  const now = Date.now();
+  
+  if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+    console.log(`📋 Using cached data for ${key}`);
     return cached.data;
   }
   
   console.log(`🔄 Fetching fresh data for ${key}`);
-  const freshData = await fetchFn();
-  dataCache.set(key, { data: freshData, timestamp: Date.now() });
-  return freshData;
+  const data = await fetchFn();
+  dataCache.set(key, { data, timestamp: now });
+  return data;
 };
 
-// Real data fetching functions using your Firestore patterns
 // Real data fetching functions using your actual Firestore structure
 const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
   return getCachedData(`runs_${days}`, async () => {
@@ -179,7 +177,7 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
       console.log(`🏃 Fetching run data for ${days} days...`);
       
       const params = new URLSearchParams({
-        userId: userId,
+        userId: "testUser123",
         mode: 'cached'
       });
       
@@ -238,7 +236,7 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
       const runsWithDetails = await Promise.all(
         runActivities.slice(0, 3).map(async (run: RunData) => { // Only load details for 3 most recent
           try {
-            const detailResponse = await fetch(`/api/strava-detail?activityId=${run.id}&userId=${userId}`);
+            const detailResponse = await fetch(`/api/strava-detail?activityId=${run.id}&userId=testUser123`);
             if (detailResponse.ok) {
               const detail = await detailResponse.json();
               
@@ -271,29 +269,6 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
       return [];
     }
   });
-};
-
-// Import Firestore utilities that NutritionJam uses
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore';
-
-// Initialize Firebase (using same pattern as your other components)
-let db: any = null;
-
-const initializeFirebase = () => {
-  if (db) return db;
-  
-  try {
-    // Use the same Firebase config as your other components
-    const app = getApps().length === 0 ? initializeApp({
-      // Your Firebase config will be automatically loaded
-    }) : getApps()[0];
-    db = getFirestore(app);
-    return db;
-  } catch (error) {
-    console.error('Failed to initialize Firebase:', error);
-    return null;
-  }
 };
 
 // Use Firestore directly for nutrition data (matching your actual structure)
@@ -423,7 +398,7 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
       }
       
       // Try to get from blood_markers collection first
-      const bloodMarkersRef = doc(firestore, "blood_markers", userId);
+      const bloodMarkersRef = doc(firestore, "blood_markers", "testUser123");
       const bloodMarkersSnapshot = await getDoc(bloodMarkersRef);
       
       if (bloodMarkersSnapshot.exists()) {
@@ -490,74 +465,98 @@ const fetchCurrentBodyMetrics = async (): Promise<BodyMetrics | null> => {
       return null;
     }
   });
-}; {
-      console.error('Error fetching body metrics:', error);
-      return null;
-    }
-  });
 };
 
-// Extract time range from user query
-const extractTimeRange = (query: string) => {
-  const lowercaseQuery = query.toLowerCase();
-  const today = new Date();
-  
-  // Today/yesterday
-  if (lowercaseQuery.includes('today') || lowercaseQuery.includes('this morning')) {
-    return { days: 1, label: 'today', description: 'today\'s data' };
-  }
-  
-  if (lowercaseQuery.includes('yesterday')) {
-    return { days: 2, label: 'yesterday', description: 'yesterday\'s data', offset: 1 };
-  }
-  
-  // This week/last week
-  if (lowercaseQuery.includes('this week') || lowercaseQuery.includes('past week')) {
-    return { days: 7, label: 'this week', description: 'this week\'s data' };
-  }
-  
-  if (lowercaseQuery.includes('last week')) {
-    return { days: 7, label: 'last week', description: 'last week\'s data', offset: 7 };
-  }
-  
-  // Month ranges
-  if (lowercaseQuery.includes('this month') || lowercaseQuery.includes('past month')) {
-    return { days: 30, label: 'this month', description: 'this month\'s data' };
-  }
-  
-  // Specific number patterns
-  const dayMatches = lowercaseQuery.match(/(?:last|past)\s+(\d+)\s+days?/);
-  if (dayMatches) {
-    const days = parseInt(dayMatches[1]);
-    return { days, label: `last ${days} days`, description: `last ${days} days of data` };
-  }
-  
-  const weekMatches = lowercaseQuery.match(/(?:last|past)\s+(\d+)\s+weeks?/);
-  if (weekMatches) {
-    const weeks = parseInt(weekMatches[1]);
-    const days = weeks * 7;
-    return { days, label: `last ${weeks} weeks`, description: `last ${weeks} weeks of data` };
-  }
-  
-  // Recent activity patterns
-  if (lowercaseQuery.includes('recent') || lowercaseQuery.includes('latest')) {
-    return { days: 3, label: 'recent', description: 'recent data (3 days)' };
-  }
-  
-  // Default based on data type
-  if (/\b(run|running|pace|workout|exercise)\b/.test(lowercaseQuery)) {
-    return { days: 7, label: 'recent runs', description: 'last 7 days of running data' };
-  }
-  
-  if (/\b(food|eat|nutrition|meal)\b/.test(lowercaseQuery)) {
-    return { days: 3, label: 'recent nutrition', description: 'last 3 days of nutrition data' };
-  }
-  
-  // Default fallback
-  return { days: 7, label: 'recent activity', description: 'last 7 days of data' };
+// Utility functions
+const formatPace = (totalSeconds: number): string => {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-// Smart context building based on query analysis and time range
+const formatTime = (totalSeconds: number): string => {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const getRunTagDescription = (tag: string): string => {
+  const descriptions: Record<string, string> = {
+    'easy': 'Conversational pace, aerobic base building',
+    'tempo': 'Comfortably hard, threshold effort',
+    'interval': 'High intensity with recovery periods',
+    'long': 'Extended distance at easy pace',
+    'recovery': 'Very easy pace for active recovery',
+    'race': 'Competition or time trial effort'
+  };
+  return descriptions[tag] || 'General training run';
+};
+
+// Time range extraction from queries
+const extractTimeRange = (query: string): TimeRange => {
+  const lowerQuery = query.toLowerCase();
+  
+  // Specific day references
+  if (lowerQuery.includes('today')) {
+    return { label: 'today', days: 1, description: 'Today only', offset: 0 };
+  }
+  if (lowerQuery.includes('yesterday')) {
+    return { label: 'yesterday', days: 1, description: 'Yesterday only', offset: 1 };
+  }
+  
+  // Week references
+  if (lowerQuery.includes('this week')) {
+    return { label: 'this week', days: 7, description: 'This week' };
+  }
+  if (lowerQuery.includes('last week')) {
+    return { label: 'last week', days: 7, description: 'Last week', offset: 7 };
+  }
+  
+  // Month references
+  if (lowerQuery.includes('this month')) {
+    return { label: 'this month', days: 30, description: 'This month' };
+  }
+  if (lowerQuery.includes('last month')) {
+    return { label: 'last month', days: 30, description: 'Last month', offset: 30 };
+  }
+  
+  // Number-based ranges
+  const numberMatch = lowerQuery.match(/(\d+)\s*(day|week|month)/);
+  if (numberMatch) {
+    const num = parseInt(numberMatch[1]);
+    const unit = numberMatch[2];
+    const multiplier = unit === 'week' ? 7 : unit === 'month' ? 30 : 1;
+    const days = num * multiplier;
+    return { label: `${num} ${unit}${num > 1 ? 's' : ''}`, days, description: `Last ${num} ${unit}${num > 1 ? 's' : ''}` };
+  }
+  
+  // Default to recent data
+  return { label: 'recent', days: 7, description: 'Recent data (last 7 days)' };
+};
+
+// Date range checking utilities
+const isWithinDays = (date: Date, days: number): boolean => {
+  const now = new Date();
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= days;
+};
+
+const isDateInRange = (date: Date, days: number, offset: number): boolean => {
+  const now = new Date();
+  const startOffset = offset;
+  const endOffset = offset + days;
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= startOffset && diffDays <= endOffset;
+};
+
+// Smart context building - STRICT version that prevents AI hallucination
 const buildContextForQuery = async (query: string, userData: UserData) => {
   const lowercaseQuery = query.toLowerCase();
   
@@ -571,23 +570,26 @@ const buildContextForQuery = async (query: string, userData: UserData) => {
   
   console.log(`🎯 Query analysis: needs runs=${needsRunData}, nutrition=${needsNutritionData}, body=${needsBodyData}, timeRange=${timeRange.label}`);
   
-  let context = `You are a helpful health coach. Answer ONLY what the user asks. DO NOT give unsolicited advice.
+  let context = `You are a data analyst. You can ONLY use the data provided below. DO NOT make up any information.
 
-CRITICAL RULES:
-1. Answer the specific question asked - nothing more
-2. Use ONLY the real data provided below
-3. NEVER make up or fabricate data
-4. NO unsolicited training advice, nutrition timing, sleep advice, or recovery protocols
-5. Keep responses concise and focused
-6. If no data is available, say "No data available" instead of making something up
+STRICT RULES:
+1. Use ONLY the exact data provided in the sections below
+2. If no data is provided for something, say "No data available"
+3. NEVER fabricate food items, run splits, or any other data
+4. NEVER give training advice, nutrition advice, or recommendations unless specifically asked
+5. Be direct and factual only
+6. If asked about food and no food data is provided, say "No nutrition data found for [time period]"
+7. If asked about runs and no run data is provided, say "No run data found for [time period]"
 
-QUERY: "${query}"
-TIME RANGE: ${timeRange.description}
+USER QUERY: "${query}"
+TIME RANGE REQUESTED: ${timeRange.description}
 
 `;
-  
-  // Add relevant data sections ONLY if real data exists
-  if (needsRunData && userData.recentRuns.length > 0) {
+
+  // Add data sections only if we have real data
+  let hasAnyData = false;
+
+  if (needsRunData) {
     const relevantRuns = userData.recentRuns.filter(run => {
       const runDate = new Date(run.start_date);
       return timeRange.offset ? 
@@ -596,14 +598,16 @@ TIME RANGE: ${timeRange.description}
     });
     
     if (relevantRuns.length > 0) {
-      context += `=== ACTUAL RUNNING DATA (${timeRange.label.toUpperCase()}) ===\n`;
+      hasAnyData = true;
+      context += `=== ACTUAL RUN DATA (${timeRange.label}) ===\n`;
       relevantRuns.forEach((run, index) => {
-        const runDate = new Date(run.start_date);
-        context += `"${run.name}" - ${runDate.toLocaleDateString()}\n`;
-        context += `Distance: ${run.distance.toFixed(2)}km, Duration: ${Math.round(run.moving_time / 60)}min\n`;
+        context += `RUN: "${run.name}" on ${new Date(run.start_date).toLocaleDateString()}\n`;
+        context += `Distance: ${run.distance.toFixed(2)}km\n`;
+        context += `Duration: ${Math.round(run.moving_time / 60)} minutes\n`;
         context += `Run Type: ${run.run_tag}\n`;
-        context += `Avg HR: ${run.average_heartrate || 'N/A'} bpm\n`;
-        context += `Avg Pace: ${formatPace(run.moving_time / run.distance)}/km\n`;
+        if (run.average_heartrate) context += `Average HR: ${run.average_heartrate} bpm\n`;
+        if (run.max_heartrate) context += `Max HR: ${run.max_heartrate} bpm\n`;
+        context += `Average Pace: ${formatPace(run.moving_time / run.distance)}/km\n`;
         
         if (run.splits_metric && run.splits_metric.length > 0) {
           context += `KM SPLITS:\n`;
@@ -611,18 +615,19 @@ TIME RANGE: ${timeRange.description}
             const pace = split.moving_time;
             const minutes = Math.floor(pace / 60);
             const seconds = pace % 60;
-            const hr = split.average_heartrate ? ` (${Math.round(split.average_heartrate)}bpm)` : '';
-            context += `  Km ${kmIndex + 1}: ${minutes}:${seconds.toString().padStart(2, '0')}/km${hr}\n`;
+            const hr = split.average_heartrate ? ` (HR: ${Math.round(split.average_heartrate)}bpm)` : '';
+            const elev = split.elevation_difference !== undefined ? ` (${split.elevation_difference > 0 ? '+' : ''}${split.elevation_difference}m)` : '';
+            context += `  Km ${kmIndex + 1}: ${minutes}:${seconds.toString().padStart(2, '0')}/km${hr}${elev}\n`;
           });
         }
-        context += '\n';
+        context += `\n`;
       });
     } else {
-      context += `=== NO RUNNING DATA AVAILABLE for ${timeRange.label} ===\n\n`;
+      context += `=== NO RUN DATA FOUND for ${timeRange.label} ===\n\n`;
     }
   }
   
-  if (needsNutritionData && userData.recentNutrition.length > 0) {
+  if (needsNutritionData) {
     const relevantNutrition = userData.recentNutrition.filter(day => {
       const dayDate = new Date(day.date);
       return timeRange.offset ?
@@ -631,479 +636,278 @@ TIME RANGE: ${timeRange.description}
     });
     
     if (relevantNutrition.length > 0) {
-      context += `=== ACTUAL NUTRITION DATA (${timeRange.label.toUpperCase()}) ===\n`;
+      hasAnyData = true;
+      context += `=== ACTUAL NUTRITION DATA (${timeRange.label}) ===\n`;
       relevantNutrition.forEach((day) => {
-        context += `${new Date(day.date).toLocaleDateString()}: ${day.totals.calories} cal, ${day.totals.protein}g protein\n`;
+        context += `DATE: ${new Date(day.date).toLocaleDateString()}\n`;
+        context += `Total Calories: ${Math.round(day.totals.calories)}\n`;
+        context += `Total Protein: ${Math.round(day.totals.protein)}g\n`;
+        context += `Total Carbs: ${Math.round(day.totals.carbs)}g\n`;
+        context += `Total Fat: ${Math.round(day.totals.fat)}g\n`;
+        
         if (day.entries.length > 0) {
           context += `ACTUAL FOODS EATEN:\n`;
           day.entries.forEach((food) => {
             const totalCals = Math.round(food.calories * food.quantity);
-            context += `- ${food.foodId}: ${food.quantity} ${food.unit} (${totalCals}cal)\n`;
+            const totalProtein = Math.round(food.protein * food.quantity);
+            context += `- ${food.foodId}: ${food.quantity} ${food.unit} (${totalCals} calories, ${totalProtein}g protein)\n`;
           });
+        } else {
+          context += `No individual food items logged\n`;
         }
-        context += '\n';
+        context += `\n`;
       });
     } else {
-      context += `=== NO NUTRITION DATA AVAILABLE for ${timeRange.label} ===\n\n`;
+      context += `=== NO NUTRITION DATA FOUND for ${timeRange.label} ===\n\n`;
     }
   }
   
   if (needsBodyData && userData.currentBody) {
-    context += `=== CURRENT BODY METRICS ===\n`;
+    hasAnyData = true;
+    context += `=== ACTUAL BODY METRICS ===\n`;
     context += `Weight: ${userData.currentBody.weight}kg\n`;
     context += `Body Fat: ${userData.currentBody.bodyFat}%\n`;
     context += `HDL: ${userData.currentBody.hdl} mg/dL\n`;
     context += `LDL: ${userData.currentBody.ldl} mg/dL\n`;
     context += `Glucose: ${userData.currentBody.glucose} mg/dL\n`;
-    context += `Last updated: ${userData.currentBody.lastUpdated}\n\n`;
+    context += `Last Updated: ${userData.currentBody.lastUpdated}\n\n`;
   }
   
-  // Add response format instructions
-  context += `RESPONSE FORMAT:
-- Be direct and concise
-- Answer only what was asked
-- Use **bold** for key metrics
-- NO training advice unless specifically requested
-- NO nutrition timing advice unless asked
-- NO recovery protocols unless asked
-- End your response after answering the question
+  if (!hasAnyData) {
+    context += `=== NO RELEVANT DATA AVAILABLE ===\n`;
+    context += `No data found for the requested time period and data type.\n\n`;
+  }
+  
+  context += `RESPONSE INSTRUCTIONS:
+- Answer ONLY using the data provided above
+- If no data is shown, say "No data available for [requested time period]"
+- Be direct and factual
+- Use **bold** for key numbers
+- Do NOT make up any information
+- Do NOT give advice unless specifically requested
 
 `;
   
   return context;
 };
 
-// Session management
-const generateSessionId = () => 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-
-const saveSessionToStorage = (sessionId: string, messages: ChatMessage[]) => {
+// AI Chat functionality
+const chatWithAI = async (message: string, userData: UserData): Promise<string> => {
   try {
-    localStorage.setItem('letsJam_session', sessionId);
-    localStorage.setItem('letsJam_messages', JSON.stringify(messages));
-  } catch (error) {
-    console.error('Failed to save session:', error);
-  }
-};
-
-const loadSessionFromStorage = (): { sessionId: string | null, messages: ChatMessage[] } => {
-  try {
-    const savedSessionId = localStorage.getItem('letsJam_session');
-    const savedMessages = localStorage.getItem('letsJam_messages');
+    console.log('🤖 Sending message to AI:', message);
     
-    if (savedSessionId && savedMessages) {
-      const parsedMessages = JSON.parse(savedMessages);
-      const messagesWithDates = parsedMessages.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      }));
-      return { sessionId: savedSessionId, messages: messagesWithDates };
+    const context = await buildContextForQuery(message, userData);
+    
+    const response = await fetch('/api/ai-chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: context,
+        temperature: 0.1 // Low temperature for factual responses
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI API error: ${response.status}`);
     }
+
+    const data = await response.json();
+    console.log('✅ AI response received');
+    return data.message || data.response || 'Sorry, I couldn\'t process that request.';
   } catch (error) {
-    console.error('Failed to load session:', error);
+    console.error('❌ Error chatting with AI:', error);
+    return 'Sorry, I\'m having trouble connecting to the AI service right now. Please try again later.';
   }
-  
-  return { sessionId: null, messages: [] };
 };
 
-// Smart Health Summary Component
-const SmartHealthSummary: React.FC<{ 
-  userData: UserData | null,
-  onRefresh: () => void,
-  isRefreshing: boolean,
-  loading: boolean
+// Health Summary Component
+const SmartHealthSummary: React.FC<{
+  userData: UserData;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  loading: boolean;
 }> = ({ userData, onRefresh, isRefreshing, loading }) => {
-  
-  const totalRunDistance = userData?.recentRuns.reduce((sum, run) => sum + run.distance, 0) || 0;
-  const avgRunHeartRate = userData?.recentRuns.length > 0 
-    ? Math.round(userData.recentRuns
-        .filter(run => run.average_heartrate)
-        .reduce((sum, run) => sum + (run.average_heartrate || 0), 0) / 
-        userData.recentRuns.filter(run => run.average_heartrate).length) || 0
-    : 0;
-  
-  const recentCalories = userData?.recentNutrition[0]?.totals.calories || 0;
-  const avgDailyCalories = userData?.recentNutrition.length > 0
-    ? Math.round(userData.recentNutrition.reduce((sum, day) => sum + day.totals.calories, 0) / userData.recentNutrition.length)
-    : 0;
-  
+  const hasRunData = userData.recentRuns.length > 0;
+  const hasNutritionData = userData.recentNutrition.length > 0;
+  const hasBodyData = userData.currentBody.weight > 0;
+
+  const PromptSection: React.FC<{
+    title: string;
+    icon: React.ReactNode;
+    prompts: string[];
+    onPromptClick: (prompt: string) => void;
+  }> = ({ title, icon, prompts, onPromptClick }) => (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        {icon}
+        <span>{title}</span>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
+        {prompts.map((prompt, index) => (
+          <Button
+            key={index}
+            variant="outline"
+            size="sm"
+            onClick={() => onPromptClick(prompt)}
+            className="text-xs p-2 h-auto text-left justify-start hover:bg-blue-50 border-blue-200"
+          >
+            {prompt}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-green-500" />
-          Health Overview
+        <h3 className="font-medium text-gray-900 flex items-center gap-2">
+          <Activity className="h-4 w-4" />
+          Quick Actions
         </h3>
-        <Button 
-          onClick={onRefresh}
-          variant="outline"
+        <Button
+          variant="ghost"
           size="sm"
+          onClick={onRefresh}
           disabled={isRefreshing}
-          className="text-xs"
+          className="h-8 w-8 p-0"
         >
-          <RefreshCw className={`h-3 w-3 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
+          <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
-      
-      {/* Status Indicators */}
-      <div className="flex items-center gap-2 mb-4">
-        <Badge variant={userData?.recentRuns.length > 0 ? "default" : "secondary"} className="text-xs">
-          {userData?.recentRuns.length || 0} Recent Runs
-        </Badge>
-        <Badge variant={userData?.recentNutrition.length > 0 ? "default" : "secondary"} className="text-xs">
-          {userData?.recentNutrition.length || 0} Days Nutrition
-        </Badge>
-        <Badge variant={userData?.currentBody ? "default" : "secondary"} className="text-xs">
-          {userData?.currentBody ? 'Body Data Current' : 'No Body Data'}
-        </Badge>
-      </div>
 
-      {/* Current Body Metrics */}
-      {userData?.currentBody && (
-        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Heart className="h-4 w-4 text-purple-600" />
-              <span className="text-xs font-medium text-purple-700">Current Body</span>
-              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                {userData.currentBody.lastUpdated}
-              </Badge>
-            </div>
+      {loading ? (
+        <div className="text-center py-4">
+          <div className="animate-pulse text-sm text-gray-500">Loading your data...</div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <PromptSection
+            title="Running"
+            icon={<Dumbbell className="h-4 w-4 text-green-600" />}
+            prompts={hasRunData ? [
+              'How was my run today?',
+              'Analyze my splits from yesterday',
+              'Show me my heart rate data from my last run',
+              'Was my pacing consistent?',
+              'How many easy vs hard runs this week?'
+            ] : [
+              'Connect Strava to see running prompts'
+            ]}
+            onPromptClick={(prompt) => {
+              const event = new CustomEvent('sendPrompt', { detail: prompt });
+              window.dispatchEvent(event);
+            }}
+          />
+
+          <PromptSection
+            title="Nutrition"
+            icon={<Apple className="h-4 w-4 text-orange-600" />}
+            prompts={hasNutritionData ? [
+              'What did I eat today?',
+              'How many calories did I have yesterday?',
+              'What foods do I eat most often?',
+              'Am I getting enough protein?',
+              'Show me my nutrition from this week'
+            ] : [
+              'No nutrition data available yet'
+            ]}
+            onPromptClick={(prompt) => {
+              const event = new CustomEvent('sendPrompt', { detail: prompt });
+              window.dispatchEvent(event);
+            }}
+          />
+
+          <PromptSection
+            title="General"
+            icon={<Target className="h-4 w-4 text-blue-600" />}
+            prompts={[
+              'How was my week overall?',
+              'Am I making progress?',
+              'What should I focus on?',
+              'Compare today vs yesterday',
+              'Show me my recent activity summary'
+            ]}
+            onPromptClick={(prompt) => {
+              const event = new CustomEvent('sendPrompt', { detail: prompt });
+              window.dispatchEvent(event);
+            }}
+          />
+
+          {/* Quick Stats */}
+          <div className="pt-3 border-t border-gray-200 space-y-2">
+            <h4 className="text-sm font-medium text-gray-700">Quick Stats</h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="text-center p-1 bg-white/60 rounded border">
-                <div className="font-semibold text-purple-800">{userData.currentBody.weight}kg</div>
-                <div className="text-purple-600">Weight</div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Runs this week:</span>
+                <span className="font-medium">{userData.weeklyStats.totalRuns}</span>
               </div>
-              <div className="text-center p-1 bg-white/60 rounded border">
-                <div className="font-semibold text-purple-800">{userData.currentBody.bodyFat}%</div>
-                <div className="text-purple-600">Body Fat</div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total distance:</span>
+                <span className="font-medium">{userData.weeklyStats.totalDistance.toFixed(1)}km</span>
               </div>
-              <div className="text-center p-1 bg-white/60 rounded border">
-                <div className="font-semibold text-purple-800">{userData.currentBody.hdl}</div>
-                <div className="text-purple-600">HDL</div>
-              </div>
-              <div className="text-center p-1 bg-white/60 rounded border">
-                <div className="font-semibold text-purple-800">{userData.currentBody.hba1c}%</div>
-                <div className="text-purple-600">HbA1c</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Key Metrics Grid */}
-      <div className="grid grid-cols-1 gap-3">
-        <Card className="bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Utensils className="h-4 w-4 text-emerald-600" />
-              <span className="text-xs font-medium text-emerald-700">Nutrition</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-lg font-bold text-emerald-800">
-                {loading ? '...' : recentCalories || 'No Data'}
-              </div>
-              <div className="text-xs text-emerald-600">
-                {recentCalories > 0 ? 'calories today' : 'No recent data'}
-              </div>
-              <div className="text-xs text-gray-600">
-                {avgDailyCalories > 0 ? `${avgDailyCalories} avg/day` : 'Start tracking'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-4 w-4 text-blue-600" />
-              <span className="text-xs font-medium text-blue-700">Running</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-lg font-bold text-blue-800">
-                {loading ? '...' : totalRunDistance > 0 ? `${totalRunDistance.toFixed(1)}km` : 'No runs'}
-              </div>
-              <div className="text-xs text-blue-600">
-                {totalRunDistance > 0 ? 'recent distance' : 'Start running!'}
-              </div>
-              <div className="text-xs text-gray-600">
-                {avgRunHeartRate > 0 ? `${avgRunHeartRate} bpm avg` : 'Add heart rate data'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 border-teal-200">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Activity className="h-4 w-4 text-teal-600" />
-              <span className="text-xs font-medium text-teal-700">Activity</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-lg font-bold text-teal-800">
-                {loading ? '...' : userData?.recentRuns.length || '0'}
-              </div>
-              <div className="text-xs text-teal-600">runs this week</div>
-              <div className="text-xs text-gray-600">
-                {userData?.recentRuns.length > 0 ? 'Active week' : 'Get moving!'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Recent Activities */}
-      {userData?.recentRuns && userData.recentRuns.length > 0 && (
-        <Card className="bg-gradient-to-br from-cyan-50 to-blue-50 border-cyan-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-cyan-700 flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Recent Runs ({userData.recentRuns.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="space-y-2">
-              {userData.recentRuns.slice(0, 3).map((run, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-cyan-100 last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-cyan-800 truncate">
-                      {run.name}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-cyan-600">
-                      <span className="bg-cyan-100 px-2 py-0.5 rounded text-cyan-700 font-medium">
-                        {run.run_tag}
-                      </span>
-                      <span>
-                        {new Date(run.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0 ml-2">
-                    <div className="text-sm font-semibold text-blue-600">
-                      {run.distance.toFixed(1)}km
-                    </div>
-                    <div className="text-xs text-cyan-500">
-                      {run.average_heartrate ? `${run.average_heartrate} bpm` : 
-                       run.calories ? `${run.calories} cal` : 'No data'}
-                    </div>
-                  </div>
+              {hasNutritionData && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Avg calories:</span>
+                  <span className="font-medium">{Math.round(userData.weeklyStats.avgCalories)}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Recent Foods */}
-      {userData?.recentNutrition && userData.recentNutrition.length > 0 && (
-        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-green-700 flex items-center gap-2">
-              <Utensils className="h-4 w-4" />
-              Recent Foods
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="space-y-1">
-              {userData.recentNutrition[0]?.entries.slice(0, 3).map((food, index) => (
-                <div key={index} className="flex items-center justify-between text-xs">
-                  <span className="text-green-800 truncate flex-1">{food.foodId}</span>
-                  <span className="text-green-600 ml-2">{Math.round(food.calories * food.quantity)} cal</span>
-                </div>
-              ))}
-              {userData.recentNutrition[0]?.entries.length > 3 && (
-                <div className="text-center mt-2 pt-2 border-t border-green-100">
-                  <span className="text-xs text-green-500">+{userData.recentNutrition[0].entries.length - 3} more items</span>
+              )}
+              {hasBodyData && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Latest weight:</span>
+                  <span className="font-medium">{userData.currentBody.weight}kg</span>
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
-    </div>
-  );
-};
-
-// Smart Prompt Suggestions
-const SmartPromptSuggestions: React.FC<{ 
-  onPromptSelect: (prompt: string) => void,
-  userData: UserData | null
-}> = ({ onPromptSelect, userData }) => {
-  const hasRunData = userData?.recentRuns && userData.recentRuns.length > 0;
-  const hasNutritionData = userData?.recentNutrition && userData.recentNutrition.length > 0;
-  const hasBodyData = userData?.currentBody;
-  
-  const promptCategories = [
-    {
-      title: 'Running Analysis',
-      icon: Activity,
-      color: 'from-blue-100 to-cyan-100 border-blue-300',
-      textColor: 'text-blue-700',
-      iconColor: 'text-blue-600',
-      prompts: hasRunData ? [
-        'How was my run today?',
-        'Analyze my splits from yesterday',
-        'Show me my heart rate data from my last run',
-        'Was my pacing consistent?',
-        'How many easy vs hard runs this week?'
-      ] : [
-        'How do I start a running routine?',
-        'What pace should I run at?',
-        'Help me understand heart rate training',
-        'What are different types of runs?'
-      ]
-    },
-    {
-      title: 'Nutrition & Food',
-      icon: Utensils,
-      color: 'from-green-100 to-emerald-100 border-green-300',
-      textColor: 'text-green-700',
-      iconColor: 'text-green-600',
-      prompts: hasNutritionData ? [
-        'What did I eat today?',
-        'How many calories did I have yesterday?',
-        'What foods do I eat most often?',
-        'Am I getting enough protein?',
-        'Show me my nutrition from this week'
-      ] : [
-        'Help me plan a healthy meal',
-        'What foods are good for runners?',
-        'How much protein do I need?',
-        'What should I eat for breakfast?'
-      ]
-    },
-    {
-      title: 'Body & Health',
-      icon: Heart,
-      color: 'from-purple-100 to-pink-100 border-purple-300',
-      textColor: 'text-purple-700',
-      iconColor: 'text-purple-600',
-      prompts: hasBodyData ? [
-        'How are my health markers trending?',
-        'Is my current weight healthy for running?',
-        'What do my blood test results mean?',
-        'How can I improve my body composition?'
-      ] : [
-        'What health metrics should I track?',
-        'How often should I check my weight?',
-        'What blood tests are important?',
-        'How do I improve my fitness?'
-      ]
-    },
-    {
-      title: 'Time-Based Questions',
-      icon: Clock,
-      color: 'from-teal-100 to-cyan-100 border-teal-300',
-      textColor: 'text-teal-700',
-      iconColor: 'text-teal-600',
-      prompts: [
-        'How was my week overall?',
-        'Am I making progress?',
-        'What should I focus on?',
-        'Compare today vs yesterday',
-        'Show me my recent activity summary'
-      ]
-    }
-  ];
-
-  return (
-    <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-        <MessageSquare className="h-4 w-4" />
-        Ask About Your Health Data
-        {hasRunData && (
-          <Badge variant="outline" className="text-xs">
-            Run Data Ready
-          </Badge>
-        )}
-        {hasNutritionData && (
-          <Badge variant="outline" className="text-xs">
-            Nutrition Tracked
-          </Badge>
-        )}
-        {hasBodyData && (
-          <Badge variant="outline" className="text-xs">
-            Body Metrics Current
-          </Badge>
-        )}
-      </h4>
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
-        {promptCategories.map((category, categoryIndex) => (
-          <Card key={categoryIndex} className={`bg-gradient-to-br ${category.color} cursor-pointer hover:shadow-md transition-all duration-200`}>
-            <CardHeader className="pb-2">
-              <CardTitle className={`text-sm font-medium ${category.textColor} flex items-center gap-2`}>
-                <category.icon className={`h-4 w-4 ${category.iconColor}`} />
-                {category.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="space-y-1">
-                {category.prompts.map((prompt, promptIndex) => (
-                  <button
-                    key={promptIndex}
-                    onClick={() => onPromptSelect(prompt)}
-                    className={`w-full text-left text-xs p-2 bg-white/60 hover:bg-white/90 rounded border transition-all duration-150 ${category.textColor} hover:text-gray-900`}
-                  >
-                    "{prompt}"
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 };
 
 // Message Content Component
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
+  // Convert **text** to bold
   const formatContent = (text: string) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br>');
+    return text.split(/(\*\*.*?\*\*)/).map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
   };
 
   return (
-    <div 
-      className="text-sm whitespace-pre-wrap leading-relaxed"
-      dangerouslySetInnerHTML={{ __html: formatContent(content) }}
-    />
+    <div className="whitespace-pre-wrap">
+      {formatContent(content)}
+    </div>
   );
 };
 
-// Main Component
+// Main component
 const LetsJam: React.FC = () => {
-  const [userData, setUserData] = useState<UserData | null>(null);
+  // Configuration
+  const userId = "testUser123"; // You can make this dynamic later
+  
+  // State management
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [userData, setUserData] = useState<UserData>({
+    recentRuns: [],
+    recentNutrition: [],
+    currentBody: {
+      weight: 0, bodyFat: 0, leanMass: 0, hdl: 0, ldl: 0, 
+      glucose: 0, hba1c: 0, vitaminD: 0, lastUpdated: ''
+    },
+    weeklyStats: { totalDistance: 0, totalRuns: 0, avgPace: 0, avgCalories: 0 }
+  });
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Chat state
-  const initializeSession = () => {
-    const { sessionId: savedSessionId, messages: savedMessages } = loadSessionFromStorage();
-    
-    if (savedSessionId && savedMessages.length > 0) {
-      return { sessionId: savedSessionId, messages: savedMessages };
-    } else {
-      const newSessionId = generateSessionId();
-      const welcomeMessages = [{
-        role: 'assistant' as const,
-        content: 'Hi! I\'m your AI health coach with access to your real running data, nutrition logs, and body metrics. I can analyze your performance, suggest foods based on what you eat, and help with your health goals. What would you like to know?',
-        timestamp: new Date()
-      }];
-      
-      saveSessionToStorage(newSessionId, welcomeMessages);
-      return { sessionId: newSessionId, messages: welcomeMessages };
-    }
-  };
-  
-  const initialSession = initializeSession();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialSession.messages);
-  const [sessionId, setSessionId] = useState<string>(initialSession.sessionId);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  
+
   // Auto-scroll to latest AI message start
   const scrollToLatestAIMessage = () => {
     // Find the last AI message element
@@ -1123,13 +927,6 @@ const LetsJam: React.FC = () => {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  
-  // Save messages to storage
-  useEffect(() => {
-    if (messages.length > 0) {
-      saveSessionToStorage(sessionId, messages);
-    }
-  }, [messages, sessionId]);
 
   // Auto-scroll behavior
   useEffect(() => {
@@ -1206,77 +1003,35 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  // Send message to AI with smart context and dynamic data fetching
-  const sendMessageToAI = async (messageContent: string) => {
-    try {
-      // Extract time range from user query
-      const timeRange = extractTimeRange(messageContent);
-      console.log(`🎯 Detected time range: ${timeRange.label} (${timeRange.days} days)`);
-      
-      // Determine what data types are needed
-      const needsRunData = /\b(run|running|pace|km|tempo|easy|interval|split|heart rate|hr|bpm)\b/i.test(messageContent);
-      const needsNutritionData = /\b(food|eat|nutrition|calorie|protein|carb|meal|diet)\b/i.test(messageContent);
-      const needsBodyData = /\b(body|weight|fat|composition|muscle|hdl|ldl|glucose|blood)\b/i.test(messageContent);
-      
-      // Fetch only the data we need for this specific time range
-      const [dynamicRunData, dynamicNutritionData] = await Promise.all([
-        needsRunData ? fetchRecentRuns(timeRange.days) : Promise.resolve([]),
-        needsNutritionData ? fetchRecentNutrition(timeRange.days) : Promise.resolve([])
-      ]);
-      
-      // Build context with fresh, targeted data
-      const context = await buildContextForQuery(messageContent, {
-        recentRuns: dynamicRunData,
-        recentNutrition: dynamicNutritionData,
-        currentBody: needsBodyData ? userData?.currentBody || null : null,
-        weeklyStats: userData?.weeklyStats || { totalDistance: 0, totalRuns: 0, avgPace: 0, avgCalories: 0 }
-      });
-      
-      const conversationMessages = [
-        { role: "system", content: context },
-        ...messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        { role: "user", content: messageContent }
-      ];
+  // Handle sending messages
+  const handleSendMessage = async (message: string = inputMessage) => {
+    if (!message.trim()) return;
 
-      console.log(`📤 Sending message with dynamic context (${timeRange.label})`);
+    const userMessage: Message = {
+      role: 'user',
+      content: message.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsTyping(true);
+
+    try {
+      const aiResponse = await chatWithAI(message.trim(), userData);
       
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          source: "improved_letsjam_v3",
-          messages: conversationMessages,
-          sessionId: sessionId
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const assistantContent = data.choices?.[0]?.message?.content || 
-                              data.response || 
-                              data.message || 
-                              'Sorry, I could not process that request.';
-      
-      const assistantMessage: ChatMessage = {
+      const assistantMessage: Message = {
         role: 'assistant',
-        content: assistantContent,
+        content: aiResponse,
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
-      
     } catch (error) {
       console.error('❌ Error getting AI response:', error);
-      const errorMessage: ChatMessage = {
+      const errorMessage: Message = {
         role: 'assistant',
-        content: 'Sorry, I\'m having trouble connecting right now. Please try again in a moment.',
+        content: 'Sorry, I encountered an error while processing your request. Please try again.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -1285,42 +1040,24 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isTyping) return;
-    
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date()
+  // Listen for prompt events from sidebar
+  useEffect(() => {
+    const handlePromptEvent = (event: CustomEvent) => {
+      handleSendMessage(event.detail);
     };
-    
-    setMessages(prev => [...prev, userMessage]);
-    const messageContent = input.trim();
-    setInput('');
-    setIsTyping(true);
-    
-    await sendMessageToAI(messageContent);
-  };
 
-  const handlePromptSelect = (prompt: string) => {
-    setInput(prompt);
-    setTimeout(() => {
-      if (!isTyping) {
-        const userMessage: ChatMessage = {
-          role: 'user',
-          content: prompt,
-          timestamp: new Date()
-        };
-        
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
-        setIsTyping(true);
-        
-        sendMessageToAI(prompt);
-      }
-    }, 100);
-  };
-  
+    window.addEventListener('sendPrompt', handlePromptEvent as EventListener);
+    return () => {
+      window.removeEventListener('sendPrompt', handlePromptEvent as EventListener);
+    };
+  }, [userData]);
+
+  // Initial data load
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  // Handle Enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1328,114 +1065,67 @@ const LetsJam: React.FC = () => {
     }
   };
 
-  const startNewSession = () => {
-    const newSessionId = generateSessionId();
-    const welcomeMessages = [{
-      role: 'assistant' as const,
-      content: 'Hi! I\'m your AI health coach with access to your real data. I can analyze your running performance, suggest foods based on what you eat, and answer health questions. What would you like to explore?',
-      timestamp: new Date()
-    }];
-    
-    setSessionId(newSessionId);
-    setMessages(welcomeMessages);
-    setInput('');
-    setIsTyping(false);
-    
-    localStorage.removeItem('letsJam_session');
-    localStorage.removeItem('letsJam_messages');
-    saveSessionToStorage(newSessionId, welcomeMessages);
-  };
-
-  // Load data on mount
-  useEffect(() => {
-    fetchUserData(false);
-  }, []);
-  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-      
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50">
       {/* Header */}
-      <header className="relative z-10 pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" className="hover:bg-white/20">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-        </div>
-        
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
-            🤖 LetsJam
-          </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            AI health coach with real data analysis
-          </p>
-          <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
-            <Badge variant="secondary" className="text-xs">
-              Real Firestore Data
-            </Badge>
-            <Badge variant="secondary" className="text-xs">
-              Session: {sessionId.slice(-8)}
-            </Badge>
-            <Badge variant={userData?.recentRuns.length > 0 ? "default" : "secondary"} className="text-xs">
-              {userData?.recentRuns.length || 0} Runs
-            </Badge>
-            <Badge variant={userData?.recentNutrition.length > 0 ? "default" : "secondary"} className="text-xs">
-              {userData?.recentNutrition.length || 0} Days Nutrition
-            </Badge>
-            <Badge variant={userData?.currentBody ? "default" : "secondary"} className="text-xs">
-              {userData?.currentBody ? 'Body Data' : 'No Body Data'}
-            </Badge>
+      <div className="border-b border-white/20 bg-white/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Zap className="h-8 w-8 text-blue-600" />
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">LetsJam</h1>
+                <p className="text-sm text-gray-600">AI Health Coach</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+                <MessageCircle className="h-4 w-4" />
+                <span>Ask me about your health data</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span>AI health coach with validated real data only</span>
+            <span className="hidden md:inline">•</span>
+            <span>Smart scrolling to AI responses</span>
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+              Validated Data Only
+            </span>
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+              Auto-Scroll to AI Response
+            </span>
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+              Dynamic Chat Expansion
+            </span>
           </div>
         </div>
-      </header>
-      
-      {/* Main content */}
-      <main className="relative z-10 px-6 md:px-12 py-8">
+      </div>
+
+      <div className="max-w-7xl mx-auto p-4">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
             
             {/* Left Column - Chat Interface (Expandable) */}
             <div className="xl:col-span-4 space-y-4">
               
-              {/* Smart Prompt Suggestions */}
-              <SmartPromptSuggestions 
-                onPromptSelect={handlePromptSelect}
-                userData={userData}
-              />
-              
-              {/* Chat Container */}
-              <Card className="bg-white/80 backdrop-blur-sm border border-white/20">
-                <CardHeader className="border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                      <Bot className="h-5 w-5 text-green-500" />
-                      AI Health Coach
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Smart Context
-                      </Badge>
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        Session: {sessionId.slice(-8)}
-                      </Badge>
-                      <Button
-                        onClick={startNewSession}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        disabled={isTyping}
-                      >
-                        <Bot className="h-3 w-3 mr-1" />
-                        New Session
-                      </Button>
-                    </div>
-                  </div>
+              {/* Chat Interface */}
+              <Card className="bg-white/90 backdrop-blur-sm border border-white/20 shadow-lg">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Bot className="h-5 w-5 text-blue-600" />
+                    Health Coach Chat
+                    <Badge variant="secondary" className="ml-auto">
+                      {userData.recentRuns.length} runs • {userData.recentNutrition.length} days nutrition
+                    </Badge>
+                  </CardTitle>
                 </CardHeader>
+                
                 <CardContent className="p-0">
                   <div 
                     ref={messagesContainerRef}
@@ -1484,41 +1174,31 @@ const LetsJam: React.FC = () => {
                     
                     <div ref={messagesEndRef} />
                   </div>
-                  
-                  {/* Input Area */}
-                  <div className="border-t border-gray-100 p-4">
-                    <div className="flex gap-3">
-                      <Input
-                        placeholder="Ask about your runs, nutrition, body metrics, or health goals..."
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        className="flex-1 border-gray-200 focus:border-green-400"
-                        disabled={isTyping}
-                      />
-                      <Button
-                        onClick={handleSendMessage}
-                        disabled={!input.trim() || isTyping}
-                        className="bg-green-500 hover:bg-green-600 text-white"
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    
-                    <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
-                      <span>{messages.length} messages in this session</span>
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${userData ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
-                          {userData ? 'Data loaded' : 'Loading data...'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
+                
+                {/* Input Section */}
+                <div className="p-4 border-t border-gray-200 bg-gray-50/50">
+                  <div className="flex gap-2">
+                    <Input
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask about your runs, nutrition, or health data..."
+                      className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                      disabled={isTyping}
+                    />
+                    <Button 
+                      onClick={() => handleSendMessage()}
+                      disabled={!inputMessage.trim() || isTyping}
+                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </Card>
             </div>
-            
+
             {/* Right Column - Health Summary (Compact) */}
             <div className="xl:col-span-1">
               <Card className="bg-white/80 backdrop-blur-sm border border-white/20 sticky top-6">
@@ -1532,35 +1212,10 @@ const LetsJam: React.FC = () => {
                 </CardContent>
               </Card>
             </div>
+            
           </div>
         </div>
-      </main>
-      
-      {/* Footer */}
-      <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4">
-            <span>AI health coach with validated real data only</span>
-            <span className="hidden md:inline">•</span>
-            <span>Smart scrolling to AI responses</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-              Validated Data Only
-            </span>
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-              Auto-Scroll to AI Response
-            </span>
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
-              Dynamic Chat Expansion
-            </span>
-            <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${userData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-              <span className="text-xs">{userData ? 'Data Ready' : 'Loading Data'}</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 };
