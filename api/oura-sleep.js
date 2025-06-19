@@ -1,63 +1,9 @@
-// /api/oura-sleep.js
-const OURA_API_BASE = 'https://api.ouraring.com/v2/usercollection';
-const OURA_ACCESS_TOKEN = '5YE626QELLKRDLY45QJXLEUIWTWGQJIH'; // Your token
+// /api/oura-sleep.js - Complete implementation like your strava.js pattern
+import { db } from '../src/lib/firebaseConfig'; // Use your existing Firebase path
+import { collection, doc, setDoc, getDocs, getDoc, query, where, orderBy, limit } from 'firebase/firestore';
 
-export default async function handler(req, res) {
-  const { userId = 'mihir_jain', mode = 'cached', days = 7 } = req.query;
-  
-  try {
-    // Cache-first approach
-    if (mode === 'cached') {
-      const cachedData = await getCachedSleepData(userId, days);
-      if (cachedData && cachedData.length > 0) {
-        console.log(`📊 Serving cached sleep data: ${cachedData.length} days`);
-        res.setHeader('X-Data-Source', 'cache');
-        res.setHeader('X-API-Calls', '0');
-        return res.status(200).json(cachedData);
-      }
-      
-      // No cache, recommend refresh
-      return res.status(404).json({
-        message: 'No cached sleep data available',
-        recommendRefresh: true
-      });
-    }
-    
-    // Fresh data from Oura API
-    if (mode === 'refresh') {
-      console.log(`🔄 Fetching fresh sleep data from Oura API`);
-      
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - parseInt(days));
-      const startDateStr = startDate.toISOString().split('T')[0];
-      
-      // Fetch both sleep and readiness data in parallel
-      const [sleepData, readinessData] = await Promise.all([
-        fetchOuraSleepData(startDateStr, endDate),
-        fetchOuraReadinessData(startDateStr, endDate)
-      ]);
-      
-      // Combine data by date
-      const combinedData = combineSleepAndReadinessData(sleepData, readinessData);
-      
-      // Save to cache
-      await saveSleepDataToCache(userId, combinedData);
-      
-      res.setHeader('X-Data-Source', 'oura-api');
-      res.setHeader('X-API-Calls', '2'); // Sleep + Readiness calls
-      
-      return res.status(200).json(combinedData);
-    }
-    
-  } catch (error) {
-    console.error('❌ Error in oura-sleep API:', error);
-    return res.status(500).json({ 
-      message: 'Failed to fetch sleep data',
-      error: error.message 
-    });
-  }
-}
+const OURA_API_BASE = 'https://api.ouraring.com/v2/usercollection';
+const OURA_ACCESS_TOKEN = '5YE626QELLKRDLY45QJXLEUIWTWGQJIH';
 
 // Fetch sleep data from Oura API
 async function fetchOuraSleepData(startDate, endDate) {
@@ -110,13 +56,13 @@ function combineSleepAndReadinessData(sleepData, readinessData) {
       sleep: {
         id: sleep.id,
         sleep_score: sleep.score,
-        total_sleep_duration: sleep.contributors?.total_sleep * 60 || 0, // Convert to seconds
-        deep_sleep_duration: sleep.contributors?.deep_sleep * 60 || 0,
-        light_sleep_duration: sleep.contributors?.light_sleep * 60 || 0,
-        rem_sleep_duration: sleep.contributors?.rem_sleep * 60 || 0,
-        awake_time: sleep.contributors?.awake_time * 60 || 0,
+        total_sleep_duration: (sleep.contributors?.total_sleep || 0) * 60, // Convert to seconds
+        deep_sleep_duration: (sleep.contributors?.deep_sleep || 0) * 60,
+        light_sleep_duration: (sleep.contributors?.light_sleep || 0) * 60,
+        rem_sleep_duration: (sleep.contributors?.rem_sleep || 0) * 60,
+        awake_time: (sleep.contributors?.awake_time || 0) * 60,
         sleep_efficiency: sleep.contributors?.efficiency || 0,
-        sleep_latency: sleep.contributors?.latency * 60 || 0,
+        sleep_latency: (sleep.contributors?.latency || 0) * 60,
         bedtime_start: sleep.contributors?.bedtime_start || null,
         bedtime_end: sleep.contributors?.bedtime_end || null,
         average_heart_rate: sleep.contributors?.average_heart_rate || null,
@@ -154,4 +100,122 @@ function combineSleepAndReadinessData(sleepData, readinessData) {
   return Array.from(combinedByDate.values()).sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+}
+
+// Get cached sleep data from Firestore
+async function getCachedSleepData(userId, days) {
+  try {
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - days);
+    const cutoffDate = daysAgo.toISOString().split('T')[0];
+    
+    const q = query(
+      collection(db, 'oura_sleep_data'),
+      where('userId', '==', userId),
+      where('date', '>=', cutoffDate),
+      orderBy('date', 'desc'),
+      limit(days)
+    );
+    
+    const snapshot = await getDocs(q);
+    const data = [];
+    
+    snapshot.forEach(doc => {
+      const docData = doc.data();
+      data.push({
+        date: docData.date,
+        sleep: docData.sleep || null,
+        readiness: docData.readiness || null
+      });
+    });
+    
+    console.log(`📦 Retrieved ${data.length} days of cached sleep data`);
+    return data;
+  } catch (error) {
+    console.error('❌ Error fetching cached sleep data:', error);
+    return [];
+  }
+}
+
+// Save sleep data to Firestore cache
+async function saveSleepDataToCache(userId, combinedData) {
+  try {
+    const batch = [];
+    
+    for (const dayData of combinedData) {
+      const docRef = doc(db, 'oura_sleep_data', `${userId}_${dayData.date}`);
+      batch.push(
+        setDoc(docRef, {
+          userId,
+          date: dayData.date,
+          sleep: dayData.sleep,
+          readiness: dayData.readiness,
+          synced_at: new Date().toISOString()
+        }, { merge: true })
+      );
+    }
+    
+    await Promise.all(batch);
+    console.log(`✅ Saved ${combinedData.length} days of sleep data to cache`);
+  } catch (error) {
+    console.error('❌ Error saving sleep data to cache:', error);
+  }
+}
+
+// Main API handler
+export default async function handler(req, res) {
+  const { userId = 'mihir_jain', mode = 'cached', days = 7 } = req.query;
+  
+  try {
+    // Cache-first approach (just like strava.js)
+    if (mode === 'cached') {
+      const cachedData = await getCachedSleepData(userId, days);
+      if (cachedData && cachedData.length > 0) {
+        console.log(`📊 Serving cached sleep data: ${cachedData.length} days`);
+        res.setHeader('X-Data-Source', 'cache');
+        res.setHeader('X-API-Calls', '0');
+        return res.status(200).json(cachedData);
+      }
+      
+      // No cache, recommend refresh
+      return res.status(404).json({
+        message: 'No cached sleep data available',
+        recommendRefresh: true
+      });
+    }
+    
+    // Fresh data from Oura API (just like strava.js refresh mode)
+    if (mode === 'refresh') {
+      console.log(`🔄 Fetching fresh sleep data from Oura API`);
+      
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - parseInt(days));
+      const startDateStr = startDate.toISOString().split('T')[0];
+      
+      // Fetch both sleep and readiness data in parallel
+      const [sleepData, readinessData] = await Promise.all([
+        fetchOuraSleepData(startDateStr, endDate),
+        fetchOuraReadinessData(startDateStr, endDate)
+      ]);
+      
+      // Combine data by date
+      const combinedData = combineSleepAndReadinessData(sleepData, readinessData);
+      
+      // Save to cache
+      await saveSleepDataToCache(userId, combinedData);
+      
+      res.setHeader('X-Data-Source', 'oura-api');
+      res.setHeader('X-API-Calls', '2'); // Sleep + Readiness calls
+      
+      return res.status(200).json(combinedData);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error in oura-sleep API:', error);
+    return res.status(500).json({ 
+      message: 'Failed to fetch sleep data',
+      error: error.message 
+    });
+  }
 }
