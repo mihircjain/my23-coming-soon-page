@@ -236,8 +236,7 @@ const EmailAndFeedbackCard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showFeedbackFields, setShowFeedbackFields] = useState(false);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEmailSubmit = () => {
     if (!email || !email.includes('@')) {
       alert('Please enter a valid email address');
       return;
@@ -344,18 +343,26 @@ const EmailAndFeedbackCard: React.FC = () => {
   );
 };
 
-// Health Overview Component with Weekly Goals - Updated colors
+// FIXED: Health Overview Component with REAL API Data (not fake data)
 const HealthOverviewCard: React.FC = () => {
   const [healthData, setHealthData] = useState<HealthData[]>([]);
   const [bloodMarkers, setBloodMarkers] = useState<BloodMarkerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [last7DaysData, setLast7DaysData] = useState<Record<string, HealthData>>({});
 
-  const fetchHealthData = () => {
-    // Simulate fetching health data
-    setTimeout(() => {
+  // FIXED: Real data fetching instead of fake random data
+  const fetchHealthData = async () => {
+    console.log('🔄 Fetching REAL health data from APIs...');
+    setLoading(true);
+    
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const dateString = sevenDaysAgo.toISOString().split('T')[0];
+
       const tempData: Record<string, HealthData> = {};
       
+      // Initialize 7 days of data
       for (let i = 0; i < 7; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
@@ -363,26 +370,114 @@ const HealthOverviewCard: React.FC = () => {
         
         tempData[dateStr] = {
           date: dateStr,
-          heartRate: Math.floor(Math.random() * 40) + 60,
-          caloriesBurned: Math.floor(Math.random() * 800) + 200,
-          caloriesConsumed: Math.floor(Math.random() * 1000) + 1500,
-          protein: Math.floor(Math.random() * 100) + 100,
-          carbs: Math.floor(Math.random() * 200) + 150,
-          fat: Math.floor(Math.random() * 80) + 50,
-          fiber: Math.floor(Math.random() * 30) + 15,
-          workoutDuration: Math.floor(Math.random() * 90) + 30,
-          activityTypes: ['Running', 'Cycling'][Math.floor(Math.random() * 2)] ? ['Running'] : ['Cycling']
+          heartRate: null,
+          caloriesBurned: 0,
+          caloriesConsumed: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+          workoutDuration: 0,
+          activityTypes: []
         };
       }
 
+      // 1. Fetch nutrition data from your real API
+      try {
+        console.log('📊 Fetching nutrition data...');
+        const nutritionResponse = await fetch(`/api/nutrition-logs?date=${dateString}`);
+        if (nutritionResponse.ok) {
+          const nutritionData = await nutritionResponse.json();
+          console.log(`✅ Got ${nutritionData.length} nutrition logs`);
+          
+          nutritionData.forEach((log: any) => {
+            if (tempData[log.date]) {
+              tempData[log.date].caloriesConsumed = log.totals?.calories || 0;
+              tempData[log.date].protein = log.totals?.protein || 0;
+              tempData[log.date].carbs = log.totals?.carbs || 0;
+              tempData[log.date].fat = log.totals?.fat || 0;
+              tempData[log.date].fiber = log.totals?.fiber || 0;
+            }
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error fetching nutrition data:', error);
+      }
+
+      // 2. Fetch Strava activity data from your real API
+      try {
+        console.log('🏃 Fetching Strava data...');
+        const stravaResponse = await fetch(`/api/strava?userId=mihir_jain&mode=cached&days=7`);
+        if (stravaResponse.ok) {
+          const stravaData = await stravaResponse.json();
+          console.log(`✅ Got ${stravaData.length} Strava activities`);
+          
+          stravaData.forEach((activity: any) => {
+            const activityDate = activity.date || (activity.start_date ? activity.start_date.substring(0, 10) : undefined);
+            
+            if (!activityDate || !tempData[activityDate]) return;
+
+            // Add heart rate data
+            if (activity.heart_rate != null || activity.average_heartrate != null) {
+              const hr = activity.heart_rate || activity.average_heartrate;
+              const curHR = tempData[activityDate].heartRate || 0;
+              const cnt = tempData[activityDate].activityTypes.length;
+              tempData[activityDate].heartRate = cnt === 0 ? hr : ((curHR * cnt) + hr) / (cnt + 1);
+            }
+
+            // Add calories burned from Strava
+            const activityCalories = activity.calories || 0;
+            tempData[activityDate].caloriesBurned += activityCalories;
+            
+            // Add workout duration
+            tempData[activityDate].workoutDuration += activity.duration || activity.moving_time || 0;
+
+            // Add activity types
+            if (activity.type && !tempData[activityDate].activityTypes.includes(activity.type)) {
+              tempData[activityDate].activityTypes.push(activity.type);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error fetching Strava data:', error);
+      }
+
+      // 3. Fetch blood markers from your real API
+      try {
+        console.log('🩸 Fetching blood markers...');
+        const bloodResponse = await fetch('/api/blood-markers?userId=mihir_jain&limit=1');
+        if (bloodResponse.ok) {
+          const bloodData = await bloodResponse.json();
+          if (bloodData.length > 0) {
+            console.log('✅ Got blood markers');
+            setBloodMarkers(bloodData[0]);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error fetching blood markers:', error);
+      }
+
+      // Convert to sorted array
       const sortedData = Object.values(tempData).sort((a, b) =>
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
 
+      console.log('📊 Health data processing complete:', {
+        totalDays: sortedData.length,
+        daysWithCaloriesBurned: sortedData.filter(d => d.caloriesBurned > 0).length,
+        daysWithNutrition: sortedData.filter(d => d.caloriesConsumed > 0).length,
+        totalCaloriesBurned: sortedData.reduce((sum, d) => sum + d.caloriesBurned, 0),
+        totalProtein: sortedData.reduce((sum, d) => sum + d.protein, 0)
+      });
+
       setHealthData(sortedData);
       setLast7DaysData(tempData);
+      
+    } catch (error) {
+      console.error('❌ Error fetching health data:', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   useEffect(() => {
@@ -652,7 +747,7 @@ const Index = () => {
 
         {/* Interactive Cards Grid - Updated layout with new order */}
         <div className="space-y-8 mb-12">
-          {/* 1. Health Overview - Full width */}
+          {/* 1. Health Overview - Full width - FIXED with real data */}
           <HealthOverviewCard />
           
           {/* 2. AI Chat Bot - Full width alone */}
