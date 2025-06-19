@@ -1,9 +1,21 @@
-// /api/oura-sleep.js - Complete implementation like your strava.js pattern
-import { db } from '../src/lib/firebaseConfig'; // Use your existing Firebase path
-import { collection, doc, setDoc, getDocs, getDoc, query, where, orderBy, limit } from 'firebase/firestore';
+// /api/oura-sleep.js - Updated to use Firebase Admin SDK like strava.js
+import admin from 'firebase-admin';
+
+// Initialize Firebase Admin (same as strava.js)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+  });
+}
+
+const db = admin.firestore();
 
 const OURA_API_BASE = 'https://api.ouraring.com/v2/usercollection';
-const OURA_ACCESS_TOKEN = '5YE626QELLKRDLY45QJXLEUIWTWGQJIH';
+const OURA_ACCESS_TOKEN = process.env.OURA_ACCESS_TOKEN || '5YE626QELLKRDLY45QJXLEUIWTWGQJIH';
 
 // Fetch sleep data from Oura API
 async function fetchOuraSleepData(startDate, endDate) {
@@ -56,7 +68,7 @@ function combineSleepAndReadinessData(sleepData, readinessData) {
       sleep: {
         id: sleep.id,
         sleep_score: sleep.score,
-        total_sleep_duration: (sleep.contributors?.total_sleep || 0) * 60, // Convert to seconds
+        total_sleep_duration: (sleep.contributors?.total_sleep || 0) * 60,
         deep_sleep_duration: (sleep.contributors?.deep_sleep || 0) * 60,
         light_sleep_duration: (sleep.contributors?.light_sleep || 0) * 60,
         rem_sleep_duration: (sleep.contributors?.rem_sleep || 0) * 60,
@@ -102,25 +114,23 @@ function combineSleepAndReadinessData(sleepData, readinessData) {
   );
 }
 
-// Get cached sleep data from Firestore
+// Get cached sleep data from Firestore (using Admin SDK)
 async function getCachedSleepData(userId, days) {
   try {
     const daysAgo = new Date();
     daysAgo.setDate(daysAgo.getDate() - days);
     const cutoffDate = daysAgo.toISOString().split('T')[0];
     
-    const q = query(
-      collection(db, 'oura_sleep_data'),
-      where('userId', '==', userId),
-      where('date', '>=', cutoffDate),
-      orderBy('date', 'desc'),
-      limit(days)
-    );
+    const snapshot = await db
+      .collection('oura_sleep_data')
+      .where('userId', '==', userId)
+      .where('date', '>=', cutoffDate)
+      .orderBy('date', 'desc')
+      .limit(days)
+      .get();
     
-    const snapshot = await getDocs(q);
     const data = [];
-    
-    snapshot.forEach(doc => {
+    snapshot.docs.forEach(doc => {
       const docData = doc.data();
       data.push({
         date: docData.date,
@@ -137,37 +147,35 @@ async function getCachedSleepData(userId, days) {
   }
 }
 
-// Save sleep data to Firestore cache
+// Save sleep data to Firestore cache (using Admin SDK)
 async function saveSleepDataToCache(userId, combinedData) {
   try {
-    const batch = [];
+    const batch = db.batch();
     
     for (const dayData of combinedData) {
-      const docRef = doc(db, 'oura_sleep_data', `${userId}_${dayData.date}`);
-      batch.push(
-        setDoc(docRef, {
-          userId,
-          date: dayData.date,
-          sleep: dayData.sleep,
-          readiness: dayData.readiness,
-          synced_at: new Date().toISOString()
-        }, { merge: true })
-      );
+      const docRef = db.collection('oura_sleep_data').doc(`${userId}_${dayData.date}`);
+      batch.set(docRef, {
+        userId,
+        date: dayData.date,
+        sleep: dayData.sleep,
+        readiness: dayData.readiness,
+        synced_at: new Date().toISOString()
+      }, { merge: true });
     }
     
-    await Promise.all(batch);
+    await batch.commit();
     console.log(`✅ Saved ${combinedData.length} days of sleep data to cache`);
   } catch (error) {
     console.error('❌ Error saving sleep data to cache:', error);
   }
 }
 
-// Main API handler
+// Main API handler (same pattern as strava.js)
 export default async function handler(req, res) {
   const { userId = 'mihir_jain', mode = 'cached', days = 7 } = req.query;
   
   try {
-    // Cache-first approach (just like strava.js)
+    // Cache-first approach (same as strava.js)
     if (mode === 'cached') {
       const cachedData = await getCachedSleepData(userId, days);
       if (cachedData && cachedData.length > 0) {
@@ -184,7 +192,7 @@ export default async function handler(req, res) {
       });
     }
     
-    // Fresh data from Oura API (just like strava.js refresh mode)
+    // Fresh data from Oura API (same pattern as strava.js)
     if (mode === 'refresh') {
       console.log(`🔄 Fetching fresh sleep data from Oura API`);
       
