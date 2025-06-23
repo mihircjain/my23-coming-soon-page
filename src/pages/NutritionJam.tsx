@@ -138,6 +138,46 @@ const safeCalculateTotals = (entries) => {
   }
 };
 
+// Daily meal plans for each day of the week
+const dailyMealPlans = [
+  {
+    id: 1,
+    day: "Monday",
+    meals: ["Morning Smoothie", "Evening Smoothie", "Bhindi Dal Roti", "Paneer Chilla"],
+    description: "High protein day with smoothies and traditional Indian meals"
+  },
+  {
+    id: 2,
+    day: "Tuesday", 
+    meals: ["Morning Smoothie", "Evening Smoothie", "Matar Paneer", "Dosa Sambhar"],
+    description: "Balanced day with smoothies and South Indian cuisine"
+  },
+  {
+    id: 3,
+    day: "Wednesday",
+    meals: ["Morning Smoothie", "Evening Smoothie", "Low Fat Paneer Paratha", "Dal Rice"],
+    description: "Protein-rich day with paratha and dal rice"
+  },
+  {
+    id: 4,
+    day: "Thursday",
+    meals: ["Morning Smoothie", "Evening Smoothie", "Bhaji of Pav Bhaji", "100% Whole Wheat Bread (2 servings)"],
+    description: "Street food inspired day with nutritious options"
+  },
+  {
+    id: 5,
+    day: "Friday",
+    meals: ["Morning Smoothie", "Evening Smoothie", "Paneer Pasta", "Aloo Beans Dal Roti"],
+    description: "Fusion day with Italian and Indian flavors"
+  },
+  {
+    id: 6,
+    day: "Saturday",
+    meals: ["Morning Smoothie", "Evening Smoothie", "Low Fat Paneer Paratha", "Bread Pizza"],
+    description: "Weekend indulgence with healthy twists"
+  }
+];
+
 // Multi-line Chart Component for 7-day nutrition data with weekly averages
 const MultiLineNutritionChart = ({ last7DaysData }) => {
   // Calculate weekly averages
@@ -588,6 +628,131 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
   );
 };
 
+// Daily Meal Plan Card Component
+const DailyMealPlanCard = ({ dailyPlan, mealPresets, onClick }) => {
+  // Find all the meal presets for this day
+  const dayMeals = dailyPlan.meals.map(mealName => 
+    mealPresets.find(preset => preset.name === mealName)
+  ).filter(Boolean);
+
+  // Calculate total nutrition for the entire day
+  const dayTotals = dayMeals.reduce((totals, meal) => {
+    const mealCalories = meal.foods?.reduce((sum, food) => 
+      sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
+    const mealProtein = meal.foods?.reduce((sum, food) => 
+      sum + (food.protein || 0) * (food.quantity || 1), 0) || 0;
+    const mealCarbs = meal.foods?.reduce((sum, food) => 
+      sum + (food.carbs || 0) * (food.quantity || 1), 0) || 0;
+    const mealFat = meal.foods?.reduce((sum, food) => 
+      sum + (food.fat || 0) * (food.quantity || 1), 0) || 0;
+    const mealFiber = meal.foods?.reduce((sum, food) => 
+      sum + (food.fiber || 0) * (food.quantity || 1), 0) || 0;
+
+    return {
+      calories: totals.calories + mealCalories,
+      protein: totals.protein + mealProtein,
+      carbs: totals.carbs + mealCarbs,
+      fat: totals.fat + mealFat,
+      fiber: totals.fiber + mealFiber
+    };
+  }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  return (
+    <Card className="bg-white border border-green-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-blue-300 h-full flex flex-col">
+      <CardHeader className="pb-3 flex-shrink-0">
+        <div className="flex justify-between items-start mb-2">
+          <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
+            {dailyPlan.day}
+          </CardTitle>
+          <Badge variant="secondary" className="ml-2 shrink-0 bg-blue-100 text-blue-700">
+            Full Day
+          </Badge>
+        </div>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          {dailyPlan.description}
+        </p>
+      </CardHeader>
+      
+      <CardContent className="pt-0 flex flex-col flex-1">
+        <div className="flex-1 min-h-0">
+          <div className="text-sm text-gray-600 mb-4 h-12 overflow-hidden">
+            <div className="leading-relaxed">
+              {dailyPlan.meals.join(", ")}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-4 h-20">
+            <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200 flex flex-col justify-center">
+              <div className="text-xl font-bold text-green-700 leading-tight">
+                {Math.round(dayTotals.calories)}
+              </div>
+              <div className="text-xs text-green-800 font-medium mt-1">calories</div>
+            </div>
+            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 flex flex-col justify-center">
+              <div className="text-xl font-bold text-blue-700 leading-tight">
+                {dayMeals.length}
+              </div>
+              <div className="text-xs text-blue-800 font-medium mt-1">meals</div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-2 mb-4 text-xs h-16">
+            <div className="text-center bg-blue-50 rounded-lg py-2 px-1 border border-blue-100 flex flex-col justify-center">
+              <div className="font-bold text-blue-700 text-sm leading-tight">{Math.round(dayTotals.protein)}g</div>
+              <div className="text-blue-800 text-[10px] mt-1">Protein</div>
+            </div>
+            <div className="text-center bg-emerald-50 rounded-lg py-2 px-1 border border-emerald-100 flex flex-col justify-center">
+              <div className="font-bold text-emerald-600 text-sm leading-tight">{Math.round(dayTotals.carbs)}g</div>
+              <div className="text-emerald-700 text-[10px] mt-1">Carbs</div>
+            </div>
+            <div className="text-center bg-teal-50 rounded-lg py-2 px-1 border border-teal-100 flex flex-col justify-center">
+              <div className="font-bold text-teal-600 text-sm leading-tight">{Math.round(dayTotals.fat)}g</div>
+              <div className="text-teal-700 text-[10px] mt-1">Fat</div>
+            </div>
+            <div className="text-center bg-green-50 rounded-lg py-2 px-1 border border-green-100 flex flex-col justify-center">
+              <div className="font-bold text-green-600 text-sm leading-tight">{Math.round(dayTotals.fiber)}g</div>
+              <div className="text-green-700 text-[10px] mt-1">Fiber</div>
+            </div>
+          </div>
+
+          <div className="h-16 overflow-hidden">
+            <div className="space-y-1 text-xs text-gray-600">
+              {dailyPlan.meals.slice(0, 3).map((mealName, index) => {
+                const meal = mealPresets.find(preset => preset.name === mealName);
+                const mealCalories = meal?.foods?.reduce((sum, food) => 
+                  sum + (food.calories || 0) * (food.quantity || 1), 0) || 0;
+                return (
+                  <div key={index} className="flex justify-between">
+                    <span className="truncate flex-1">{mealName}</span>
+                    <span className="ml-2 text-gray-500 flex-shrink-0">
+                      {Math.round(mealCalories)}cal
+                    </span>
+                  </div>
+                );
+              })}
+              {dailyPlan.meals.length > 3 && (
+                <div className="text-center text-gray-400 text-[10px]">
+                  +{dailyPlan.meals.length - 3} more meals
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 flex-shrink-0">
+          <Button 
+            onClick={onClick}
+            className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add {dailyPlan.day}'s Meals
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 // Combined Meals Card Component with fixed alignment
 const CombinedMealCard = ({ preset, onClick }) => {
   const totalCalories = preset.foods?.reduce((sum, food) => 
@@ -820,6 +985,35 @@ const NutritionJam = () => {
       foods: [
         { foodId: "Dosa", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9, quantity: 1, unit: "serving" },
         { foodId: "Sambhar", calories: 228, protein: 11, carbs: 32.4, fat: 6.0, fiber: 7.4, quantity: 1, unit: "serving" }
+      ]
+    },
+    {
+      id: 10,
+      name: "Dal Rice",
+      foods: [
+        { foodId: "Dal", calories: 115, protein: 6.8, carbs: 17.7, fat: 1.9, fiber: 2.8, quantity: 1, unit: "serving" },
+        { foodId: "White Rice", calories: 97, protein: 2.1, carbs: 21.5, fat: 0.3, fiber: 0.4, quantity: 1, unit: "serving" }
+      ]
+    },
+    {
+      id: 11,
+      name: "Low Fat Paneer Paratha",
+      foods: [
+        { foodId: "Low Fat Paneer Paratha", calories: 445, protein: 26.4, carbs: 40.4, fat: 20.0, fiber: 5.8, quantity: 1, unit: "serving" }
+      ]
+    },
+    {
+      id: 12,
+      name: "100% Whole Wheat Bread (2 servings)",
+      foods: [
+        { foodId: "100% Whole Wheat Bread, Britannia", calories: 67, protein: 2.2, carbs: 13.8, fat: 0.6, fiber: 1.1, quantity: 2, unit: "servings" }
+      ]
+    },
+    {
+      id: 13,
+      name: "Bhaji of Pav Bhaji",
+      foods: [
+        { foodId: "Bhaji of Pav Bhaji", calories: 137, protein: 2.3, carbs: 16.8, fat: 6.9, fiber: 2.1, quantity: 1, unit: "serving" }
       ]
     }
   ];
@@ -1092,6 +1286,53 @@ const NutritionJam = () => {
     }
   };
 
+  const handleAddDailyPlan = async (dailyPlan) => {
+    if (!currentLog) return;
+
+    setSaving(true);
+    try {
+      // Find all the meal presets for this day and flatten their foods
+      const dayMeals = dailyPlan.meals.map(mealName => 
+        mealPresets.find(preset => preset.name === mealName)
+      ).filter(Boolean);
+
+      const allFoodsFromDay = dayMeals.flatMap(meal => 
+        meal.foods.map(food => ({
+          foodId: food.foodId || food.name,
+          calories: Number(food.calories) || 0,
+          protein: Number(food.protein) || 0,
+          carbs: Number(food.carbs) || 0,
+          fat: Number(food.fat) || 0,
+          fiber: Number(food.fiber) || 0,
+          quantity: Number(food.quantity) || 1,
+          unit: food.unit || 'serving',
+          timestamp: new Date().toISOString()
+        }))
+      );
+      
+      const updatedEntries = [...currentLog.entries, ...allFoodsFromDay];
+      const updatedTotals = safeCalculateTotals(updatedEntries);
+      
+      const updatedLog: DailyLog = {
+        ...currentLog,
+        entries: updatedEntries,
+        totals: updatedTotals,
+        lastUpdated: new Date().toISOString()
+      };
+
+      await saveDailyLogToFirestore(updatedLog);
+      setCurrentLog(updatedLog);
+      toast.success(`${dailyPlan.day}'s meals added successfully!`);
+      
+      loadLastXDaysData();
+    } catch (error) {
+      console.error('Error adding daily plan:', error);
+      toast.error('Failed to add daily meal plan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const isToday = safeFormatDateToYYYYMMDD(selectedDate) === safeGetTodayDateString();
   const safeTodayString = safeGetTodayDateString();
 
@@ -1160,10 +1401,11 @@ const NutritionJam = () => {
 
       <main className="flex-1 px-6 md:px-12 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="today">Today's Log</TabsTrigger>
             <TabsTrigger value="last7days">Last 7 Days</TabsTrigger>
             <TabsTrigger value="presets">Combined Meals</TabsTrigger>
+            <TabsTrigger value="daily">Daily Nutrition</TabsTrigger>
             <TabsTrigger value="public">Public Logs</TabsTrigger>
           </TabsList>
 
@@ -1371,6 +1613,30 @@ const NutritionJam = () => {
                     <CombinedMealCard
                       preset={preset}
                       onClick={() => handleAddPreset(preset)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="daily" className="space-y-6">
+            <section>
+              <div className="flex items-center mb-6">
+                <CalendarIcon className="h-6 w-6 mr-3 text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-800">Daily Nutrition Plans</h2>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Complete daily meal plans for each day of the week. Each plan includes all meals with calculated nutrition totals.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {dailyMealPlans.map((dailyPlan) => (
+                  <div key={dailyPlan.id} className="h-full">
+                    <DailyMealPlanCard
+                      dailyPlan={dailyPlan}
+                      mealPresets={mealPresets}
+                      onClick={() => handleAddDailyPlan(dailyPlan)}
                     />
                   </div>
                 ))}
