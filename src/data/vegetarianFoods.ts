@@ -48,6 +48,15 @@ export const vegetarianFoods: FoodItem[] = [
   fat: 11.4,
   fiber: 11.1
 },
+  {
+  name: "Doritos Minis – Doritos",
+  servingSize: "50g",
+  calories: 268,
+  protein: 3.5,
+  carbs: 32.0,
+  fat: 14.5,
+  fiber: 2.0
+},
     {
     name: "Farmley Prasadam Makhana",
     servingSize: "50g",
