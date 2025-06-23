@@ -161,7 +161,7 @@ const dailyMealPlans = [
   {
     id: 4,
     day: "Thursday",
-    meals: ["Morning Smoothie", "Evening Smoothie", "Bhaji of Pav Bhaji", "100% Whole Wheat Bread (2 servings)"],
+    meals: ["Morning Smoothie", "Evening Smoothie", "Matar Paneer","Bhaji of Pav Bhaji", "100% Whole Wheat Bread (2 servings)"],
     description: "Street food inspired day with nutritious options"
   },
   {
