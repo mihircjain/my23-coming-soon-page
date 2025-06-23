@@ -571,6 +571,96 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 0.0
   },
   {
+    name: "Tequila",
+    servingSize: "250 ml",
+    calories: 578,
+    protein: 0.0,
+    carbs: 0.0,
+    fat: 0.0,
+    fiber: 0.0
+  },
+  {
+    name: "Spaghetti Aglio e Olio",
+    servingSize: "100 g",
+    calories: 228,
+    protein: 7.4,
+    carbs: 25.4,
+    fat: 10.5,
+    fiber: 1.2
+  },
+  {
+    name: "Tandoori Roti",
+    servingSize: "1 Roti (50 g)",
+    calories: 150,
+    protein: 4.1,
+    carbs: 24.8,
+    fat: 3.9,
+    fiber: 2.9
+  },
+  {
+    name: "Sabudana Khichdi",
+    servingSize: "178 g",
+    calories: 287,
+    protein: 4.3,
+    carbs: 49.4,
+    fat: 8.1,
+    fiber: 2.7
+  },
+  {
+    name: "Malai Soya Chaap Tikka",
+    servingSize: "138 g",
+    calories: 287,
+    protein: 24.4,
+    carbs: 16.5,
+    fat: 13.8,
+    fiber: 8.3
+  },
+  {
+    name: "Ragda Pattice",
+    servingSize: "0.5 Serve (130 g)",
+    calories: 163,
+    protein: 3.4,
+    carbs: 21.2,
+    fat: 7.3,
+    fiber: 3.3
+  },
+  {
+    name: "Dal Makhani",
+    servingSize: "125 g",
+    calories: 137,
+    protein: 5.1,
+    carbs: 13.7,
+    fat: 6.9,
+    fiber: 4.9
+  },
+  {
+    name: "Shahi Tukda",
+    servingSize: "1 Tukda (80 g)",
+    calories: 182,
+    protein: 5.4,
+    carbs: 22.5,
+    fat: 8.2,
+    fiber: 0.8
+  },
+  {
+    name: "Jager Bomb Shot",
+    servingSize: "88.5 ml",
+    calories: 173,
+    protein: 0.0,
+    carbs: 21.2,
+    fat: 0.0,
+    fiber: 0.0
+  },
+  {
+    name: "Paneer Tikka",
+    servingSize: "2 Tikka (54 g)",
+    calories: 149,
+    protein: 8.5,
+    carbs: 1.4,
+    fat: 12.1,
+    fiber: 0.2
+  },
+  {
     name: "Pizza, Garden Veggie",
     servingSize: "2.5 Slices (267.5g)",
     calories: 434,
