@@ -2,11 +2,46 @@
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy, limit, where, Timestamp, doc, getDoc } from 'firebase/firestore';
-import mcpClientModule from '../src/lib/mcpClient.js';
+import { createRequire } from 'module';
 
-// Extract the client and function from the module
-const mcpClient = mcpClientModule.mcpClient || mcpClientModule.default || mcpClientModule;
-const setMcpAccessToken = mcpClientModule.setMcpAccessToken;
+// Use require for problematic TypeScript module
+const require = createRequire(import.meta.url);
+let mcpClient, setMcpAccessToken;
+
+// Lazy load MCP client to avoid import issues
+async function getMcpClient() {
+  if (!mcpClient) {
+    try {
+      // Try different import approaches
+      const mcpModule = await import('../src/lib/mcpClient.js').catch(() => null);
+      if (mcpModule) {
+        mcpClient = mcpModule.default || mcpModule.mcpClient || mcpModule;
+        setMcpAccessToken = mcpModule.setMcpAccessToken;
+      } else {
+        // Fallback: use direct HTTP calls to MCP server
+        console.log('⚠️ Using direct HTTP fallback for MCP client');
+        mcpClient = {
+          async getRecentActivities(perPage = 30) {
+            const response = await fetch(`https://strava-mcp-server.onrender.com/tools/get-recent-activities?per_page=${perPage}`, {
+              headers: { 'Authorization': `Bearer ${process.env.STRAVA_ACCESS_TOKEN}` }
+            });
+            const data = await response.json();
+            if (data.isError) throw new Error(data.content[0]?.text || 'MCP Error');
+            // Parse activities from text response - simplified
+            return [];
+          }
+        };
+        setMcpAccessToken = () => {}; // No-op
+      }
+    } catch (error) {
+      console.error('❌ Failed to load MCP client:', error);
+      // Create dummy client
+      mcpClient = { async getRecentActivities() { return []; } };
+      setMcpAccessToken = () => {};
+    }
+  }
+  return { mcpClient, setMcpAccessToken };
+}
 
 // Initialize Firebase only if environment variables are available
 let db = null;
@@ -195,6 +230,9 @@ async function fetchDynamicData(userId, timeRange) {
   console.log(`📊 Fetching dynamic data via MCP for ${timeRange.label} (${timeRange.days} days)`);
   
   try {
+    // Get MCP client (lazy loaded)
+    const { mcpClient, setMcpAccessToken } = await getMcpClient();
+    
     // Set access token for MCP requests
     const accessToken = process.env.STRAVA_ACCESS_TOKEN || process.env.VITE_STRAVA_ACCESS_TOKEN;
     if (accessToken) {

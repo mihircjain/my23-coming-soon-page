@@ -174,7 +174,7 @@ class McpClient {
   private accessToken?: string;
 
   constructor(baseUrl?: string, accessToken?: string) {
-    this.baseUrl = baseUrl || getEnvVar('NEXT_PUBLIC_MCP_API_URL') || 'http://localhost:3001';
+    this.baseUrl = baseUrl || getEnvVar('NEXT_PUBLIC_MCP_API_URL') || 'https://strava-mcp-server.onrender.com';
     this.accessToken = accessToken;
   }
 
