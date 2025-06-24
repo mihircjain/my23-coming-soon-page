@@ -191,10 +191,10 @@ async function fetchDynamicData(userId, timeRange) {
   
   try {
     // Import MCP client
-    const { default: mcpClient, setMcpAccessToken } = await import('../src/lib/mcpClient.js');
+    const { default: mcpClient, setMcpAccessToken } = await import('../src/lib/mcpClient');
     
     // Set access token for MCP requests
-    const accessToken = process.env.VITE_STRAVA_ACCESS_TOKEN;
+    const accessToken = process.env.STRAVA_ACCESS_TOKEN || process.env.VITE_STRAVA_ACCESS_TOKEN;
     if (accessToken) {
       setMcpAccessToken(accessToken);
     }
