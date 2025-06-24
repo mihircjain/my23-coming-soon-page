@@ -2,7 +2,7 @@
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy, limit, where, Timestamp, doc, getDoc } from 'firebase/firestore';
-import mcpClient, { setMcpAccessToken } from '../src/lib/mcpClient.js';
+import { mcpClient, setMcpAccessToken } from '../src/lib/mcpClient.js';
 
 // Initialize Firebase only if environment variables are available
 let db = null;
