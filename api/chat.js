@@ -2,6 +2,7 @@
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy, limit, where, Timestamp, doc, getDoc } from 'firebase/firestore';
+import mcpClient, { setMcpAccessToken } from '../src/lib/mcpClient.js';
 
 // Initialize Firebase only if environment variables are available
 let db = null;
@@ -190,9 +191,6 @@ async function fetchDynamicData(userId, timeRange) {
   console.log(`📊 Fetching dynamic data via MCP for ${timeRange.label} (${timeRange.days} days)`);
   
   try {
-    // Import MCP client
-    const { default: mcpClient, setMcpAccessToken } = await import('../src/lib/mcpClient');
-    
     // Set access token for MCP requests
     const accessToken = process.env.STRAVA_ACCESS_TOKEN || process.env.VITE_STRAVA_ACCESS_TOKEN;
     if (accessToken) {
