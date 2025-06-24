@@ -76,6 +76,15 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 5
   },
   {
+  name: "Sevaiya",  // You can replace this with the actual food name
+  servingSize: "100g",
+  calories: 108,
+  protein: 2.8,
+  carbs: 19.4,
+  fat: 2.2,
+  fiber: 3.3
+},
+  {
     name: "Paddu (6 pieces)",
     servingSize: "120g",
     calories: 191,
