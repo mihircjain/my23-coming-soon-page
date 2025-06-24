@@ -164,12 +164,9 @@ export interface StravaAthleteZones {
 
 // Helper to get environment variables safely in browser/server context
 const getEnvVar = (key: string): string | undefined => {
-  if (typeof window !== 'undefined') {
-    // Browser environment - use process.env with fallback
-    return (window as any).__ENV__?.[key] || undefined;
-  }
-  // Server environment would have access to process.env
-  return undefined;
+  // Use globalThis to safely access environment variables
+  const env = (globalThis as any).process?.env;
+  return env?.[key];
 };
 
 class McpClient {
