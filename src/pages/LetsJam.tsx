@@ -24,6 +24,9 @@ import {
 import { getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
+// Import MCP client for Strava data
+import mcpClient, { StravaActivity, setMcpAccessToken } from '@/lib/mcpClient';
+
 // Type definitions
 interface Message {
   role: 'user' | 'assistant';
@@ -230,40 +233,37 @@ const isYesterdayDate = (dateString: string): boolean => {
   return dateString === yesterdayString;
 };
 
-// Data fetching functions
+// NEW: Fetch recent runs using MCP client instead of Firestore/API
 const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
-  return getCachedData(`runs_${days}`, async () => {
+  return getCachedData(`runs_mcp_${days}`, async () => {
     try {
-      console.log(`🏃 Fetching run data for ${days} days...`);
+      console.log(`🏃 Fetching run data via MCP for ${days} days...`);
       
-      const params = new URLSearchParams({
-        userId: "mihir_jain",
-        mode: 'cached',
-        days: days.toString()
-      });
+      // Set MCP access token if available
+      const accessToken = import.meta.env?.VITE_STRAVA_ACCESS_TOKEN || 
+                          (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_STRAVA_ACCESS_TOKEN);
+      if (accessToken) {
+        setMcpAccessToken(accessToken);
+      }
       
-      const response = await fetch(`/api/strava?${params.toString()}`);
-      if (!response.ok) {
-        console.warn('Failed to fetch Strava data:', response.status);
+      // Fetch recent activities from MCP server
+      const activities = await mcpClient.getRecentActivities(30); // Get more than needed to filter
+      
+      if (!Array.isArray(activities) || activities.length === 0) {
+        console.log('No Strava activities found from MCP server');
         return [];
       }
       
-      const data = await response.json();
-      
-      if (!Array.isArray(data) || data.length === 0) {
-        console.log('No Strava activities found');
-        return [];
-      }
-      
-      const runActivities = data
-        .filter((activity: any) => 
+      // Filter for run activities within the specified date range
+      const runActivities = activities
+        .filter((activity: StravaActivity) => 
           activity.type && 
           activity.type.toLowerCase().includes('run') &&
           activity.distance > 0 &&
           activity.moving_time > 0 &&
           activity.start_date
         )
-        .map((activity: any) => ({
+        .map((activity: StravaActivity) => ({
           id: activity.id?.toString() || Math.random().toString(),
           name: activity.name || 'Unnamed Run',
           type: activity.type,
@@ -276,7 +276,7 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
           max_heartrate: activity.max_heartrate ? Number(activity.max_heartrate) : undefined,
           calories: activity.calories ? Number(activity.calories) : undefined,
           is_run_activity: true,
-          run_tag: activity.run_tag || activity.runType || 'easy'
+          run_tag: activity.run_tag || 'easy' // Default run tag
         }))
         .filter(run => {
           const runDate = new Date(run.start_date);
@@ -287,28 +287,27 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
         .slice(0, 10);
       
       if (runActivities.length === 0) {
-        console.log('No valid run activities found in date range');
+        console.log('No valid run activities found in date range via MCP');
         return [];
       }
       
+      // Get detailed data for the first 3 runs using MCP
       const runsWithDetails = await Promise.all(
         runActivities.slice(0, 3).map(async (run: RunData) => {
           try {
-            const detailResponse = await fetch(`/api/strava-detail?activityId=${run.id}&userId=mihir_jain`);
-            if (detailResponse.ok) {
-              const detail = await detailResponse.json();
-              
-              return {
-                ...run,
-                splits_metric: detail.splits_metric && detail.splits_metric.length > 0 ? detail.splits_metric : undefined,
-                best_efforts: detail.best_efforts && detail.best_efforts.length > 0 ? detail.best_efforts : undefined,
-                zones: detail.zones && detail.zones.length > 0 ? detail.zones : undefined
-              };
-            }
+            console.log(`📊 Fetching detailed data for run ${run.id} via MCP...`);
+            const detail = await mcpClient.getActivityDetails(run.id);
+            
+            return {
+              ...run,
+              splits_metric: detail.splits_metric && detail.splits_metric.length > 0 ? detail.splits_metric : undefined,
+              best_efforts: detail.best_efforts && detail.best_efforts.length > 0 ? detail.best_efforts : undefined,
+              zones: detail.zones && detail.zones.length > 0 ? detail.zones : undefined
+            };
           } catch (error) {
-            console.warn(`Failed to load details for run ${run.id}:`, error);
+            console.warn(`Failed to load MCP details for run ${run.id}:`, error);
+            return run;
           }
-          return run;
         })
       );
       
@@ -317,12 +316,72 @@ const fetchRecentRuns = async (days: number = 7): Promise<RunData[]> => {
         ...runActivities.slice(3)
       ];
       
-      console.log(`✅ Loaded ${finalRuns.length} valid runs`);
+      console.log(`✅ Loaded ${finalRuns.length} valid runs via MCP`);
       return finalRuns;
       
     } catch (error) {
-      console.error('Error fetching runs:', error);
-      return [];
+      console.error('Error fetching runs via MCP:', error);
+      
+      // Fallback to original API if MCP fails
+      console.log('🔄 Falling back to original Strava API...');
+      try {
+        const params = new URLSearchParams({
+          userId: "mihir_jain",
+          mode: 'cached',
+          days: days.toString()
+        });
+        
+        const response = await fetch(`/api/strava?${params.toString()}`);
+        if (!response.ok) {
+          console.warn('Fallback API also failed:', response.status);
+          return [];
+        }
+        
+        const data = await response.json();
+        
+        if (!Array.isArray(data) || data.length === 0) {
+          console.log('No Strava activities found in fallback');
+          return [];
+        }
+        
+        const runActivities = data
+          .filter((activity: any) => 
+            activity.type && 
+            activity.type.toLowerCase().includes('run') &&
+            activity.distance > 0 &&
+            activity.moving_time > 0 &&
+            activity.start_date
+          )
+          .map((activity: any) => ({
+            id: activity.id?.toString() || Math.random().toString(),
+            name: activity.name || 'Unnamed Run',
+            type: activity.type,
+            start_date: activity.start_date,
+            distance: Number(activity.distance) || 0,
+            moving_time: Number(activity.moving_time) || 0,
+            total_elevation_gain: Number(activity.total_elevation_gain) || 0,
+            average_speed: Number(activity.average_speed) || 0,
+            average_heartrate: activity.average_heartrate ? Number(activity.average_heartrate) : undefined,
+            max_heartrate: activity.max_heartrate ? Number(activity.max_heartrate) : undefined,
+            calories: activity.calories ? Number(activity.calories) : undefined,
+            is_run_activity: true,
+            run_tag: activity.run_tag || activity.runType || 'easy'
+          }))
+          .filter(run => {
+            const runDate = new Date(run.start_date);
+            const now = new Date();
+            const diffDays = Math.ceil((now.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 && diffDays <= days;
+          })
+          .slice(0, 10);
+        
+        console.log(`✅ Fallback: Loaded ${runActivities.length} valid runs`);
+        return runActivities;
+        
+      } catch (fallbackError) {
+        console.error('Both MCP and fallback API failed:', fallbackError);
+        return [];
+      }
     }
   });
 };

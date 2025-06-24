@@ -185,44 +185,83 @@ function extractTimeRange(userQuery) {
   return { days: 7, label: 'last 7 days', startDate: defaultStart };
 }
 
-// NEW: Dynamic data fetching based on user query
+// NEW: Dynamic data fetching using MCP for Strava data
 async function fetchDynamicData(userId, timeRange) {
-  const firestore = initializeFirebase();
-  if (!firestore) return null;
-  
-  console.log(`📊 Fetching dynamic data for ${timeRange.label} (${timeRange.days} days)`);
+  console.log(`📊 Fetching dynamic data via MCP for ${timeRange.label} (${timeRange.days} days)`);
   
   try {
-    // Fetch activities for the specified time range
-    const stravaDataRef = collection(firestore, "strava_data");
-    const stravaQuery = query(
-      stravaDataRef,
-      where("userId", "==", userId),
-      where("start_date", ">=", timeRange.startDate.toISOString()),
-      orderBy("start_date", "desc"),
-      limit(100)
-    );
+    // Import MCP client
+    const { default: mcpClient, setMcpAccessToken } = await import('../src/lib/mcpClient.js');
     
-    const stravaSnapshot = await getDocs(stravaQuery);
-    const activities = [];
+    // Set access token for MCP requests
+    const accessToken = process.env.VITE_STRAVA_ACCESS_TOKEN;
+    if (accessToken) {
+      setMcpAccessToken(accessToken);
+    }
+
+    // Fetch activities from MCP server instead of Firestore
+    console.log('🚀 Fetching activities from MCP server...');
+    const allActivities = await mcpClient.getRecentActivities(50); // Get more to filter properly
     
-    stravaSnapshot.forEach(doc => {
-      const activity = doc.data();
-      activities.push({
-        id: activity.id,
-        name: activity.name,
-        type: activity.type,
-        start_date: activity.start_date,
-        distance: activity.distance || 0,
-        duration: activity.duration || 0,
-        moving_time: activity.moving_time || 0,
-        average_heartrate: activity.average_heartrate,
-        calories: activity.calories || 0,
-        runType: activity.runType || null, // Tagged run type
-        taggedAt: activity.taggedAt || null,
-        userOverride: activity.userOverride || false
-      });
+    if (!Array.isArray(allActivities) || allActivities.length === 0) {
+      console.log('⚠️ No activities found from MCP server');
+      return {
+        timeRange,
+        runs: [],
+        activities: [],
+        statistics: {
+          totalRuns: 0,
+          totalRunDistance: 0,
+          totalRunTime: 0,
+          avgRunDistance: 0,
+          avgRunPace: 0,
+          avgRunHeartRate: 0,
+          weeklyDistance: 0,
+          runsPerWeek: 0
+        },
+        runTypes: {
+          easy: 0, tempo: 0, interval: 0, long: 0, recovery: 0, race: 0, untagged: 0
+        },
+        trainingQuality: {
+          taggedRuns: 0,
+          percentageTagged: 0,
+          balanceScore: 'insufficient-data'
+        }
+      };
+    }
+
+    // Filter activities by time range
+    const filteredActivities = allActivities.filter(activity => {
+      const activityDate = new Date(activity.start_date);
+      const now = new Date();
+      const diffDays = Math.ceil((now.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (timeRange.offset) {
+        // Handle specific time periods like "last week"
+        return diffDays >= timeRange.offset && diffDays < (timeRange.offset + timeRange.days);
+      } else {
+        // Handle periods like "this week" or "recent"
+        return diffDays >= 0 && diffDays <= timeRange.days;
+      }
     });
+
+    console.log(`📊 Filtered ${filteredActivities.length} activities from ${allActivities.length} total`);
+
+    // Process activities data
+    const activities = filteredActivities.map(activity => ({
+      id: activity.id,
+      name: activity.name,
+      type: activity.type,
+      start_date: activity.start_date,
+      distance: (activity.distance || 0) / 1000, // Convert to km if needed
+      duration: activity.moving_time || 0,
+      moving_time: activity.moving_time || 0,
+      average_heartrate: activity.average_heartrate,
+      calories: activity.calories || 0,
+      runType: activity.run_tag || null,
+      taggedAt: null, // MCP doesn't provide tagging timestamps
+      userOverride: false
+    }));
     
     // Separate runs from other activities
     const runs = activities.filter(a => 
@@ -239,7 +278,7 @@ async function fetchDynamicData(userId, timeRange) {
     const runTypes = {
       easy: runs.filter(r => r.runType === 'easy').length,
       tempo: runs.filter(r => r.runType === 'tempo').length,
-      interval: runs.filter(r => r.runType === 'interval').length,
+      interval: runs.filter(r => r.runType === 'interval' || r.runType === 'intervals').length,
       long: runs.filter(r => r.runType === 'long').length,
       recovery: runs.filter(r => r.runType === 'recovery').length,
       race: runs.filter(r => r.runType === 'race').length,
@@ -256,7 +295,7 @@ async function fetchDynamicData(userId, timeRange) {
     const weeklyDistance = timeRange.days >= 7 ? totalRunDistance / (timeRange.days / 7) : totalRunDistance;
     const runsPerWeek = timeRange.days >= 7 ? runs.length / (timeRange.days / 7) : runs.length;
     
-    console.log(`📊 Dynamic data summary: ${runs.length} runs, ${totalRunDistance.toFixed(1)}km total, ${runTypes.untagged} untagged`);
+    console.log(`📊 MCP Dynamic data summary: ${runs.length} runs, ${totalRunDistance.toFixed(1)}km total, ${runTypes.untagged} untagged`);
     
     return {
       timeRange,
@@ -281,8 +320,80 @@ async function fetchDynamicData(userId, timeRange) {
     };
     
   } catch (error) {
-    console.error('Error fetching dynamic data:', error);
-    return null;
+    console.error('❌ Error fetching dynamic data via MCP:', error);
+    
+    // Fallback to original Firestore method if MCP fails
+    console.log('🔄 Falling back to original Firestore method...');
+    
+    const firestore = initializeFirebase();
+    if (!firestore) return null;
+    
+    try {
+      // Original Firestore query logic as fallback
+      const stravaDataRef = collection(firestore, "strava_data");
+      const stravaQuery = query(
+        stravaDataRef,
+        where("userId", "==", userId),
+        where("start_date", ">=", timeRange.startDate.toISOString()),
+        orderBy("start_date", "desc"),
+        limit(100)
+      );
+      
+      const stravaSnapshot = await getDocs(stravaQuery);
+      const activities = [];
+      
+      stravaSnapshot.forEach(doc => {
+        const activity = doc.data();
+        activities.push({
+          id: activity.id,
+          name: activity.name,
+          type: activity.type,
+          start_date: activity.start_date,
+          distance: activity.distance || 0,
+          duration: activity.duration || 0,
+          moving_time: activity.moving_time || 0,
+          average_heartrate: activity.average_heartrate,
+          calories: activity.calories || 0,
+          runType: activity.runType || null,
+          taggedAt: activity.taggedAt || null,
+          userOverride: activity.userOverride || false
+        });
+      });
+      
+      // Process fallback data same as before...
+      const runs = activities.filter(a => 
+        a.type && a.type.toLowerCase().includes('run')
+      );
+      
+      console.log(`📦 Fallback: Loaded ${runs.length} runs from Firestore`);
+      
+      // Return simplified fallback data structure
+      return {
+        timeRange,
+        runs,
+        activities,
+        statistics: {
+          totalRuns: runs.length,
+          totalRunDistance: runs.reduce((sum, run) => sum + (run.distance || 0), 0),
+          totalRunTime: runs.reduce((sum, run) => sum + (run.duration || 0), 0),
+          avgRunDistance: 0,
+          avgRunPace: 0,
+          avgRunHeartRate: 0,
+          weeklyDistance: 0,
+          runsPerWeek: 0
+        },
+        runTypes: { easy: 0, tempo: 0, interval: 0, long: 0, recovery: 0, race: 0, untagged: runs.length },
+        trainingQuality: {
+          taggedRuns: 0,
+          percentageTagged: 0,
+          balanceScore: 'insufficient-data'
+        }
+      };
+      
+    } catch (fallbackError) {
+      console.error('❌ Both MCP and Firestore fallback failed:', fallbackError);
+      return null;
+    }
   }
 }
 
