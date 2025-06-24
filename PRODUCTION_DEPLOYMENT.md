@@ -3,7 +3,7 @@
 ## Overview
 Your **MY23 Running Coach** system is now production-ready with:
 - **Frontend**: React/Vite app deployed to Vercel
-- **MCP Server**: Deployed to Render at `https://strava-mcp-server.onrender.com`
+- **MCP Server**: Deployed to Render at `https://strava-mcp-server.onrender.com` ✅
 - **AI Chat API**: Serverless functions on Vercel with Gemini integration
 
 ## 🎯 Architecture
@@ -13,7 +13,7 @@ Frontend (Vercel)
     ↓
 Vercel API Routes (/api/*)
     ↓
-MCP Server (Render) → Strava API
+MCP Server (Render) → Strava API  🎯 CORRECT
     ↓
 Gemini AI (Google) for intelligent responses
 ```
@@ -26,64 +26,88 @@ Gemini AI (Google) for intelligent responses
 STRAVA_ACCESS_TOKEN=d74aa70fd9b59d8921fad453aefd82848899bb1d
 VITE_STRAVA_ACCESS_TOKEN=d74aa70fd9b59d8921fad453aefd82848899bb1d
 
-# MCP Server (Production Render URL)
+# MCP Server (Production Render URL) 🎯 RENDER
 MCP_SERVER_URL=https://strava-mcp-server.onrender.com
 NEXT_PUBLIC_MCP_API_URL=https://strava-mcp-server.onrender.com
 
 # Google Gemini AI
 GEMINI_API_KEY=AIzaSyCcypHkXBvRUBWYNbmpq2GnIOa4tvhUlhc
 
-# Firebase (Optional - for user auth)
+# Firebase (Optional)
 VITE_FIREBASE_API_KEY=your_firebase_api_key
 VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-# ... other Firebase config
+VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
 
-### 2. **Vercel Environment Variables**
-In your Vercel dashboard, add these production environment variables:
-
+### 2. **Render MCP Server Environment Variables** ✅ 
+Go to your **Render dashboard** for the MCP server and ensure:
 ```bash
 STRAVA_ACCESS_TOKEN=d74aa70fd9b59d8921fad453aefd82848899bb1d
+# Add any other required environment variables for your MCP server
+```
+
+### 3. **Vercel Environment Variables** 
+In your **Vercel dashboard**, add:
+```bash
+# Strava API
+STRAVA_ACCESS_TOKEN=d74aa70fd9b59d8921fad453aefd82848899bb1d
+
+# MCP Server (Your Render URL)
 MCP_SERVER_URL=https://strava-mcp-server.onrender.com
+
+# Gemini AI
 GEMINI_API_KEY=AIzaSyCcypHkXBvRUBWYNbmpq2GnIOa4tvhUlhc
+
+# Firebase (if using)
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=your_service_account_email  
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour_private_key\n-----END PRIVATE KEY-----"
 ```
 
-### 3. **Render MCP Server Environment Variables**
-Your MCP server on Render should have:
-```bash
-STRAVA_ACCESS_TOKEN=d74aa70fd9b59d8921fad453aefd82848899bb1d
-STRAVA_CLIENT_ID=your_strava_client_id
-STRAVA_CLIENT_SECRET=your_strava_client_secret
-```
+## 🚀 Deployment Steps
 
-## 📦 Deployment Steps
-
-### **Step 1: Deploy to Vercel**
+### 1. **Deploy to Vercel**
 ```bash
-# Build and deploy
+# Build the project
 npm run build
+
+# Deploy to Vercel
 vercel --prod
 
-# Or link to existing project
-vercel link
-vercel --prod
+# Or connect GitHub repo for auto-deployment
 ```
 
-### **Step 2: Verify MCP Server**
-Your Render MCP server should be accessible at:
-- Health: `https://strava-mcp-server.onrender.com/health`
-- Tools: `https://strava-mcp-server.onrender.com/tools`
+### 2. **Test Production URLs**
+- **Frontend**: https://your-app.vercel.app/mcp-coach
+- **MCP API**: https://strava-mcp-server.onrender.com/health
+- **Chat API**: https://your-app.vercel.app/api/chat-mcp-intelligent
 
-### **Step 3: Test Production System**
-```bash
-# Test MCP server directly
-curl "https://strava-mcp-server.onrender.com/health"
+## ✅ Production Checklist
 
-# Test through your frontend
-curl -X POST "https://your-app.vercel.app/api/chat-mcp-intelligent" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "How was my run today?", "userId": "mihir_jain"}'
-```
+- [x] **MCP Server**: Deployed on Render with environment variables
+- [x] **Frontend**: Ready for Vercel deployment  
+- [x] **API Routes**: Updated to use production Render MCP URL
+- [x] **Environment Variables**: Configured for production
+- [x] **Heart Rate Data**: Working with separate HR requests
+- [x] **Vercel Configuration**: Fixed runtime version
+
+## 🔧 Key Production Changes Made
+
+1. **Updated all API routes** to use `https://strava-mcp-server.onrender.com`
+2. **Fixed Vercel runtime** from `nodejs18.x` to `@vercel/node@18`
+3. **Configured environment variables** for both development and production
+4. **Heart rate data discovery** working with MCP bug workaround
+5. **Intelligent query analysis** with Gemini AI integration
+
+## 🎯 Current Status
+
+**✅ Ready for Production Deployment**
+- MCP Server: Running on Render
+- Frontend: Ready for Vercel
+- All integrations: Configured and tested
 
 ## 🎮 Available Endpoints
 
