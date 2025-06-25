@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import RunsDashboard from './pages/runsdashboard'; // Adjust path as needed
 import RunningCoach from './pages/RunningCoach';
 import RunningCoachMCP from './pages/RunningCoachMCP';
+import Coach from './pages/Coach';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/sleep-jam" element={<SleepJam />} />
           <Route path="/running-coach" element={<RunningCoach />} />
           <Route path="/mcp-coach" element={<RunningCoachMCP />} />
+          <Route path="/coach" element={<Coach />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
