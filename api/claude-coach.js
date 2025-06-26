@@ -14,13 +14,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, query, mcpResponses, analysis } = req.body;
+    const { action, query, mcpResponses, analysis, endpoint, params } = req.body;
     
     if (!action) {
-      return res.status(400).json({ error: 'Action required (analyze_query or generate_response)' });
+      return res.status(400).json({ error: 'Action required' });
     }
 
     const claudeApiKey = process.env.CLAUDE_API_KEY;
+
+    // Handle MCP calls directly (NEW!)
+    if (action === 'mcp_call') {
+      console.log(`🌐 MCP Call: ${endpoint} with params:`, params);
+      
+      // For now, return mock data - in real implementation, call actual MCP server
+      const mockResponse = {
+        content: [{
+          text: generateMockStravaData(endpoint, params)
+        }]
+      };
+      
+      return res.status(200).json({ result: mockResponse });
+    }
+
+    // Handle test connection
+    if (action === 'test_connection') {
+      return res.status(200).json({ connected: true });
+    }
     
     if (!claudeApiKey) {
       console.log('❌ Claude API key not configured, using fallback');
@@ -47,6 +66,52 @@ export default async function handler(req, res) {
       message: 'Using fallback analysis mode'
     });
   }
+}
+
+// Generate mock Strava data for testing the dynamic filtering
+function generateMockStravaData(endpoint, params) {
+  if (endpoint === 'get-recent-activities') {
+    return `🏃 Morning Run (ID: 14910785861) — 10010m on 6/25/2025
+🏃 Evening Run (ID: 14900123456) — 15000m on 6/24/2025  
+🏃 Long Run (ID: 14890567890) — 21000m on 6/22/2025
+🏃 Recovery Run (ID: 14880111222) — 8000m on 6/20/2025
+🏃 Tempo Run (ID: 14870333444) — 12000m on 6/18/2025
+🏃 Marathon (ID: 14860555666) — 42195m on 3/16/2025
+🏃 Long Run (ID: 14850777888) — 18000m on 3/14/2025
+🏃 Easy Run (ID: 14840999000) — 10000m on 3/12/2025`;
+  }
+  
+  if (endpoint === 'get-activity-details') {
+    return `🏃 **Morning Run** (ID: ${params.activityId})
+   - Type: Run
+   - Date: 6/25/2025, 7:30 AM
+   - Distance: 10.01 km
+   - Duration: 52:15
+   - Pace: 5:13 /km
+   - Avg Heart Rate: 165 bpm
+   - Max Heart Rate: 180 bpm
+   - Elevation Gain: 45m`;
+  }
+  
+  if (endpoint === 'get-activity-streams') {
+    return `Activity Streams for ${params.id}:
+Time: [0, 60, 120, 180, 240, 300]
+Distance: [0, 250, 500, 750, 1000, 1250]  
+Heart Rate: [145, 155, 165, 170, 175, 165]
+Velocity: [4.2, 4.1, 4.0, 3.9, 4.1, 4.2]
+Altitude: [100, 105, 110, 108, 106, 102]`;
+  }
+  
+  if (endpoint === 'get-athlete-zones') {
+    return `Heart Rate Zones:
+Zone 1: 50-60% (125-150 bpm) - Active Recovery
+Zone 2: 60-70% (150-175 bpm) - Aerobic Base  
+Zone 3: 70-80% (175-200 bpm) - Aerobic Threshold
+Zone 4: 80-90% (200-225 bpm) - Lactate Threshold
+Zone 5: 90-100% (225-250 bpm) - Neuromuscular Power`;
+  }
+  
+  return `Mock data for ${endpoint}`;
 }
 
 // Claude query analysis
