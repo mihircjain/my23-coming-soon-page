@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Bot, Zap, TrendingUp } from 'lucide-react';
+import { Activity, Bot, Zap, TrendingUp, Flame, Utensils, Target, Heart } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -69,12 +69,12 @@ export default function CoachNew() {
     const contextualPhrases = [
       'that day', 'that run', 'that activity', 'that date',
       'the same day', 'how was weather', 'what was', 
-      'during that', 'on that day', 'from that'
+      'during that', 'on that day', 'from that', 'compare that'
     ];
     
     const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
     
-    if (hasContextualReference && context.lastDate) {
+    if (hasContextualReference && context.lastDate && context.lastActivities) {
       console.log(`🔗 Contextual query detected! Applying context: ${context.lastDate}`);
       
       // Replace contextual references with specific context
@@ -90,6 +90,11 @@ export default function CoachNew() {
       
       if (lowerQuery.includes('what was')) {
         resolvedQuery = resolvedQuery.replace(/what was/gi, `what was on ${context.lastDate}`);
+      }
+      
+      // NEW: Handle "compare that" to maintain activity context
+      if (lowerQuery.includes('compare that')) {
+        resolvedQuery = `compare my run from ${context.lastDate} to my average`;
       }
       
       console.log(`🔗 Resolved query: "${query}" → "${resolvedQuery}"`);
@@ -115,6 +120,23 @@ export default function CoachNew() {
     if (daysMatch) return `last ${daysMatch[1]} days`;
     
     return null;
+  };
+
+  // Extract activity details from MCP responses for context
+  const extractActivityDetails = (mcpResponses: MCPResponse[]) => {
+    const activityDetails: any[] = [];
+    
+    mcpResponses.forEach(response => {
+      if (response.success && response.endpoint === 'get-activity-details' && response.data?.content) {
+        response.data.content.forEach((item: any) => {
+          if (item.text && item.text.includes('km') && item.text.includes('bpm')) {
+            activityDetails.push(item.text);
+          }
+        });
+      }
+    });
+    
+    return activityDetails.join('\n');
   };
 
   // Dynamic date parsing system (handles ANY date query format)
@@ -678,16 +700,17 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
       if (intent.type === 'smart_fetch' && intent.matchedActivities > 0) {
         const parsedQuery = parseDateQuery(resolvedInput);
         const contextDate = extractDateFromQuery(originalInput) || extractDateFromQuery(resolvedInput);
+        const activityDetails = extractActivityDetails(mcpResponses);
         
         setContext({
           lastDate: contextDate,
           lastDateParsed: parsedQuery.startDate,
           lastActivityIds: [], // Will be populated from MCP responses if needed
           lastQueryType: intent.type,
-          lastActivities: `Found ${intent.matchedActivities} activities`
+          lastActivities: activityDetails || `Found ${intent.matchedActivities} activities`
         });
         
-        console.log(`💾 Context saved: ${contextDate}`);
+        console.log(`💾 Context saved: ${contextDate} with activity details`);
       }
 
     } catch (error) {
@@ -732,74 +755,138 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <Card className="bg-gradient-to-r from-green-100 to-blue-100 border-0 shadow-lg">
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-green-700 to-blue-700 bg-clip-text text-transparent flex items-center justify-center gap-2">
-              <Bot className="h-8 w-8 text-green-600" />
-              Dynamic AI Running Coach
-            </CardTitle>
-            <CardDescription className="text-lg text-gray-600">
-              Client-Side Date Filtering • Real Activity IDs • Maximum Data Retrieval
-            </CardDescription>
-            <div className="flex flex-wrap justify-center gap-2 mt-2">
-              <Badge variant="outline" className="text-xs bg-white/50">
-                <Zap className="h-3 w-3 mr-1" />
-                Dynamic Date Parsing
-              </Badge>
-              <Badge variant="outline" className="text-xs bg-white/50">
-                <Activity className="h-3 w-3 mr-1" />
-                Client-Side Filtering
-              </Badge>
-              <Badge variant="outline" className="text-xs bg-white/50">
-                <Bot className="h-3 w-3 mr-1" />
-                Real Activity Data
-              </Badge>
-            </div>
-          </CardHeader>
-        </Card>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
+      {/* Background decoration - Match OverallJam theme */}
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
 
-        {/* Connection Status */}
-        <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-              <Activity className="h-5 w-5 text-green-600" />
-              System Status
-              <Badge variant={stravaStats.connected ? "default" : "destructive"} className="ml-auto">
-                MCP: {stravaStats.connected ? "Connected" : "Disconnected"}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <Bot className="h-6 w-6 text-green-600 mx-auto mb-1" />
-                <div className="text-sm font-medium text-green-700">Data First</div>
-                <div className="text-xs text-gray-600">200 Activities</div>
+      {/* Header - Match OverallJam style */}
+      <header className="relative z-10 pt-8 px-6 md:px-12">
+        <div className="text-center max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent flex items-center justify-center gap-2">
+            <Bot className="h-10 w-10 text-green-600" />
+            🤖 AI Running Coach
+          </h1>
+          <p className="mt-3 text-lg text-gray-600">
+            Intelligent analysis with conversational context
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 mt-2">
+            <Badge variant="outline" className="text-xs bg-white/50">
+              <Zap className="h-3 w-3 mr-1" />
+              Smart Data Fetching
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-white/50">
+              <Activity className="h-3 w-3 mr-1" />
+              API Date Filtering
+            </Badge>
+            <Badge variant="outline" className="text-xs bg-white/50">
+              <Bot className="h-3 w-3 mr-1" />
+              Contextual Memory
+            </Badge>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content - Two Column Layout */}
+      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+          {/* Metrics Sidebar - Left Column */}
+          <div className="lg:col-span-1 space-y-4">
+            
+            {/* Connection Status */}
+            <Card className="bg-white/80 backdrop-blur border border-green-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-green-600" />
+                  System Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Badge variant={stravaStats.connected ? "default" : "destructive"} className="w-full justify-center">
+                  MCP: {stravaStats.connected ? "Connected" : "Disconnected"}
+                </Badge>
+                <div className="text-xs text-gray-600 mt-2 text-center">
+                  Last check: {stravaStats.lastChecked}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Today's Metrics - Match OverallJam style */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700">Today's Metrics</h3>
+              
+              {/* Calories Burned */}
+              <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl p-4 text-white shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">Calories Out</h4>
+                  <Flame className="h-4 w-4" />
+                </div>
+                <div className="text-2xl font-bold">--</div>
+                <div className="text-xs opacity-90">cal burned</div>
               </div>
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <Activity className="h-6 w-6 text-blue-600 mx-auto mb-1" />
-                <div className="text-sm font-medium text-blue-700">Client Filter</div>
-                <div className="text-xs text-gray-600">Real IDs</div>
+
+              {/* Calories In */}
+              <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-4 text-white shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">Calories In</h4>
+                  <Utensils className="h-4 w-4" />
+                </div>
+                <div className="text-2xl font-bold">--</div>
+                <div className="text-xs opacity-90">cal consumed</div>
               </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <Zap className="h-6 w-6 text-purple-600 mx-auto mb-1" />
-                <div className="text-sm font-medium text-purple-700">Dynamic Parse</div>
-                <div className="text-xs text-gray-600">Any Date</div>
+
+              {/* Protein */}
+              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-4 text-white shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">Protein</h4>
+                  <Target className="h-4 w-4" />
+                </div>
+                <div className="text-2xl font-bold">--</div>
+                <div className="text-xs opacity-90">g protein</div>
               </div>
-              <div className="text-center p-3 bg-orange-50 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-orange-600 mx-auto mb-1" />
-                <div className="text-sm font-medium text-orange-700">Last Check</div>
-                <div className="text-xs text-gray-600">{stravaStats.lastChecked}</div>
+
+              {/* Heart Rate */}
+              <div className="bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl p-4 text-white shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">Avg HR</h4>
+                  <Heart className="h-4 w-4" />
+                </div>
+                <div className="text-2xl font-bold">--</div>
+                <div className="text-xs opacity-90">bpm avg</div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Chat Interface */}
-        <Card className="bg-white/90 backdrop-blur border-0 shadow-lg">
+            {/* Context Display */}
+            {context.lastDate && (
+              <Card className="bg-gradient-to-r from-blue-100 to-cyan-100 border border-blue-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                    💭 Context Memory
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xs text-blue-600 space-y-1">
+                    <div><strong>Last query:</strong> {context.lastDate}</div>
+                    <div className="text-xs text-blue-500">Try: "how was weather that day"</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setContext({})}
+                      className="w-full mt-2 text-xs h-7"
+                    >
+                      Clear Context
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Chat Interface - Right Column */}
+          <div className="lg:col-span-3">
+            <Card className="bg-white/90 backdrop-blur border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-gray-700">Dynamic Date Query Chat</CardTitle>
             <CardDescription className="text-sm text-gray-600">
@@ -898,7 +985,9 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
             </div>
           </CardContent>
         </Card>
-      </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 } 

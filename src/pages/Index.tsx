@@ -732,10 +732,10 @@ const ChatbotCard: React.FC = () => {
           {/* Footer */}
           <div className="text-center">
             <button
-              onClick={() => window.location.href = '/lets-jam'}
+              onClick={() => window.location.href = '/coach'}
               className="text-xs text-green-600 hover:text-green-700 underline"
             >
-              Open full chat page →
+              Open AI Running Coach →
             </button>
           </div>
         </div>
@@ -803,11 +803,11 @@ const Index = () => {
               </Button>
               
               <Button 
-                onClick={() => window.location.href = '/lets-jam'} 
+                onClick={() => window.location.href = '/coach'} 
                 className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
-                <MessageSquare className="mr-3 h-5 w-5" />
-                Lets Jam
+                <Bot className="mr-3 h-5 w-5" />
+                AI Running Coach
               </Button>
             </div>
             
