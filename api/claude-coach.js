@@ -55,12 +55,12 @@ export default async function handler(req, res) {
         
         const mcpData = await mcpResponse.json();
         console.log(`✅ Real MCP data received for ${endpoint}`);
+        console.log(`📊 MCP response has ${mcpData.content?.length || 0} content items`);
+        console.log(`📋 First few items:`, mcpData.content?.slice(0, 3));
         
-        // Format response to match expected structure
+        // Format response to match expected structure - PRESERVE ALL CONTENT ITEMS
         const formattedResponse = {
-          content: [{
-            text: mcpData.content?.[0]?.text || JSON.stringify(mcpData, null, 2)
-          }]
+          content: mcpData.content || []
         };
         
         return res.status(200).json({ result: formattedResponse });
