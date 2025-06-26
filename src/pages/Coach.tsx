@@ -322,7 +322,16 @@ export default function CoachNew() {
     }
     
     // STEP 2: Client-side filtering using the algorithm
-    const activitiesText = activitiesResponse[0].data?.content?.[0]?.text || '';
+    // Concatenate all content items since MCP returns activities as separate content objects
+    const allContentItems = activitiesResponse[0].data?.content || [];
+    const activitiesText = allContentItems
+      .map(item => item.text)
+      .filter(text => text && text.trim())
+      .join('\n');
+    
+    console.log(`📋 Processing ${allContentItems.length} activity items from MCP server`);
+    console.log(`📝 Activities text sample: ${activitiesText.substring(0, 200)}...`);
+    
     const filteredActivityIds = filterActivitiesByDateAndCriteria(
       activitiesText,
       startDate!,
