@@ -16,6 +16,7 @@ interface MCPResponse {
   endpoint: string;
   data: any;
   success: boolean;
+  error?: string;
 }
 
 interface StravaStats {
@@ -23,11 +24,20 @@ interface StravaStats {
   lastChecked: string;
 }
 
+interface ConversationContext {
+  lastDate?: string;        // "june 24", "yesterday" 
+  lastDateParsed?: Date;    // Actual date object
+  lastActivityIds?: string[]; // Activity IDs from last query
+  lastQueryType?: string;   // "single_date", "date_range", etc.
+  lastActivities?: string;  // Activity descriptions for reference
+}
+
 export default function CoachNew() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [stravaStats, setStravaStats] = useState<StravaStats>({ connected: false, lastChecked: 'Never' });
+  const [context, setContext] = useState<ConversationContext>({});
 
   useEffect(() => {
     testMCPConnection();
@@ -49,6 +59,62 @@ export default function CoachNew() {
     } catch (error) {
       console.log('MCP connection test failed');
     }
+  };
+
+  // Context resolution - handle follow-up questions
+  const resolveContextualQuery = (query: string): string => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Context references that should use previous context
+    const contextualPhrases = [
+      'that day', 'that run', 'that activity', 'that date',
+      'the same day', 'how was weather', 'what was', 
+      'during that', 'on that day', 'from that'
+    ];
+    
+    const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
+    
+    if (hasContextualReference && context.lastDate) {
+      console.log(`🔗 Contextual query detected! Applying context: ${context.lastDate}`);
+      
+      // Replace contextual references with specific context
+      let resolvedQuery = query;
+      
+      if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day')) {
+        resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, context.lastDate || '');
+      }
+      
+      if (lowerQuery.includes('how was weather')) {
+        resolvedQuery = `weather on ${context.lastDate}`;
+      }
+      
+      if (lowerQuery.includes('what was')) {
+        resolvedQuery = resolvedQuery.replace(/what was/gi, `what was on ${context.lastDate}`);
+      }
+      
+      console.log(`🔗 Resolved query: "${query}" → "${resolvedQuery}"`);
+      return resolvedQuery;
+    }
+    
+    return query; // No context needed
+  };
+
+  // Extract date string from query for context saving
+  const extractDateFromQuery = (query: string): string | null => {
+    const lowerQuery = query.toLowerCase();
+    
+    if (lowerQuery.includes('june 24')) return 'june 24';
+    if (lowerQuery.includes('june 25')) return 'june 25';
+    if (lowerQuery.includes('june 22')) return 'june 22';
+    if (lowerQuery.includes('yesterday')) return 'yesterday';
+    if (lowerQuery.includes('today')) return 'today';
+    if (lowerQuery.includes('last week')) return 'last week';
+    if (lowerQuery.includes('this week')) return 'this week';
+    
+    const daysMatch = lowerQuery.match(/last (\d+) days?/);
+    if (daysMatch) return `last ${daysMatch[1]} days`;
+    
+    return null;
   };
 
   // Dynamic date parsing system (handles ANY date query format)
@@ -296,7 +362,7 @@ export default function CoachNew() {
             success: true
           });
         } else {
-          console.log(`❌ ${call.endpoint} failed`);
+          console.log(`❌ ${call.endpoint} failed with status ${response.status}`);
           responses.push({
             endpoint: call.endpoint,
             data: null,
@@ -305,10 +371,17 @@ export default function CoachNew() {
         }
       } catch (error) {
         console.error(`❌ ${call.endpoint} error:`, error);
+        
+        // Check if it's a network error
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          console.log(`🌐 Network error detected for ${call.endpoint} - check connectivity`);
+        }
+        
         responses.push({
           endpoint: call.endpoint,
           data: null,
-          success: false
+          success: false,
+          error: error.message
         });
       }
     }
@@ -519,7 +592,7 @@ export default function CoachNew() {
     }
   };
 
-  // Main message handler - DATA FIRST approach
+  // Main message handler - DATA FIRST approach with context
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
@@ -530,22 +603,41 @@ export default function CoachNew() {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const currentInput = input;
+    const originalInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
-      // Step 1: Get the RIGHT data first (no Claude guessing)
-      console.log('🔍 Getting data for query...');
-      const { intent, mcpResponses } = await getDataForQuery(currentInput);
+      // Step 1: Resolve contextual references from previous queries
+      const resolvedInput = resolveContextualQuery(originalInput);
+      console.log(`🔍 Processing query: "${resolvedInput}"`);
+      
+      // Step 2: Get the RIGHT data first (no Claude guessing)
+      const { intent, mcpResponses } = await getDataForQuery(resolvedInput);
       
       console.log(`✅ Got ${mcpResponses.length} MCP responses for intent: ${intent.type}`);
 
       // COST CONTROL: Only call Claude if we have meaningful data
       if (!validateDataForClaude(mcpResponses)) {
-        const errorMessage = `❌ **Data Access Issue**
+        // Check if it's a network error
+        const networkError = mcpResponses.some(r => r.error?.includes('fetch') || r.error?.includes('network'));
+        
+        const errorMessage = networkError ? 
+        `🌐 **Network Connection Issue**
 
-I couldn't find sufficient data to analyze for **"${currentInput}"**
+Unable to connect to Strava data server for **"${originalInput}"**
+
+**Network troubleshooting:**
+- Check your internet connection
+- Try refreshing the page (Cmd+Shift+R)
+- Switch networks if you recently changed WiFi/cellular
+- Wait a moment and try again
+
+**Error details:** Network request failed (ERR_NETWORK_CHANGED)` :
+        
+        `❌ **Data Access Issue**
+
+I couldn't find sufficient data to analyze for **"${originalInput}"**
 
 **Possible reasons:**
 - The requested activity/date wasn't found
@@ -571,8 +663,8 @@ I couldn't find sufficient data to analyze for **"${currentInput}"**
         return;
       }
 
-      // Step 2: Generate comprehensive response with Claude (using real data)
-      const responseText = await generateResponseWithClaude(currentInput, intent, mcpResponses);
+      // Step 3: Generate comprehensive response with Claude (using real data)
+      const responseText = await generateResponseWithClaude(resolvedInput, intent, mcpResponses);
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -581,6 +673,22 @@ I couldn't find sufficient data to analyze for **"${currentInput}"**
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Step 4: Save context for future queries
+      if (intent.type === 'smart_fetch' && intent.matchedActivities > 0) {
+        const parsedQuery = parseDateQuery(resolvedInput);
+        const contextDate = extractDateFromQuery(originalInput) || extractDateFromQuery(resolvedInput);
+        
+        setContext({
+          lastDate: contextDate,
+          lastDateParsed: parsedQuery.startDate,
+          lastActivityIds: [], // Will be populated from MCP responses if needed
+          lastQueryType: intent.type,
+          lastActivities: `Found ${intent.matchedActivities} activities`
+        });
+        
+        console.log(`💾 Context saved: ${contextDate}`);
+      }
 
     } catch (error) {
       console.error('❌ Coach error:', error);
@@ -611,9 +719,16 @@ I couldn't find sufficient data to analyze for **"${currentInput}"**
     "analyze my runs from last week",
     "show my heart rate distribution in recent runs",
     "analyze my last 7 days of running",
-    "show me runs from 5/1/2025 to 6/30/2025",
-    "analyze my marathon runs this year",
     "show my recent runs"
+  ];
+
+  // Contextual prompts shown when context is available
+  const contextualPrompts = [
+    "how was weather that day",
+    "what was my pace that day", 
+    "how did I feel during that run",
+    "compare that to my average",
+    "what was my heart rate that day"
   ];
 
   return (
@@ -688,7 +803,13 @@ I couldn't find sufficient data to analyze for **"${currentInput}"**
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-gray-700">Dynamic Date Query Chat</CardTitle>
             <CardDescription className="text-sm text-gray-600">
-              Any date format - I'll get maximum data first, then filter client-side
+              Any date format - Smart contextual conversations supported
+              {context.lastDate && (
+                <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                  💭 Context: Last query was about <span className="font-medium">{context.lastDate}</span>
+                  <br />Try: "how was weather that day" or "what was my pace that day"
+                </div>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -750,18 +871,29 @@ I couldn't find sufficient data to analyze for **"${currentInput}"**
             <div className="mt-4">
               <div className="text-sm font-medium text-gray-700 mb-2">Try these dynamic queries:</div>
               <div className="flex flex-wrap gap-2">
-                {smartPrompts.map((prompt, index) => (
-                  <Button
-                    key={index}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setInput(prompt)}
-                    className="text-xs"
-                    disabled={isLoading}
-                  >
-                    {prompt}
-                  </Button>
-                ))}
+                              {(context.lastDate ? contextualPrompts : smartPrompts).map((prompt, index) => (
+                <Button
+                  key={index}
+                  variant={context.lastDate ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setInput(prompt)}
+                  className="text-xs"
+                  disabled={isLoading}
+                >
+                  {prompt}
+                </Button>
+              ))}
+              {context.lastDate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setContext({})}
+                  className="text-xs text-gray-500"
+                  disabled={isLoading}
+                >
+                  Clear Context
+                </Button>
+              )}
               </div>
             </div>
           </CardContent>
