@@ -27,18 +27,19 @@ export default async function handler(req, res) {
       console.log(`🌐 MCP Call: ${endpoint} with params:`, params);
       
       try {
-        // Call the real MCP server
+        // Call the real MCP server with correct API structure
         const mcpServerUrl = process.env.MCP_SERVER_URL || 'https://strava-mcp-server.onrender.com';
-        const mcpUrl = `${mcpServerUrl}/tools/${endpoint}`;
+        const mcpUrl = `${mcpServerUrl}/api/tools/${endpoint}`;
         
         console.log(`📡 Calling real MCP server: ${mcpUrl}`);
+        console.log(`📋 Request params:`, params);
         
         const mcpResponse = await fetch(mcpUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ arguments: params })
+          body: JSON.stringify(params)
         });
         
         if (!mcpResponse.ok) {
