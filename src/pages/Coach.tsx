@@ -146,24 +146,50 @@ export default function CoachNew() {
         console.log(`Nutrition doc ${index}:`, doc.data());
       });
 
-      // Process nutrition data (only today's data)
+      // Process nutrition data (prioritize today, fallback to recent)
+      let foundTodayNutrition = false;
+      
+      // First, try to find today's data
       nutritionSnapshot.docs.forEach(doc => {
         const data = doc.data();
         console.log(`Processing nutrition data:`, data);
         
-        // Only use today's nutrition data
         if (data.date === today) {
           todayData.caloriesConsumed = data.totals?.calories || 0;
           todayData.protein = data.totals?.protein || 0;
           todayData.carbs = data.totals?.carbs || 0;
           todayData.fat = data.totals?.fat || 0;
           todayData.fiber = data.totals?.fiber || 0;
+          foundTodayNutrition = true;
           console.log(`Found today's nutrition:`, {
             calories: todayData.caloriesConsumed,
             protein: todayData.protein
           });
         }
       });
+      
+      // If no nutrition data for today, use most recent (within last 3 days)
+      if (!foundTodayNutrition) {
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const threeDaysAgoString = threeDaysAgo.toISOString().split('T')[0];
+        
+        for (const doc of nutritionSnapshot.docs) {
+          const data = doc.data();
+          if (data.date >= threeDaysAgoString) {
+            todayData.caloriesConsumed = data.totals?.calories || 0;
+            todayData.protein = data.totals?.protein || 0;
+            todayData.carbs = data.totals?.carbs || 0;
+            todayData.fat = data.totals?.fat || 0;
+            todayData.fiber = data.totals?.fiber || 0;
+            console.log(`Using recent nutrition from ${data.date}:`, {
+              calories: todayData.caloriesConsumed,
+              protein: todayData.protein
+            });
+            break;
+          }
+        }
+      }
 
       // Debug: Log actual Strava data
       stravaSnapshot.docs.forEach((doc, index) => {
@@ -179,8 +205,12 @@ export default function CoachNew() {
         
         console.log(`Checking activity: date=${activityDate} vs today=${today}`);
         
-        // Only process today's activities
-        if (activityDate !== today) return;
+        // Process recent activities (last 3 days) if no activity today
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const threeDaysAgoString = threeDaysAgo.toISOString().split('T')[0];
+        
+        if (activityDate < threeDaysAgoString) return;
 
         console.log(`Processing today's activity:`, data);
         const activityType = data.type || '';
