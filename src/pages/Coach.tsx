@@ -263,14 +263,20 @@ export default function Coach() {
       searchDate = new Date(today);
       searchDate.setDate(searchDate.getDate() - 1);
     } else if (dateRef.includes('june') && dateRef.includes('24')) {
-      searchDate = new Date(today.getFullYear(), 5, 24); // June = 5 (0-indexed)
+      // Fixed: Use current year (2025) not default year
+      searchDate = new Date(2025, 5, 24); // June = 5 (0-indexed)
     } else {
+      console.log(`⚠️ Unrecognized date reference: ${dateRef}`);
       return null;
     }
+    
+    console.log(`🔍 Searching for activity on: ${searchDate.toDateString()}`);
     
     // Parse activities text to find matching date
     const activitiesText = activities[0]?.content?.[0]?.text || '';
     const lines = activitiesText.split('\n');
+    
+    console.log(`📋 Scanning ${lines.length} activity lines for ${searchDate.toDateString()}`);
     
     for (const line of lines) {
       const idMatch = line.match(/ID:\s*(\d+)/);
@@ -280,13 +286,16 @@ export default function Coach() {
         const [month, day, year] = dateMatch[1].split('/');
         const activityDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         
+        console.log(`📅 Found activity ${idMatch[1]} on ${activityDate.toDateString()}`);
+        
         if (activityDate.toDateString() === searchDate.toDateString()) {
-          console.log(`🎯 Found activity ID ${idMatch[1]} for ${dateRef}`);
+          console.log(`🎯 ✅ MATCH! Found activity ID ${idMatch[1]} for ${dateRef}`);
           return idMatch[1];
         }
       }
     }
     
+    console.log(`❌ No activity found for ${dateRef} (${searchDate.toDateString()})`);
     return null;
   };
 
@@ -410,6 +419,30 @@ export default function Coach() {
     return await executeMCPCalls(streamCalls);
   };
 
+  // Validate if we have sufficient data before calling Claude
+  const validateDataForClaude = (mcpResponses: MCPResponse[]): boolean => {
+    const successfulResponses = mcpResponses.filter(r => r.success && r.data?.content?.[0]?.text);
+    
+    if (successfulResponses.length === 0) {
+      console.log('❌ No successful MCP responses - skip Claude call');
+      return false;
+    }
+    
+    // Check if we have meaningful data (not just empty lists)
+    const hasRealData = successfulResponses.some(r => {
+      const text = r.data.content[0].text;
+      return text.length > 100 && !text.includes('No activities found');
+    });
+    
+    if (!hasRealData) {
+      console.log('❌ No meaningful data in MCP responses - skip Claude call');
+      return false;
+    }
+    
+    console.log(`✅ Data validation passed: ${successfulResponses.length} successful responses with real data`);
+    return true;
+  };
+
   // Main message handler - orchestrates the entire intelligent flow
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -426,12 +459,35 @@ export default function Coach() {
     setIsLoading(true);
 
     try {
-      // Step 1: Analyze query with Claude
+      // Step 1: Analyze query with Claude (only for complex queries)
       const analysis = await analyzeQueryWithClaude(currentInput);
       console.log('📊 Query analysis:', analysis);
 
-      // Step 2: Execute initial MCP calls
-      let mcpResponses = await executeMCPCalls(analysis.mcpCalls);
+      // COST CONTROL: Validate MCP calls before executing
+      const validatedMCPCalls = analysis.mcpCalls.filter(call => {
+        // Block calls with placeholder activity IDs
+        if (call.params?.activityId === 'ACTIVITY_ID' || call.params?.id === 'ACTIVITY_ID') {
+          console.log(`❌ BLOCKED invalid call to ${call.endpoint} with placeholder ACTIVITY_ID`);
+          return false;
+        }
+        
+        // Fix date ranges for 2025
+        if (call.params?.after && call.params.after.includes('2023')) {
+          call.params.after = call.params.after.replace('2023', '2025');
+          console.log(`🔧 Fixed date: ${call.params.after}`);
+        }
+        if (call.params?.before && call.params.before.includes('2023')) {
+          call.params.before = call.params.before.replace('2023', '2025');
+          console.log(`🔧 Fixed date: ${call.params.before}`);
+        }
+        
+        return true;
+      });
+      
+      console.log(`✅ Executing ${validatedMCPCalls.length} validated MCP calls (blocked ${analysis.mcpCalls.length - validatedMCPCalls.length})`);
+      
+      // Step 2: Execute validated MCP calls
+      let mcpResponses = await executeMCPCalls(validatedMCPCalls);
 
       // Step 3A: If specific activity requested, find activity ID and get detailed data
       if (analysis.intent === 'specific_activity' && analysis.dateReference) {
@@ -479,6 +535,36 @@ export default function Coach() {
             console.log('⚠️ No running activity IDs found in recent activities');
           }
         }
+      }
+
+      // COST CONTROL: Only call Claude if we have meaningful data
+      if (!validateDataForClaude(mcpResponses)) {
+        const errorMessage = `❌ **Data Access Issue**
+
+I couldn't find sufficient data to analyze for **"${currentInput}"**
+
+**Possible reasons:**
+- The requested activity/date wasn't found
+- Data isn't available or properly synced  
+- Privacy settings may be blocking access
+- Date format issue (using 2025 for current year)
+
+**Next Steps:**
+1. Check if the activity exists in your Strava account
+2. Try: "show my recent runs" to see what's available
+3. Use a different date format
+4. Verify Strava sync and privacy settings
+
+**Cost-saving note:** Skipped expensive Claude API call since no meaningful data was found.`;
+
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: errorMessage,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsLoading(false);
+        return;
       }
 
       // Step 4: Generate comprehensive response with Claude

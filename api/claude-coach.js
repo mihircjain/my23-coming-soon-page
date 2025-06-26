@@ -75,8 +75,8 @@ Analyze this query and respond with a JSON object containing:
   "dateRange": {"days": 20}, // if query mentions time range like "last 20 days"
   "dataTypes": ["heartrate", "pace", "power", "elevation"], // what data types are needed
   "mcpCalls": [
-    {"endpoint": "get-recent-activities", "params": {"per_page": 10}},
-    {"endpoint": "get-activity-streams", "params": {"id": "ACTIVITY_ID", "types": ["heartrate", "pace"]}}
+    {"endpoint": "get-recent-activities", "params": {"per_page": 30, "after": "2025-06-23", "before": "2025-06-25"}},
+    {"endpoint": "get-athlete-zones", "params": {}}
   ],
   "reasoning": "Explanation of why these endpoints were chosen"
 }
@@ -88,6 +88,12 @@ ANALYSIS RULES:
 4. For specific dates: Need to find activity ID first, then get detailed data
 5. For training zones: Include get-athlete-zones
 6. For general stats: Include get-athlete-stats and get-athlete-profile
+
+CRITICAL DATE HANDLING:
+- Current year is 2025
+- For "june 24" queries: use 2025-06-24 format
+- For date ranges: use after/before with YYYY-MM-DD format in 2025
+- NEVER use placeholder "ACTIVITY_ID" - let frontend find real activity IDs
 
 RESPOND ONLY WITH VALID JSON:`;
 
