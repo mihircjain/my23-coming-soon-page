@@ -364,19 +364,30 @@ export default function Coach() {
   };
 
   // Extract activity IDs from recent activities text
-  const extractActivityIds = (activitiesData: any, maxActivities: number = 3): string[] => {
+  const extractActivityIds = (activitiesData: any, maxActivities: number = 5): string[] => {
     const activitiesText = activitiesData?.content?.[0]?.text || '';
     const lines = activitiesText.split('\n');
     const activityIds: string[] = [];
     
     for (const line of lines) {
       const idMatch = line.match(/ID:\s*(\d+)/);
-      const isRun = line.toLowerCase().includes('run') && !line.toLowerCase().includes('weight');
+      // More inclusive running detection
+      const isRun = (line.toLowerCase().includes('run') || line.toLowerCase().includes('running')) 
+                    && !line.toLowerCase().includes('weight') 
+                    && !line.toLowerCase().includes('walk');
       
       if (idMatch && isRun && activityIds.length < maxActivities) {
         activityIds.push(idMatch[1]);
-        console.log(`📋 Extracted activity ID: ${idMatch[1]} from: ${line.split('—')[0]}`);
+        console.log(`🏃 Extracted activity ID: ${idMatch[1]} from: ${line.split('—')[0]}`);
       }
+    }
+    
+    // If we didn't find enough runs, log what we did find
+    if (activityIds.length < 3) {
+      console.log(`⚠️ Only found ${activityIds.length} runs. Recent activities:`);
+      lines.slice(0, 10).forEach(line => {
+        if (line.includes('ID:')) console.log(`  ${line}`);
+      });
     }
     
     return activityIds;
@@ -450,10 +461,20 @@ export default function Coach() {
           const activityIds = extractActivityIds(recentActivitiesResponse.data, 3);
           
           if (activityIds.length > 0) {
-            // Get detailed streams for these activities
+            // Get both detailed streams AND activity details for each activity
             const detailedStreams = await getDetailedStreamsForActivities(activityIds, analysis.dataTypes);
-            mcpResponses = [...mcpResponses, ...detailedStreams];
-            console.log(`✅ Added detailed streams for ${activityIds.length} activities`);
+            
+            // ALSO get activity details (summary stats) for each activity
+            const activityDetailsCalls = activityIds.map(id => ({
+              endpoint: 'get-activity-details',
+              params: { activityId: id }
+            }));
+            
+            console.log(`📋 Getting activity details for ${activityIds.length} activities`);
+            const activityDetails = await executeMCPCalls(activityDetailsCalls);
+            
+            mcpResponses = [...mcpResponses, ...detailedStreams, ...activityDetails];
+            console.log(`✅ Added streams + details for ${activityIds.length} activities`);
           } else {
             console.log('⚠️ No running activity IDs found in recent activities');
           }

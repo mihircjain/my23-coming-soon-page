@@ -131,13 +131,20 @@ QUERY ANALYSIS: ${JSON.stringify(analysis, null, 2)}
 STRAVA DATA CONTEXT:
 ${contextData}
 
+IMPORTANT DATA INTERPRETATION NOTES:
+- GET-ACTIVITY-DETAILS contains accurate summary stats (total time, average pace, distance)
+- GET-ACTIVITY-STREAMS contains detailed arrays but may need calculation for averages
+- Always use activity details for pace, duration, and distance - NOT stream calculations
+- Use streams for HR distribution, power curves, and detailed analysis
+- Pace in activity details is usually in m/s - convert to min/km for readability
+
 INSTRUCTIONS:
 - Provide comprehensive technical analysis (minimum 200 words)
 - Reference specific metrics and data points from the context
 - Include heart rate zones, pace analysis, and training recommendations
 - Use structured format with clear sections
 - Be encouraging but technically accurate
-- If you see detailed activity streams, analyze them thoroughly
+- Prioritize activity details for pace/time, streams for HR distribution
 - Provide specific training prescriptions based on the data
 
 RESPONSE STRUCTURE:
@@ -225,7 +232,7 @@ function analyzeQueryRuleBased(query) {
       intent: 'training_zones',
       dataTypes: ['heartrate', 'pace'],
       mcpCalls: [
-        { endpoint: 'get-recent-activities', params: { per_page: 10 } },
+        { endpoint: 'get-recent-activities', params: { per_page: 20 } },
         { endpoint: 'get-athlete-zones', params: {} }
       ],
       reasoning: 'HR distribution analysis requires recent activities, zones, and detailed HR streams from recent runs'
