@@ -101,10 +101,11 @@ export default function CoachNew() {
     
     // Specific month/day patterns
     if (lowerQuery.includes('june 24') || (lowerQuery.includes('june') && lowerQuery.includes('24'))) {
-      const targetDate = new Date(2025, 5, 24);
+      const targetDate = new Date(2025, 5, 24);  // June 24, 2025
+      const nextDay = new Date(2025, 5, 25);     // June 25, 2025 (exclusive)
       return { 
         startDate: targetDate, 
-        endDate: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000), 
+        endDate: nextDay, 
         criteria: { type: 'specific' } 
       };
     }
@@ -112,17 +113,21 @@ export default function CoachNew() {
     if (lowerQuery.includes('yesterday')) {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
+      const nextDay = new Date(yesterday);
+      nextDay.setDate(nextDay.getDate() + 1);
       return { 
         startDate: yesterday, 
-        endDate: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000), 
+        endDate: nextDay, 
         criteria: { type: 'specific' } 
       };
     }
     
     if (lowerQuery.includes('today')) {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
       return { 
         startDate: today, 
-        endDate: new Date(today.getTime() + 24 * 60 * 60 * 1000), 
+        endDate: tomorrow, 
         criteria: { type: 'specific' } 
       };
     }
@@ -220,10 +225,10 @@ export default function CoachNew() {
         break;
       }
 
-      // Apply filters
+      // Apply filters (use < for endDate to exclude activities on the end date for specific date queries)
       if (activityDate && 
           activityDate >= startDate && 
-          activityDate <= endDate &&
+          activityDate < endDate &&
           activityDistance >= criteria.minDistance &&
           activityType === criteria.activityType) {
         
@@ -344,8 +349,8 @@ export default function CoachNew() {
     
     // Add zones and stats for comprehensive analysis
     detailedCalls.push(
-      { endpoint: 'get-athlete-zones', params: {} },
-      { endpoint: 'get-athlete-stats', params: {} }
+      { endpoint: 'get-athlete-zones', params: { activityId: 'zones' } },
+      { endpoint: 'get-athlete-stats', params: { activityId: 'stats' } }
     );
     
     const detailedData = await executeMCPCalls(detailedCalls);

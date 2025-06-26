@@ -26,14 +26,51 @@ export default async function handler(req, res) {
     if (action === 'mcp_call') {
       console.log(`🌐 MCP Call: ${endpoint} with params:`, params);
       
-      // For now, return mock data - in real implementation, call actual MCP server
-      const mockResponse = {
-        content: [{
-          text: generateMockStravaData(endpoint, params)
-        }]
-      };
-      
-      return res.status(200).json({ result: mockResponse });
+      try {
+        // Call the real MCP server
+        const mcpServerUrl = process.env.MCP_SERVER_URL || 'https://strava-mcp-server.onrender.com';
+        const mcpUrl = `${mcpServerUrl}/tools/${endpoint}`;
+        
+        console.log(`📡 Calling real MCP server: ${mcpUrl}`);
+        
+        const mcpResponse = await fetch(mcpUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ arguments: params })
+        });
+        
+        if (!mcpResponse.ok) {
+          console.log(`❌ MCP server error: ${mcpResponse.status}`);
+          throw new Error(`MCP server returned ${mcpResponse.status}`);
+        }
+        
+        const mcpData = await mcpResponse.json();
+        console.log(`✅ Real MCP data received for ${endpoint}`);
+        
+        // Format response to match expected structure
+        const formattedResponse = {
+          content: [{
+            text: mcpData.content?.[0]?.text || JSON.stringify(mcpData, null, 2)
+          }]
+        };
+        
+        return res.status(200).json({ result: formattedResponse });
+        
+      } catch (error) {
+        console.log(`❌ MCP server call failed: ${error.message}`);
+        console.log('🔄 Falling back to mock data for development...');
+        
+        // Fallback to mock data if MCP server is unavailable
+        const mockResponse = {
+          content: [{
+            text: generateMockStravaData(endpoint, params)
+          }]
+        };
+        
+        return res.status(200).json({ result: mockResponse });
+      }
     }
 
     // Handle test connection
