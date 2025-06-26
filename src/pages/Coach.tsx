@@ -187,10 +187,10 @@ export default function Coach() {
     
     if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr')) {
       return {
-        intent: 'specific_activity',
+        intent: 'training_zones',
         dataTypes: ['heartrate'],
         mcpCalls: [
-          { endpoint: 'get-recent-activities', params: { per_page: 3 } },
+          { endpoint: 'get-recent-activities', params: { per_page: 5 } },
           { endpoint: 'get-athlete-zones', params: {} }
         ],
         reasoning: 'HR analysis requires recent activities and training zones'
@@ -363,6 +363,42 @@ export default function Coach() {
     }
   };
 
+  // Extract activity IDs from recent activities text
+  const extractActivityIds = (activitiesData: any, maxActivities: number = 3): string[] => {
+    const activitiesText = activitiesData?.content?.[0]?.text || '';
+    const lines = activitiesText.split('\n');
+    const activityIds: string[] = [];
+    
+    for (const line of lines) {
+      const idMatch = line.match(/ID:\s*(\d+)/);
+      const isRun = line.toLowerCase().includes('run') && !line.toLowerCase().includes('weight');
+      
+      if (idMatch && isRun && activityIds.length < maxActivities) {
+        activityIds.push(idMatch[1]);
+        console.log(`📋 Extracted activity ID: ${idMatch[1]} from: ${line.split('—')[0]}`);
+      }
+    }
+    
+    return activityIds;
+  };
+
+  // Get detailed streams for multiple activities
+  const getDetailedStreamsForActivities = async (activityIds: string[], dataTypes: string[]): Promise<MCPResponse[]> => {
+    console.log(`🔍 Getting detailed streams for ${activityIds.length} activities: ${activityIds.join(', ')}`);
+    
+    const streamCalls = activityIds.map(id => ({
+      endpoint: 'get-activity-streams',
+      params: {
+        id,
+        types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude', 'cadence'],
+        resolution: 'medium',
+        points_per_page: -1
+      }
+    }));
+    
+    return await executeMCPCalls(streamCalls);
+  };
+
   // Main message handler - orchestrates the entire intelligent flow
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -386,7 +422,7 @@ export default function Coach() {
       // Step 2: Execute initial MCP calls
       let mcpResponses = await executeMCPCalls(analysis.mcpCalls);
 
-      // Step 3: If specific activity requested, find activity ID and get detailed data
+      // Step 3A: If specific activity requested, find activity ID and get detailed data
       if (analysis.intent === 'specific_activity' && analysis.dateReference) {
         const recentActivitiesResponse = mcpResponses.find(r => r.endpoint === 'get-recent-activities');
         
@@ -397,6 +433,29 @@ export default function Coach() {
             console.log(`🎯 Getting detailed data for activity ${activityId}`);
             const detailedData = await getDetailedActivityData(activityId, analysis.dataTypes);
             mcpResponses = [...mcpResponses, ...detailedData];
+          }
+        }
+      }
+
+      // Step 3B: If HR/pace analysis for recent activities, automatically get detailed streams
+      if ((analysis.intent === 'training_zones' || analysis.intent === 'date_range') && 
+          (analysis.dataTypes.includes('heartrate') || analysis.dataTypes.includes('pace'))) {
+        
+        const recentActivitiesResponse = mcpResponses.find(r => r.endpoint === 'get-recent-activities');
+        
+        if (recentActivitiesResponse?.success) {
+          console.log('🔄 HR/pace analysis detected - getting detailed streams for recent runs');
+          
+          // Extract activity IDs from recent activities
+          const activityIds = extractActivityIds(recentActivitiesResponse.data, 3);
+          
+          if (activityIds.length > 0) {
+            // Get detailed streams for these activities
+            const detailedStreams = await getDetailedStreamsForActivities(activityIds, analysis.dataTypes);
+            mcpResponses = [...mcpResponses, ...detailedStreams];
+            console.log(`✅ Added detailed streams for ${activityIds.length} activities`);
+          } else {
+            console.log('⚠️ No running activity IDs found in recent activities');
           }
         }
       }

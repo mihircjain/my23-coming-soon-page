@@ -220,15 +220,15 @@ function analyzeQueryRuleBased(query) {
     };
   }
   
-  if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr')) {
+  if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || lowerQuery.includes('distribution')) {
     return {
       intent: 'training_zones',
-      dataTypes: ['heartrate'],
+      dataTypes: ['heartrate', 'pace'],
       mcpCalls: [
-        { endpoint: 'get-recent-activities', params: { per_page: 3 } },
+        { endpoint: 'get-recent-activities', params: { per_page: 10 } },
         { endpoint: 'get-athlete-zones', params: {} }
       ],
-      reasoning: 'HR analysis requires recent activities and training zones'
+      reasoning: 'HR distribution analysis requires recent activities, zones, and detailed HR streams from recent runs'
     };
   }
   
