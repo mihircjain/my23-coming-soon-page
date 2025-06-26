@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Bot, Zap, TrendingUp, Flame, Utensils, Target, Heart } from 'lucide-react';
+import { Activity, Bot, Zap, TrendingUp, Flame, Utensils, Target, Heart, ArrowLeft, Sparkles, Trophy, Calendar, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { db } from '@/lib/firebaseConfig';
+import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -32,15 +35,35 @@ interface ConversationContext {
   lastActivities?: string;  // Activity descriptions for reference
 }
 
+interface TodayMetrics {
+  caloriesBurned: number;
+  caloriesConsumed: number;
+  protein: number;
+  heartRate: number | null;
+  activities: string[];
+  lastUpdated: string;
+}
+
 export default function CoachNew() {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [stravaStats, setStravaStats] = useState<StravaStats>({ connected: false, lastChecked: 'Never' });
   const [context, setContext] = useState<ConversationContext>({});
+  const [todayMetrics, setTodayMetrics] = useState<TodayMetrics>({
+    caloriesBurned: 0,
+    caloriesConsumed: 0,
+    protein: 0,
+    heartRate: null,
+    activities: [],
+    lastUpdated: 'Never'
+  });
+  const [metricsLoading, setMetricsLoading] = useState(true);
 
   useEffect(() => {
     testMCPConnection();
+    fetchTodayMetrics();
   }, []);
 
   const testMCPConnection = async () => {
@@ -58,6 +81,86 @@ export default function CoachNew() {
       }
     } catch (error) {
       console.log('MCP connection test failed');
+    }
+  };
+
+  // Fetch today's health metrics from Firebase
+  const fetchTodayMetrics = async () => {
+    try {
+      setMetricsLoading(true);
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch nutrition data for today
+      const nutritionQuery = query(
+        collection(db, "nutritionLogs"),
+        where("date", "==", today),
+        orderBy("timestamp", "desc"),
+        limit(1)
+      );
+
+      // Fetch Strava data for today
+      const stravaQuery = query(
+        collection(db, "strava_data"),
+        where("userId", "==", "mihir_jain"),
+        where("date", "==", today),
+        orderBy("start_date", "desc")
+      );
+
+      const [nutritionSnapshot, stravaSnapshot] = await Promise.all([
+        getDocs(nutritionQuery).catch(() => ({ docs: [] })),
+        getDocs(stravaQuery).catch(() => ({ docs: [] }))
+      ]);
+
+      let metrics: TodayMetrics = {
+        caloriesBurned: 0,
+        caloriesConsumed: 0,
+        protein: 0,
+        heartRate: null,
+        activities: [],
+        lastUpdated: new Date().toLocaleTimeString()
+      };
+
+      // Process nutrition data
+      if (nutritionSnapshot.docs.length > 0) {
+        const nutritionData = nutritionSnapshot.docs[0].data();
+        metrics.caloriesConsumed = nutritionData.totals?.calories || 0;
+        metrics.protein = nutritionData.totals?.protein || 0;
+      }
+
+      // Process Strava data
+      let runCount = 0;
+      let totalHR = 0;
+      
+      stravaSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const activityType = data.type || '';
+        const isRun = activityType.toLowerCase().includes('run');
+        
+        // Accumulate calories
+        metrics.caloriesBurned += data.calories || 0;
+        
+        // Track activities
+        if (activityType && !metrics.activities.includes(activityType)) {
+          metrics.activities.push(activityType);
+        }
+        
+        // Calculate average heart rate for runs only
+        if (data.heart_rate && isRun) {
+          totalHR += data.heart_rate;
+          runCount++;
+        }
+      });
+
+      if (runCount > 0) {
+        metrics.heartRate = Math.round(totalHR / runCount);
+      }
+
+      setTodayMetrics(metrics);
+      
+    } catch (error) {
+      console.error('Error fetching today metrics:', error);
+    } finally {
+      setMetricsLoading(false);
     }
   };
 
@@ -737,52 +840,83 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
 
   // Smart coaching prompts that leverage the dynamic system
   const smartPrompts = [
-    "analyze my run from june 24",
-    "show me my long runs since march 16", 
     "analyze my runs from last week",
-    "show my heart rate distribution in recent runs",
+    "show me my longest runs this month", 
+    "how has my pace improved lately",
+    "show my heart rate trends in recent runs",
     "analyze my last 7 days of running",
-    "show my recent runs"
+    "what's my average pace this month"
   ];
 
   // Contextual prompts shown when context is available
   const contextualPrompts = [
     "how was weather that day",
-    "what was my pace that day", 
-    "how did I feel during that run",
+    "what was my pace during that run", 
+    "how was my heart rate that day",
     "compare that to my average",
-    "what was my heart rate that day"
+    "what was my effort level"
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
-      {/* Background decoration - Match OverallJam theme */}
-      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-cyan-50 to-blue-50 flex flex-col relative overflow-hidden">
+      {/* Enhanced Background decoration */}
+      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-cyan-500/10 to-blue-500/20 animate-pulse"></div>
+      <div className="absolute top-10 left-10 w-40 h-40 bg-emerald-300/40 rounded-full blur-2xl animate-bounce"></div>
+      <div className="absolute bottom-10 right-10 w-32 h-32 bg-blue-300/40 rounded-full blur-2xl animate-bounce delay-1000"></div>
+      <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-cyan-300/30 rounded-full blur-xl animate-bounce delay-500"></div>
+      <div className="absolute top-1/3 right-1/3 w-20 h-20 bg-teal-300/30 rounded-full blur-xl animate-bounce delay-700"></div>
 
-      {/* Header - Match OverallJam style */}
-      <header className="relative z-10 pt-8 px-6 md:px-12">
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent flex items-center justify-center gap-2">
-            <Bot className="h-10 w-10 text-green-600" />
-            🤖 AI Running Coach
-          </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            Intelligent analysis with conversational context
+      {/* Header - Enhanced with navigation */}
+      <header className="relative z-10 pt-6 px-6 md:px-12">
+        <div className="flex items-center justify-between mb-6">
+          <Button
+            onClick={() => navigate('/')}
+            variant="ghost"
+            className="hover:bg-white/30 text-gray-700 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Home
+          </Button>
+          
+          <Badge variant="outline" className="bg-white/60 text-emerald-700 border-emerald-200">
+            <Sparkles className="h-3 w-3 mr-1" />
+            AI Powered
+          </Badge>
+        </div>
+
+        <div className="text-center max-w-5xl mx-auto">
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div className="relative">
+              <Bot className="h-12 w-12 text-emerald-600 animate-pulse" />
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-ping"></div>
+            </div>
+            <h1 className="text-5xl md:text-6xl font-black bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 bg-clip-text text-transparent">
+              AI Running Coach
+            </h1>
+            <Trophy className="h-10 w-10 text-amber-500 animate-bounce" />
+          </div>
+          
+          <p className="mt-4 text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
+            🏃‍♂️ Your intelligent running companion powered by real Strava data. 
+            Ask questions about any date, get contextual insights, and improve your performance! 
           </p>
-          <div className="flex flex-wrap justify-center gap-2 mt-2">
-            <Badge variant="outline" className="text-xs bg-white/50">
-              <Zap className="h-3 w-3 mr-1" />
-              Smart Data Fetching
+          
+          <div className="flex flex-wrap justify-center gap-3 mt-6">
+            <Badge variant="outline" className="text-sm bg-emerald-100/80 text-emerald-700 border-emerald-300 px-4 py-2">
+              <Zap className="h-4 w-4 mr-2" />
+              Real-Time Data
             </Badge>
-            <Badge variant="outline" className="text-xs bg-white/50">
-              <Activity className="h-3 w-3 mr-1" />
-              API Date Filtering
+            <Badge variant="outline" className="text-sm bg-cyan-100/80 text-cyan-700 border-cyan-300 px-4 py-2">
+              <Activity className="h-4 w-4 mr-2" />
+              Strava Connected
             </Badge>
-            <Badge variant="outline" className="text-xs bg-white/50">
-              <Bot className="h-3 w-3 mr-1" />
-              Contextual Memory
+            <Badge variant="outline" className="text-sm bg-blue-100/80 text-blue-700 border-blue-300 px-4 py-2">
+              <Bot className="h-4 w-4 mr-2" />
+              Conversational AI
+            </Badge>
+            <Badge variant="outline" className="text-sm bg-amber-100/80 text-amber-700 border-amber-300 px-4 py-2">
+              <Calendar className="h-4 w-4 mr-2" />
+              Any Date Query
             </Badge>
           </div>
         </div>
@@ -813,48 +947,111 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
               </CardContent>
             </Card>
 
-            {/* Today's Metrics - Match OverallJam style */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-700">Today's Metrics</h3>
+            {/* Today's Metrics - Enhanced Design */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-emerald-600" />
+                  Today's Metrics
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchTodayMetrics}
+                  disabled={metricsLoading}
+                  className="text-xs hover:bg-white/50"
+                >
+                  {metricsLoading ? <Zap className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                </Button>
+              </div>
+              
+              {/* Activities Status */}
+              {todayMetrics.activities.length > 0 && (
+                <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 border border-amber-200">
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <Users className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      {todayMetrics.activities.join(', ')} Today
+                    </span>
+                  </div>
+                </div>
+              )}
               
               {/* Calories Burned */}
-              <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl p-4 text-white shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">Calories Out</h4>
-                  <Flame className="h-4 w-4" />
+              <div className="bg-gradient-to-br from-orange-400 via-red-400 to-pink-500 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold">Calories Burned</h4>
+                  <div className="relative">
+                    <Flame className="h-5 w-5 animate-pulse" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
+                  </div>
                 </div>
-                <div className="text-2xl font-bold">--</div>
-                <div className="text-xs opacity-90">cal burned</div>
+                <div className="text-3xl font-black">
+                  {metricsLoading ? (
+                    <div className="animate-pulse bg-white/30 h-8 w-16 rounded"></div>
+                  ) : (
+                    todayMetrics.caloriesBurned.toLocaleString()
+                  )}
+                </div>
+                <div className="text-sm opacity-90 mt-1">calories burned</div>
               </div>
 
               {/* Calories In */}
-              <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-4 text-white shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">Calories In</h4>
-                  <Utensils className="h-4 w-4" />
+              <div className="bg-gradient-to-br from-emerald-400 via-green-500 to-teal-600 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold">Calories Consumed</h4>
+                  <Utensils className="h-5 w-5 animate-bounce" />
                 </div>
-                <div className="text-2xl font-bold">--</div>
-                <div className="text-xs opacity-90">cal consumed</div>
+                <div className="text-3xl font-black">
+                  {metricsLoading ? (
+                    <div className="animate-pulse bg-white/30 h-8 w-16 rounded"></div>
+                  ) : (
+                    todayMetrics.caloriesConsumed.toLocaleString()
+                  )}
+                </div>
+                <div className="text-sm opacity-90 mt-1">calories consumed</div>
               </div>
 
               {/* Protein */}
-              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-4 text-white shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">Protein</h4>
-                  <Target className="h-4 w-4" />
+              <div className="bg-gradient-to-br from-blue-400 via-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold">Protein Intake</h4>
+                  <Target className="h-5 w-5" />
                 </div>
-                <div className="text-2xl font-bold">--</div>
-                <div className="text-xs opacity-90">g protein</div>
+                <div className="text-3xl font-black">
+                  {metricsLoading ? (
+                    <div className="animate-pulse bg-white/30 h-8 w-12 rounded"></div>
+                  ) : (
+                    `${todayMetrics.protein}g`
+                  )}
+                </div>
+                <div className="text-sm opacity-90 mt-1">protein today</div>
               </div>
 
               {/* Heart Rate */}
-              <div className="bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl p-4 text-white shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">Avg HR</h4>
-                  <Heart className="h-4 w-4" />
+              <div className="bg-gradient-to-br from-rose-400 via-pink-500 to-red-500 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold">Avg Heart Rate</h4>
+                  <Heart className="h-5 w-5 animate-pulse text-red-200" />
                 </div>
-                <div className="text-2xl font-bold">--</div>
-                <div className="text-xs opacity-90">bpm avg</div>
+                <div className="text-3xl font-black">
+                  {metricsLoading ? (
+                    <div className="animate-pulse bg-white/30 h-8 w-12 rounded"></div>
+                  ) : (
+                    todayMetrics.heartRate ? `${todayMetrics.heartRate}` : '--'
+                  )}
+                </div>
+                <div className="text-sm opacity-90 mt-1">
+                  {todayMetrics.heartRate ? 'bpm avg (runs)' : 'no runs today'}
+                </div>
+              </div>
+
+              {/* Data freshness indicator */}
+              <div className="text-center">
+                <Badge variant="outline" className="bg-white/60 text-gray-600 text-xs">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Updated: {todayMetrics.lastUpdated}
+                </Badge>
               </div>
             </div>
 
@@ -886,103 +1083,160 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
 
           {/* Chat Interface - Right Column */}
           <div className="lg:col-span-3">
-            <Card className="bg-white/90 backdrop-blur border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Dynamic Date Query Chat</CardTitle>
-            <CardDescription className="text-sm text-gray-600">
-              Any date format - Smart contextual conversations supported
-              {context.lastDate && (
-                <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
-                  💭 Context: Last query was about <span className="font-medium">{context.lastDate}</span>
-                  <br />Try: "how was weather that day" or "what was my pace that day"
+            <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-2xl rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+                <CardTitle className="text-xl font-bold flex items-center gap-3">
+                  <div className="relative">
+                    <Bot className="h-6 w-6 animate-pulse" />
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-300 rounded-full animate-ping"></div>
+                  </div>
+                  AI Running Coach Chat
+                  <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+                    Live
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-emerald-100">
+                  🏃‍♂️ Ask about any date, get instant insights • Powered by real Strava data
+                  {context.lastDate && (
+                    <div className="mt-3 p-3 bg-white/20 rounded-lg text-sm border border-white/30">
+                      <div className="flex items-center gap-2 text-white">
+                        <Sparkles className="h-4 w-4" />
+                        <strong>Context Active:</strong> {context.lastDate}
+                      </div>
+                      <div className="text-emerald-100 text-xs mt-1">
+                        Try: "how was weather that day" • "compare that to my average" • "what was my pace"
+                      </div>
+                    </div>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {/* Messages */}
+                <div className="bg-gradient-to-b from-gray-50 to-white rounded-xl border border-gray-200">
+                  <ScrollArea className="h-96 p-4">
+                    <div className="space-y-4">
+                      {messages.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <p className="text-lg font-medium">Ready to analyze your runs! 🏃‍♂️</p>
+                          <p className="text-sm">Ask me about any date or time period</p>
+                        </div>
+                      )}
+                      
+                      {messages.map((message, index) => (
+                        <div
+                          key={index}
+                          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${
+                              message.role === 'user'
+                                ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white'
+                                : 'bg-white text-gray-800 border border-gray-200'
+                            }`}
+                          >
+                            <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
+                            <div className={`text-xs mt-2 flex items-center gap-1 ${
+                              message.role === 'user' ? 'text-emerald-100' : 'text-gray-500'
+                            }`}>
+                              {message.role === 'user' ? <Users className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                              {message.timestamp.toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {isLoading && (
+                        <div className="flex justify-start">
+                          <div className="bg-white text-gray-800 p-4 rounded-2xl shadow-lg border border-gray-200 max-w-[85%]">
+                            <div className="flex items-center gap-3">
+                              <div className="flex gap-1">
+                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-100"></div>
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
+                              </div>
+                              <span className="text-sm font-medium">AI is analyzing your data...</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-2">Fetching Strava data • Processing insights</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Messages */}
-            <ScrollArea className="h-96 mb-4 pr-4">
-              <div className="space-y-4">
-                {messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[80%] p-3 rounded-lg ${
-                        message.role === 'user'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
+
+                {/* Enhanced Input */}
+                <div className="bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 p-4">
+                  <div className="flex gap-3">
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask about any date... e.g., 'analyze my run from june 24' or 'last week's runs'"
+                      disabled={isLoading}
+                      className="flex-1 border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400 rounded-xl"
+                    />
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={isLoading || !input.trim()}
+                      className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className="text-xs opacity-70 mt-1">
-                        {message.timestamp.toLocaleTimeString()}
-                      </div>
-                    </div>
+                      {isLoading ? (
+                        <Zap className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Bot className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 text-gray-800 p-3 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                        Analyzing query and fetching data...
-                      </div>
-                    </div>
+                </div>
+
+                {/* Smart Prompts */}
+                <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 rounded-xl border border-emerald-200 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-5 w-5 text-emerald-600" />
+                    <h3 className="text-sm font-bold text-gray-800">
+                      {context.lastDate ? '🔗 Contextual Questions' : '💡 Quick Start Prompts'}
+                    </h3>
                   </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Input */}
-            <div className="flex gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask about any date range or specific activity..."
-                disabled={isLoading}
-                className="flex-1"
-              />
-              <Button 
-                onClick={handleSendMessage} 
-                disabled={isLoading || !input.trim()}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <Bot className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Smart Prompts */}
-            <div className="mt-4">
-              <div className="text-sm font-medium text-gray-700 mb-2">Try these dynamic queries:</div>
-              <div className="flex flex-wrap gap-2">
-                              {(context.lastDate ? contextualPrompts : smartPrompts).map((prompt, index) => (
-                <Button
-                  key={index}
-                  variant={context.lastDate ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setInput(prompt)}
-                  className="text-xs"
-                  disabled={isLoading}
-                >
-                  {prompt}
-                </Button>
-              ))}
-              {context.lastDate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setContext({})}
-                  className="text-xs text-gray-500"
-                  disabled={isLoading}
-                >
-                  Clear Context
-                </Button>
-              )}
-              </div>
-            </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(context.lastDate ? contextualPrompts : smartPrompts).map((prompt, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInput(prompt)}
+                        className={`text-xs justify-start transition-all duration-200 ${
+                          context.lastDate 
+                            ? 'border-blue-300 text-blue-700 hover:bg-blue-50 bg-blue-50/50' 
+                            : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        <Activity className="h-3 w-3 mr-2" />
+                        {prompt}
+                      </Button>
+                    ))}
+                    
+                    {context.lastDate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setContext({})}
+                        className="text-xs border-gray-300 text-gray-600 hover:bg-gray-50 col-span-full"
+                        disabled={isLoading}
+                      >
+                        <Zap className="h-3 w-3 mr-2" />
+                        Clear Context & Start Fresh
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="mt-3 text-xs text-gray-600 flex items-center gap-1">
+                    <Trophy className="h-3 w-3" />
+                    Pro tip: Be specific with dates for better insights!
+                  </div>
+                </div>
           </CardContent>
         </Card>
           </div>
