@@ -88,8 +88,7 @@ export default function Coach() {
     lastChecked: ''
   });
 
-  // Claude API configuration
-  const claudeApiKey = import.meta.env.VITE_CLAUDE_API_KEY || process.env.CLAUDE_API_KEY;
+  // Backend API for Claude calls (handles CORS properly)
 
   useEffect(() => {
     // Add welcome message
@@ -123,73 +122,34 @@ export default function Coach() {
   const analyzeQueryWithClaude = async (query: string): Promise<QueryAnalysis> => {
     console.log(`🧠 Analyzing query: "${query}"`);
 
-    const analysisPrompt = `You are an expert at analyzing running/fitness queries to determine what Strava data to fetch.
-
-AVAILABLE MCP ENDPOINTS:
-${Object.entries(MCP_ENDPOINTS).map(([endpoint, config]) => 
-  `- ${endpoint}: ${config.description} (params: ${config.params.join(', ') || 'none'})`
-).join('\n')}
-
-USER QUERY: "${query}"
-
-Analyze this query and respond with a JSON object containing:
-
-{
-  "intent": "specific_activity|date_range|general_stats|training_zones|segments|routes",
-  "dateReference": "yesterday|today|june 24|etc", // if query mentions specific date
-  "dateRange": {"days": 20}, // if query mentions time range like "last 20 days"
-  "dataTypes": ["heartrate", "pace", "power", "elevation"], // what data types are needed
-  "mcpCalls": [
-    {"endpoint": "get-recent-activities", "params": {"per_page": 10}},
-    {"endpoint": "get-activity-streams", "params": {"id": "ACTIVITY_ID", "types": ["heartrate", "pace"]}}
-  ],
-  "reasoning": "Explanation of why these endpoints were chosen"
-}
-
-ANALYSIS RULES:
-1. For yesterday/today queries: First get recent activities, then get details/streams for specific date
-2. For "last X days" queries: Get recent activities with appropriate per_page
-3. For HR/pace analysis: Always include activity-streams
-4. For specific dates: Need to find activity ID first, then get detailed data
-5. For training zones: Include get-athlete-zones
-6. For general stats: Include get-athlete-stats and get-athlete-profile
-
-RESPOND ONLY WITH VALID JSON:`;
-
-    if (!claudeApiKey) {
-      // Fallback rule-based analysis if no Claude API key
-      return analyzeQueryRuleBased(query);
-    }
-
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/claude-coach', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeApiKey,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 1000,
-          messages: [
-            { role: 'user', content: analysisPrompt }
-          ]
+          action: 'analyze_query',
+          query
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Claude API error: ${response.status}`);
+        throw new Error(`Backend API error: ${response.status}`);
       }
 
       const data = await response.json();
-      const analysis = JSON.parse(data.content[0].text);
       
-      console.log('✅ Claude query analysis:', analysis);
-      return analysis;
+      if (data.fallback) {
+        console.log('⚠️ Using fallback analysis mode');
+      } else {
+        console.log('✅ Claude query analysis:', data.analysis);
+      }
+      
+      return data.analysis;
       
     } catch (error) {
-      console.error('❌ Claude analysis failed, using fallback:', error);
+      console.error('❌ Claude analysis failed, using local fallback:', error);
       return analyzeQueryRuleBased(query);
     }
   };
@@ -370,60 +330,32 @@ RESPOND ONLY WITH VALID JSON:`;
       .filter(r => r.success && r.data?.content?.[0]?.text)
       .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
       .join('\n');
-    
-    const prompt = `You are an expert running coach analyzing Strava data. Provide detailed, technical coaching advice.
-
-USER QUERY: "${query}"
-
-QUERY ANALYSIS: ${JSON.stringify(analysis, null, 2)}
-
-STRAVA DATA CONTEXT:
-${contextData}
-
-INSTRUCTIONS:
-- Provide comprehensive technical analysis (minimum 200 words)
-- Reference specific metrics and data points from the context
-- Include heart rate zones, pace analysis, and training recommendations
-- Use structured format with clear sections
-- Be encouraging but technically accurate
-- If you see detailed activity streams, analyze them thoroughly
-- Provide specific training prescriptions based on the data
-
-RESPONSE STRUCTURE:
-1. **Performance Summary** (specific metrics)
-2. **Detailed Analysis** (technical insights)
-3. **Training Recommendations** (actionable advice)
-4. **Next Steps** (concrete goals)
-
-Respond as an expert coach with deep analysis:`;
-
-    if (!claudeApiKey) {
-      return `Based on your query "${query}", I can see the data but need Claude API key for detailed analysis. Here's what I found:\n\n${contextData}`;
-    }
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/claude-coach', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeApiKey,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 2000,
-          messages: [
-            { role: 'user', content: prompt }
-          ]
+          action: 'generate_response',
+          query,
+          analysis,
+          mcpResponses
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Claude API error: ${response.status}`);
+        throw new Error(`Backend API error: ${response.status}`);
       }
 
       const data = await response.json();
-      return data.content[0].text;
+      
+      if (data.fallback) {
+        console.log('⚠️ Using fallback response mode');
+      }
+      
+      return data.response;
       
     } catch (error) {
       console.error('❌ Claude response generation failed:', error);
@@ -560,7 +492,7 @@ Respond as an expert coach with deep analysis:`;
               <div className="text-center p-3 bg-green-50 rounded-lg">
                 <Bot className="h-6 w-6 text-green-600 mx-auto mb-1" />
                 <div className="text-sm font-medium text-green-700">Claude AI</div>
-                <div className="text-xs text-gray-600">{claudeApiKey ? 'Ready' : 'API Key Missing'}</div>
+                <div className="text-xs text-gray-600">Backend API</div>
               </div>
               <div className="text-center p-3 bg-blue-50 rounded-lg">
                 <Activity className="h-6 w-6 text-blue-600 mx-auto mb-1" />
@@ -674,11 +606,9 @@ Respond as an expert coach with deep analysis:`;
               </Button>
             </div>
 
-            {!claudeApiKey && (
-              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
-                ⚠️ Claude API key not configured. Using fallback analysis mode.
-              </div>
-            )}
+            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+              ✅ Using Claude AI backend API for intelligent coaching analysis
+            </div>
           </CardContent>
         </Card>
       </div>
