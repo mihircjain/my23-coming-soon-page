@@ -478,13 +478,12 @@ export default function Coach() {
       };
     }
     
-    // Date-specific queries (make more flexible)
+    // Date-specific queries (EXACT MATCHING ONLY)
     if (lowerQuery.includes('june 24') || (lowerQuery.includes('june') && lowerQuery.includes('24'))) {
       return {
         type: 'specific_date',
         date: 'june 24',
-        needsDetailedAnalysis: true,
-        flexibleMatching: true  // NEW: Allow nearby dates
+        needsDetailedAnalysis: true
       };
     }
     
@@ -492,8 +491,7 @@ export default function Coach() {
       return {
         type: 'specific_date', 
         date: 'yesterday',
-        needsDetailedAnalysis: true,
-        flexibleMatching: true
+        needsDetailedAnalysis: true
       };
     }
     
@@ -501,8 +499,7 @@ export default function Coach() {
       return {
         type: 'specific_date',
         date: 'today', 
-        needsDetailedAnalysis: true,
-        flexibleMatching: true
+        needsDetailedAnalysis: true
       };
     }
     
@@ -576,43 +573,8 @@ export default function Coach() {
           
           const detailedData = await executeMCPCalls(detailedCalls);
           mcpResponses.push(...detailedData);
-        } else if (intent.flexibleMatching) {
-          console.log(`❌ No exact match for ${intent.date}, looking for nearby activities...`);
-          
-          // If flexible matching enabled, get nearby activities anyway
-          const activityIds = extractActivityIds(recentActivities[0].data, 3);
-          
-          if (activityIds.length > 0) {
-            console.log(`🔍 Found ${activityIds.length} nearby activities: ${activityIds.join(', ')}`);
-            
-            const detailedCalls = activityIds.flatMap(id => [
-              { endpoint: 'get-activity-details', params: { activityId: id } },
-              { endpoint: 'get-activity-streams', params: { 
-                id, 
-                types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude'],
-                resolution: 'high'
-              }}
-            ]);
-            
-            // Add a flag to indicate this is flexible matching
-            const detailedData = await executeMCPCalls(detailedCalls);
-            mcpResponses.push(...detailedData);
-            
-            // Add a note about flexible matching
-            mcpResponses.push({
-              endpoint: 'flexible_match_note',
-              success: true,
-              data: {
-                content: [{
-                  text: `Note: No activity found for exact date "${intent.date}", showing ${activityIds.length} nearby activities instead.`
-                }]
-              }
-            });
-          } else {
-            console.log(`❌ No activities found near ${intent.date}`);
-          }
         } else {
-          console.log(`❌ No activity found for ${intent.date}`);
+          console.log(`❌ No activity found for EXACT date ${intent.date}`);
         }
       }
        
@@ -770,7 +732,7 @@ export default function Coach() {
     return { intent, mcpResponses };
   };
 
-  // Helper to get date range for queries
+  // Helper to get date range for queries (EXACT dates only)
   const getDateRangeForQuery = (dateRef: string) => {
     const today = new Date();
     
@@ -789,9 +751,10 @@ export default function Coach() {
         before: yesterdayStr
       };
     } else if (dateRef === 'june 24') {
+      // EXACT date range - only June 24, 2025
       return {
-        after: '2025-06-23',
-        before: '2025-06-25'
+        after: '2025-06-24',
+        before: '2025-06-24'
       };
     }
     
