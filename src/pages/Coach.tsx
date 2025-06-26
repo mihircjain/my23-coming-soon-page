@@ -225,6 +225,12 @@ export default function CoachNew() {
         break;
       }
 
+      // Debug logging for each activity processed
+      console.log(`🔍 Processing: ${line.substring(0, 80)}...`);
+      console.log(`   📅 Extracted date: ${activityDate?.toDateString()}`);
+      console.log(`   📏 Distance: ${activityDistance.toFixed(2)}km`);
+      console.log(`   🏃 Type: ${activityType}`);
+
       // Apply filters (use < for endDate to exclude activities on the end date for specific date queries)
       if (activityDate && 
           activityDate >= startDate && 
@@ -235,6 +241,14 @@ export default function CoachNew() {
         activitiesInRange++;
         filteredActivityIds.push(activityId);
         console.log(`✅ Match: ${activityId} (${activityDistance.toFixed(2)}km on ${activityDate.toDateString()})`);
+      } else {
+        const reasons = [];
+        if (!activityDate) reasons.push('no date');
+        if (activityDate && activityDate < startDate) reasons.push('before start date');
+        if (activityDate && activityDate >= endDate) reasons.push('after end date');
+        if (activityDistance < criteria.minDistance) reasons.push(`distance too small (${activityDistance.toFixed(2)}km < ${criteria.minDistance}km)`);
+        if (activityType !== criteria.activityType) reasons.push(`wrong type (${activityType} ≠ ${criteria.activityType})`);
+        console.log(`❌ Excluded: ${reasons.join(', ')}`);
       }
     }
 
