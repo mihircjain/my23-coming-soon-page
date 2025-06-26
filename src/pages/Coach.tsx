@@ -84,78 +84,128 @@ export default function CoachNew() {
     }
   };
 
-  // Fetch today's health metrics from Firebase
+  // Fetch today's health metrics from Firebase (using OverallJam approach)
   const fetchTodayMetrics = async () => {
     try {
       setMetricsLoading(true);
       const today = new Date().toISOString().split('T')[0];
       
-      // Fetch nutrition data for today
-      const nutritionQuery = query(
-        collection(db, "nutritionLogs"),
-        where("date", "==", today),
-        orderBy("timestamp", "desc"),
-        limit(1)
-      );
+      console.log(`🔄 Fetching today's health data from Firebase (${today})...`);
 
-      // Fetch Strava data for today
-      const stravaQuery = query(
-        collection(db, "strava_data"),
-        where("userId", "==", "mihir_jain"),
-        where("date", "==", today),
-        orderBy("start_date", "desc")
-      );
-
-      const [nutritionSnapshot, stravaSnapshot] = await Promise.all([
-        getDocs(nutritionQuery).catch(() => ({ docs: [] })),
-        getDocs(stravaQuery).catch(() => ({ docs: [] }))
-      ]);
-
-      let metrics: TodayMetrics = {
+      // Initialize today's data structure
+      const todayData = {
+        date: today,
+        heartRateRuns: null,
         caloriesBurned: 0,
         caloriesConsumed: 0,
         protein: 0,
-        heartRate: null,
-        activities: [],
-        lastUpdated: new Date().toLocaleTimeString()
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        workoutDuration: 0,
+        activityTypes: [],
+        runCount: 0
       };
 
-      // Process nutrition data
-      if (nutritionSnapshot.docs.length > 0) {
-        const nutritionData = nutritionSnapshot.docs[0].data();
-        metrics.caloriesConsumed = nutritionData.totals?.calories || 0;
-        metrics.protein = nutritionData.totals?.protein || 0;
-      }
+      // Prepare Firebase queries (same as OverallJam)
+      const nutritionQuery = query(
+        collection(db, "nutritionLogs"),
+        where("date", "==", today),
+        orderBy("timestamp", "desc")
+      );
 
-      // Process Strava data
-      let runCount = 0;
-      let totalHR = 0;
-      
+      const stravaQuery = query(
+        collection(db, "strava_data"),
+        where("userId", "==", "mihir_jain"),
+        orderBy("start_date", "desc"),
+        limit(20) // Get recent activities to find today's
+      );
+
+      // Execute queries
+      const [nutritionSnapshot, stravaSnapshot] = await Promise.all([
+        getDocs(nutritionQuery).catch((error) => {
+          console.error("Error fetching nutrition data:", error);
+          return { docs: [] };
+        }),
+        getDocs(stravaQuery).catch((error) => {
+          console.error("Error fetching Strava data:", error);
+          return { docs: [] };
+        })
+      ]);
+
+      console.log(`📊 Fetched ${nutritionSnapshot.docs.length} nutrition logs for ${today}`);
+      console.log(`🏃 Fetched ${stravaSnapshot.docs.length} recent Strava activities`);
+
+      // Process nutrition data (same as OverallJam)
+      nutritionSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        todayData.caloriesConsumed = data.totals?.calories || 0;
+        todayData.protein = data.totals?.protein || 0;
+        todayData.carbs = data.totals?.carbs || 0;
+        todayData.fat = data.totals?.fat || 0;
+        todayData.fiber = data.totals?.fiber || 0;
+      });
+
+      // Process Strava data (same logic as OverallJam)
       stravaSnapshot.docs.forEach(doc => {
         const data = doc.data();
+        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
+        
+        // Only process today's activities
+        if (activityDate !== today) return;
+
         const activityType = data.type || '';
         const isRun = activityType.toLowerCase().includes('run');
-        
-        // Accumulate calories
-        metrics.caloriesBurned += data.calories || 0;
-        
-        // Track activities
-        if (activityType && !metrics.activities.includes(activityType)) {
-          metrics.activities.push(activityType);
+
+        // Heart Rate: Only track for runs and average properly (same as OverallJam)
+        if (data.heart_rate != null && isRun) {
+          const currentHR = todayData.heartRateRuns;
+          const runCount = todayData.runCount;
+          
+          if (currentHR === null) {
+            todayData.heartRateRuns = data.heart_rate;
+            todayData.runCount = 1;
+          } else {
+            // Calculate weighted average
+            todayData.heartRateRuns = ((currentHR * runCount) + data.heart_rate) / (runCount + 1);
+            todayData.runCount = runCount + 1;
+          }
         }
+
+        // Calories: Use direct Strava calories field (same as OverallJam)
+        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
+        todayData.caloriesBurned += activityCalories;
         
-        // Calculate average heart rate for runs only
-        if (data.heart_rate && isRun) {
-          totalHR += data.heart_rate;
-          runCount++;
+        // Duration and activity types
+        todayData.workoutDuration += data.duration || 0;
+
+        if (activityType && !todayData.activityTypes.includes(activityType)) {
+          todayData.activityTypes.push(activityType);
         }
       });
 
-      if (runCount > 0) {
-        metrics.heartRate = Math.round(totalHR / runCount);
+      // Round heart rate to match OverallJam format
+      if (todayData.heartRateRuns) {
+        todayData.heartRateRuns = Math.round(todayData.heartRateRuns);
       }
 
-      setTodayMetrics(metrics);
+      // Update state
+      setTodayMetrics({
+        caloriesBurned: todayData.caloriesBurned,
+        caloriesConsumed: todayData.caloriesConsumed,
+        protein: Math.round(todayData.protein),
+        heartRate: todayData.heartRateRuns,
+        activities: todayData.activityTypes,
+        lastUpdated: new Date().toLocaleTimeString()
+      });
+
+      console.log('✅ Today metrics updated:', {
+        calories_burned: todayData.caloriesBurned,
+        calories_consumed: todayData.caloriesConsumed,
+        protein: todayData.protein,
+        heart_rate: todayData.heartRateRuns,
+        activities: todayData.activityTypes
+      });
       
     } catch (error) {
       console.error('Error fetching today metrics:', error);
@@ -858,65 +908,44 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-cyan-50 to-blue-50 flex flex-col relative overflow-hidden">
-      {/* Enhanced Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-cyan-500/10 to-blue-500/20 animate-pulse"></div>
-      <div className="absolute top-10 left-10 w-40 h-40 bg-emerald-300/40 rounded-full blur-2xl animate-bounce"></div>
-      <div className="absolute bottom-10 right-10 w-32 h-32 bg-blue-300/40 rounded-full blur-2xl animate-bounce delay-1000"></div>
-      <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-cyan-300/30 rounded-full blur-xl animate-bounce delay-500"></div>
-      <div className="absolute top-1/3 right-1/3 w-20 h-20 bg-teal-300/30 rounded-full blur-xl animate-bounce delay-700"></div>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col relative overflow-hidden">
+      {/* Background decoration - OverallJam style */}
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
 
-      {/* Header - Enhanced with navigation */}
-      <header className="relative z-10 pt-6 px-6 md:px-12">
+      {/* Header - OverallJam style */}
+      <header className="relative z-10 pt-8 px-6 md:px-12">
         <div className="flex items-center justify-between mb-6">
           <Button
             onClick={() => navigate('/')}
             variant="ghost"
-            className="hover:bg-white/30 text-gray-700 hover:text-gray-900 transition-colors"
+            className="hover:bg-white/20"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Home
           </Button>
-          
-          <Badge variant="outline" className="bg-white/60 text-emerald-700 border-emerald-200">
-            <Sparkles className="h-3 w-3 mr-1" />
-            AI Powered
-          </Badge>
         </div>
 
-        <div className="text-center max-w-5xl mx-auto">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="relative">
-              <Bot className="h-12 w-12 text-emerald-600 animate-pulse" />
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-ping"></div>
-            </div>
-            <h1 className="text-5xl md:text-6xl font-black bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 bg-clip-text text-transparent">
-              AI Running Coach
-            </h1>
-            <Trophy className="h-10 w-10 text-amber-500 animate-bounce" />
-          </div>
-          
-          <p className="mt-4 text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-            🏃‍♂️ Your intelligent running companion powered by real Strava data. 
-            Ask questions about any date, get contextual insights, and improve your performance! 
+        <div className="text-center max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
+            🤖 AI Running Coach
+          </h1>
+          <p className="mt-3 text-lg text-gray-600">
+            Intelligent analysis with conversational context powered by real Strava data
           </p>
-          
-          <div className="flex flex-wrap justify-center gap-3 mt-6">
-            <Badge variant="outline" className="text-sm bg-emerald-100/80 text-emerald-700 border-emerald-300 px-4 py-2">
-              <Zap className="h-4 w-4 mr-2" />
+          <div className="flex flex-wrap justify-center gap-2 mt-2">
+            <Badge variant="outline" className="text-xs bg-white/50">
+              <Zap className="h-3 w-3 mr-1" />
               Real-Time Data
             </Badge>
-            <Badge variant="outline" className="text-sm bg-cyan-100/80 text-cyan-700 border-cyan-300 px-4 py-2">
-              <Activity className="h-4 w-4 mr-2" />
+            <Badge variant="outline" className="text-xs bg-white/50">
+              <Activity className="h-3 w-3 mr-1" />
               Strava Connected
             </Badge>
-            <Badge variant="outline" className="text-sm bg-blue-100/80 text-blue-700 border-blue-300 px-4 py-2">
-              <Bot className="h-4 w-4 mr-2" />
-              Conversational AI
-            </Badge>
-            <Badge variant="outline" className="text-sm bg-amber-100/80 text-amber-700 border-amber-300 px-4 py-2">
-              <Calendar className="h-4 w-4 mr-2" />
-              Any Date Query
+            <Badge variant="outline" className="text-xs bg-white/50">
+              <Bot className="h-3 w-3 mr-1" />
+              Contextual Memory
             </Badge>
           </div>
         </div>
@@ -947,11 +976,11 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
               </CardContent>
             </Card>
 
-            {/* Today's Metrics - Enhanced Design */}
-            <div className="space-y-4">
+            {/* Today's Metrics - OverallJam Style */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-green-600" />
                   Today's Metrics
                 </h3>
                 <Button
@@ -967,87 +996,84 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
               
               {/* Activities Status */}
               {todayMetrics.activities.length > 0 && (
-                <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-center gap-2 text-amber-800">
-                    <Users className="h-4 w-4" />
-                    <span className="text-sm font-medium">
+                <div className="bg-green-50 rounded-lg p-2 border border-green-200">
+                  <div className="flex items-center gap-2 text-green-800">
+                    <Activity className="h-3 w-3" />
+                    <span className="text-xs font-medium">
                       {todayMetrics.activities.join(', ')} Today
                     </span>
                   </div>
                 </div>
               )}
               
-              {/* Calories Burned */}
-              <div className="bg-gradient-to-br from-orange-400 via-red-400 to-pink-500 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold">Calories Burned</h4>
-                  <div className="relative">
-                    <Flame className="h-5 w-5 animate-pulse" />
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
+              {/* Calories Burned - OverallJam green theme */}
+              <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-white">Calories Out</h4>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Flame className="h-4 w-4 text-white" />
                   </div>
                 </div>
-                <div className="text-3xl font-black">
-                  {metricsLoading ? (
-                    <div className="animate-pulse bg-white/30 h-8 w-16 rounded"></div>
-                  ) : (
-                    todayMetrics.caloriesBurned.toLocaleString()
-                  )}
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-white">
+                    {metricsLoading ? '...' : todayMetrics.caloriesBurned.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-green-100">cal/day</p>
+                  <p className="text-xs text-green-200">From Strava</p>
                 </div>
-                <div className="text-sm opacity-90 mt-1">calories burned</div>
               </div>
 
-              {/* Calories In */}
-              <div className="bg-gradient-to-br from-emerald-400 via-green-500 to-teal-600 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold">Calories Consumed</h4>
-                  <Utensils className="h-5 w-5 animate-bounce" />
+              {/* Calories In - OverallJam emerald theme */}
+              <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-white">Calories In</h4>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Utensils className="h-4 w-4 text-white" />
+                  </div>
                 </div>
-                <div className="text-3xl font-black">
-                  {metricsLoading ? (
-                    <div className="animate-pulse bg-white/30 h-8 w-16 rounded"></div>
-                  ) : (
-                    todayMetrics.caloriesConsumed.toLocaleString()
-                  )}
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-white">
+                    {metricsLoading ? '...' : todayMetrics.caloriesConsumed.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-emerald-100">cal/day</p>
                 </div>
-                <div className="text-sm opacity-90 mt-1">calories consumed</div>
               </div>
 
-              {/* Protein */}
-              <div className="bg-gradient-to-br from-blue-400 via-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold">Protein Intake</h4>
-                  <Target className="h-5 w-5" />
+              {/* Protein - OverallJam blue theme */}
+              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-white">Protein</h4>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Target className="h-4 w-4 text-white" />
+                  </div>
                 </div>
-                <div className="text-3xl font-black">
-                  {metricsLoading ? (
-                    <div className="animate-pulse bg-white/30 h-8 w-12 rounded"></div>
-                  ) : (
-                    `${todayMetrics.protein}g`
-                  )}
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-white">
+                    {metricsLoading ? '...' : todayMetrics.protein}
+                  </p>
+                  <p className="text-xs text-blue-100">g/day</p>
                 </div>
-                <div className="text-sm opacity-90 mt-1">protein today</div>
               </div>
 
-              {/* Heart Rate */}
-              <div className="bg-gradient-to-br from-rose-400 via-pink-500 to-red-500 rounded-xl p-5 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold">Avg Heart Rate</h4>
-                  <Heart className="h-5 w-5 animate-pulse text-red-200" />
+              {/* Heart Rate - OverallJam cyan theme */}
+              <div className="bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-white">Run HR</h4>
+                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
+                    <Heart className="h-4 w-4 text-white" />
+                  </div>
                 </div>
-                <div className="text-3xl font-black">
-                  {metricsLoading ? (
-                    <div className="animate-pulse bg-white/30 h-8 w-12 rounded"></div>
-                  ) : (
-                    todayMetrics.heartRate ? `${todayMetrics.heartRate}` : '--'
-                  )}
-                </div>
-                <div className="text-sm opacity-90 mt-1">
-                  {todayMetrics.heartRate ? 'bpm avg (runs)' : 'no runs today'}
+                <div className="space-y-1">
+                  <p className="text-2xl font-bold text-white">
+                    {metricsLoading ? '...' : (todayMetrics.heartRate || '--')}
+                  </p>
+                  <p className="text-xs text-cyan-100">bpm avg</p>
+                  <p className="text-xs text-cyan-200">Runs only</p>
                 </div>
               </div>
 
               {/* Data freshness indicator */}
-              <div className="text-center">
+              <div className="text-center pt-2">
                 <Badge variant="outline" className="bg-white/60 text-gray-600 text-xs">
                   <Sparkles className="h-3 w-3 mr-1" />
                   Updated: {todayMetrics.lastUpdated}
