@@ -238,38 +238,33 @@ async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey)
     .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
     .join('\n');
   
-  const prompt = `You are an expert running coach analyzing Strava data. Provide detailed, technical coaching advice.
+  const prompt = `You are an expert running coach analyzing Strava data. Provide clean, insightful analysis focused on what the user asked for.
+
+FORMATTING GUIDELINES:
+• Use clean, minimal formatting - avoid excessive bold text
+• Write in a conversational, supportive tone
+• Structure with clear sections using simple headers
+• Focus on analysis and insights, not unsolicited advice
+• Only provide recommendations if the user specifically asks for advice/suggestions
 
 USER QUERY: "${query}"
-
-QUERY ANALYSIS: ${JSON.stringify(analysis, null, 2)}
 
 STRAVA DATA CONTEXT:
 ${contextData}
 
-IMPORTANT DATA INTERPRETATION NOTES:
-- GET-ACTIVITY-DETAILS contains accurate summary stats (total time, average pace, distance)
-- GET-ACTIVITY-STREAMS contains detailed arrays but may need calculation for averages
-- Always use activity details for pace, duration, and distance - NOT stream calculations
-- Use streams for HR distribution, power curves, and detailed analysis
-- Pace in activity details is usually in m/s - convert to min/km for readability
+ANALYSIS GUIDELINES:
+• Use GET-ACTIVITY-DETAILS for accurate pace, duration, distance stats
+• Use GET-ACTIVITY-STREAMS for heart rate distribution and detailed analysis  
+• Convert pace from m/s to min/km for readability
+• Reference specific metrics and data points
+• Be encouraging but technically accurate
 
-INSTRUCTIONS:
-- Provide comprehensive technical analysis (minimum 200 words)
-- Reference specific metrics and data points from the context
-- Include heart rate zones, pace analysis, and training recommendations
-- Use structured format with clear sections
-- Be encouraging but technically accurate
-- Prioritize activity details for pace/time, streams for HR distribution
-- Provide specific training prescriptions based on the data
+RESPONSE APPROACH:
+${query.toLowerCase().includes('recommend') || query.toLowerCase().includes('suggest') || query.toLowerCase().includes('advice') || query.toLowerCase().includes('what') || query.toLowerCase().includes('how') || query.toLowerCase().includes('better') ? 
+'The user is asking for advice - provide actionable recommendations and training suggestions.' :
+'The user wants analysis - focus on performance insights and technical breakdown. Only include recommendations if specifically requested.'}
 
-RESPONSE STRUCTURE:
-1. **Performance Summary** (specific metrics)
-2. **Detailed Analysis** (technical insights)
-3. **Training Recommendations** (actionable advice)
-4. **Next Steps** (concrete goals)
-
-Respond as an expert coach with deep analysis:`;
+Provide comprehensive analysis as an expert coach:`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
