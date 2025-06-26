@@ -26,11 +26,27 @@ interface StravaStats {
   };
 }
 
+interface ActivityContext {
+  id: number;
+  name: string;
+  date: string;
+  distance: number;
+  type: string;
+  elapsed_time: number;
+  moving_time: number;
+  average_speed: number;
+  max_speed: number;
+  average_heartrate?: number;
+  max_heartrate?: number;
+  total_elevation_gain: number;
+  start_date: string;
+}
+
 // Enhanced endpoint mapping for intelligent tool selection
 const STRAVA_ENDPOINTS = {
   // Activity-related endpoints
   'get-recent-activities': {
-    keywords: ['recent', 'activities', 'list', 'summary', 'overview', 'last', 'latest'],
+    keywords: ['recent', 'activities', 'list', 'summary', 'overview', 'last', 'latest', 'days', 'week', 'weeks'],
     description: 'Recent activities overview'
   },
   'get-activity-details': {
@@ -39,12 +55,12 @@ const STRAVA_ENDPOINTS = {
     requiresId: true
   },
   'get-activity-streams': {
-    keywords: ['streams', 'data', 'heartrate', 'heart', 'rate', 'power', 'pace', 'speed', 'elevation', 'detailed', 'analysis'],
-    description: 'Activity data streams',
+    keywords: ['streams', 'data', 'heartrate', 'heart', 'rate', 'power', 'pace', 'speed', 'elevation', 'detailed', 'analysis', 'hr', 'cadence'],
+    description: 'Activity data streams (HR, pace, power, etc.)',
     requiresId: true
   },
   'get-activity-laps': {
-    keywords: ['laps', 'splits', 'intervals', 'pacing', 'segments'],
+    keywords: ['laps', 'splits', 'intervals', 'pacing', 'segments', 'consistency'],
     description: 'Activity lap data',
     requiresId: true
   },
@@ -131,7 +147,8 @@ export default function Coach() {
     totalDistance: 0,
     recentRuns: 0
   });
-  const [lastActivityId, setLastActivityId] = useState<number | null>(null);
+  const [recentActivities, setRecentActivities] = useState<ActivityContext[]>([]);
+  const [athleteZones, setAthleteZones] = useState<any>(null);
 
   // Initialize Gemini AI
   const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -141,188 +158,326 @@ export default function Coach() {
     // Add welcome message
     setMessages([{
       role: 'assistant',
-      content: '🏃‍♂️ Hey there! I\'m your AI Running Coach with access to your complete Strava data. I can analyze your activities, segments, routes, training zones, and much more. Ask me about your performance, get training suggestions, or explore new segments!',
+      content: '🏃‍♂️ Hey there! I\'m your enhanced AI Running Coach with access to your complete Strava data. I can analyze your activities with detailed HR/pace analysis, examine trends over time, suggest training based on your zones, and much more. Ask me anything about your running!',
       timestamp: new Date()
     }]);
 
-    // Check Strava MCP connection and fetch data
-    fetchStravaData();
+    // Initialize comprehensive Strava data
+    initializeStravaData();
   }, []);
 
-  const fetchStravaData = async () => {
+  const initializeStravaData = async () => {
     try {
-      // Test connection to your deployed Strava MCP server
-      const healthResponse = await fetch('https://strava-mcp-server.onrender.com/health');
+      console.log('🚀 Initializing comprehensive Strava data...');
       
-      if (healthResponse.ok) {
-        // Fetch recent activities
-        const activitiesResponse = await fetch('https://strava-mcp-server.onrender.com/api/tools/get-recent-activities', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ per_page: 10 })
-        });
+      // Test connection
+      const healthResponse = await fetch('https://strava-mcp-server.onrender.com/health');
+      if (!healthResponse.ok) throw new Error('MCP server not accessible');
 
-        if (activitiesResponse.ok) {
-          const activitiesData = await activitiesResponse.json();
-          const activities = parseActivitiesData(activitiesData);
-          
-          // Extract the most recent activity ID for detailed queries
-          if (activities.length > 0 && activities[0].id) {
-            setLastActivityId(activities[0].id);
-          }
-          
-          setStravaStats({
-            connected: true,
-            totalRuns: activities.length,
-            totalDistance: activities.reduce((sum, act) => sum + (act.distance || 0), 0) / 1000, // Convert to km
-            recentRuns: activities.filter(act => act.isRecent).length,
-            lastActivity: activities[0] ? {
-              name: activities[0].name,
-              distance: Math.round((activities[0].distance || 0) / 10) / 100, // Convert to km
-              date: activities[0].date,
-              pace: activities[0].pace
-            } : undefined
-          });
-        }
-      }
+      // Fetch comprehensive recent activities (30 days)
+      const activitiesData = await fetchFromMCP('get-recent-activities', { per_page: 50 });
+      const activities = parseAdvancedActivitiesData(activitiesData);
+      setRecentActivities(activities);
+      
+      // Fetch athlete zones for training analysis
+      const zonesData = await fetchFromMCP('get-athlete-zones');
+      setAthleteZones(zonesData);
+      
+      // Update stats
+      const runningActivities = activities.filter(act => act.type?.toLowerCase().includes('run'));
+      setStravaStats({
+        connected: true,
+        totalRuns: runningActivities.length,
+        totalDistance: runningActivities.reduce((sum, act) => sum + act.distance, 0) / 1000,
+        recentRuns: runningActivities.filter(act => isWithinDays(act.start_date, 7)).length,
+        lastActivity: runningActivities[0] ? {
+          name: runningActivities[0].name,
+          distance: Math.round(runningActivities[0].distance / 10) / 100,
+          date: new Date(runningActivities[0].start_date).toLocaleDateString(),
+          pace: calculatePace(runningActivities[0].distance, runningActivities[0].moving_time)
+        } : undefined
+      });
+
+      console.log(`✅ Loaded ${activities.length} activities, ${runningActivities.length} runs`);
+      
     } catch (error) {
-      console.error('Error fetching Strava data:', error);
+      console.error('❌ Error initializing Strava data:', error);
       setStravaStats(prev => ({ ...prev, connected: false }));
     }
   };
 
-  const parseActivitiesData = (data: any) => {
-    if (!data.content || !Array.isArray(data.content)) return [];
+  const fetchFromMCP = async (endpoint: string, params: any = {}) => {
+    const response = await fetch(`https://strava-mcp-server.onrender.com/api/tools/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
     
-    return data.content
-      .filter((item: any) => item.type === 'text' && item.text)
-      .map((item: any) => {
-        const text = item.text;
-        const nameMatch = text.match(/🏃 (.+?) \(ID:\s*(\d+)\)/);
-        const distanceMatch = text.match(/— ([\d.]+)m/);
-        const dateMatch = text.match(/on (\d+\/\d+\/\d+)/);
+    if (!response.ok) throw new Error(`MCP ${endpoint} failed: ${response.status}`);
+    return await response.json();
+  };
+
+  const parseAdvancedActivitiesData = (data: any): ActivityContext[] => {
+    if (!data?.content?.[0]?.text) return [];
+    
+    const text = data.content[0].text;
+    const activities: ActivityContext[] = [];
+    
+    // Enhanced parsing to extract more detailed activity information
+    const activityBlocks = text.split(/(?=🏃|🚴|🏊|⛷️|🥾)/);
+    
+    for (const block of activityBlocks) {
+      if (!block.trim()) continue;
+      
+      // Extract activity ID and name
+      const idMatch = block.match(/ID:\s*(\d+)/);
+      const nameMatch = block.match(/🏃\s*(.+?)\s*\(ID:|🚴\s*(.+?)\s*\(ID:|🏊\s*(.+?)\s*\(ID:|⛷️\s*(.+?)\s*\(ID:|🥾\s*(.+?)\s*\(ID:/);
+      const distanceMatch = block.match(/(\d+\.?\d*)\s*(?:m|km|meters)/);
+      const timeMatch = block.match(/(\d+h\s*)?(\d+m\s*)?(\d+s)?/);
+      const hrMatch = block.match(/❤️\s*(\d+)\s*bpm/);
+      const elevationMatch = block.match(/⛰️\s*(\d+)\s*m/);
+      const dateMatch = block.match(/on\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
+      
+      if (idMatch && nameMatch && distanceMatch) {
+        const id = parseInt(idMatch[1]);
+        const name = nameMatch[1] || nameMatch[2] || nameMatch[3] || nameMatch[4] || nameMatch[5] || 'Unknown Activity';
+        const distance = parseFloat(distanceMatch[1]);
         
-        const distance = distanceMatch ? parseFloat(distanceMatch[1]) : 0;
-        const isRecent = dateMatch ? isWithinLastWeek(dateMatch[1]) : false;
-        const id = nameMatch ? parseInt(nameMatch[2]) : null;
+        // Determine activity type based on emoji
+        let type = 'Run';
+        if (block.includes('🚴')) type = 'Ride';
+        else if (block.includes('🏊')) type = 'Swim';
+        else if (block.includes('⛷️')) type = 'Ski';
+        else if (block.includes('🥾')) type = 'Hike';
         
-        return {
+        // Parse date
+        const dateStr = dateMatch ? dateMatch[1] : new Date().toLocaleDateString();
+        const [month, day, year] = dateStr.split('/');
+        const activityDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        
+        activities.push({
           id,
-          name: nameMatch ? nameMatch[1] : 'Unknown Activity',
-          distance,
-          date: dateMatch ? dateMatch[1] : new Date().toLocaleDateString(),
-          isRecent,
-          pace: distance > 0 ? estimatePace(distance) : undefined
-        };
-      })
-      .filter((activity: any) => activity.distance > 0);
+          name,
+          date: dateStr,
+          distance: distance < 100 ? distance * 1000 : distance, // Convert km to meters if needed
+          type,
+          elapsed_time: 0, // Would need more detailed parsing
+          moving_time: 0,
+          average_speed: 0,
+          max_speed: 0,
+          average_heartrate: hrMatch ? parseInt(hrMatch[1]) : undefined,
+          total_elevation_gain: elevationMatch ? parseInt(elevationMatch[1]) : 0,
+          start_date: activityDate.toISOString()
+        });
+      }
+    }
+    
+    return activities.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
   };
 
-  const isWithinLastWeek = (dateStr: string): boolean => {
+  const findActivityByDate = (targetDate: string): ActivityContext | null => {
+    // Handle various date formats: "yesterday", "today", "June 24", "24", etc.
+    const today = new Date();
+    let searchDate: Date;
+    
+    if (targetDate.toLowerCase() === 'today') {
+      searchDate = today;
+    } else if (targetDate.toLowerCase() === 'yesterday') {
+      searchDate = new Date(today);
+      searchDate.setDate(searchDate.getDate() - 1);
+    } else if (targetDate.includes('june') || targetDate.includes('jul')) {
+      // Handle "June 24" or "June 24th"
+      const dayMatch = targetDate.match(/(\d+)/);
+      if (dayMatch) {
+        const day = parseInt(dayMatch[1]);
+        const month = targetDate.toLowerCase().includes('june') ? 5 : 6; // 0-indexed
+        searchDate = new Date(today.getFullYear(), month, day);
+      } else return null;
+    } else if (/^\d+$/.test(targetDate)) {
+      // Handle just day number like "24"
+      const day = parseInt(targetDate);
+      // Assume current month
+      searchDate = new Date(today.getFullYear(), today.getMonth(), day);
+    } else {
+      return null;
+    }
+    
+    // Find activity on that date
+    return recentActivities.find(activity => {
+      const activityDate = new Date(activity.start_date);
+      return activityDate.toDateString() === searchDate.toDateString();
+    }) || null;
+  };
+
+  const findActivitiesInDateRange = (days: number): ActivityContext[] => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    return recentActivities.filter(activity => 
+      new Date(activity.start_date) >= cutoffDate
+    );
+  };
+
+  const isWithinDays = (dateStr: string, days: number): boolean => {
     const activityDate = new Date(dateStr);
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return activityDate >= oneWeekAgo;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return activityDate >= cutoff;
   };
 
-  const estimatePace = (distanceMeters: number): string => {
-    // Rough pace estimation based on distance (this would be better with actual time data)
+  const calculatePace = (distanceMeters: number, timeSeconds: number): string => {
+    if (!distanceMeters || !timeSeconds) return 'N/A';
     const km = distanceMeters / 1000;
-    const estimatedMinutesPerKm = km > 15 ? 5.0 : km > 10 ? 5.5 : 6.0;
-    const minutes = Math.floor(estimatedMinutesPerKm);
-    const seconds = Math.round((estimatedMinutesPerKm - minutes) * 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+    const minutes = timeSeconds / 60;
+    const paceMinutesPerKm = minutes / km;
+    const mins = Math.floor(paceMinutesPerKm);
+    const secs = Math.round((paceMinutesPerKm - mins) * 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}/km`;
   };
 
-  // Enhanced intelligent endpoint selection
+  // Enhanced intelligent endpoint selection with temporal context
   const selectRelevantEndpoints = (query: string): Array<{endpoint: string, params?: any}> => {
     const lowercaseQuery = query.toLowerCase();
     const selectedEndpoints: Array<{endpoint: string, params?: any}> = [];
     
-    // Score each endpoint based on keyword matches
-    const endpointScores = Object.entries(STRAVA_ENDPOINTS).map(([endpoint, config]) => {
-      const score = config.keywords.reduce((acc, keyword) => {
-        return acc + (lowercaseQuery.includes(keyword) ? 1 : 0);
-      }, 0);
-      return { endpoint, score, config };
-    }).filter(item => item.score > 0).sort((a, b) => b.score - a.score);
+    // Enhanced date-specific queries
+    let targetActivity: ActivityContext | null = null;
+    let dateRange: ActivityContext[] = [];
+    
+    // Check for specific date references
+    if (lowercaseQuery.includes('yesterday')) {
+      targetActivity = findActivityByDate('yesterday');
+    } else if (lowercaseQuery.includes('today')) {
+      targetActivity = findActivityByDate('today');
+    } else if (lowercaseQuery.includes('june') && lowercaseQuery.includes('24')) {
+      targetActivity = findActivityByDate('june 24');
+    } else if (lowercaseQuery.match(/\b24\b/) && !lowercaseQuery.includes('hour')) {
+      targetActivity = findActivityByDate('24');
+    }
+    
+    // Check for time range queries
+    const daysMatch = lowercaseQuery.match(/(?:last|past)\s*(\d+)\s*days?/);
+    const weeksMatch = lowercaseQuery.match(/(?:last|past)\s*(\d+)\s*weeks?/);
+    
+    if (daysMatch) {
+      const days = parseInt(daysMatch[1]);
+      dateRange = findActivitiesInDateRange(days);
+    } else if (weeksMatch) {
+      const weeks = parseInt(weeksMatch[1]);
+      dateRange = findActivitiesInDateRange(weeks * 7);
+    } else if (lowercaseQuery.includes('20 days')) {
+      dateRange = findActivitiesInDateRange(20);
+    }
 
-    // For specific activity analysis queries, always include detailed endpoints
-    if (lowercaseQuery.includes('yesterday') || lowercaseQuery.includes('today') || 
-        lowercaseQuery.includes('heart') || lowercaseQuery.includes('speed') || 
-        lowercaseQuery.includes('pace') || lowercaseQuery.includes('analysis')) {
+    // If we found a specific activity, get its detailed data
+    if (targetActivity) {
+      console.log(`🎯 Found target activity: ${targetActivity.name} (ID: ${targetActivity.id})`);
+      selectedEndpoints.push({
+        endpoint: 'get-activity-details',
+        params: { activityId: targetActivity.id }
+      });
       
-      if (lastActivityId) {
-        selectedEndpoints.push({ 
-          endpoint: 'get-activity-details', 
-          params: { activityId: lastActivityId } 
+      if (lowercaseQuery.includes('hr') || lowercaseQuery.includes('heart') || 
+          lowercaseQuery.includes('speed') || lowercaseQuery.includes('pace') ||
+          lowercaseQuery.includes('detailed') || lowercaseQuery.includes('analysis')) {
+        selectedEndpoints.push({
+          endpoint: 'get-activity-streams',
+          params: {
+            id: targetActivity.id.toString(),
+            types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude', 'cadence'],
+            resolution: 'high',
+            points_per_page: -1 // Get all data points
+          }
         });
-        selectedEndpoints.push({ 
-          endpoint: 'get-activity-streams', 
-          params: { 
-            id: lastActivityId.toString(),
-            types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude']
-          } 
-        });
-        selectedEndpoints.push({ 
-          endpoint: 'get-activity-laps', 
-          params: { id: lastActivityId.toString() } 
+        selectedEndpoints.push({
+          endpoint: 'get-activity-laps',
+          params: { id: targetActivity.id.toString() }
         });
       }
     }
-
-    // Always include basic activity data if no specific matches or for general queries
-    if (endpointScores.length === 0 || lowercaseQuery.includes('general') || lowercaseQuery.includes('overview')) {
-      selectedEndpoints.push({ endpoint: 'get-recent-activities', params: { per_page: 10 } });
-      selectedEndpoints.push({ endpoint: 'get-athlete-profile' });
-      selectedEndpoints.push({ endpoint: 'get-athlete-stats' });
+    
+    // For date range queries, get recent activities and stats
+    if (dateRange.length > 0) {
+      console.log(`📊 Analyzing ${dateRange.length} activities over date range`);
+      selectedEndpoints.push({
+        endpoint: 'get-recent-activities',
+        params: { per_page: Math.min(50, dateRange.length + 10) }
+      });
+      selectedEndpoints.push({
+        endpoint: 'get-athlete-stats'
+      });
     }
+    
+    // Always include zones for training analysis if query mentions training/zones/hr
+    if (lowercaseQuery.includes('zone') || lowercaseQuery.includes('training') || 
+        lowercaseQuery.includes('heart rate') || lowercaseQuery.includes('threshold')) {
+      selectedEndpoints.push({
+        endpoint: 'get-athlete-zones'
+      });
+    }
+    
+    // Fallback: if no specific endpoints selected, use keyword matching
+    if (selectedEndpoints.length === 0) {
+      const endpointScores = Object.entries(STRAVA_ENDPOINTS).map(([endpoint, config]) => {
+        const score = config.keywords.reduce((acc, keyword) => {
+          return acc + (lowercaseQuery.includes(keyword) ? 1 : 0);
+        }, 0);
+        return { endpoint, score, config };
+      }).filter(item => item.score > 0).sort((a, b) => b.score - a.score);
 
-    // Add top scoring endpoints
-    for (const { endpoint, config } of endpointScores.slice(0, 3)) {
-      const params: any = {};
-      
-      // Handle endpoints that require IDs
-      if (config.requiresId) {
-        if (endpoint.includes('activity') && lastActivityId) {
-          if (endpoint === 'get-activity-details') {
-            params.activityId = lastActivityId;
-          } else if (endpoint === 'get-activity-streams') {
-            params.id = lastActivityId.toString();
-            params.types = ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude'];
-          } else if (endpoint === 'get-activity-laps') {
-            params.id = lastActivityId.toString();
+      // Add general data if no specific matches
+      if (endpointScores.length === 0) {
+        selectedEndpoints.push({ endpoint: 'get-recent-activities', params: { per_page: 20 } });
+        selectedEndpoints.push({ endpoint: 'get-athlete-profile' });
+      } else {
+        // Add top scoring endpoints
+        for (const { endpoint, config } of endpointScores.slice(0, 3)) {
+          const params: any = {};
+          if (endpoint === 'get-recent-activities') {
+            params.per_page = 20;
           }
           selectedEndpoints.push({ endpoint, params });
         }
-        // For segments and routes, we'd need to extract IDs from the query or previous context
-        // This could be enhanced further with context tracking
-      } else {
-        // Add endpoints that don't require IDs
-        if (endpoint === 'get-recent-activities') {
-          params.per_page = 20;
-        } else if (endpoint === 'explore-segments') {
-          // Could add location-based params if available
-          params.bounds = '37.821,-122.505,37.842,-122.465'; // Default SF area - could be made dynamic
-        }
-        selectedEndpoints.push({ endpoint, params });
       }
     }
+    
+    // Always add profile for context
+    if (!selectedEndpoints.some(ep => ep.endpoint === 'get-athlete-profile')) {
+      selectedEndpoints.push({ endpoint: 'get-athlete-profile' });
+    }
 
-    // Ensure we don't duplicate endpoints
-    const uniqueEndpoints = selectedEndpoints.filter((item, index, self) => 
-      index === self.findIndex(t => t.endpoint === item.endpoint)
-    );
-
-    return uniqueEndpoints.slice(0, 4); // Limit to 4 endpoints to avoid overwhelming
+    return selectedEndpoints.slice(0, 5); // Limit to 5 endpoints
   };
 
   const getStravaContext = async (query: string) => {
     const selectedEndpoints = selectRelevantEndpoints(query);
-    let context = `Selected ${selectedEndpoints.length} relevant Strava data sources:\n`;
+    let context = `🔍 COMPREHENSIVE STRAVA DATA ANALYSIS\n`;
+    context += `Query: "${query}"\n`;
+    context += `Data Sources: ${selectedEndpoints.length} endpoints selected\n\n`;
+    
+    // Add local context first
+    if (recentActivities.length > 0) {
+      context += `📊 LOCAL ACTIVITY CONTEXT (${recentActivities.length} recent activities):\n`;
+      recentActivities.slice(0, 10).forEach((activity, idx) => {
+        const date = new Date(activity.start_date).toLocaleDateString();
+        const distance = (activity.distance / 1000).toFixed(2);
+        context += `${idx + 1}. ${activity.name} (ID: ${activity.id}) - ${distance}km on ${date}\n`;
+      });
+      context += '\n';
+    }
+    
+    // Add athlete zones if available
+    if (athleteZones && (query.toLowerCase().includes('zone') || query.toLowerCase().includes('heart'))) {
+      context += `🎯 TRAINING ZONES CONTEXT:\n`;
+      if (athleteZones.content?.[0]?.text) {
+        context += athleteZones.content[0].text + '\n\n';
+      }
+    }
     
     const dataPromises = selectedEndpoints.map(async ({ endpoint, params = {} }) => {
       try {
+        console.log(`🔄 Fetching ${endpoint} with params:`, params);
+        
         const response = await fetch(`https://strava-mcp-server.onrender.com/api/tools/${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -332,18 +487,27 @@ export default function Coach() {
         if (response.ok) {
           const data = await response.json();
           if (data.content && data.content[0] && data.content[0].text) {
-            return `\n\n📊 ${STRAVA_ENDPOINTS[endpoint]?.description || endpoint}:\n${data.content[0].text}`;
+            const description = STRAVA_ENDPOINTS[endpoint]?.description || endpoint;
+            return `\n🏃 ${description.toUpperCase()}:\n${data.content[0].text}\n`;
           }
         }
         return `\n❌ ${endpoint}: No data available`;
       } catch (error) {
-        console.error(`Error fetching ${endpoint}:`, error);
+        console.error(`❌ Error fetching ${endpoint}:`, error);
         return `\n⚠️ ${endpoint}: Error fetching data`;
       }
     });
 
     const results = await Promise.all(dataPromises);
     context += results.join('');
+    
+    // Add summary of available context
+    context += `\n📋 CONTEXT SUMMARY:\n`;
+    context += `- Recent Activities: ${recentActivities.length} total\n`;
+    context += `- Data Endpoints: ${selectedEndpoints.map(ep => ep.endpoint).join(', ')}\n`;
+    context += `- Analysis Focus: ${query.includes('yesterday') ? 'Specific day analysis' : 
+                               query.includes('days') ? 'Multi-day trend analysis' : 
+                               'General performance review'}\n`;
     
     return context;
   };
@@ -370,42 +534,73 @@ export default function Coach() {
       // Get relevant Strava data using enhanced endpoint selection
       const stravaContext = await getStravaContext(currentInput);
       
-      // Create enhanced prompt for Gemini
-      const prompt = `You are an expert running coach with access to comprehensive Strava data. 
+      // Create enhanced prompt for Gemini with comprehensive analysis instructions
+      const prompt = `You are an expert running coach with access to comprehensive Strava data and advanced analytics. Your role is to provide detailed, technical, and actionable coaching advice.
 
-User's question: "${currentInput}"
+USER'S QUESTION: "${currentInput}"
 
-Comprehensive Strava data context: ${stravaContext}
+COMPREHENSIVE STRAVA DATA CONTEXT: 
+${stravaContext}
 
-Based on this real data from multiple Strava endpoints, provide specific, actionable coaching advice. Be encouraging, data-driven, and focus on practical recommendations. 
+ANALYSIS REQUIREMENTS:
+You MUST provide detailed analysis when data is available. This is not optional - users expect comprehensive insights, not brief summaries.
 
-IMPORTANT: If the data includes detailed activity information (heart rate, pace, power, streams), make sure to analyze these specific metrics and provide detailed insights about performance, pacing strategy, and training zones.
+MANDATORY ANALYSIS AREAS:
 
-Guidelines:
-- Analyze patterns across different data sources (activities, segments, routes, zones, etc.)
-- When heart rate data is available, analyze HR zones and effort distribution
-- When pace/speed data is available, analyze pacing strategy and consistency
-- When power data is available, analyze power zones and efficiency
-- When lap data is available, analyze splits and pacing strategy
-- Provide specific training recommendations based on the data
-- Be encouraging and motivational while being honest about areas for improvement  
-- Reference actual data points and metrics when available
-- If multiple data sources are available, synthesize insights across them
-- Suggest specific workouts, routes, or segments when relevant
-- Keep responses under 300 words but be comprehensive
-- Use emojis sparingly but effectively
-- If training zones are available, reference them in recommendations
-- If segment data is available, suggest goals or challenges
+🔍 PERFORMANCE ANALYSIS:
+- Extract specific metrics: distances, times, paces, heart rates, elevation
+- Calculate training zones and intensity distribution
+- Identify performance patterns and trends
+- Compare current performance to historical data
+- Analyze pacing strategy and consistency
 
-Focus areas based on data type:
-- Recent activities: Performance trends, consistency, variety
-- Activity details: Pacing, heart rate zones, power metrics, detailed performance analysis
-- Activity streams: Heart rate analysis, pace consistency, elevation impact
-- Activity laps: Split analysis, pacing strategy, even effort assessment
-- Segments: Personal records, areas for improvement, challenges
-- Routes: Training variety, favorite areas, new suggestions
-- Zones: Training intensity, recovery recommendations
-- Stats: Long-term progress, goal setting`;
+📊 HEART RATE ANALYSIS (when available):
+- Zone breakdown and time in each zone
+- Average vs max HR analysis
+- Heart rate drift over the duration
+- Efficiency metrics (pace vs HR)
+- Recovery and aerobic base assessment
+- Specific zone recommendations for future training
+
+🏃 PACE & SPEED ANALYSIS (when available):
+- Average pace, pace variability, negative/positive splits
+- Speed zones and efficiency
+- Comparison to target paces
+- Terrain impact on pacing
+- Strategic pacing recommendations
+
+💪 TRAINING RECOMMENDATIONS:
+- Specific workout suggestions based on current fitness
+- Zone-based training prescriptions
+- Recovery recommendations
+- Progressive training plans
+- Goal-specific strategies
+
+📈 TREND ANALYSIS (for multi-day queries):
+- Volume trends, intensity distribution
+- Recovery patterns, consistency
+- Performance improvements/declines
+- Training load assessment
+- Periodization suggestions
+
+RESPONSE STRUCTURE:
+1. **Current Performance Summary** (2-3 sentences with specific metrics)
+2. **Detailed Analysis** (major section with specific insights)
+3. **Training Recommendations** (specific, actionable advice)
+4. **Next Steps** (concrete goals and targets)
+
+RESPONSE REQUIREMENTS:
+- Minimum 200 words, maximum 400 words
+- Reference specific data points and metrics throughout
+- Use technical running terminology appropriately
+- Provide quantitative insights (numbers, percentages, zones)
+- Include specific training prescriptions
+- Be encouraging but technically accurate
+- Use structured formatting with clear sections
+
+CRITICAL: If the data includes activity streams (heart rate, pace, power data), you MUST analyze this in detail. Users are expecting comprehensive technical analysis, not surface-level commentary.
+
+Your analysis should demonstrate deep expertise in exercise physiology, training periodization, and performance optimization.`;
 
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
       const result = await model.generateContent(prompt);
@@ -443,16 +638,16 @@ Focus areas based on data type:
     }
   };
 
-  // Enhanced quick prompts that trigger different endpoint combinations
+  // Enhanced quick prompts that trigger comprehensive analysis
   const quickPrompts = [
-    "Analyze my recent performance trends",
-    "How are my training zones looking?", 
-    "Find popular segments near me",
-    "Review my latest run in detail",
-    "Show me my yearly running stats",
-    "What routes should I try next?",
-    "Check my starred segments",
-    "How's my club activity going?"
+    "Analyze my run from yesterday with detailed HR and pace analysis",
+    "Show me my performance trends over the last 20 days", 
+    "How was my heart rate distribution in my recent runs?",
+    "Give me a detailed analysis of my pacing strategy",
+    "What are my training zones and how should I use them?",
+    "Compare my recent runs to find performance patterns",
+    "Analyze my running consistency and suggest improvements",
+    "Create a training plan based on my current fitness level"
   ];
 
   return (
