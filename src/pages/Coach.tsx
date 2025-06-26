@@ -57,6 +57,15 @@ export default function CoachNew() {
     const today = new Date();
     
     // Relative time ranges
+    if (lowerQuery.includes('this week')) {
+      const startOfWeek = new Date(today);
+      const dayOfWeek = startOfWeek.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust so Monday = 0
+      startOfWeek.setDate(startOfWeek.getDate() - daysFromMonday);
+      startOfWeek.setHours(0, 0, 0, 0); // Start of Monday
+      return { startDate: startOfWeek, endDate: today, criteria: { type: 'range' } };
+    }
+    
     if (lowerQuery.includes('last week') || lowerQuery.includes('past week')) {
       const weekAgo = new Date(today);
       weekAgo.setDate(weekAgo.getDate() - 7);
