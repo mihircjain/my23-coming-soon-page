@@ -447,12 +447,44 @@ export default function Coach() {
   const parseQueryIntent = (query: string) => {
     const lowerQuery = query.toLowerCase();
     
-    // Date-specific queries
-    if (lowerQuery.includes('june 24') || lowerQuery.includes('june') && lowerQuery.includes('24')) {
+    // Time range queries (NEW!)
+    if (lowerQuery.includes('last week') || lowerQuery.includes('past week')) {
+      return {
+        type: 'time_range',
+        range: 'last_week',
+        needsDetailedAnalysis: true,
+        needsStreams: true
+      };
+    }
+    
+    if (lowerQuery.includes('last month') || lowerQuery.includes('past month')) {
+      return {
+        type: 'time_range',
+        range: 'last_month',
+        needsDetailedAnalysis: true,
+        needsStreams: true
+      };
+    }
+    
+    // Match "last X days" pattern
+    const daysMatch = lowerQuery.match(/last (\d+) days?/);
+    if (daysMatch) {
+      return {
+        type: 'time_range',
+        range: 'custom_days',
+        days: parseInt(daysMatch[1]),
+        needsDetailedAnalysis: true,
+        needsStreams: true
+      };
+    }
+    
+    // Date-specific queries (make more flexible)
+    if (lowerQuery.includes('june 24') || (lowerQuery.includes('june') && lowerQuery.includes('24'))) {
       return {
         type: 'specific_date',
         date: 'june 24',
-        needsDetailedAnalysis: true
+        needsDetailedAnalysis: true,
+        flexibleMatching: true  // NEW: Allow nearby dates
       };
     }
     
@@ -460,7 +492,8 @@ export default function Coach() {
       return {
         type: 'specific_date', 
         date: 'yesterday',
-        needsDetailedAnalysis: true
+        needsDetailedAnalysis: true,
+        flexibleMatching: true
       };
     }
     
@@ -468,7 +501,17 @@ export default function Coach() {
       return {
         type: 'specific_date',
         date: 'today', 
-        needsDetailedAnalysis: true
+        needsDetailedAnalysis: true,
+        flexibleMatching: true
+      };
+    }
+    
+    // Multiple runs analysis
+    if (lowerQuery.includes('recent runs') || lowerQuery.includes('last runs') || lowerQuery.includes('show my runs')) {
+      return {
+        type: 'recent_runs',
+        needsDetailedAnalysis: true,
+        needsStreams: true
       };
     }
     
@@ -512,7 +555,7 @@ export default function Coach() {
       const recentActivities = await executeMCPCalls([recentActivitiesCall]);
       mcpResponses.push(...recentActivities);
       
-      // Step 2: Find the specific activity ID for that date
+            // Step 2: Find the specific activity ID for that date (or nearby)
       if (recentActivities[0]?.success) {
         const activityId = await findActivityByDate(intent.date, [recentActivities[0].data]);
         
@@ -533,44 +576,186 @@ export default function Coach() {
           
           const detailedData = await executeMCPCalls(detailedCalls);
           mcpResponses.push(...detailedData);
+        } else if (intent.flexibleMatching) {
+          console.log(`❌ No exact match for ${intent.date}, looking for nearby activities...`);
+          
+          // If flexible matching enabled, get nearby activities anyway
+          const activityIds = extractActivityIds(recentActivities[0].data, 3);
+          
+          if (activityIds.length > 0) {
+            console.log(`🔍 Found ${activityIds.length} nearby activities: ${activityIds.join(', ')}`);
+            
+            const detailedCalls = activityIds.flatMap(id => [
+              { endpoint: 'get-activity-details', params: { activityId: id } },
+              { endpoint: 'get-activity-streams', params: { 
+                id, 
+                types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude'],
+                resolution: 'high'
+              }}
+            ]);
+            
+            // Add a flag to indicate this is flexible matching
+            const detailedData = await executeMCPCalls(detailedCalls);
+            mcpResponses.push(...detailedData);
+            
+            // Add a note about flexible matching
+            mcpResponses.push({
+              endpoint: 'flexible_match_note',
+              success: true,
+              data: {
+                content: [{
+                  text: `Note: No activity found for exact date "${intent.date}", showing ${activityIds.length} nearby activities instead.`
+                }]
+              }
+            });
+          } else {
+            console.log(`❌ No activities found near ${intent.date}`);
+          }
         } else {
           console.log(`❌ No activity found for ${intent.date}`);
         }
       }
-      
-    } else if (intent.type === 'hr_analysis') {
-      console.log(`❤️ Getting data for HR analysis...`);
-      
-      // Get recent activities and zones
-      const basicCalls = [
-        { endpoint: 'get-recent-activities', params: { per_page: 20 } },
-        { endpoint: 'get-athlete-zones', params: {} }
-      ];
-      
-      const basicData = await executeMCPCalls(basicCalls);
-      mcpResponses.push(...basicData);
-      
-      // Get detailed streams for recent runs
-      const recentActivitiesResponse = basicData.find(r => r.endpoint === 'get-recent-activities');
-      if (recentActivitiesResponse?.success) {
-        const activityIds = extractActivityIds(recentActivitiesResponse.data, 5);
-        
-        if (activityIds.length > 0) {
-          const detailedCalls = activityIds.flatMap(id => [
-            { endpoint: 'get-activity-details', params: { activityId: id } },
-            { endpoint: 'get-activity-streams', params: { 
-              id, 
-              types: ['heartrate', 'time', 'distance', 'velocity_smooth'],
-              resolution: 'medium'
-            }}
-          ]);
-          
-          const detailedData = await executeMCPCalls(detailedCalls);
-          mcpResponses.push(...detailedData);
-        }
-      }
-      
-    } else {
+       
+     } else if (intent.type === 'time_range') {
+       console.log(`📅 Getting data for time range: ${intent.range}`);
+       
+       // Calculate date range based on intent
+       let dateRange;
+       const today = new Date();
+       
+       if (intent.range === 'last_week') {
+         const weekAgo = new Date(today);
+         weekAgo.setDate(weekAgo.getDate() - 7);
+         dateRange = {
+           after: weekAgo.toISOString().split('T')[0],
+           before: today.toISOString().split('T')[0]
+         };
+       } else if (intent.range === 'last_month') {
+         const monthAgo = new Date(today);
+         monthAgo.setMonth(monthAgo.getMonth() - 1);
+         dateRange = {
+           after: monthAgo.toISOString().split('T')[0],
+           before: today.toISOString().split('T')[0]
+         };
+       } else if (intent.range === 'custom_days') {
+         const daysAgo = new Date(today);
+         daysAgo.setDate(daysAgo.getDate() - intent.days);
+         dateRange = {
+           after: daysAgo.toISOString().split('T')[0],
+           before: today.toISOString().split('T')[0]
+         };
+       }
+       
+       console.log(`📅 Date range: ${dateRange.after} to ${dateRange.before}`);
+       
+       // Get activities in date range
+       const timeRangeCall = [
+         { endpoint: 'get-recent-activities', params: { 
+           per_page: 50,
+           after: dateRange.after,
+           before: dateRange.before
+         }},
+         { endpoint: 'get-athlete-zones', params: {} },
+         { endpoint: 'get-athlete-stats', params: {} }
+       ];
+       
+       const timeRangeData = await executeMCPCalls(timeRangeCall);
+       mcpResponses.push(...timeRangeData);
+       
+       // Get detailed data for all runs in range
+       const activitiesResponse = timeRangeData.find(r => r.endpoint === 'get-recent-activities');
+       if (activitiesResponse?.success) {
+         const activityIds = extractActivityIds(activitiesResponse.data, 15); // Get up to 15 runs
+         
+         console.log(`🏃 Found ${activityIds.length} runs in ${intent.range}: ${activityIds.join(', ')}`);
+         
+         if (activityIds.length > 0) {
+           const detailedCalls = activityIds.flatMap(id => [
+             { endpoint: 'get-activity-details', params: { activityId: id } },
+             { endpoint: 'get-activity-streams', params: { 
+               id, 
+               types: ['heartrate', 'time', 'distance', 'velocity_smooth', 'altitude'],
+               resolution: 'low' // Use low res for bulk analysis
+             }}
+           ]);
+           
+           console.log(`📊 Getting detailed data for ${activityIds.length} runs (${detailedCalls.length} MCP calls)`);
+           const detailedData = await executeMCPCalls(detailedCalls);
+           mcpResponses.push(...detailedData);
+         }
+       }
+       
+     } else if (intent.type === 'recent_runs') {
+       console.log(`🏃 Getting data for recent runs analysis...`);
+       
+       // Get MORE recent activities for multiple runs
+       const recentActivitiesCall = [
+         { endpoint: 'get-recent-activities', params: { per_page: 50 } },  // Increased from 20
+         { endpoint: 'get-athlete-zones', params: {} },
+         { endpoint: 'get-athlete-stats', params: {} }
+       ];
+       
+       const basicData = await executeMCPCalls(recentActivitiesCall);
+       mcpResponses.push(...basicData);
+       
+       // Get detailed data for MULTIPLE recent runs
+       const recentActivitiesResponse = basicData.find(r => r.endpoint === 'get-recent-activities');
+       if (recentActivitiesResponse?.success) {
+         const activityIds = extractActivityIds(recentActivitiesResponse.data, 8); // Get 8 runs instead of 5
+         
+         console.log(`🏃 Found ${activityIds.length} recent runs: ${activityIds.join(', ')}`);
+         
+         if (activityIds.length > 0) {
+           const detailedCalls = activityIds.flatMap(id => [
+             { endpoint: 'get-activity-details', params: { activityId: id } },
+             { endpoint: 'get-activity-streams', params: { 
+               id, 
+               types: ['heartrate', 'time', 'distance', 'velocity_smooth', 'altitude'],
+               resolution: 'medium'
+             }}
+           ]);
+           
+           console.log(`📊 Getting detailed data for ${activityIds.length} runs (${detailedCalls.length} MCP calls)`);
+           const detailedData = await executeMCPCalls(detailedCalls);
+           mcpResponses.push(...detailedData);
+         } else {
+           console.log('⚠️ No running activities found in recent activities');
+         }
+       }
+       
+     } else if (intent.type === 'hr_analysis') {
+       console.log(`❤️ Getting data for HR analysis...`);
+       
+       // Get recent activities and zones
+       const basicCalls = [
+         { endpoint: 'get-recent-activities', params: { per_page: 20 } },
+         { endpoint: 'get-athlete-zones', params: {} }
+       ];
+       
+       const basicData = await executeMCPCalls(basicCalls);
+       mcpResponses.push(...basicData);
+       
+       // Get detailed streams for recent runs
+       const recentActivitiesResponse = basicData.find(r => r.endpoint === 'get-recent-activities');
+       if (recentActivitiesResponse?.success) {
+         const activityIds = extractActivityIds(recentActivitiesResponse.data, 5);
+         
+         if (activityIds.length > 0) {
+           const detailedCalls = activityIds.flatMap(id => [
+             { endpoint: 'get-activity-details', params: { activityId: id } },
+             { endpoint: 'get-activity-streams', params: { 
+               id, 
+               types: ['heartrate', 'time', 'distance', 'velocity_smooth'],
+               resolution: 'medium'
+             }}
+           ]);
+           
+           const detailedData = await executeMCPCalls(detailedCalls);
+           mcpResponses.push(...detailedData);
+         }
+       }
+       
+     } else {
       // General query - just get recent activities and profile
       const generalCalls = [
         { endpoint: 'get-recent-activities', params: { per_page: 10 } },
