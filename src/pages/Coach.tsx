@@ -316,27 +316,57 @@ export default function CoachNew() {
     return responses;
   };
 
-  // New data-first approach using maximum API retrieval + client filtering
+  // Smart data fetching - only get what the user actually asks for
   const getDataForQuery = async (query: string) => {
     // Parse date requirements
     const { startDate, endDate, criteria } = parseDateQuery(query);
     const activityCriteria = determineActivityCriteria(query);
+    const lowerQuery = query.toLowerCase();
     
-    console.log(`🧠 Query analysis:`, { 
+    console.log(`🧠 Smart query analysis:`, { 
       dateRange: `${startDate?.toDateString()} → ${endDate?.toDateString()}`,
       criteria: activityCriteria 
     });
     
     let mcpResponses: MCPResponse[] = [];
     
-    // STEP 1: Always get MAXIMUM activities first (like Python approach)
-    console.log('📥 Fetching maximum activities from Strava API...');
-    const maxActivitiesCall = {
-      endpoint: 'get-recent-activities',
-      params: { per_page: 200 }  // Maximum possible
-    };
+         // STEP 1: Calculate EXACT activities needed based on query type
+     let activitiesNeeded = 10; // Default
+     
+     if (lowerQuery.includes('june 24') || lowerQuery.includes('june 25') || lowerQuery.includes('june 22') || lowerQuery.includes('yesterday') || lowerQuery.includes('today')) {
+       // Single day: just get enough recent activities to find that date (max 2 activities on any day)
+       activitiesNeeded = 10; // Small number to find the specific date
+       console.log(`📅 Single date query: fetching ${activitiesNeeded} recent activities to find date`);
+     } else if (lowerQuery.includes('last 7 days') || lowerQuery.includes('this week')) {
+       activitiesNeeded = 14; // 7 days × 2/day = 14
+     } else if (lowerQuery.includes('last 30 days') || lowerQuery.includes('last month')) {
+       activitiesNeeded = 60; // 30 days × 2/day = 60
+     } else if (lowerQuery.includes('march') || lowerQuery.includes('since march')) {
+       activitiesNeeded = 200; // Long historical range
+     }
     
-    const activitiesResponse = await executeMCPCalls([maxActivitiesCall]);
+         console.log(`📥 Fetching ${activitiesNeeded} activities (optimized for query type)`);
+     
+     // Use API date filtering for specific dates instead of client-side filtering
+     const activitiesCall: { endpoint: string; params: any } = {
+       endpoint: 'get-recent-activities',
+       params: { per_page: activitiesNeeded }
+     };
+     
+     // For specific dates, use API date filtering 
+     if (startDate && endDate && (lowerQuery.includes('june 24') || lowerQuery.includes('june 25') || lowerQuery.includes('june 22'))) {
+       const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+       const endDateStr = endDate.toISOString().split('T')[0];     // YYYY-MM-DD
+       
+       activitiesCall.params = {
+         per_page: 5, // Max 2 activities per day + buffer
+         after: startDateStr,
+         before: endDateStr
+       };
+       console.log(`📅 Using API date filter: ${startDateStr} to ${endDateStr}`);
+     }
+    
+    const activitiesResponse = await executeMCPCalls([activitiesCall]);
     mcpResponses.push(...activitiesResponse);
     
     if (!activitiesResponse[0]?.success) {
@@ -344,8 +374,7 @@ export default function CoachNew() {
       return { intent: { type: 'error' }, mcpResponses };
     }
     
-    // STEP 2: Client-side filtering using the algorithm
-    // Concatenate all content items since MCP returns activities as separate content objects
+    // STEP 2: Client-side filtering to find matching activities
     const allContentItems = activitiesResponse[0].data?.content || [];
     const activitiesText = allContentItems
       .map(item => item.text)
@@ -353,7 +382,6 @@ export default function CoachNew() {
       .join('\n');
     
     console.log(`📋 Processing ${allContentItems.length} activity items from MCP server`);
-    console.log(`📝 Activities text sample: ${activitiesText.substring(0, 200)}...`);
     
     const filteredActivityIds = filterActivitiesByDateAndCriteria(
       activitiesText,
@@ -367,33 +395,53 @@ export default function CoachNew() {
       return { intent: { type: 'no_match', criteria: activityCriteria }, mcpResponses };
     }
     
-    // STEP 3: Get detailed data for ALL matching activities
-    console.log(`🔍 Fetching detailed data for ${filteredActivityIds.length} activities...`);
+    console.log(`✅ Found ${filteredActivityIds.length} matching activities`);
     
-    const detailedCalls = filteredActivityIds.flatMap(id => [
-      { endpoint: 'get-activity-details', params: { activityId: id } },
-      { endpoint: 'get-activity-streams', params: { 
-        id, 
-        types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude', 'cadence'],
-        resolution: filteredActivityIds.length > 5 ? 'medium' : 'high'  // Optimize for performance
-      }}
-    ]);
+    // STEP 3: Smart data fetching based on what's actually needed
+    const detailedCalls = [];
     
-    // Add zones and stats for comprehensive analysis
-    detailedCalls.push(
-      { endpoint: 'get-athlete-zones', params: { activityId: 'zones' } },
-      { endpoint: 'get-athlete-stats', params: { activityId: 'stats' } }
-    );
+    // Always get basic details for all matching activities
+    for (const id of filteredActivityIds) {
+      detailedCalls.push({ endpoint: 'get-activity-details', params: { activityId: id } });
+    }
+    
+    // Only get streams if user asks for HR/pace/power analysis
+    const needsStreams = lowerQuery.includes('hr') || lowerQuery.includes('heart rate') || 
+                        lowerQuery.includes('pace') || lowerQuery.includes('power') ||
+                        lowerQuery.includes('analyze') || lowerQuery.includes('distribution');
+    
+    if (needsStreams) {
+      console.log(`📊 Adding streams for HR/pace analysis (${filteredActivityIds.length} activities)`);
+      for (const id of filteredActivityIds) {
+        detailedCalls.push({ 
+          endpoint: 'get-activity-streams', 
+          params: { 
+            id, 
+            types: ['heartrate', 'velocity_smooth', 'watts'], // Only essential streams
+            resolution: filteredActivityIds.length > 3 ? 'medium' : 'high',
+            points_per_page: 100 // Limit data points to prevent overload
+          }
+        });
+      }
+    }
+    
+    // Only add zones if specifically needed
+    if (needsStreams || lowerQuery.includes('zone')) {
+      detailedCalls.push({ endpoint: 'get-athlete-zones', params: {} });
+    }
+    
+    console.log(`🔍 Making ${detailedCalls.length} targeted MCP calls (vs previous 10+ calls)`);
     
     const detailedData = await executeMCPCalls(detailedCalls);
     mcpResponses.push(...detailedData);
     
-    console.log(`✅ Successfully retrieved data for ${filteredActivityIds.length} activities`);
+    console.log(`✅ Smart data retrieval complete: ${filteredActivityIds.length} activities, ${detailedCalls.length} API calls`);
     
     return { 
       intent: { 
-        type: 'dynamic_filter',
+        type: 'smart_fetch',
         matchedActivities: filteredActivityIds.length,
+        streamsIncluded: needsStreams,
         criteria: activityCriteria,
         dateRange: { startDate, endDate }
       }, 
@@ -455,10 +503,18 @@ export default function CoachNew() {
       
     } catch (error) {
       console.error('❌ Claude response generation failed:', error);
+      
+      // Fixed: Handle multiple content items properly for fallback display
       const contextData = mcpResponses
-        .filter(r => r.success && r.data?.content?.[0]?.text)
-        .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
+        .filter(r => r.success && r.data?.content?.length > 0)
+        .map(r => {
+          const allContentText = r.data.content
+            .map((item: any) => item.text)
+            .join('\n');
+          return `\n🏃 ${r.endpoint.toUpperCase()}:\n${allContentText}`;
+        })
         .join('\n');
+      
       return `I can see your data but had trouble generating a detailed response. Here's what I found:\n\n${contextData}`;
     }
   };

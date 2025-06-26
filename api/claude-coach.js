@@ -233,10 +233,24 @@ RESPOND ONLY WITH VALID JSON:`;
 
 // Claude response generation
 async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey) {
-  const contextData = mcpResponses
-    .filter(r => r.success && r.data?.content?.[0]?.text)
-    .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
-    .join('\n');
+  // Smart data reduction to prevent rate limits
+  const processedResponses = mcpResponses
+    .filter(r => r.success && r.data?.content?.length > 0)
+    .map(r => {
+      const allContent = r.data.content
+        .map(item => item.text)
+        .join('\n');
+      
+      // Limit stream data to prevent overload
+      if (r.endpoint === 'get-activity-streams' && allContent.length > 5000) {
+        const summary = allContent.substring(0, 2000) + '\n...[Stream data truncated for processing efficiency]...';
+        return `\n🏃 ${r.endpoint.toUpperCase()}:\n${summary}`;
+      }
+      
+      return `\n🏃 ${r.endpoint.toUpperCase()}:\n${allContent}`;
+    });
+  
+  const contextData = processedResponses.join('\n');
   
   const prompt = `You are an expert running coach analyzing Strava data. Provide clean, insightful analysis focused on what the user asked for.
 
