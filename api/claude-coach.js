@@ -43,8 +43,10 @@ export default async function handler(req, res) {
         });
         
         if (!mcpResponse.ok) {
+          const errorText = await mcpResponse.text();
           console.log(`❌ MCP server error: ${mcpResponse.status}`);
-          throw new Error(`MCP server returned ${mcpResponse.status}`);
+          console.log(`❌ Error response: ${errorText}`);
+          throw new Error(`MCP server returned ${mcpResponse.status}: ${errorText}`);
         }
         
         const mcpData = await mcpResponse.json();
@@ -60,7 +62,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ result: formattedResponse });
         
       } catch (error) {
-        console.log(`❌ MCP server call failed: ${error.message}`);
+        console.log(`❌ MCP server call failed for ${endpoint}: ${error.message}`);
+        console.log(`❌ Full error:`, error);
         console.log('🔄 Falling back to mock data for development...');
         
         // Fallback to mock data if MCP server is unavailable
