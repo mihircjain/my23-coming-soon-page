@@ -28,9 +28,13 @@ export default async function handler(req, res) {
       
       try {
         // Call the real MCP server with correct API structure
-        const mcpServerUrl = process.env.MCP_SERVER_URL || 'https://strava-mcp-server.onrender.com';
+        const mcpServerUrl = process.env.MCP_SERVER_URL && process.env.MCP_SERVER_URL !== 'MCP_SERVER_URL' 
+          ? process.env.MCP_SERVER_URL 
+          : 'https://strava-mcp-server.onrender.com';
         const mcpUrl = `${mcpServerUrl}/api/tools/${endpoint}`;
         
+        console.log(`🔧 Environment MCP_SERVER_URL: "${process.env.MCP_SERVER_URL}"`);
+        console.log(`📡 Using MCP server URL: ${mcpServerUrl}`);
         console.log(`📡 Calling real MCP server: ${mcpUrl}`);
         console.log(`📋 Request params:`, params);
         
