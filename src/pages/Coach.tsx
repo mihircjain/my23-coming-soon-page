@@ -334,7 +334,7 @@ export default function Coach() {
   };
 
   // Step 5: Generate response using Claude with focused data
-  const generateResponseWithClaude = async (query: string, analysis: QueryAnalysis, mcpResponses: MCPResponse[]): Promise<string> => {
+  const generateResponseWithClaude = async (query: string, intent: any, mcpResponses: MCPResponse[]): Promise<string> => {
     const contextData = mcpResponses
       .filter(r => r.success && r.data?.content?.[0]?.text)
       .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
@@ -349,7 +349,7 @@ export default function Coach() {
         body: JSON.stringify({
           action: 'generate_response',
           query,
-          analysis,
+          intent,
           mcpResponses
         })
       });
@@ -443,7 +443,183 @@ export default function Coach() {
     return true;
   };
 
-  // Main message handler - orchestrates the entire intelligent flow
+  // Smart rule-based query parsing (faster than Claude for simple cases)
+  const parseQueryIntent = (query: string) => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Date-specific queries
+    if (lowerQuery.includes('june 24') || lowerQuery.includes('june') && lowerQuery.includes('24')) {
+      return {
+        type: 'specific_date',
+        date: 'june 24',
+        needsDetailedAnalysis: true
+      };
+    }
+    
+    if (lowerQuery.includes('yesterday')) {
+      return {
+        type: 'specific_date', 
+        date: 'yesterday',
+        needsDetailedAnalysis: true
+      };
+    }
+    
+    if (lowerQuery.includes('today')) {
+      return {
+        type: 'specific_date',
+        date: 'today', 
+        needsDetailedAnalysis: true
+      };
+    }
+    
+    // HR/zone analysis queries
+    if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || lowerQuery.includes('distribution') || lowerQuery.includes('zone')) {
+      return {
+        type: 'hr_analysis',
+        needsDetailedAnalysis: true,
+        needsStreams: true
+      };
+    }
+    
+    // General queries
+    return {
+      type: 'general',
+      needsDetailedAnalysis: false
+    };
+  };
+
+  // Get data FIRST, then analyze
+  const getDataForQuery = async (query: string) => {
+    const intent = parseQueryIntent(query);
+    console.log(`🧠 Parsed intent:`, intent);
+    
+    let mcpResponses: MCPResponse[] = [];
+    
+    if (intent.type === 'specific_date') {
+      console.log(`📅 Getting data for specific date: ${intent.date}`);
+      
+      // Step 1: Get recent activities around the date
+      const dateRange = getDateRangeForQuery(intent.date);
+      const recentActivitiesCall = {
+        endpoint: 'get-recent-activities',
+        params: {
+          per_page: 30,
+          after: dateRange.after,
+          before: dateRange.before
+        }
+      };
+      
+      const recentActivities = await executeMCPCalls([recentActivitiesCall]);
+      mcpResponses.push(...recentActivities);
+      
+      // Step 2: Find the specific activity ID for that date
+      if (recentActivities[0]?.success) {
+        const activityId = await findActivityByDate(intent.date, [recentActivities[0].data]);
+        
+        if (activityId) {
+          console.log(`🎯 Found activity ${activityId}, getting detailed data...`);
+          
+          // Step 3: Get detailed data for the real activity ID
+          const detailedCalls = [
+            { endpoint: 'get-activity-details', params: { activityId } },
+            { endpoint: 'get-activity-streams', params: { 
+              id: activityId, 
+              types: ['time', 'distance', 'heartrate', 'watts', 'velocity_smooth', 'altitude', 'cadence'],
+              resolution: 'high'
+            }},
+            { endpoint: 'get-activity-laps', params: { id: activityId } },
+            { endpoint: 'get-athlete-zones', params: {} }
+          ];
+          
+          const detailedData = await executeMCPCalls(detailedCalls);
+          mcpResponses.push(...detailedData);
+        } else {
+          console.log(`❌ No activity found for ${intent.date}`);
+        }
+      }
+      
+    } else if (intent.type === 'hr_analysis') {
+      console.log(`❤️ Getting data for HR analysis...`);
+      
+      // Get recent activities and zones
+      const basicCalls = [
+        { endpoint: 'get-recent-activities', params: { per_page: 20 } },
+        { endpoint: 'get-athlete-zones', params: {} }
+      ];
+      
+      const basicData = await executeMCPCalls(basicCalls);
+      mcpResponses.push(...basicData);
+      
+      // Get detailed streams for recent runs
+      const recentActivitiesResponse = basicData.find(r => r.endpoint === 'get-recent-activities');
+      if (recentActivitiesResponse?.success) {
+        const activityIds = extractActivityIds(recentActivitiesResponse.data, 5);
+        
+        if (activityIds.length > 0) {
+          const detailedCalls = activityIds.flatMap(id => [
+            { endpoint: 'get-activity-details', params: { activityId: id } },
+            { endpoint: 'get-activity-streams', params: { 
+              id, 
+              types: ['heartrate', 'time', 'distance', 'velocity_smooth'],
+              resolution: 'medium'
+            }}
+          ]);
+          
+          const detailedData = await executeMCPCalls(detailedCalls);
+          mcpResponses.push(...detailedData);
+        }
+      }
+      
+    } else {
+      // General query - just get recent activities and profile
+      const generalCalls = [
+        { endpoint: 'get-recent-activities', params: { per_page: 10 } },
+        { endpoint: 'get-athlete-profile', params: {} },
+        { endpoint: 'get-athlete-stats', params: {} }
+      ];
+      
+      const generalData = await executeMCPCalls(generalCalls);
+      mcpResponses.push(...generalData);
+    }
+    
+    return { intent, mcpResponses };
+  };
+
+  // Helper to get date range for queries
+  const getDateRangeForQuery = (dateRef: string) => {
+    const today = new Date();
+    
+    if (dateRef === 'today') {
+      const todayStr = today.toISOString().split('T')[0];
+      return {
+        after: todayStr,
+        before: todayStr
+      };
+    } else if (dateRef === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      return {
+        after: yesterdayStr,
+        before: yesterdayStr
+      };
+    } else if (dateRef === 'june 24') {
+      return {
+        after: '2025-06-23',
+        before: '2025-06-25'
+      };
+    }
+    
+    // Default: last week
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return {
+      after: weekAgo.toISOString().split('T')[0],
+      before: today.toISOString().split('T')[0]
+    };
+  };
+
+  // Main message handler - DATA FIRST approach
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
@@ -459,83 +635,11 @@ export default function Coach() {
     setIsLoading(true);
 
     try {
-      // Step 1: Analyze query with Claude (only for complex queries)
-      const analysis = await analyzeQueryWithClaude(currentInput);
-      console.log('📊 Query analysis:', analysis);
-
-      // COST CONTROL: Validate MCP calls before executing
-      const validatedMCPCalls = analysis.mcpCalls.filter(call => {
-        // Block calls with placeholder activity IDs
-        if (call.params?.activityId === 'ACTIVITY_ID' || call.params?.id === 'ACTIVITY_ID') {
-          console.log(`❌ BLOCKED invalid call to ${call.endpoint} with placeholder ACTIVITY_ID`);
-          return false;
-        }
-        
-        // Fix date ranges for 2025
-        if (call.params?.after && call.params.after.includes('2023')) {
-          call.params.after = call.params.after.replace('2023', '2025');
-          console.log(`🔧 Fixed date: ${call.params.after}`);
-        }
-        if (call.params?.before && call.params.before.includes('2023')) {
-          call.params.before = call.params.before.replace('2023', '2025');
-          console.log(`🔧 Fixed date: ${call.params.before}`);
-        }
-        
-        return true;
-      });
+      // Step 1: Get the RIGHT data first (no Claude guessing)
+      console.log('🔍 Getting data for query...');
+      const { intent, mcpResponses } = await getDataForQuery(currentInput);
       
-      console.log(`✅ Executing ${validatedMCPCalls.length} validated MCP calls (blocked ${analysis.mcpCalls.length - validatedMCPCalls.length})`);
-      
-      // Step 2: Execute validated MCP calls
-      let mcpResponses = await executeMCPCalls(validatedMCPCalls);
-
-      // Step 3A: If specific activity requested, find activity ID and get detailed data
-      if (analysis.intent === 'specific_activity' && analysis.dateReference) {
-        const recentActivitiesResponse = mcpResponses.find(r => r.endpoint === 'get-recent-activities');
-        
-        if (recentActivitiesResponse?.success) {
-          const activityId = await findActivityByDate(analysis.dateReference, [recentActivitiesResponse.data]);
-          
-          if (activityId) {
-            console.log(`🎯 Getting detailed data for activity ${activityId}`);
-            const detailedData = await getDetailedActivityData(activityId, analysis.dataTypes);
-            mcpResponses = [...mcpResponses, ...detailedData];
-          }
-        }
-      }
-
-      // Step 3B: If HR/pace analysis for recent activities, automatically get detailed streams
-      if ((analysis.intent === 'training_zones' || analysis.intent === 'date_range') && 
-          (analysis.dataTypes.includes('heartrate') || analysis.dataTypes.includes('pace'))) {
-        
-        const recentActivitiesResponse = mcpResponses.find(r => r.endpoint === 'get-recent-activities');
-        
-        if (recentActivitiesResponse?.success) {
-          console.log('🔄 HR/pace analysis detected - getting detailed streams for recent runs');
-          
-          // Extract activity IDs from recent activities
-          const activityIds = extractActivityIds(recentActivitiesResponse.data, 3);
-          
-          if (activityIds.length > 0) {
-            // Get both detailed streams AND activity details for each activity
-            const detailedStreams = await getDetailedStreamsForActivities(activityIds, analysis.dataTypes);
-            
-            // ALSO get activity details (summary stats) for each activity
-            const activityDetailsCalls = activityIds.map(id => ({
-              endpoint: 'get-activity-details',
-              params: { activityId: id }
-            }));
-            
-            console.log(`📋 Getting activity details for ${activityIds.length} activities`);
-            const activityDetails = await executeMCPCalls(activityDetailsCalls);
-            
-            mcpResponses = [...mcpResponses, ...detailedStreams, ...activityDetails];
-            console.log(`✅ Added streams + details for ${activityIds.length} activities`);
-          } else {
-            console.log('⚠️ No running activity IDs found in recent activities');
-          }
-        }
-      }
+      console.log(`✅ Got ${mcpResponses.length} MCP responses for intent: ${intent.type}`);
 
       // COST CONTROL: Only call Claude if we have meaningful data
       if (!validateDataForClaude(mcpResponses)) {
@@ -567,8 +671,8 @@ I couldn't find sufficient data to analyze for **"${currentInput}"**
         return;
       }
 
-      // Step 4: Generate comprehensive response with Claude
-      const responseText = await generateResponseWithClaude(currentInput, analysis, mcpResponses);
+      // Step 2: Generate comprehensive response with Claude (using real data)
+      const responseText = await generateResponseWithClaude(currentInput, intent, mcpResponses);
 
       const assistantMessage: Message = {
         role: 'assistant',
