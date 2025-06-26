@@ -107,18 +107,23 @@ export default function CoachNew() {
         runCount: 0
       };
 
+      // Get last 7 days to ensure we have data (same approach as OverallJam)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const dateString = sevenDaysAgo.toISOString().split('T')[0];
+
       // Prepare Firebase queries (same as OverallJam)
       const nutritionQuery = query(
         collection(db, "nutritionLogs"),
-        where("date", "==", today),
-        orderBy("timestamp", "desc")
+        where("date", ">=", dateString),
+        orderBy("date", "desc")
       );
 
       const stravaQuery = query(
         collection(db, "strava_data"),
         where("userId", "==", "mihir_jain"),
         orderBy("start_date", "desc"),
-        limit(20) // Get recent activities to find today's
+        limit(50) // Same as OverallJam
       );
 
       // Execute queries
@@ -136,14 +141,35 @@ export default function CoachNew() {
       console.log(`📊 Fetched ${nutritionSnapshot.docs.length} nutrition logs for ${today}`);
       console.log(`🏃 Fetched ${stravaSnapshot.docs.length} recent Strava activities`);
 
-      // Process nutrition data (same as OverallJam)
+      // Debug: Log actual nutrition data
+      nutritionSnapshot.docs.forEach((doc, index) => {
+        console.log(`Nutrition doc ${index}:`, doc.data());
+      });
+
+      // Process nutrition data (only today's data)
       nutritionSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        todayData.caloriesConsumed = data.totals?.calories || 0;
-        todayData.protein = data.totals?.protein || 0;
-        todayData.carbs = data.totals?.carbs || 0;
-        todayData.fat = data.totals?.fat || 0;
-        todayData.fiber = data.totals?.fiber || 0;
+        console.log(`Processing nutrition data:`, data);
+        
+        // Only use today's nutrition data
+        if (data.date === today) {
+          todayData.caloriesConsumed = data.totals?.calories || 0;
+          todayData.protein = data.totals?.protein || 0;
+          todayData.carbs = data.totals?.carbs || 0;
+          todayData.fat = data.totals?.fat || 0;
+          todayData.fiber = data.totals?.fiber || 0;
+          console.log(`Found today's nutrition:`, {
+            calories: todayData.caloriesConsumed,
+            protein: todayData.protein
+          });
+        }
+      });
+
+      // Debug: Log actual Strava data
+      stravaSnapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
+        console.log(`Strava doc ${index}: date=${activityDate}, today=${today}, type=${data.type}, calories=${data.calories}`);
       });
 
       // Process Strava data (same logic as OverallJam)
@@ -151,9 +177,12 @@ export default function CoachNew() {
         const data = doc.data();
         const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
         
+        console.log(`Checking activity: date=${activityDate} vs today=${today}`);
+        
         // Only process today's activities
         if (activityDate !== today) return;
 
+        console.log(`Processing today's activity:`, data);
         const activityType = data.type || '';
         const isRun = activityType.toLowerCase().includes('run');
 
