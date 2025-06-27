@@ -156,9 +156,11 @@ export default function CoachNew() {
     
     // Patterns that indicate nutrition affected performance
     const nutritionPerformancePatterns = [
-      'food affect', 'nutrition affect', 'fueled', 'fueling', 'energy for run',
+      'food affect', 'nutrition affect', 'nutriotn', 'fueled', 'fueling', 'energy for run',
       'pre run', 'post run', 'before run', 'after run', 'run performance',
-      'food impact', 'nutrition impact', 'eating before', 'eating after'
+      'food impact', 'nutrition impact', 'eating before', 'eating after',
+      'nutrition been for', 'food been for', 'nutrition for the run', 'nutrition this week',
+      'diet for run', 'eating for run', 'fuel for run', 'nutrition support'
     ];
     
     return nutritionPerformancePatterns.some(pattern => lowerQuery.includes(pattern));
@@ -211,10 +213,10 @@ export default function CoachNew() {
   const analyzeQueryIntent = (query: string): QueryIntent => {
     const lowerQuery = query.toLowerCase();
     
-    // Keywords that indicate nutrition-related queries
+    // Keywords that indicate nutrition-related queries (including common misspellings)
     const nutritionKeywords = [
-      'nutrition', 'food', 'calories', 'protein', 'carbs', 'fat', 'fiber',
-      'macro', 'diet', 'eating', 'meal', 'consumed', 'intake'
+      'nutrition', 'nutriotn', 'nutriton', 'food', 'foods', 'calories', 'protein', 'carbs', 'fat', 'fiber',
+      'macro', 'macros', 'diet', 'eating', 'meal', 'meals', 'consumed', 'intake', 'fueling', 'fuel'
     ];
     
     // Keywords that indicate running/activity-related queries
@@ -289,6 +291,9 @@ export default function CoachNew() {
       intent: intent.type,
       needsNutrition: intent.needsNutrition,
       needsRunning: intent.needsRunning,
+      hasNutritionKeywords,
+      hasRunningKeywords,
+      isNutritionPerformanceQuery,
       dateRange: intent.dateRange ? 
         `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
         'default range'
