@@ -606,7 +606,7 @@ const ChatbotCard: React.FC = () => {
     return (
       <Card 
         className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
-        onClick={() => window.location.href = '/lets-jam'}
+        onClick={() => window.location.href = '/coach'}
       >
         <CardHeader className="text-center pb-4">
           <div className="mx-auto w-12 h-12 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-3">
