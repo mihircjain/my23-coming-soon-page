@@ -278,7 +278,7 @@ async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey)
           
           if (day.entries && day.entries.length > 0) {
             const foodItems = day.entries.map(entry => 
-              `  • ${entry.food || entry.name || 'Unknown'}: ${entry.calories || 0}cal, ${entry.protein || 0}g protein`
+              `  • ${entry.foodId || entry.food || entry.name || 'Unknown'} (${entry.quantity || 1}x): ${entry.calories || 0}cal, ${entry.protein || 0}g protein`
             ).join('\n');
             dayText += `\n  Foods eaten:\n${foodItems}`;
           }
