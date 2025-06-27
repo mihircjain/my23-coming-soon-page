@@ -1362,7 +1362,7 @@ export default function CoachNew() {
       
       // Step 2: Get the RIGHT data first (no Claude guessing)
       const dataResult = await getDataForQuery(resolvedInput);
-      const { intent, needsNutrition, needsRunning, nutritionData, sleepData, mcpResponses, dateRange } = dataResult;
+      const { intent, needsNutrition, needsRunning, needsSleep, nutritionData, sleepData, mcpResponses, dateRange } = dataResult;
       
       console.log(`✅ Data fetching complete:`, {
         intent,
