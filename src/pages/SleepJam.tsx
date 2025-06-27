@@ -256,21 +256,49 @@ const SleepJam: React.FC = () => {
 
   // Process sleep data for charts
   const processSleepChartData = (data: SleepData[]) => {
-    // Only show last 7 days (filter out any 8th day data)
-    const last7Days = data.slice(-7);
+    // Get exactly last 7 days from today backwards
+    const today = new Date();
+    const last7DaysData: SleepData[] = [];
     
-    const labels = last7Days.map(d => {
+    for (let i = 6; i >= 0; i--) {
+      const targetDate = new Date(today);
+      targetDate.setDate(today.getDate() - i);
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+      
+      // Find data for this specific date
+      const dayData = data.find(d => d.date === targetDateStr);
+      
+      if (dayData) {
+        last7DaysData.push(dayData);
+      } else {
+        // Create empty data for missing days
+        last7DaysData.push({
+          date: targetDateStr,
+          sleep: null,
+          readiness: null
+        });
+      }
+    }
+    
+    const labels = last7DaysData.map(d => {
       const date = new Date(d.date);
       return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     });
 
-    const sleepDurationData = last7Days.map(d => {
+    const sleepDurationData = last7DaysData.map(d => {
       const durationHours = d.sleep?.total_sleep_duration ? d.sleep.total_sleep_duration / 3600 : 0;
       return Math.round(durationHours * 10) / 10; // Round to 1 decimal
     });
 
-    const heartRateData = last7Days.map(d => d.sleep?.average_heart_rate || null);
-    const sleepScoreData = last7Days.map(d => d.sleep?.sleep_score || null);
+    const heartRateData = last7DaysData.map(d => d.sleep?.average_heart_rate || null);
+    const sleepScoreData = last7DaysData.map(d => d.sleep?.sleep_score || null);
+
+    console.log('📊 Chart data processed:', {
+      dates: last7DaysData.map(d => d.date),
+      labels,
+      sleepDuration: sleepDurationData,
+      heartRate: heartRateData
+    });
 
     return {
       labels,
@@ -596,9 +624,27 @@ const SleepJam: React.FC = () => {
         {/* Sleep Data Grid */}
         {sleepData.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {sleepData.map((dayData) => (
-              <SleepDayCard key={dayData.date} dayData={dayData} />
-            ))}
+            {(() => {
+              // Get exactly last 7 days from today backwards, ordered oldest to newest
+              const today = new Date();
+              const last7DaysData: SleepData[] = [];
+              
+              for (let i = 6; i >= 0; i--) {
+                const targetDate = new Date(today);
+                targetDate.setDate(today.getDate() - i);
+                const targetDateStr = targetDate.toISOString().split('T')[0];
+                
+                // Find data for this specific date
+                const dayData = sleepData.find(d => d.date === targetDateStr);
+                if (dayData) {
+                  last7DaysData.push(dayData);
+                }
+              }
+              
+              return last7DaysData.map((dayData) => (
+                <SleepDayCard key={dayData.date} dayData={dayData} />
+              ));
+            })()}
           </div>
         ) : (
           <div className="text-center py-16">

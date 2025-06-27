@@ -1290,64 +1290,62 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col relative">{/* Minimalist background */}
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
+      {/* Background decoration - Match OverallJam */}
+      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
+      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
+      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
 
-      {/* Header - Minimalist */}
-      <header className="pt-6 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-8">
+      {/* Header - Match OverallJam style */}
+      <header className="relative z-10 pt-8 px-6 md:px-12">
+        <div className="flex items-center justify-between mb-6">
           <Button
             onClick={() => navigate('/')}
             variant="ghost"
-            className="text-gray-600 hover:text-gray-900"
+            className="hover:bg-white/20"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            Back to Home
           </Button>
+          
           <Badge variant="outline" className={`${stravaStats.connected ? 'text-green-700 border-green-300' : 'text-red-700 border-red-300'}`}>
             {stravaStats.connected ? 'Connected' : 'Offline'}
           </Badge>
         </div>
 
-        <div className="text-center max-w-2xl mx-auto mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            AI Running Coach
+        <div className="text-center max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
+            🤖 AI Running Coach
           </h1>
-          <p className="text-gray-600">
+          <p className="mt-3 text-lg text-gray-600">
             Intelligent analysis powered by your Strava data and nutrition logs
           </p>
         </div>
       </header>
 
-      {/* Main Content - Minimalist Layout */}
-      <main className="flex-grow px-6 md:px-12 pb-8">
+      {/* Main content */}
+      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-          {/* Central Chat Area - Spans most width */}
+          {/* Central Chat Area - spans 3 columns */}
           <div className="lg:col-span-3 space-y-6">
             
-            {/* Smart Prompts Section - At Top */}
-            <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-lg rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-slate-600 to-slate-700 text-white pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Sparkles className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl font-bold">
-                      {context.lastDate ? '🔗 Contextual Questions' : 'Smart Prompts'}
-                    </CardTitle>
-                    <CardDescription className="text-slate-100 text-sm">
-                      {context.lastDate 
-                        ? `Ask follow-up questions about: ${context.lastDate}`
-                        : 'Choose a category and click any prompt to get started'
-                      }
-                    </CardDescription>
-                  </div>
-                </div>
+            {/* Smart Prompts Section */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-teal-500" />
+                  {context.lastDate ? 'Contextual Questions' : 'Smart Prompts'}
+                  {context.lastDate && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      Context: {context.lastDate}
+                    </Badge>
+                  )}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent>
                 {context.lastDate ? (
-                  // Contextual prompts when context is active
+                  // Contextual prompts
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {contextualPrompts.map((prompt, index) => (
                       <Button
@@ -1355,33 +1353,33 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                         variant="outline"
                         size="sm"
                         onClick={() => setInput(prompt)}
-                        className="text-sm justify-start h-auto py-3 px-4 transition-all duration-300 hover:shadow-md border-blue-200 text-blue-700 hover:bg-blue-50 bg-gradient-to-r from-blue-50/50 to-blue-100/30"
+                        className="text-sm justify-start h-auto py-3 px-4 border-blue-200 text-blue-700 hover:bg-blue-50"
                         disabled={isLoading}
                       >
                         <Activity className="h-4 w-4 mr-3 flex-shrink-0" />
-                        <span className="text-left leading-relaxed">{prompt}</span>
+                        <span className="text-left">{prompt}</span>
                       </Button>
                     ))}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setContext({})}
-                      className="text-sm border-gray-200 text-gray-600 hover:bg-gray-50 bg-gradient-to-r from-gray-50/50 to-gray-100/30 h-auto py-3 px-4"
+                      className="text-sm border-gray-200 text-gray-600 hover:bg-gray-50 h-auto py-3 px-4"
                       disabled={isLoading}
                     >
                       <Zap className="h-4 w-4 mr-3" />
-                      Clear Context & Start Fresh
+                      Clear Context
                     </Button>
                   </div>
                 ) : (
-                  // Categorized prompts with different color themes
-                  <div className="space-y-6">
-                    {/* Running Category */}
+                  // Categorized prompts
+                  <div className="space-y-4">
+                    {/* Running */}
                     <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Activity className="h-5 w-5 text-blue-600" />
-                        <h3 className="font-semibold text-blue-900">Running Analysis</h3>
-                      </div>
+                      <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                        <Activity className="h-4 w-4" />
+                        Running Analysis
+                      </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {runningPrompts.map((prompt, index) => (
                           <Button
@@ -1389,21 +1387,21 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                             variant="outline"
                             size="sm"
                             onClick={() => setInput(prompt)}
-                            className="text-sm justify-start h-auto py-2 px-3 transition-all duration-300 hover:shadow-md border-blue-200 text-blue-700 hover:bg-blue-50 bg-blue-50/30"
+                            className="text-xs justify-start h-auto py-2 px-3 border-blue-200 text-blue-700 hover:bg-blue-50"
                             disabled={isLoading}
                           >
-                            <span className="text-left leading-relaxed">{prompt}</span>
+                            {prompt}
                           </Button>
                         ))}
                       </div>
                     </div>
 
-                    {/* Nutrition Category */}
+                    {/* Nutrition */}
                     <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Utensils className="h-5 w-5 text-green-600" />
-                        <h3 className="font-semibold text-green-900">Nutrition Analysis</h3>
-                      </div>
+                      <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                        <Utensils className="h-4 w-4" />
+                        Nutrition Analysis
+                      </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {nutritionPrompts.map((prompt, index) => (
                           <Button
@@ -1411,21 +1409,21 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                             variant="outline"
                             size="sm"
                             onClick={() => setInput(prompt)}
-                            className="text-sm justify-start h-auto py-2 px-3 transition-all duration-300 hover:shadow-md border-green-200 text-green-700 hover:bg-green-50 bg-green-50/30"
+                            className="text-xs justify-start h-auto py-2 px-3 border-green-200 text-green-700 hover:bg-green-50"
                             disabled={isLoading}
                           >
-                            <span className="text-left leading-relaxed">{prompt}</span>
+                            {prompt}
                           </Button>
                         ))}
                       </div>
                     </div>
 
-                    {/* Combined Category */}
+                    {/* Combined */}
                     <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Target className="h-5 w-5 text-purple-600" />
-                        <h3 className="font-semibold text-purple-900">Performance & Nutrition</h3>
-                      </div>
+                      <h3 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                        <Target className="h-4 w-4" />
+                        Performance & Nutrition
+                      </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {combinedPrompts.map((prompt, index) => (
                           <Button
@@ -1433,10 +1431,10 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                             variant="outline"
                             size="sm"
                             onClick={() => setInput(prompt)}
-                            className="text-sm justify-start h-auto py-2 px-3 transition-all duration-300 hover:shadow-md border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50/30"
+                            className="text-xs justify-start h-auto py-2 px-3 border-purple-200 text-purple-700 hover:bg-purple-50"
                             disabled={isLoading}
                           >
-                            <span className="text-left leading-relaxed">{prompt}</span>
+                            {prompt}
                           </Button>
                         ))}
                       </div>
@@ -1446,31 +1444,29 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
               </CardContent>
             </Card>
 
-            {/* Chat Interface - Below Prompts */}
-            <Card className="bg-white border shadow-lg rounded-lg overflow-hidden">
-              <CardHeader className="bg-gray-900 text-white">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Bot className="h-5 w-5" />
-                  Chat
-                  {context.lastDate && (
-                    <Badge variant="secondary" className="bg-white/20 text-white border-white/30 text-xs">
-                      Context: {context.lastDate}
-                    </Badge>
-                  )}
+            {/* Chat Interface */}
+            <Card className="bg-gradient-to-r from-green-200 to-blue-200 rounded-2xl p-6 text-gray-800 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold bg-gradient-to-r from-green-700 to-blue-700 bg-clip-text text-transparent flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-gray-700" />
+                  AI Coach Chat
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    Live Analysis
+                  </Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6">
-                {/* Messages - Dynamic Height */}
-                <div className="bg-gradient-to-b from-gray-50 to-white rounded-xl border border-gray-200 mb-6">
-                  <div className={`p-4 space-y-4 ${messages.length > 0 ? 'min-h-[400px] max-h-[600px] overflow-y-auto' : 'h-64'}`}>
-                    {messages.length === 0 && (
-                      <div className="text-center py-12 text-gray-500">
-                        <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                        <p className="text-lg font-medium">Ready to help!</p>
-                        <p className="text-sm mt-2">Choose a prompt above or ask your own question</p>
-                      </div>
-                    )}
-                    
+              <CardContent>
+                {/* Messages */}
+                <div className="bg-white/30 backdrop-blur-sm rounded-lg p-4 mb-4" style={{ minHeight: '400px', maxHeight: '600px', overflowY: 'auto' }}>
+                  {messages.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium">Ready to help!</p>
+                      <p className="text-sm mt-2">Choose a prompt above or ask your own question</p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
                     {messages.map((message, index) => (
                       <div
                         key={index}
@@ -1479,13 +1475,13 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                         <div
                           className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${
                             message.role === 'user'
-                              ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white'
+                              ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white'
                               : 'bg-white text-gray-800 border border-gray-200'
                           }`}
                         >
                           <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
                           <div className={`text-xs mt-2 flex items-center gap-1 ${
-                            message.role === 'user' ? 'text-emerald-100' : 'text-gray-500'
+                            message.role === 'user' ? 'text-green-100' : 'text-gray-500'
                           }`}>
                             {message.role === 'user' ? <Users className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
                             {message.timestamp.toLocaleTimeString()}
@@ -1499,13 +1495,12 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                         <div className="bg-white text-gray-800 p-4 rounded-2xl shadow-lg border border-gray-200 max-w-[85%]">
                           <div className="flex items-center gap-3">
                             <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-200"></div>
                             </div>
                             <span className="text-sm font-medium">AI is analyzing your data...</span>
                           </div>
-                          <div className="text-xs text-gray-500 mt-2">Fetching Strava data • Processing insights</div>
                         </div>
                       </div>
                     )}
@@ -1513,62 +1508,49 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                 </div>
 
                 {/* Input */}
-                <div className="border-t border-gray-200 p-4 bg-gray-50">
-                  <div className="flex gap-3">
-                    <Input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Ask about your running or nutrition..."
-                      disabled={isLoading}
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={handleSendMessage} 
-                      disabled={isLoading || !input.trim()}
-                      className="bg-gray-900 hover:bg-gray-800 text-white px-6"
-                    >
-                      {isLoading ? (
-                        <Zap className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Bot className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+                <div className="flex gap-3">
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask about your running or nutrition..."
+                    disabled={isLoading}
+                    className="flex-1 bg-white/50"
+                  />
+                  <Button 
+                    onClick={handleSendMessage} 
+                    disabled={isLoading || !input.trim()}
+                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-6"
+                  >
+                    {isLoading ? (
+                      <Zap className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Bot className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Right column */}
           <div className="lg:col-span-1 space-y-4">
             
-            {/* Weekly Averages */}
-            <Card className="bg-white border shadow-sm">
+            {/* Weekly Averages - Match OverallJam style */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Last 7 Days Avg
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={fetchWeeklyMetrics}
-                    disabled={metricsLoading}
-                    className="h-6 w-6 p-0"
-                  >
-                    {metricsLoading ? <Zap className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                  </Button>
-                </div>
+                <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-teal-500" />
+                  Last 7 Days Avg
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-3">
                 
                 {/* Activities */}
                 {weeklyMetrics.activities.length > 0 && (
-                  <div className="bg-gray-50 rounded p-2 border">
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Activity className="h-3 w-3" />
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-3 border border-green-200">
+                    <div className="flex items-center gap-2 text-teal-700">
+                      <Activity className="h-4 w-4" />
                       <span className="text-xs font-medium">
                         {weeklyMetrics.activities.join(', ')}
                       </span>
@@ -1576,27 +1558,55 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                   </div>
                 )}
                 
-                {/* Simple Metrics */}
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Calories out</span>
-                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.caloriesBurned.toLocaleString()}</span>
+                {/* Metrics */}
+                <div className="space-y-3">
+                  <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Flame className="h-4 w-4 text-green-600" />
+                        <span className="text-xs text-green-700">Calories Out</span>
+                      </div>
+                      <span className="font-semibold text-green-800">
+                        {metricsLoading ? '...' : weeklyMetrics.caloriesBurned.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Calories in</span>
-                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.caloriesConsumed.toLocaleString()}</span>
+                  
+                  <div className="bg-gradient-to-r from-emerald-100 to-teal-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Utensils className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs text-emerald-700">Calories In</span>
+                      </div>
+                      <span className="font-semibold text-emerald-800">
+                        {metricsLoading ? '...' : weeklyMetrics.caloriesConsumed.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Protein</span>
-                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.protein}g</span>
+                  
+                  <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-blue-600" />
+                        <span className="text-xs text-blue-700">Protein</span>
+                      </div>
+                      <span className="font-semibold text-blue-800">
+                        {metricsLoading ? '...' : weeklyMetrics.protein}g
+                      </span>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="text-center pt-2">
-                  <Badge variant="outline" className="text-xs text-gray-500">
-                    Updated: {weeklyMetrics.lastUpdated}
-                  </Badge>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchWeeklyMetrics}
+                  disabled={metricsLoading}
+                  className="w-full text-xs"
+                >
+                  {metricsLoading ? <Zap className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
+                  Refresh
+                </Button>
               </CardContent>
             </Card>
 
@@ -1605,18 +1615,18 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
               <Card className="bg-gradient-to-r from-blue-100 to-cyan-100 border border-blue-200">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
-                    💭 Context Memory
+                    <Sparkles className="h-4 w-4" />
+                    Context Active
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-xs text-blue-600 space-y-1">
-                    <div><strong>Last query:</strong> {context.lastDate}</div>
-                    <div className="text-xs text-blue-500">Try: "how was weather that day"</div>
+                  <div className="text-xs text-blue-700 space-y-2">
+                    <div><strong>Query:</strong> {context.lastDate}</div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setContext({})}
-                      className="w-full mt-2 text-xs h-7"
+                      className="w-full text-xs h-7"
                     >
                       Clear Context
                     </Button>
@@ -1626,165 +1636,6 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
             )}
           </div>
 
-          {/* Chat Interface - Right Column */}
-          <div className="lg:col-span-3">
-            <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-2xl rounded-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
-                <CardTitle className="text-xl font-bold flex items-center gap-3">
-                  <div className="relative">
-                    <Bot className="h-6 w-6 animate-pulse" />
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-300 rounded-full animate-ping"></div>
-                  </div>
-                  AI Running Coach Chat
-                  <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                    Live
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="text-emerald-100">
-                  🏃‍♂️ Ask about any date, get instant insights • Powered by real Strava data
-                  {context.lastDate && (
-                    <div className="mt-3 p-3 bg-white/20 rounded-lg text-sm border border-white/30">
-                      <div className="flex items-center gap-2 text-white">
-                        <Sparkles className="h-4 w-4" />
-                        <strong>Context Active:</strong> {context.lastDate}
-                      </div>
-                      <div className="text-emerald-100 text-xs mt-1">
-                        Try: "how was weather that day" • "compare that to my average" • "what was my pace"
-                      </div>
-                    </div>
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                {/* Messages */}
-                <div className="bg-gradient-to-b from-gray-50 to-white rounded-xl border border-gray-200">
-                  <ScrollArea className="h-96 p-4">
-                    <div className="space-y-4">
-                      {messages.length === 0 && (
-                        <div className="text-center py-8 text-gray-500">
-                          <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                          <p className="text-lg font-medium">Ready to analyze your runs! 🏃‍♂️</p>
-                          <p className="text-sm">Ask me about any date or time period</p>
-                        </div>
-                      )}
-                      
-                      {messages.map((message, index) => (
-                        <div
-                          key={index}
-                          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div
-                            className={`max-w-[85%] p-4 rounded-lg shadow-sm ${
-                              message.role === 'user'
-                                ? 'bg-gray-900 text-white'
-                                : 'bg-white text-gray-800 border border-gray-200'
-                            }`}
-                          >
-                            <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
-                            <div className={`text-xs mt-2 flex items-center gap-1 ${
-                              message.role === 'user' ? 'text-emerald-100' : 'text-gray-500'
-                            }`}>
-                              {message.role === 'user' ? <Users className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
-                              {message.timestamp.toLocaleTimeString()}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {isLoading && (
-                        <div className="flex justify-start">
-                          <div className="bg-white text-gray-800 p-4 rounded-2xl shadow-lg border border-gray-200 max-w-[85%]">
-                            <div className="flex items-center gap-3">
-                              <div className="flex gap-1">
-                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-100"></div>
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
-                              </div>
-                              <span className="text-sm font-medium">AI is analyzing your data...</span>
-                            </div>
-                            <div className="text-xs text-gray-500 mt-2">Fetching Strava data • Processing insights</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-
-                {/* Enhanced Input */}
-                <div className="bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 p-4">
-                  <div className="flex gap-3">
-                    <Input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Ask about any date... e.g., 'analyze my run from june 24' or 'last week's runs'"
-                      disabled={isLoading}
-                      className="flex-1 border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400 rounded-xl"
-                    />
-                    <Button 
-                      onClick={handleSendMessage} 
-                      disabled={isLoading || !input.trim()}
-                      className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-                    >
-                      {isLoading ? (
-                        <Zap className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Bot className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Smart Prompts */}
-                <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 rounded-xl border border-emerald-200 p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="h-5 w-5 text-emerald-600" />
-                    <h3 className="text-sm font-bold text-gray-800">
-                      {context.lastDate ? '🔗 Contextual Questions' : '💡 Quick Start Prompts'}
-                    </h3>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(context.lastDate ? contextualPrompts : [...runningPrompts, ...nutritionPrompts, ...combinedPrompts]).map((prompt, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInput(prompt)}
-                        className={`text-xs justify-start transition-all duration-200 ${
-                          context.lastDate 
-                            ? 'border-blue-300 text-blue-700 hover:bg-blue-50 bg-blue-50/50' 
-                            : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50'
-                        }`}
-                        disabled={isLoading}
-                      >
-                        <Activity className="h-3 w-3 mr-2" />
-                        {prompt}
-                      </Button>
-                    ))}
-                    
-                    {context.lastDate && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setContext({})}
-                        className="text-xs border-gray-300 text-gray-600 hover:bg-gray-50 col-span-full"
-                        disabled={isLoading}
-                      >
-                        <Zap className="h-3 w-3 mr-2" />
-                        Clear Context & Start Fresh
-                      </Button>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 text-xs text-gray-600 flex items-center gap-1">
-                    <Trophy className="h-3 w-3" />
-                    Pro tip: Be specific with dates for better insights!
-                  </div>
-                </div>
-          </CardContent>
-        </Card>
-          </div>
         </div>
       </main>
     </div>
