@@ -138,7 +138,28 @@ export default function CoachNew() {
           messages: session.messages.map((msg: any) => ({
             ...msg,
             timestamp: new Date(msg.timestamp)
-          }))
+          })),
+          // Fix context dates that were serialized as strings
+          context: {
+            ...session.context,
+            lastDateParsed: session.context?.lastDateParsed ? new Date(session.context.lastDateParsed) : undefined,
+            conversationHistory: session.context?.conversationHistory?.map((h: any) => ({
+              ...h,
+              timestamp: new Date(h.timestamp),
+              dateRange: h.dateRange ? {
+                startDate: new Date(h.dateRange.startDate),
+                endDate: new Date(h.dateRange.endDate)
+              } : undefined
+            })) || [],
+            cachedData: session.context?.cachedData ? {
+              ...session.context.cachedData,
+              fetchedAt: session.context.cachedData.fetchedAt ? new Date(session.context.cachedData.fetchedAt) : undefined,
+              dateRange: session.context.cachedData.dateRange ? {
+                startDate: new Date(session.context.cachedData.dateRange.startDate),
+                endDate: new Date(session.context.cachedData.dateRange.endDate)
+              } : undefined
+            } : undefined
+          }
         }));
         setChatSessions(sessions);
         
@@ -2115,7 +2136,7 @@ export default function CoachNew() {
         console.log(`🔍 Last 3 queries in history:`, newHistory.slice(-3).map(h => ({
           query: h.query.substring(0, 30) + '...',
           intent: h.intent,
-          dateRange: h.dateRange ? `${h.dateRange.startDate.toDateString()}` : 'none'
+          dateRange: h.dateRange ? `${new Date(h.dateRange.startDate).toDateString()}` : 'none'
         })));
         
         // 🚨 DETECT UNEXPECTED HISTORY DROPS
