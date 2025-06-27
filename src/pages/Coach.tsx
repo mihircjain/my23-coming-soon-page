@@ -730,24 +730,48 @@ export default function CoachNew() {
       
       // For follow-up questions, inherit the date context from previous query
       if (isFollowUpQuestion && lastQuery.dateRange) {
-        const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
-          month: 'long', 
-          day: 'numeric' 
+        // Check if the last query was a multi-day range vs single day
+        const startDate = lastQuery.dateRange.startDate;
+        const endDate = lastQuery.dateRange.endDate;
+        const isMultiDayRange = Math.abs(endDate.getTime() - startDate.getTime()) > 24 * 60 * 60 * 1000; // More than 1 day
+        
+        console.log(`🔍 DEBUG: Date range analysis:`, {
+          startDate: startDate.toDateString(),
+          endDate: endDate.toDateString(),
+          isMultiDayRange,
+          daysDifference: Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
         });
         
-        // Add date context based on the query type
-        if (lowerQuery.includes('run') || lowerQuery.includes('activity')) {
-          resolvedQuery = `${correctedQuery} on ${dateStr}`;
-        } else if (lowerQuery.includes('nutrition') || lowerQuery.includes('food')) {
-          resolvedQuery = `${correctedQuery} on ${dateStr}`;
-        } else if (lowerQuery.includes('sleep')) {
-          resolvedQuery = `${correctedQuery} on ${dateStr}`;
+        if (isMultiDayRange) {
+          // For multi-day ranges, preserve the range context
+          const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+          const rangeDescription = daysDiff <= 7 ? `last ${daysDiff} days` : 
+                                  daysDiff <= 14 ? `last ${daysDiff} days` : 
+                                  'recent period';
+          
+          resolvedQuery = `${correctedQuery} over the ${rangeDescription}`;
+          console.log(`🎯 Follow-up context: Adding range context "${rangeDescription}" to query`);
         } else {
-          // Generic follow-up
-          resolvedQuery = `${correctedQuery} on ${dateStr}`;
+          // For single day queries, use the specific date
+          const dateStr = startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          
+          // Add date context based on the query type
+          if (lowerQuery.includes('run') || lowerQuery.includes('activity')) {
+            resolvedQuery = `${correctedQuery} on ${dateStr}`;
+          } else if (lowerQuery.includes('nutrition') || lowerQuery.includes('food')) {
+            resolvedQuery = `${correctedQuery} on ${dateStr}`;
+          } else if (lowerQuery.includes('sleep')) {
+            resolvedQuery = `${correctedQuery} on ${dateStr}`;
+          } else {
+            // Generic follow-up
+            resolvedQuery = `${correctedQuery} on ${dateStr}`;
+          }
+          
+          console.log(`🎯 Follow-up context: Adding single date ${dateStr} to query`);
         }
-        
-        console.log(`🎯 Follow-up context: Adding date ${dateStr} to query`);
       }
       
       // If the last query was about sleep and current is about running, infer same date
