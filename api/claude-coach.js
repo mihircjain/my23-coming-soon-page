@@ -233,6 +233,14 @@ RESPOND ONLY WITH VALID JSON:`;
 
 // Claude response generation
 async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey) {
+  console.log('🔍 Claude generateResponseWithClaude called with:', {
+    query: query.substring(0, 50) + '...',
+    analysisType: typeof analysis,
+    analysisKeys: analysis ? Object.keys(analysis) : 'null',
+    mcpResponsesCount: mcpResponses?.length || 0,
+    hasNutritionData: !!(analysis && analysis.nutritionData)
+  });
+
   // Process MCP data
   const processedMcpResponses = mcpResponses
     .filter(r => r.success && r.data?.content?.length > 0)
@@ -250,11 +258,17 @@ async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey)
       return `\n🏃 ${r.endpoint.toUpperCase()}:\n${allContent}`;
     });
   
-  // Process nutrition data if available
+  // Process nutrition data if available - with better error handling
   let nutritionContext = '';
-  if (analysis.nutritionData) {
-    const nutrition = analysis.nutritionData;
-    nutritionContext = `\n📊 NUTRITION DATA (${nutrition.totalDays} days):
+  try {
+    if (analysis && analysis.nutritionData) {
+      const nutrition = analysis.nutritionData;
+      console.log('📊 Processing nutrition data:', {
+        totalDays: nutrition.totalDays,
+        avgCalories: nutrition.averages?.calories
+      });
+      
+      nutritionContext = `\n📊 NUTRITION DATA (${nutrition.totalDays} days):
 Average daily intake:
 - Calories: ${nutrition.averages.calories} cal/day
 - Protein: ${nutrition.averages.protein}g/day
@@ -268,10 +282,18 @@ Total period:
 - Carbs: ${nutrition.totals.carbs}g
 - Fat: ${nutrition.totals.fat}g
 - Fiber: ${nutrition.totals.fiber}g`;
+    } else {
+      console.log('⚠️ No nutrition data found in analysis object');
+    }
+  } catch (error) {
+    console.error('❌ Error processing nutrition data:', error);
+    nutritionContext = '\n⚠️ Nutrition data unavailable due to processing error';
   }
   
   const mcpContext = processedMcpResponses.join('\n');
   const contextData = mcpContext + nutritionContext;
+  
+  console.log('📋 Final context data length:', contextData.length);
   
   const prompt = `You are an expert coach analyzing both running performance and nutrition data. Provide clean, insightful analysis focused on what the user asked for.
 

@@ -99,114 +99,50 @@ export default function CoachNew() {
     }
   };
 
-  // Fetch today's health metrics from Firebase (nutrition only, no Strava from Firestore)
+  // Fetch minimal today's metrics (only when user clicks refresh)
   const fetchTodayMetrics = async (): Promise<void> => {
     try {
       setMetricsLoading(true);
       const today = new Date().toISOString().split('T')[0];
       
-      console.log(`🔄 Fetching today's nutrition data from Firebase (${today})...`);
+      console.log(`🔄 Fetching today's nutrition summary (${today})...`);
 
-      // Initialize today's data structure (nutrition only)
-      const todayData = {
-        date: today,
-        caloriesConsumed: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        fiber: 0
-      };
-
-      // Get last 7 days to ensure we have nutrition data
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const dateString = sevenDaysAgo.toISOString().split('T')[0];
-
-      // Only fetch nutrition data from Firebase
+      // Fetch only today's nutrition data (not last 7 days)
       const nutritionQuery = query(
         collection(db, "nutritionLogs"),
-        where("date", ">=", dateString),
-        orderBy("date", "desc")
+        where("date", "==", today)
       );
 
-      // Execute nutrition query only
       const nutritionSnapshot = await getDocs(nutritionQuery).catch((error) => {
-        console.error("Error fetching nutrition data:", error);
+        console.error("Error fetching today's nutrition:", error);
         return { docs: [] };
       });
 
-      console.log(`📊 Fetched ${nutritionSnapshot.docs.length} nutrition logs`);
-
-      // Debug: Log actual nutrition data
-      nutritionSnapshot.docs.forEach((doc, index) => {
-        console.log(`Nutrition doc ${index}:`, doc.data());
-      });
-
-      // Process nutrition data (prioritize today, fallback to recent)
-      let foundTodayNutrition = false;
+      let todayNutrition = { calories: 0, protein: 0 };
       
-      // First, try to find today's data
-      nutritionSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        console.log(`Processing nutrition data:`, data);
-        
-        if (data.date === today) {
-          todayData.caloriesConsumed = data.totals?.calories || 0;
-          todayData.protein = data.totals?.protein || 0;
-          todayData.carbs = data.totals?.carbs || 0;
-          todayData.fat = data.totals?.fat || 0;
-          todayData.fiber = data.totals?.fiber || 0;
-          foundTodayNutrition = true;
-          console.log(`Found today's nutrition:`, {
-            calories: todayData.caloriesConsumed,
-            protein: todayData.protein
-          });
-        }
-      });
-      
-      // If no nutrition data for today, use most recent (within last 3 days)
-      if (!foundTodayNutrition) {
-        const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        const threeDaysAgoString = threeDaysAgo.toISOString().split('T')[0];
-        
-        for (const doc of nutritionSnapshot.docs) {
-          const data = doc.data();
-          if (data.date >= threeDaysAgoString) {
-            todayData.caloriesConsumed = data.totals?.calories || 0;
-            todayData.protein = data.totals?.protein || 0;
-            todayData.carbs = data.totals?.carbs || 0;
-            todayData.fat = data.totals?.fat || 0;
-            todayData.fiber = data.totals?.fiber || 0;
-            console.log(`Using recent nutrition from ${data.date}:`, {
-              calories: todayData.caloriesConsumed,
-              protein: todayData.protein
-            });
-            break;
-          }
-        }
+      if (nutritionSnapshot.docs.length > 0) {
+        const data = nutritionSnapshot.docs[0].data();
+        todayNutrition = {
+          calories: data.totals?.calories || 0,
+          protein: data.totals?.protein || 0
+        };
+        console.log(`✅ Found today's nutrition: ${todayNutrition.calories} cal, ${todayNutrition.protein}g protein`);
+      } else {
+        console.log(`⚠️ No nutrition data found for ${today}`);
       }
 
-      // Update state (nutrition only, running data comes from MCP)
+      // Update state with minimal data
       setTodayMetrics({
-        caloriesBurned: 0, // Will be populated from MCP if needed
-        caloriesConsumed: todayData.caloriesConsumed,
-        protein: Math.round(todayData.protein),
-        heartRate: null, // Will be populated from MCP if needed
-        activities: [], // Will be populated from MCP if needed
+        caloriesBurned: 0, // Will be populated from MCP queries when needed
+        caloriesConsumed: todayNutrition.calories,
+        protein: Math.round(todayNutrition.protein),
+        heartRate: null, // Will be populated from MCP queries when needed
+        activities: [], // Will be populated from MCP queries when needed
         lastUpdated: new Date().toLocaleTimeString()
-      });
-
-      console.log('✅ Today nutrition metrics updated:', {
-        calories_consumed: todayData.caloriesConsumed,
-        protein: todayData.protein,
-        carbs: todayData.carbs,
-        fat: todayData.fat,
-        fiber: todayData.fiber
       });
       
     } catch (error) {
-      console.error('Error fetching today nutrition metrics:', error);
+      console.error('Error fetching today metrics:', error);
     } finally {
       setMetricsLoading(false);
     }
