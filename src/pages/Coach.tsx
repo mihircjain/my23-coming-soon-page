@@ -1255,7 +1255,7 @@ export default function CoachNew() {
   };
 
   // Validate if we have sufficient data before calling Claude
-  const validateDataForClaude = (mcpResponses: MCPResponse[], nutritionData: any = null): boolean => {
+  const validateDataForClaude = (mcpResponses: MCPResponse[], nutritionData: any = null, sleepData: any = null): boolean => {
     const successfulMcpResponses = mcpResponses.filter(r => r.success && r.data?.content?.[0]?.text);
     
     // Check MCP data quality
@@ -1267,15 +1267,19 @@ export default function CoachNew() {
     // Check nutrition data quality
     const hasNutritionData = nutritionData && nutritionData.totalDays > 0;
     
+    // Check sleep data quality
+    const hasSleepData = sleepData && sleepData.totalDays > 0;
+    
     // Need at least one type of meaningful data
-    if (!hasRealMcpData && !hasNutritionData) {
-      console.log('❌ No meaningful MCP or nutrition data - skip Claude call');
+    if (!hasRealMcpData && !hasNutritionData && !hasSleepData) {
+      console.log('❌ No meaningful MCP, nutrition, or sleep data - skip Claude call');
       return false;
     }
     
     console.log(`✅ Data validation passed:`, {
       mcpResponses: `${successfulMcpResponses.length} successful`,
-      nutritionDays: hasNutritionData ? nutritionData.totalDays : 0
+      nutritionDays: hasNutritionData ? nutritionData.totalDays : 0,
+      sleepDays: hasSleepData ? sleepData.totalDays : 0
     });
     return true;
   };
@@ -1368,7 +1372,7 @@ export default function CoachNew() {
       });
 
       // COST CONTROL: Only call Claude if we have meaningful data
-      if (!validateDataForClaude(mcpResponses, nutritionData)) {
+      if (!validateDataForClaude(mcpResponses, nutritionData, sleepData)) {
         // Check if it's a network error
         const networkError = mcpResponses.some(r => r.error?.includes('fetch') || r.error?.includes('network'));
         
