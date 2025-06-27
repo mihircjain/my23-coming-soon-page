@@ -920,7 +920,7 @@ export default function CoachNew() {
     return false;
   };
 
-  // Enhanced analyzeQueryIntent with typo correction
+  // Enhanced analyzeQueryIntent with typo correction and context awareness
   const analyzeQueryIntent = (query: string): QueryIntent => {
     // First apply typo correction
     const correctedQuery = correctTypos(query);
@@ -1044,6 +1044,77 @@ export default function CoachNew() {
       };
     }
     
+    // 🆕 CONTEXT-AWARE ENHANCEMENT: Expand data needs for follow-up questions
+    if (context.conversationHistory && context.conversationHistory.length > 0) {
+      const lastQuery = context.conversationHistory[context.conversationHistory.length - 1];
+      const isFollowUpWithoutExplicitDate = !intent.dateRange && lastQuery.dateRange;
+      
+      // Check for cross-domain follow-up questions
+      const askingAboutSleepAndRuns = lowerQuery.includes('sleep') && lowerQuery.includes('run');
+      const askingAboutNutritionAndRuns = lowerQuery.includes('nutrition') || lowerQuery.includes('food') && lowerQuery.includes('run');
+      const askingAboutAffectOrImpact = lowerQuery.includes('affect') || lowerQuery.includes('impact');
+      
+      console.log(`🔍 Context check:`, {
+        lastQueryIntent: lastQuery.intent,
+        currentQuery: lowerQuery,
+        askingAboutSleepAndRuns,
+        askingAboutNutritionAndRuns,
+        askingAboutAffectOrImpact,
+        isFollowUpWithoutExplicitDate
+      });
+      
+      // If asking about how nutrition affected sleep/runs, expand to include all data
+      if (lastQuery.intent.includes('nutrition') && (askingAboutSleepAndRuns || askingAboutAffectOrImpact)) {
+        console.log(`🎯 CONTEXT EXPANSION: Nutrition query followed by sleep/run impact question - fetching all data types`);
+        intent = {
+          ...intent,
+          type: 'all_data',
+          needsNutrition: true,
+          needsRunning: true,
+          needsSleep: true,
+          dateRange: intent.dateRange || lastQuery.dateRange, // Inherit date range
+          nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+          runningDataTypes: ['activity_details', 'basic_stats'],
+          sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+          isSmartTiming: true
+        };
+      }
+      // If previous was nutrition-only and now asking about runs specifically
+      else if (lastQuery.intent === 'nutrition_only' && lowerQuery.includes('run')) {
+        console.log(`🎯 CONTEXT EXPANSION: Nutrition query followed by running question - adding running data`);
+        intent = {
+          ...intent,
+          type: 'nutrition_and_running',
+          needsRunning: true,
+          needsNutrition: true,
+          dateRange: intent.dateRange || lastQuery.dateRange,
+          runningDataTypes: ['activity_details', 'basic_stats'],
+          nutritionDataTypes: intent.nutritionDataTypes || ['calories', 'protein', 'carbs', 'fat', 'fiber']
+        };
+      }
+      // If previous was nutrition-only and now asking about sleep specifically  
+      else if (lastQuery.intent === 'nutrition_only' && lowerQuery.includes('sleep')) {
+        console.log(`🎯 CONTEXT EXPANSION: Nutrition query followed by sleep question - adding sleep data`);
+        intent = {
+          ...intent,
+          type: 'sleep_and_nutrition',
+          needsSleep: true,
+          needsNutrition: true,
+          dateRange: intent.dateRange || lastQuery.dateRange,
+          sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+          nutritionDataTypes: intent.nutritionDataTypes || ['calories', 'protein', 'carbs', 'fat', 'fiber']
+        };
+      }
+      // Inherit date range from previous query if not specified
+      else if (isFollowUpWithoutExplicitDate) {
+        console.log(`🎯 CONTEXT: Inheriting date range from previous query: ${lastQuery.dateRange?.startDate.toDateString()} → ${lastQuery.dateRange?.endDate.toDateString()}`);
+        intent = {
+          ...intent,
+          dateRange: lastQuery.dateRange
+        };
+      }
+    }
+
     console.log(`🧠 Query intent analysis (with typo correction):`, {
       originalQuery: query.substring(0, 50) + '...',
       correctedQuery: correctedQuery.substring(0, 50) + '...',
