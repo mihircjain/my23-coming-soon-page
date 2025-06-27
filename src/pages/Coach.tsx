@@ -681,6 +681,10 @@ export default function CoachNew() {
     const correctedQuery = correctTypos(query);
     const lowerQuery = correctedQuery.toLowerCase();
     
+    console.log(`🔍 DEBUG: Resolving query "${query}"`);
+    console.log(`🔍 DEBUG: Corrected query "${correctedQuery}"`);
+    console.log(`🔍 DEBUG: Lower query "${lowerQuery}"`);
+    
     // Context references that should use previous context
     const contextualPhrases = [
       'that day', 'that run', 'that activity', 'that date',
@@ -691,6 +695,10 @@ export default function CoachNew() {
     ];
     
     const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
+    console.log(`🔍 DEBUG: Has contextual reference: ${hasContextualReference}`);
+    if (hasContextualReference) {
+      console.log(`🔍 DEBUG: Found phrases: ${contextualPhrases.filter(phrase => lowerQuery.includes(phrase))}`);
+    }
     
     // Check if this is a follow-up question (no specific date mentioned but conversational)
     const isFollowUpQuestion = !hasContextualReference && 
@@ -702,6 +710,9 @@ export default function CoachNew() {
       !lowerQuery.includes('last week') &&
       !lowerQuery.includes('this week') &&
       !(/\d+/.test(lowerQuery)); // No numbers/dates in query
+    
+    console.log(`🔍 DEBUG: Is follow-up question: ${isFollowUpQuestion}`);
+    console.log(`🔍 DEBUG: Conversation history length: ${context.conversationHistory?.length || 0}`);
     
     // Smart contextual resolution with conversation history
     if ((hasContextualReference || isFollowUpQuestion) && context.conversationHistory && context.conversationHistory.length > 0) {
@@ -759,6 +770,10 @@ export default function CoachNew() {
             day: 'numeric' 
           });
           resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
+          console.log(`🔍 DEBUG: Replaced "that day" with "${dateStr}"`);
+          console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
+        } else {
+          console.log(`🔍 DEBUG: No dateRange in last query to resolve "that day"`);
         }
       }
       
@@ -777,6 +792,7 @@ export default function CoachNew() {
       return resolvedQuery;
     }
     
+    console.log(`🔍 DEBUG: No context resolution needed, returning corrected query: "${correctedQuery}"`);
     return correctedQuery;
   };
 
