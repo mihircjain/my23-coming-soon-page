@@ -26,6 +26,15 @@ interface Message {
   timestamp: Date;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  context: ConversationContext;
+  lastUpdated: Date;
+  createdAt: Date;
+}
+
 interface MCPResponse {
   endpoint: string;
   data: any;
@@ -107,12 +116,146 @@ export default function CoachNew() {
   });
   const [metricsLoading, setMetricsLoading] = useState(false);
   
+  // Chat history management
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   // Speech recognition state
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  // Chat session management functions
+  const loadChatSessions = () => {
+    try {
+      const savedSessions = localStorage.getItem('healthCoachSessions');
+      if (savedSessions) {
+        const sessions: ChatSession[] = JSON.parse(savedSessions).map((session: any) => ({
+          ...session,
+          lastUpdated: new Date(session.lastUpdated),
+          createdAt: new Date(session.createdAt),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setChatSessions(sessions);
+        
+        // Load the most recent session if no current session
+        if (!currentSessionId && sessions.length > 0) {
+          const mostRecent = sessions.sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())[0];
+          loadSession(mostRecent.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat sessions:', error);
+    }
+  };
+
+  const saveChatSessions = (sessions: ChatSession[]) => {
+    try {
+      localStorage.setItem('healthCoachSessions', JSON.stringify(sessions));
+    } catch (error) {
+      console.error('Error saving chat sessions:', error);
+    }
+  };
+
+  const generateSessionTitle = (firstMessage: string): string => {
+    // Generate a smart title from the first message
+    const words = firstMessage.toLowerCase().split(' ');
+    if (words.includes('nutrition') || words.includes('food') || words.includes('eat')) {
+      return '🍽️ Nutrition Analysis';
+    } else if (words.includes('sleep') || words.includes('rest')) {
+      return '😴 Sleep Analysis';
+    } else if (words.includes('run') || words.includes('activity') || words.includes('workout')) {
+      return '🏃 Running Analysis';
+    } else if (words.includes('last') && words.includes('days')) {
+      const days = words.find(w => /\d+/.test(w));
+      return `📊 Last ${days || '7'} Days`;
+    } else {
+      return `💬 ${firstMessage.substring(0, 30)}${firstMessage.length > 30 ? '...' : ''}`;
+    }
+  };
+
+  const createNewSession = (): string => {
+    const sessionId = Date.now().toString();
+    const newSession: ChatSession = {
+      id: sessionId,
+      title: 'New Conversation',
+      messages: [],
+      context: {},
+      lastUpdated: new Date(),
+      createdAt: new Date()
+    };
+    
+    setChatSessions(prev => [newSession, ...prev]);
+    setCurrentSessionId(sessionId);
+    setMessages([]);
+    setContext({});
+    
+    return sessionId;
+  };
+
+  const loadSession = (sessionId: string) => {
+    const session = chatSessions.find(s => s.id === sessionId);
+    if (session) {
+      setCurrentSessionId(sessionId);
+      setMessages(session.messages);
+      setContext(session.context);
+    }
+  };
+
+  const updateCurrentSession = () => {
+    if (!currentSessionId) return;
+    
+    setChatSessions(prev => prev.map(session => {
+      if (session.id === currentSessionId) {
+        const updatedSession = {
+          ...session,
+          messages: [...messages],
+          context: {...context},
+          lastUpdated: new Date()
+        };
+        
+        // Update title based on first message if it's still "New Conversation"
+        if (session.title === 'New Conversation' && messages.length > 0) {
+          const firstUserMessage = messages.find(m => m.role === 'user');
+          if (firstUserMessage) {
+            updatedSession.title = generateSessionTitle(firstUserMessage.content);
+          }
+        }
+        
+        return updatedSession;
+      }
+      return session;
+    }));
+  };
+
+  const deleteSession = (sessionId: string) => {
+    setChatSessions(prev => {
+      const updated = prev.filter(s => s.id !== sessionId);
+      saveChatSessions(updated);
+      
+      // If we deleted the current session, create a new one
+      if (sessionId === currentSessionId) {
+        createNewSession();
+      }
+      
+      return updated;
+    });
+  };
+
+  const renameSession = (sessionId: string, newTitle: string) => {
+    setChatSessions(prev => prev.map(session => 
+      session.id === sessionId 
+        ? { ...session, title: newTitle, lastUpdated: new Date() }
+        : session
+    ));
+  };
+
   useEffect(() => {
+    loadChatSessions();
     fetchWeeklyMetrics();
     
     // Check for speech recognition support
@@ -147,6 +290,27 @@ export default function CoachNew() {
       };
     }
   }, []);
+
+  // Auto-save sessions when they change
+  useEffect(() => {
+    if (chatSessions.length > 0) {
+      saveChatSessions(chatSessions);
+    }
+  }, [chatSessions]);
+
+  // Update current session when messages or context change
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0) {
+      updateCurrentSession();
+    }
+  }, [messages, context]);
+
+  // Ensure we always have a current session
+  useEffect(() => {
+    if (!currentSessionId && chatSessions.length === 0) {
+      createNewSession();
+    }
+  }, [currentSessionId, chatSessions]);
 
   const testMCPConnection = async () => {
     try {
@@ -889,10 +1053,31 @@ export default function CoachNew() {
       return false;
     }
     
-    // 🆕 CHECK IF CACHED DATA HAS ALL REQUIRED DATA TYPES
+    // 🆕 CHECK IF CACHED DATA HAS ALL REQUIRED DATA TYPES WITH DETAILED VALIDATION
     const hasRequiredNutrition = !intent.needsNutrition || (context.cachedData.nutritionData && context.cachedData.nutritionData.totalDays > 0);
     const hasRequiredSleep = !intent.needsSleep || (context.cachedData.sleepData && context.cachedData.sleepData.totalDays > 0);
-    const hasRequiredRunning = !intent.needsRunning || (context.cachedData.mcpResponses && context.cachedData.mcpResponses.some(r => r.success));
+    
+    // Enhanced running data validation - check for specific endpoint data if streams are needed
+    let hasRequiredRunning = !intent.needsRunning;
+    if (intent.needsRunning && context.cachedData.mcpResponses) {
+      const cachedMcpResponses = context.cachedData.mcpResponses;
+      const hasBasicRunning = cachedMcpResponses.some(r => r.success && r.endpoint === 'get-activity-details');
+      
+      // If streams data is needed, check specifically for streams endpoints
+      if (intent.runningDataTypes?.includes('activity_streams')) {
+        const hasStreamsData = cachedMcpResponses.some(r => r.success && r.endpoint === 'get-activity-streams');
+        hasRequiredRunning = hasBasicRunning && hasStreamsData;
+        console.log('🔍 Streams validation:', {
+          needsStreams: true,
+          hasBasicRunning,
+          hasStreamsData,
+          hasRequiredRunning,
+          cachedEndpoints: cachedMcpResponses.map(r => r.endpoint)
+        });
+      } else {
+        hasRequiredRunning = hasBasicRunning;
+      }
+    }
     
     if (!hasRequiredNutrition || !hasRequiredSleep || !hasRequiredRunning) {
       console.log('❌ Cached data missing required data types:', {
@@ -1495,9 +1680,16 @@ export default function CoachNew() {
       };
     }
     
-    // Step 2: Fetch running data if needed and not cached
+    // Step 2: Fetch running data if needed and not cached (LAZY LOADING)
     if (intent.needsRunning && mcpResponses.length === 0) {
-      console.log(`🏃 Fetching MCP running data...`);
+      console.log(`🏃 Fetching MCP running data based on query requirements...`);
+      console.log(`📋 Required data types: ${intent.runningDataTypes?.join(', ') || 'basic'}`);
+
+      // Only fetch what's specifically needed for this query
+      const needsStreams = intent.runningDataTypes?.includes('activity_streams');
+      const needsZones = intent.runningDataTypes?.includes('athlete_zones');
+      
+      console.log(`🎯 Lazy loading strategy: streams=${needsStreams}, zones=${needsZones}`);
       
       // Parse date requirements for MCP calls
       const { startDate, endDate, criteria } = parseDateQuery(query);
@@ -1563,34 +1755,35 @@ export default function CoachNew() {
         if (filteredActivityIds.length > 0) {
           console.log(`✅ Found ${filteredActivityIds.length} matching activities`);
           
-          // Smart data fetching based on what's actually needed
+          // LAZY LOADING: Only fetch what this specific query needs
           const detailedCalls = [];
           
-          // Always get basic details for all matching activities
+          // Always get basic details for matching activities
           for (const id of filteredActivityIds) {
             detailedCalls.push({ endpoint: 'get-activity-details', params: { activityId: id } });
           }
           
-          // Only get streams if user asks for HR/pace/power analysis
-          const needsStreams = intent.runningDataTypes?.includes('activity_streams') || false;
-          
+          // CONDITIONAL FETCHING: Only fetch streams if user specifically asks for detailed analysis
           if (needsStreams) {
-            console.log(`📊 Adding streams for HR/pace analysis (${filteredActivityIds.length} activities)`);
+            console.log(`📊 User query requires streams data - fetching detailed HR/pace/speed data for ${filteredActivityIds.length} activities`);
             for (const id of filteredActivityIds) {
               detailedCalls.push({ 
                 endpoint: 'get-activity-streams', 
                 params: { 
                   id, 
-                  types: ['heartrate', 'velocity_smooth', 'distance', 'time', 'watts'], // Include distance & time for km splits
-                  resolution: 'high', // Always use high resolution for detailed analysis
-                  points_per_page: 500 // More data points for km-by-km analysis
+                  types: ['heartrate', 'velocity_smooth', 'distance', 'time', 'watts'],
+                  resolution: 'high', 
+                  points_per_page: 500 // High resolution for km-by-km splits
                 }
               });
             }
+          } else {
+            console.log(`📊 Basic query - skipping streams data to optimize performance`);
           }
           
-          // Only add zones if specifically needed
-          if (intent.runningDataTypes?.includes('athlete_zones')) {
+          // CONDITIONAL FETCHING: Only fetch zones if user asks about heart rate zones
+          if (needsZones) {
+            console.log(`🎯 User query requires zone data - fetching athlete heart rate zones`);
             detailedCalls.push({ endpoint: 'get-athlete-zones', params: {} });
           }
           
@@ -1814,6 +2007,12 @@ export default function CoachNew() {
   // Enhanced handleSendMessage with context preservation
   const handleSendMessage = async () => {
     if (!input.trim()) return;
+
+    // Ensure we have a current session
+    let sessionId = currentSessionId;
+    if (!sessionId) {
+      sessionId = createNewSession();
+    }
 
     const originalQuery = input.trim();
     const resolvedQuery = resolveContextualQuery(originalQuery);
