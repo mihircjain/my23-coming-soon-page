@@ -803,7 +803,7 @@ export default function CoachNew() {
       }
       
       // If the last query was about sleep and current is about running, infer same date
-      if (lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
+      if (lastQuery.intent && lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
         if (lastQuery.dateRange && lastQuery.dateRange.startDate) {
           // Ensure startDate is a proper Date object
           const startDate = new Date(lastQuery.dateRange.startDate);
@@ -839,7 +839,7 @@ export default function CoachNew() {
       
       // Handle "how did that affect" type queries - ENHANCED FOR RANGE CONTEXTS
       if (lowerQuery.includes('how did it affect') || lowerQuery.includes('how did that affect') || lowerQuery.includes('how did that impact')) {
-        if (lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
+        if (lastQuery.intent && lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
           const startDate = new Date(lastQuery.dateRange.startDate);
           const endDate = new Date(lastQuery.dateRange.endDate);
           const isMultiDayRange = Math.abs(endDate.getTime() - startDate.getTime()) > 24 * 60 * 60 * 1000;
