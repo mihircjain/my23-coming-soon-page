@@ -30,28 +30,28 @@ const quickStarts: QuickStart[] = [
     description: "Get a personalized training schedule",
     prompt: "Create a 4-week training plan based on my recent activities",
     icon: <Target className="h-4 w-4" />,
-    color: "bg-blue-500"
+    color: "bg-emerald-500"
   },
   {
     title: "Performance Analysis",
     description: "Analyze your recent workouts",
     prompt: "Analyze my recent running performance and suggest improvements",
     icon: <TrendingUp className="h-4 w-4" />,
-    color: "bg-green-500"
+    color: "bg-blue-500"
   },
   {
     title: "Recovery Tips",
     description: "Get recovery recommendations",
     prompt: "What should I focus on for recovery based on my training load?",
     icon: <Heart className="h-4 w-4" />,
-    color: "bg-red-500"
+    color: "bg-teal-500"
   },
   {
     title: "Nutrition Advice",
     description: "Optimize your nutrition",
     prompt: "What should I eat before and after my workouts?",
     icon: <Zap className="h-4 w-4" />,
-    color: "bg-orange-500"
+    color: "bg-cyan-500"
   }
 ];
 
@@ -108,16 +108,16 @@ export default function Coach() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 relative overflow-hidden font-inter">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-1/2 -left-1/2 w-full h-full bg-gradient-to-tr from-indigo-200/20 to-pink-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-emerald-200/20 to-blue-200/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-1/2 -left-1/2 w-full h-full bg-gradient-to-tr from-teal-200/20 to-cyan-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
       
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent mb-3">
             AI Running Coach
           </h1>
           <p className="text-gray-600 text-lg">Your personal training companion powered by AI</p>
@@ -127,10 +127,10 @@ export default function Coach() {
           {/* Left Column - Chat Interface */}
           <div className="lg:col-span-2 flex flex-col">
             {/* Quick Start Section - Compressed */}
-            <Card className="mb-4 bg-white/80 backdrop-blur-sm border border-white/20 shadow-lg">
+            <Card className="mb-4 bg-white/90 backdrop-blur-sm border border-emerald-100/50 shadow-lg">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-semibold flex items-center">
-                  <Zap className="mr-2 h-5 w-5 text-blue-500" />
+                  <Zap className="mr-2 h-5 w-5 text-emerald-500" />
                   Quick Start
                 </CardTitle>
               </CardHeader>
@@ -141,7 +141,7 @@ export default function Coach() {
                       key={index}
                       variant="outline"
                       onClick={() => handleQuickStart(item.prompt)}
-                      className="h-auto p-3 flex flex-col items-center text-center hover:shadow-md transition-all bg-white/50 hover:bg-white/80"
+                      className="h-auto p-3 flex flex-col items-center text-center hover:shadow-md transition-all bg-white/70 hover:bg-white/90 border-emerald-100 hover:border-emerald-200"
                     >
                       <div className={`p-2 rounded-lg ${item.color} text-white mb-2`}>
                         {item.icon}
@@ -154,10 +154,10 @@ export default function Coach() {
             </Card>
 
             {/* Chat Messages - Expandable */}
-            <Card className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm border border-white/20 shadow-lg">
+            <Card className="flex-1 flex flex-col bg-white/90 backdrop-blur-sm border border-emerald-100/50 shadow-lg">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-semibold flex items-center">
-                  <Bot className="mr-2 h-5 w-5 text-green-500" />
+                  <Bot className="mr-2 h-5 w-5 text-emerald-500" />
                   Chat with Your Coach
                 </CardTitle>
               </CardHeader>
@@ -172,16 +172,16 @@ export default function Coach() {
                       <div
                         className={`max-w-[80%] p-4 rounded-lg ${
                           message.sender === 'user'
-                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white ml-4'
-                            : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 mr-4'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white ml-4'
+                            : 'bg-gradient-to-r from-gray-50 to-blue-50 text-gray-800 mr-4 border border-blue-100'
                         } shadow-md`}
                       >
                         <div className="flex items-start space-x-2">
                           {message.sender === 'coach' && (
-                            <Bot className="h-5 w-5 mt-0.5 text-blue-500 flex-shrink-0" />
+                            <Bot className="h-5 w-5 mt-0.5 text-emerald-500 flex-shrink-0" />
                           )}
                           {message.sender === 'user' && (
-                            <User className="h-5 w-5 mt-0.5 text-blue-200 flex-shrink-0" />
+                            <User className="h-5 w-5 mt-0.5 text-emerald-200 flex-shrink-0" />
                           )}
                           <div className="flex-1">
                             <p className="text-sm leading-relaxed">{message.content}</p>
@@ -195,12 +195,12 @@ export default function Coach() {
                   ))}
                   {isLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-4 rounded-lg mr-4 shadow-md">
+                      <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-4 rounded-lg mr-4 shadow-md border border-blue-100">
                         <div className="flex items-center space-x-2">
-                          <Bot className="h-5 w-5 text-blue-500" />
+                          <Bot className="h-5 w-5 text-emerald-500" />
                           <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                           </div>
                         </div>
@@ -221,13 +221,13 @@ export default function Coach() {
                         handleSendMessage(inputValue);
                       }
                     }}
-                    className="flex-1 bg-white/70 border-white/30"
+                    className="flex-1 bg-white/80 border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400"
                     disabled={isLoading}
                   />
                   <Button 
                     onClick={() => handleSendMessage(inputValue)}
                     disabled={isLoading || !inputValue.trim()}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
@@ -239,45 +239,45 @@ export default function Coach() {
           {/* Right Column - Stats & Analytics */}
           <div className="space-y-4">
             <Tabs defaultValue="stats" className="h-full">
-              <TabsList className="grid w-full grid-cols-2 bg-white/80 backdrop-blur-sm">
-                <TabsTrigger value="stats">Stats</TabsTrigger>
-                <TabsTrigger value="insights">Insights</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 bg-white/90 backdrop-blur-sm border border-emerald-100">
+                <TabsTrigger value="stats" className="data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-700">Stats</TabsTrigger>
+                <TabsTrigger value="insights" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">Insights</TabsTrigger>
               </TabsList>
               
               <TabsContent value="stats" className="space-y-4 mt-4">
-                <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-sm border border-white/20 shadow-lg">
+                <Card className="bg-gradient-to-br from-emerald-500/10 to-blue-500/10 backdrop-blur-sm border border-emerald-100/50 shadow-lg">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg font-semibold flex items-center">
-                      <Activity className="mr-2 h-5 w-5 text-blue-500" />
+                      <Activity className="mr-2 h-5 w-5 text-emerald-500" />
                       Weekly Summary
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{mockStats.weeklyDistance}</div>
+                      <div className="text-center p-3 bg-white/70 rounded-lg border border-emerald-100">
+                        <div className="text-2xl font-bold text-emerald-600">{mockStats.weeklyDistance}</div>
                         <div className="text-sm text-gray-600">Miles</div>
                       </div>
-                      <div className="text-center p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{mockStats.weeklyActivities}</div>
+                      <div className="text-center p-3 bg-white/70 rounded-lg border border-blue-100">
+                        <div className="text-2xl font-bold text-blue-600">{mockStats.weeklyActivities}</div>
                         <div className="text-sm text-gray-600">Runs</div>
                       </div>
-                      <div className="text-center p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">{mockStats.avgPace}</div>
+                      <div className="text-center p-3 bg-white/70 rounded-lg border border-teal-100">
+                        <div className="text-2xl font-bold text-teal-600">{mockStats.avgPace}</div>
                         <div className="text-sm text-gray-600">Avg Pace</div>
                       </div>
-                      <div className="text-center p-3 bg-white/60 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">{mockStats.weeklyElevation}</div>
+                      <div className="text-center p-3 bg-white/70 rounded-lg border border-cyan-100">
+                        <div className="text-2xl font-bold text-cyan-600">{mockStats.weeklyElevation}</div>
                         <div className="text-sm text-gray-600">Elevation</div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-green-500/10 to-blue-500/10 backdrop-blur-sm border border-white/20 shadow-lg">
+                <Card className="bg-gradient-to-br from-teal-500/10 to-blue-500/10 backdrop-blur-sm border border-teal-100/50 shadow-lg">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg font-semibold flex items-center">
-                      <TrendingUp className="mr-2 h-5 w-5 text-green-500" />
+                      <TrendingUp className="mr-2 h-5 w-5 text-teal-500" />
                       Training Load
                     </CardTitle>
                   </CardHeader>
@@ -285,10 +285,10 @@ export default function Coach() {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">This Week</span>
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">Moderate</Badge>
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">Moderate</Badge>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full" style={{ width: '65%' }}></div>
+                        <div className="bg-gradient-to-r from-emerald-400 to-blue-500 h-2 rounded-full" style={{ width: '65%' }}></div>
                       </div>
                       <div className="text-xs text-gray-500">65% of target load</div>
                     </div>
@@ -297,36 +297,36 @@ export default function Coach() {
               </TabsContent>
 
               <TabsContent value="insights" className="space-y-4 mt-4">
-                <Card className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-sm border border-white/20 shadow-lg">
+                <Card className="bg-gradient-to-br from-teal-500/10 to-cyan-500/10 backdrop-blur-sm border border-teal-100/50 shadow-lg">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg font-semibold flex items-center">
-                      <Heart className="mr-2 h-5 w-5 text-red-500" />
+                      <Heart className="mr-2 h-5 w-5 text-teal-500" />
                       Recovery Status
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-center">
-                      <div className="text-3xl font-bold text-green-600 mb-2">Good</div>
+                      <div className="text-3xl font-bold text-emerald-600 mb-2">Good</div>
                       <p className="text-sm text-gray-600">Ready for moderate training</p>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-sm border border-white/20 shadow-lg">
+                <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm border border-blue-100/50 shadow-lg">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg font-semibold">Key Recommendations</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="p-3 bg-white/70 rounded-lg border border-emerald-100">
                         <p className="text-sm font-medium text-gray-800">Increase long run distance</p>
                         <p className="text-xs text-gray-600">Add 0.5 miles to weekend run</p>
                       </div>
-                      <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="p-3 bg-white/70 rounded-lg border border-blue-100">
                         <p className="text-sm font-medium text-gray-800">Focus on tempo work</p>
                         <p className="text-xs text-gray-600">2x weekly tempo sessions</p>
                       </div>
-                      <div className="p-3 bg-white/60 rounded-lg">
+                      <div className="p-3 bg-white/70 rounded-lg border border-teal-100">
                         <p className="text-sm font-medium text-gray-800">Prioritize recovery</p>
                         <p className="text-xs text-gray-600">Include rest day after hard sessions</p>
                       </div>
