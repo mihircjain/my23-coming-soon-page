@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, query, mcpResponses, analysis, endpoint, params } = req.body;
+    const { action, query, mcpResponses, analysis, endpoint, params, nutritionData, sleepData } = req.body;
     
     if (!action) {
       return res.status(400).json({ error: 'Action required' });
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
     
     if (!claudeApiKey) {
       console.log('❌ Claude API key not configured, using fallback');
-      return handleFallback(action, query, mcpResponses, res);
+      return handleFallback(action, query, mcpResponses, res, analysis, nutritionData, sleepData);
     }
 
     console.log(`🧠 Claude ${action} for query: "${query}"`);
@@ -97,7 +97,13 @@ export default async function handler(req, res) {
       const analysis = await analyzeQueryWithClaude(query, claudeApiKey);
       return res.status(200).json({ analysis });
     } else if (action === 'generate_response') {
-      const response = await generateResponseWithClaude(query, analysis, mcpResponses, claudeApiKey);
+      // Enhance analysis object with separately passed data
+      const enhancedAnalysis = {
+        ...analysis,
+        nutritionData: nutritionData || analysis.nutritionData,
+        sleepData: sleepData || analysis.sleepData
+      };
+      const response = await generateResponseWithClaude(query, enhancedAnalysis, mcpResponses, claudeApiKey);
       return res.status(200).json({ response });
     } else {
       return res.status(400).json({ error: 'Invalid action' });
@@ -431,27 +437,32 @@ Provide comprehensive analysis as an expert coach:`;
 }
 
 // Fallback handling when Claude is unavailable
-function handleFallback(action, query, mcpResponses, res) {
+function handleFallback(action, query, mcpResponses, res, analysis = null, nutritionData = null, sleepData = null) {
   if (action === 'analyze_query') {
     const analysis = analyzeQueryRuleBased(query);
     return res.status(200).json({ analysis, fallback: true });
-  } else if (action === 'generate_response') {
-    const mcpData = mcpResponses
-      ?.filter(r => r.success && r.data?.content?.[0]?.text)
-      .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
-      .join('\n') || '';
-    
-    // Check if nutrition data is included in the analysis object
-    const nutritionData = res.req.body?.analysis?.nutritionData;
-    let nutritionSummary = '';
-    if (nutritionData) {
-      nutritionSummary = `\n\n📊 **Nutrition Summary (${nutritionData.totalDays} days)**:\n- Average daily calories: ${nutritionData.averages.calories}\n- Average daily protein: ${nutritionData.averages.protein}g\n- Total calories: ${nutritionData.totals.calories.toLocaleString()}`;
-    }
-    
-    const contextData = mcpData + nutritionSummary;
-    const fallbackResponse = `Based on your query "${query}", here's what I found:\n\n${contextData || 'No data available'}\n\n**Note**: Using fallback analysis mode. For detailed AI coaching insights, Claude API key is required.`;
-    
-    return res.status(200).json({ response: fallbackResponse, fallback: true });
+      } else if (action === 'generate_response') {
+      const mcpData = mcpResponses
+        ?.filter(r => r.success && r.data?.content?.[0]?.text)
+        .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
+        .join('\n') || '';
+      
+      // Build nutrition summary if available
+      let nutritionSummary = '';
+      if (nutritionData) {
+        nutritionSummary = `\n\n📊 **Nutrition Summary (${nutritionData.totalDays} days)**:\n- Average daily calories: ${nutritionData.averages.calories}\n- Average daily protein: ${nutritionData.averages.protein}g\n- Total calories: ${nutritionData.totals.calories.toLocaleString()}`;
+      }
+      
+      // Build sleep summary if available  
+      let sleepSummary = '';
+      if (sleepData) {
+        sleepSummary = `\n\n😴 **Sleep Summary (${sleepData.totalDays} days)**:\n- Average sleep duration: ${sleepData.averages.sleepDuration}h\n- Average sleep score: ${sleepData.averages.sleepScore}\n- Average heart rate: ${sleepData.averages.averageHeartRate} bpm`;
+      }
+      
+      const contextData = mcpData + nutritionSummary + sleepSummary;
+      const fallbackResponse = `Based on your query "${query}", here's what I found:\n\n${contextData || 'No data available'}\n\n**Note**: Using fallback analysis mode. For detailed AI coaching insights, Claude API key is required.`;
+      
+      return res.status(200).json({ response: fallbackResponse, fallback: true });
   }
 }
 

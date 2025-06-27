@@ -1683,7 +1683,9 @@ export default function CoachNew() {
         query,
         intentType: intent.type,
         hasNutritionData: !!intent.nutritionData,
+        hasSleepData: !!intent.sleepData,
         nutritionDays: intent.nutritionData?.totalDays || 0,
+        sleepDays: intent.sleepData?.totalDays || 0,
         mcpResponseCount: mcpResponses.length,
         fullIntentObject: intent
       });
@@ -1698,7 +1700,8 @@ export default function CoachNew() {
           query,
           analysis: intent,  // Backend expects 'analysis', not 'intent'
           mcpResponses,
-          nutritionData: intent.nutritionData  // Pass nutritionData separately
+          nutritionData: intent.nutritionData,  // Pass nutritionData separately
+          sleepData: intent.sleepData  // 🆕 Also pass sleepData separately
         })
       });
 
