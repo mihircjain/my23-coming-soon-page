@@ -57,6 +57,7 @@ interface QueryIntent {
   dateRange?: { startDate: Date; endDate: Date };
   nutritionDataTypes?: string[];
   runningDataTypes?: string[];
+  isSmartTiming?: boolean;  // Flag for intelligent nutrition timing based on activity time
 }
 
 export default function CoachNew() {
@@ -149,6 +150,64 @@ export default function CoachNew() {
   };
 
   // Analyze query to determine what data to fetch (nutrition, running, or both)
+  // Detect nutrition-performance relationship queries and adjust timing intelligently
+  const detectNutritionPerformanceQuery = (query: string) => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Patterns that indicate nutrition affected performance
+    const nutritionPerformancePatterns = [
+      'food affect', 'nutrition affect', 'fueled', 'fueling', 'energy for run',
+      'pre run', 'post run', 'before run', 'after run', 'run performance',
+      'food impact', 'nutrition impact', 'eating before', 'eating after'
+    ];
+    
+    return nutritionPerformancePatterns.some(pattern => lowerQuery.includes(pattern));
+  };
+
+  // Extract activity timing to determine relevant nutrition day
+  const determineNutritionDateForActivity = async (activityData: any, runDate: Date): Promise<Date> => {
+    // If we have activity data, try to extract time
+    let runTime = null;
+    if (activityData && activityData.length > 0) {
+      const timeMatch = activityData[0].match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1]);
+        const minute = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3].toUpperCase();
+        
+        if (ampm === 'PM' && hour !== 12) hour += 12;
+        if (ampm === 'AM' && hour === 12) hour = 0;
+        
+        runTime = { hour, minute };
+      }
+    }
+    
+    // Smart timing logic
+    if (runTime) {
+      console.log(`🕐 Run detected at ${runTime.hour}:${runTime.minute}`);
+      
+      // Morning runs (5am-10am) → Use previous day's nutrition
+      if (runTime.hour >= 5 && runTime.hour < 10) {
+        const previousDay = new Date(runDate);
+        previousDay.setDate(previousDay.getDate() - 1);
+        console.log(`🌅 Morning run detected, using previous day's nutrition: ${previousDay.toDateString()}`);
+        return previousDay;
+      }
+      
+      // Afternoon/evening runs (12pm+) → Use same day's nutrition  
+      if (runTime.hour >= 12) {
+        console.log(`🌇 Afternoon/evening run detected, using same day's nutrition: ${runDate.toDateString()}`);
+        return runDate;
+      }
+    }
+    
+    // Default: assume morning run if no time detected
+    const previousDay = new Date(runDate);
+    previousDay.setDate(previousDay.getDate() - 1);
+    console.log(`⏰ No run time detected, defaulting to previous day's nutrition for safety: ${previousDay.toDateString()}`);
+    return previousDay;
+  };
+
   const analyzeQueryIntent = (query: string): QueryIntent => {
     const lowerQuery = query.toLowerCase();
     
@@ -166,13 +225,26 @@ export default function CoachNew() {
     
     const hasNutritionKeywords = nutritionKeywords.some(keyword => lowerQuery.includes(keyword));
     const hasRunningKeywords = runningKeywords.some(keyword => lowerQuery.includes(keyword));
+    const isNutritionPerformanceQuery = detectNutritionPerformanceQuery(query);
     
     // Parse date range for data fetching
     const { startDate, endDate } = parseDateQuery(query);
     
     let intent: QueryIntent;
     
-    if (hasNutritionKeywords && hasRunningKeywords) {
+    if (isNutritionPerformanceQuery) {
+      // Special case: nutrition-performance relationship query
+      // Needs smart timing logic to fetch correct nutrition day
+      intent = {
+        type: 'nutrition_and_running',
+        needsNutrition: true,
+        needsRunning: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        runningDataTypes: ['activity_details', 'basic_stats'],
+        isSmartTiming: true  // Flag for smart timing logic
+      };
+    } else if (hasNutritionKeywords && hasRunningKeywords) {
       // Both nutrition and running mentioned
       intent = {
         type: 'nutrition_and_running',
@@ -740,19 +812,7 @@ export default function CoachNew() {
     let mcpResponses: MCPResponse[] = [];
     let nutritionResponse: NutritionResponse | null = null;
     
-    // Step 2: Fetch nutrition data if needed
-    if (intent.needsNutrition && intent.dateRange) {
-      console.log(`🥗 Fetching nutrition data for date range...`);
-      nutritionResponse = await fetchNutritionDataForRange(intent.dateRange.startDate, intent.dateRange.endDate);
-      
-      if (!nutritionResponse.success) {
-        console.log(`⚠️ Nutrition data fetch failed: ${nutritionResponse.error}`);
-      } else {
-        console.log(`✅ Nutrition data fetched successfully: ${nutritionResponse.data?.totalDays} days`);
-      }
-    }
-    
-    // Step 3: Fetch MCP running data if needed
+    // Step 2: Fetch running data first if smart timing is needed
     if (intent.needsRunning) {
       console.log(`🏃 Fetching MCP running data...`);
       
@@ -801,10 +861,7 @@ export default function CoachNew() {
       const activitiesResponse = await executeMCPCalls([activitiesCall]);
       mcpResponses.push(...activitiesResponse);
       
-      if (!activitiesResponse[0]?.success) {
-        console.log('❌ Failed to fetch MCP activities');
-        // Don't return early - we might still have nutrition data
-      } else {
+      if (activitiesResponse[0]?.success) {
         // Client-side filtering to find matching activities
         const allContentItems = activitiesResponse[0].data?.content || [];
         const activitiesText = allContentItems
@@ -866,6 +923,46 @@ export default function CoachNew() {
         }
       }
     }
+
+    // Step 3: Smart nutrition timing if needed
+    let nutritionDateRange = intent.dateRange;
+    
+    if (intent.isSmartTiming && intent.needsNutrition && mcpResponses.length > 0) {
+      console.log(`🧠 Applying smart nutrition timing logic...`);
+      
+      // Extract activity data for timing analysis
+      const activityDetails = mcpResponses
+        .filter(r => r.success && r.endpoint === 'get-activity-details')
+        .map(r => r.data?.content?.[0]?.text)
+        .filter(text => text);
+      
+      if (activityDetails.length > 0 && intent.dateRange) {
+        const runDate = intent.dateRange.startDate;
+        const smartNutritionDate = await determineNutritionDateForActivity(activityDetails, runDate);
+        
+        // Update nutrition date range to use smart timing
+        nutritionDateRange = {
+          startDate: smartNutritionDate,
+          endDate: smartNutritionDate  // Single day for nutrition-performance analysis
+        };
+        
+        console.log(`🎯 Smart timing applied: nutrition from ${smartNutritionDate.toDateString()} for run on ${runDate.toDateString()}`);
+      }
+    }
+
+    // Step 4: Fetch nutrition data if needed
+    if (intent.needsNutrition && nutritionDateRange) {
+      console.log(`🥗 Fetching nutrition data for date range...`);
+      nutritionResponse = await fetchNutritionDataForRange(nutritionDateRange.startDate, nutritionDateRange.endDate);
+      
+      if (!nutritionResponse.success) {
+        console.log(`⚠️ Nutrition data fetch failed: ${nutritionResponse.error}`);
+      } else {
+        console.log(`✅ Nutrition data fetched successfully: ${nutritionResponse.data?.totalDays} days`);
+      }
+    }
+    
+
     
     // Step 4: Return combined result
     return { 

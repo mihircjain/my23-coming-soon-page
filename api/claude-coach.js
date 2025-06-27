@@ -327,6 +327,9 @@ FORMATTING GUIDELINES:
 
 USER QUERY: "${query}"
 
+${analysis && analysis.isSmartTiming ? 
+`🧠 SMART TIMING APPLIED: For nutrition-performance analysis queries, the system automatically determined the most relevant nutrition data based on activity timing. Morning runs (5am-10am) use previous day's nutrition since they're often fasted, while afternoon/evening runs use same-day nutrition.` : ''}
+
 DATA CONTEXT:
 ${contextData}
 
