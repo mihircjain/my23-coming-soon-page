@@ -45,6 +45,20 @@ interface ConversationContext {
   lastActivityIds?: string[]; // Activity IDs from last query
   lastQueryType?: string;   // "single_date", "date_range", etc.
   lastActivities?: string;  // Activity descriptions for reference
+  // Enhanced context preservation
+  cachedData?: {
+    mcpResponses?: MCPResponse[];
+    nutritionData?: any;
+    sleepData?: any;
+    dateRange?: { startDate: Date; endDate: Date };
+    fetchedAt?: Date;
+  };
+  conversationHistory?: Array<{
+    query: string;
+    intent: string;
+    dateRange?: { startDate: Date; endDate: Date };
+    timestamp: Date;
+  }>;
 }
 
 interface WeeklyMetrics {
@@ -73,7 +87,10 @@ export default function CoachNew() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [stravaStats, setStravaStats] = useState<StravaStats>({ connected: false, lastChecked: 'Never' });
-  const [context, setContext] = useState<ConversationContext>({});
+  const [context, setContext] = useState<ConversationContext>({
+    cachedData: {},
+    conversationHistory: []
+  });
   const [weeklyMetrics, setWeeklyMetrics] = useState<WeeklyMetrics>({
     caloriesBurned: 0,
     caloriesConsumed: 0,
@@ -282,448 +299,68 @@ export default function CoachNew() {
     return previousDay;
   };
 
-  const analyzeQueryIntent = (query: string): QueryIntent => {
-    const lowerQuery = query.toLowerCase();
+  // Enhanced typo correction for all fitness keywords
+  const correctTypos = (query: string): string => {
+    let correctedQuery = query.toLowerCase();
     
-    // Keywords that indicate nutrition-related queries (including common misspellings)
-    const nutritionKeywords = [
-      'nutrition', 'nutriotn', 'nutriton', 'food', 'foods', 'calories', 'protein', 'carbs', 'fat', 'fiber',
-      'macro', 'macros', 'diet', 'eating', 'meal', 'meals', 'consumed', 'intake', 'fueling', 'fuel'
-    ];
+    // Sleep-related typos
+    const sleepCorrections = {
+      'slepe': 'sleep',
+      'slep': 'sleep', 
+      'sleap': 'sleep',
+      'sleeep': 'sleep',
+      'sleeping': 'sleep',
+      'slept': 'sleep',
+      'sleeo': 'sleep',
+      'slee': 'sleep'
+    };
     
-    // Keywords that indicate running/activity-related queries
-    const runningKeywords = [
-      'run', 'pace', 'heart rate', 'hr', 'activity', 'workout', 'exercise',
-      'training', 'distance', 'speed', 'power', 'zones', 'strava'
-    ];
+    // Running-related typos
+    const runCorrections = {
+      'runn': 'run',
+      'runnign': 'running',
+      'runign': 'running',
+      'urn': 'run',
+      'rnu': 'run',
+      'runs': 'run',
+      'raning': 'running',
+      'jog': 'run',
+      'jogging': 'running'
+    };
     
-    // Keywords that indicate sleep-related queries
-    const sleepKeywords = [
-      'sleep', 'sleeping', 'slept', 'bedtime', 'wake', 'woke', 'rest', 'recovery',
-      'tired', 'fatigue', 'readiness', 'oura', 'sleep score', 'sleep quality',
-      'deep sleep', 'rem sleep', 'light sleep', 'sleep duration', 'sleep efficiency'
-    ];
+    // Nutrition/food-related typos
+    const nutritionCorrections = {
+      'nutriotn': 'nutrition',
+      'nutriton': 'nutrition',
+      'nutritoin': 'nutrition',
+      'nutrtion': 'nutrition',
+      'food': 'nutrition',
+      'foods': 'nutrition',
+      'eating': 'nutrition',
+      'ate': 'nutrition',
+      'meal': 'nutrition',
+      'meals': 'nutrition',
+      'calories': 'nutrition',
+      'protein': 'nutrition',
+      'carbs': 'nutrition',
+      'fueling': 'nutrition',
+      'fuel': 'nutrition'
+    };
     
-    const hasNutritionKeywords = nutritionKeywords.some(keyword => lowerQuery.includes(keyword));
-    const hasRunningKeywords = runningKeywords.some(keyword => lowerQuery.includes(keyword));
-    const hasSleepKeywords = sleepKeywords.some(keyword => lowerQuery.includes(keyword));
-    const isNutritionPerformanceQuery = detectNutritionPerformanceQuery(query);
+    // Apply corrections
+    const allCorrections = { ...sleepCorrections, ...runCorrections, ...nutritionCorrections };
     
-    // Parse date range for data fetching
-    const { startDate, endDate } = parseDateQuery(query);
-    
-    let intent: QueryIntent;
-    
-    // Determine data needs based on keyword combinations
-    const needsNutrition = hasNutritionKeywords || isNutritionPerformanceQuery;
-    const needsRunning = hasRunningKeywords || isNutritionPerformanceQuery;
-    const needsSleep = hasSleepKeywords;
-    
-    // Determine query type based on combinations
-    if (needsNutrition && needsRunning && needsSleep) {
-      intent = {
-        type: 'all_data',
-        needsNutrition: true,
-        needsRunning: true,
-        needsSleep: true,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-        runningDataTypes: ['activity_details', 'basic_stats'],
-        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
-        isSmartTiming: isNutritionPerformanceQuery
-      };
-    } else if (needsSleep && needsRunning) {
-      intent = {
-        type: 'sleep_and_running',
-        needsNutrition: false,
-        needsRunning: true,
-        needsSleep: true,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        runningDataTypes: ['activity_details', 'basic_stats'],
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
-      };
-    } else if (needsSleep && needsNutrition) {
-      intent = {
-        type: 'sleep_and_nutrition',
-        needsNutrition: true,
-        needsRunning: false,
-        needsSleep: true,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
-      };
-    } else if (needsSleep) {
-      intent = {
-        type: 'sleep_only',
-        needsNutrition: false,
-        needsRunning: false,
-        needsSleep: true,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
-      };
-    } else if (isNutritionPerformanceQuery || (needsNutrition && needsRunning)) {
-      intent = {
-        type: 'nutrition_and_running',
-        needsNutrition: true,
-        needsRunning: true,
-        needsSleep: false,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-        runningDataTypes: ['activity_details', 'basic_stats'],
-        isSmartTiming: isNutritionPerformanceQuery
-      };
-    } else if (needsNutrition) {
-      intent = {
-        type: 'nutrition_only',
-        needsNutrition: true,
-        needsRunning: false,
-        needsSleep: false,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber']
-      };
-    } else if (needsRunning) {
-      intent = {
-        type: 'running_only',
-        needsNutrition: false,
-        needsRunning: true,
-        needsSleep: false,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        runningDataTypes: determineRunningDataTypes(query)
-      };
-    } else {
-      // General query - might need some data for context
-      intent = {
-        type: 'general',
-        needsNutrition: true,
-        needsRunning: true,
-        needsSleep: false,
-        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        nutritionDataTypes: ['calories', 'protein'],
-        runningDataTypes: ['activity_details']
-      };
-    }
-    
-    console.log(`🧠 Query intent analysis:`, {
-      query: query.substring(0, 50) + '...',
-      intent: intent.type,
-      needsNutrition: intent.needsNutrition,
-      needsRunning: intent.needsRunning,
-      needsSleep: intent.needsSleep,
-      hasNutritionKeywords,
-      hasRunningKeywords,
-      hasSleepKeywords,
-      isNutritionPerformanceQuery,
-      dateRange: intent.dateRange ? 
-        `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
-        'default range'
+    Object.entries(allCorrections).forEach(([typo, correct]) => {
+      const regex = new RegExp(`\\b${typo}\\b`, 'gi');
+      correctedQuery = correctedQuery.replace(regex, correct);
     });
     
-    return intent;
-  };
-
-  // Determine what running data types are needed based on query
-  const determineRunningDataTypes = (query: string): string[] => {
-    const lowerQuery = query.toLowerCase();
-    const dataTypes = ['activity_details']; // Always include basic details
-    
-    if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
-        lowerQuery.includes('pace') || lowerQuery.includes('power') ||
-        lowerQuery.includes('analyze') || lowerQuery.includes('distribution')) {
-      dataTypes.push('activity_streams');
+    // Log if corrections were made
+    if (correctedQuery !== query.toLowerCase()) {
+      console.log(`🔧 Typo correction applied: "${query}" → "${correctedQuery}"`);
     }
     
-    if (lowerQuery.includes('zone') || lowerQuery.includes('hr')) {
-      dataTypes.push('athlete_zones');
-    }
-    
-    if (lowerQuery.includes('stats') || lowerQuery.includes('total') || lowerQuery.includes('summary')) {
-      dataTypes.push('athlete_stats', 'athlete_profile');
-    }
-    
-    return dataTypes;
-  };
-
-  // Fetch nutrition data for a specific date range
-  const fetchNutritionDataForRange = async (startDate: Date, endDate: Date): Promise<NutritionResponse> => {
-    try {
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-      
-      console.log(`🥗 Fetching nutrition data from ${startDateStr} to ${endDateStr}`);
-
-      const nutritionQuery = query(
-        collection(db, "nutritionLogs"),
-        where("date", ">=", startDateStr),
-        where("date", "<=", endDateStr),
-        orderBy("date", "desc")
-      );
-
-      const snapshot = await getDocs(nutritionQuery);
-      
-      if (snapshot.empty) {
-        console.log(`⚠️ No nutrition data found for date range ${startDateStr} to ${endDateStr}`);
-        return {
-          success: false,
-          data: null,
-          error: `No nutrition data found for the specified date range`
-        };
-      }
-
-      // Process nutrition data into a structured format
-      const nutritionData = {
-        dateRange: { startDate: startDateStr, endDate: endDateStr },
-        totalDays: snapshot.docs.length,
-        dailyLogs: [] as any[],
-        totals: {
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fiber: 0
-        },
-        averages: {
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fiber: 0
-        }
-      };
-
-             // Process each day's data based on actual Firestore structure
-       snapshot.docs.forEach(doc => {
-         const dayData = doc.data();
-         const totals = dayData.totals || {};
-         const entries = dayData.entries || [];
-         
-         // Use document ID as date if not in data
-         const dateValue = dayData.date || doc.id;
-         
-         nutritionData.dailyLogs.push({
-           date: dateValue,
-           calories: totals.calories || 0,
-           protein: totals.protein || 0,
-           carbs: totals.carbs || 0,
-           fat: totals.fat || 0,
-           fiber: totals.fiber || 0,
-           entries: entries, // Include individual food entries
-           lastUpdated: dayData.lastUpdated || null
-         });
-         
-         // Add to totals
-         nutritionData.totals.calories += totals.calories || 0;
-         nutritionData.totals.protein += totals.protein || 0;
-         nutritionData.totals.carbs += totals.carbs || 0;
-         nutritionData.totals.fat += totals.fat || 0;
-         nutritionData.totals.fiber += totals.fiber || 0;
-       });
-
-      // Calculate averages
-      const dayCount = nutritionData.dailyLogs.length;
-      if (dayCount > 0) {
-        nutritionData.averages.calories = Math.round(nutritionData.totals.calories / dayCount);
-        nutritionData.averages.protein = Math.round(nutritionData.totals.protein / dayCount);
-        nutritionData.averages.carbs = Math.round(nutritionData.totals.carbs / dayCount);
-        nutritionData.averages.fat = Math.round(nutritionData.totals.fat / dayCount);
-        nutritionData.averages.fiber = Math.round(nutritionData.totals.fiber / dayCount);
-      }
-
-      console.log(`✅ Nutrition data processed: ${dayCount} days, avg ${nutritionData.averages.calories} cal/day`);
-
-      return {
-        success: true,
-        data: nutritionData,
-        error: undefined
-      };
-      
-    } catch (error) {
-      console.error('Error fetching nutrition data:', error);
-      return {
-        success: false,
-        data: null,
-        error: `Failed to fetch nutrition data: ${error.message}`
-      };
-    }
-  };
-
-  // Fetch sleep data for a specific date range from Firestore oura_sleep_data collection
-  const fetchSleepDataForRange = async (startDate: Date, endDate: Date): Promise<SleepResponse> => {
-    try {
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-      
-      console.log(`😴 Fetching sleep data from ${startDateStr} to ${endDateStr}`);
-
-      // Generate array of dates to check
-      const datesToCheck = [];
-      const currentDate = new Date(startDate);
-      while (currentDate <= endDate) {
-        datesToCheck.push(currentDate.toISOString().split('T')[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
-      // Fetch sleep documents using document IDs (mihir_jain_YYYY-MM-DD format)
-      const sleepPromises = datesToCheck.map(async (dateStr) => {
-        const docId = `mihir_jain_${dateStr}`;
-        console.log(`🔍 Trying to fetch sleep document: ${docId}`);
-        try {
-          const sleepDoc = await getDoc(doc(db, 'oura_sleep_data', docId));
-          console.log(`📄 Document ${docId} exists: ${sleepDoc.exists()}`);
-          if (sleepDoc.exists()) {
-            console.log(`✅ Found sleep data for ${dateStr}:`, sleepDoc.data());
-            return { date: dateStr, ...sleepDoc.data() };
-          }
-          console.log(`❌ Document ${docId} does not exist`);
-          return null;
-        } catch (error) {
-          console.error(`❌ Error fetching ${docId}:`, error);
-          return null;
-        }
-      });
-
-      const sleepResults = await Promise.all(sleepPromises);
-      const validSleepData = sleepResults.filter(data => data !== null);
-      
-      if (validSleepData.length === 0) {
-        console.log(`⚠️ No sleep data found for date range ${startDateStr} to ${endDateStr}`);
-        return {
-          success: false,
-          data: null,
-          error: `No sleep data found for the specified date range`
-        };
-      }
-
-      // Process sleep data into a structured format
-      const sleepData = {
-        dateRange: { startDate: startDateStr, endDate: endDateStr },
-        totalDays: validSleepData.length,
-        dailyLogs: [] as any[],
-        averages: {
-          sleepDuration: 0,
-          sleepScore: 0,
-          averageHeartRate: 0,
-          readinessScore: 0,
-          deepSleep: 0,
-          remSleep: 0,
-          lightSleep: 0
-        }
-      };
-
-      let totalSleepDuration = 0;
-      let totalSleepScore = 0;
-      let totalHeartRate = 0;
-      let totalReadinessScore = 0;
-      let totalDeepSleep = 0;
-      let totalRemSleep = 0;
-      let totalLightSleep = 0;
-      let heartRateCount = 0;
-
-      // Process each day's sleep data
-      validSleepData.forEach(dayData => {
-        const sleep = dayData.sleep || {};
-        const readiness = dayData.readiness || {};
-        
-        const sleepDurationHours = sleep.total_sleep_duration ? sleep.total_sleep_duration / 3600 : 0;
-        const avgHeartRate = sleep.average_heart_rate || null;
-        
-        sleepData.dailyLogs.push({
-          date: dayData.date,
-          sleepDuration: Math.round(sleepDurationHours * 10) / 10, // Hours, 1 decimal
-          sleepScore: sleep.sleep_score || 0,
-          averageHeartRate: avgHeartRate,
-          readinessScore: readiness.readiness_score || 0,
-          deepSleep: sleep.deep_sleep_duration ? Math.round(sleep.deep_sleep_duration / 3600 * 10) / 10 : 0,
-          remSleep: sleep.rem_sleep_duration ? Math.round(sleep.rem_sleep_duration / 3600 * 10) / 10 : 0,
-          lightSleep: sleep.light_sleep_duration ? Math.round(sleep.light_sleep_duration / 3600 * 10) / 10 : 0,
-          sleepEfficiency: sleep.sleep_efficiency || 0,
-          bedtimeStart: sleep.bedtime_start,
-          bedtimeEnd: sleep.bedtime_end
-        });
-        
-        // Add to totals for averaging
-        totalSleepDuration += sleepDurationHours;
-        totalSleepScore += sleep.sleep_score || 0;
-        totalReadinessScore += readiness.readiness_score || 0;
-        totalDeepSleep += sleep.deep_sleep_duration ? sleep.deep_sleep_duration / 3600 : 0;
-        totalRemSleep += sleep.rem_sleep_duration ? sleep.rem_sleep_duration / 3600 : 0;
-        totalLightSleep += sleep.light_sleep_duration ? sleep.light_sleep_duration / 3600 : 0;
-        
-        if (avgHeartRate && avgHeartRate > 0) {
-          totalHeartRate += avgHeartRate;
-          heartRateCount++;
-        }
-      });
-
-      // Calculate averages
-      const dayCount = validSleepData.length;
-      if (dayCount > 0) {
-        sleepData.averages.sleepDuration = Math.round(totalSleepDuration / dayCount * 10) / 10;
-        sleepData.averages.sleepScore = Math.round(totalSleepScore / dayCount);
-        sleepData.averages.readinessScore = Math.round(totalReadinessScore / dayCount);
-        sleepData.averages.deepSleep = Math.round(totalDeepSleep / dayCount * 10) / 10;
-        sleepData.averages.remSleep = Math.round(totalRemSleep / dayCount * 10) / 10;
-        sleepData.averages.lightSleep = Math.round(totalLightSleep / dayCount * 10) / 10;
-        sleepData.averages.averageHeartRate = heartRateCount > 0 ? Math.round(totalHeartRate / heartRateCount) : 0;
-      }
-
-      console.log(`✅ Sleep data processed: ${dayCount} days, avg ${sleepData.averages.sleepDuration}h sleep, ${sleepData.averages.sleepScore} score`);
-
-      return {
-        success: true,
-        data: sleepData
-      };
-      
-    } catch (error) {
-      console.error('Error fetching sleep data:', error);
-      return {
-        success: false,
-        data: null,
-        error: `Failed to fetch sleep data: ${error.message}`
-      };
-    }
-  };
-
-  // Context resolution - handle follow-up questions
-  const resolveContextualQuery = (query: string): string => {
-    const lowerQuery = query.toLowerCase();
-    
-    // Context references that should use previous context
-    const contextualPhrases = [
-      'that day', 'that run', 'that activity', 'that date',
-      'the same day', 'how was weather', 'what was', 
-      'during that', 'on that day', 'from that', 'compare that'
-    ];
-    
-    const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
-    
-    if (hasContextualReference && context.lastDate && context.lastActivities) {
-      console.log(`🔗 Contextual query detected! Applying context: ${context.lastDate}`);
-      
-      // Replace contextual references with specific context
-      let resolvedQuery = query;
-      
-      if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day')) {
-        resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, context.lastDate || '');
-      }
-      
-      if (lowerQuery.includes('how was weather')) {
-        resolvedQuery = `weather on ${context.lastDate}`;
-      }
-      
-      if (lowerQuery.includes('what was')) {
-        resolvedQuery = resolvedQuery.replace(/what was/gi, `what was on ${context.lastDate}`);
-      }
-      
-      // NEW: Handle "compare that" to maintain activity context
-      if (lowerQuery.includes('compare that')) {
-        resolvedQuery = `compare my run from ${context.lastDate} to my average`;
-      }
-      
-      console.log(`🔗 Resolved query: "${query}" → "${resolvedQuery}"`);
-      return resolvedQuery;
-    }
-    
-    return query; // No context needed
+    return correctedQuery;
   };
 
   // Extract date string from query for context saving
@@ -742,23 +379,6 @@ export default function CoachNew() {
     if (daysMatch) return `last ${daysMatch[1]} days`;
     
     return null;
-  };
-
-  // Extract activity details from MCP responses for context
-  const extractActivityDetails = (mcpResponses: MCPResponse[]) => {
-    const activityDetails: any[] = [];
-    
-    mcpResponses.forEach(response => {
-      if (response.success && response.endpoint === 'get-activity-details' && response.data?.content) {
-        response.data.content.forEach((item: any) => {
-          if (item.text && item.text.includes('km') && item.text.includes('bpm')) {
-            activityDetails.push(item.text);
-          }
-        });
-      }
-    });
-    
-    return activityDetails.join('\n');
   };
 
   // Dynamic date parsing system (handles ANY date query format)
@@ -1056,7 +676,507 @@ export default function CoachNew() {
     return responses;
   };
 
-  // Smart data fetching - only get what the user actually asks for
+  // Enhanced context-aware query resolution
+  const resolveContextualQuery = (query: string): string => {
+    const correctedQuery = correctTypos(query);
+    const lowerQuery = correctedQuery.toLowerCase();
+    
+    // Context references that should use previous context
+    const contextualPhrases = [
+      'that day', 'that run', 'that activity', 'that date',
+      'the same day', 'how was weather', 'what was', 
+      'during that', 'on that day', 'from that', 'compare that',
+      'how did that affect', 'how did that impact', 'effect on',
+      'impact on', 'because of that', 'due to that'
+    ];
+    
+    const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
+    
+    // Smart contextual resolution with conversation history
+    if (hasContextualReference && context.conversationHistory && context.conversationHistory.length > 0) {
+      const lastQuery = context.conversationHistory[context.conversationHistory.length - 1];
+      
+      console.log(`🔗 Contextual query detected! Last query context:`, {
+        lastQuery: lastQuery.query.substring(0, 50),
+        lastIntent: lastQuery.intent,
+        lastDateRange: lastQuery.dateRange
+      });
+      
+      let resolvedQuery = correctedQuery;
+      
+      // If the last query was about sleep and current is about running, infer same date
+      if (lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
+        if (lastQuery.dateRange) {
+          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          resolvedQuery = `how did my run on ${dateStr} go`;
+          console.log(`🎯 Smart context: Sleep query about ${dateStr} → Run query about same date`);
+        }
+      }
+      
+      // If asking about "that day" or similar, use the last date context
+      if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day')) {
+        if (lastQuery.dateRange) {
+          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
+        }
+      }
+      
+      // Handle "how did that affect" type queries
+      if (lowerQuery.includes('how did that affect') || lowerQuery.includes('how did that impact')) {
+        if (lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
+          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          resolvedQuery = `how did my sleep on ${dateStr} affect my run performance`;
+        }
+      }
+      
+      console.log(`🔗 Resolved contextual query: "${query}" → "${resolvedQuery}"`);
+      return resolvedQuery;
+    }
+    
+    return correctedQuery;
+  };
+
+  // Check if we can reuse cached data for the same date range
+  const canReuseCachedData = (intent: QueryIntent): boolean => {
+    if (!context.cachedData || !context.cachedData.fetchedAt) {
+      return false;
+    }
+    
+    // Only reuse data if fetched within last 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    if (context.cachedData.fetchedAt < fiveMinutesAgo) {
+      console.log('🕒 Cached data too old, will refetch');
+      return false;
+    }
+    
+    // Check if date ranges match
+    if (intent.dateRange && context.cachedData.dateRange) {
+      const sameStartDate = intent.dateRange.startDate.getTime() === context.cachedData.dateRange.startDate.getTime();
+      const sameEndDate = intent.dateRange.endDate.getTime() === context.cachedData.dateRange.endDate.getTime();
+      
+      if (sameStartDate && sameEndDate) {
+        console.log('✅ Found cached data for same date range, reusing...');
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Enhanced analyzeQueryIntent with typo correction
+  const analyzeQueryIntent = (query: string): QueryIntent => {
+    // First apply typo correction
+    const correctedQuery = correctTypos(query);
+    const lowerQuery = correctedQuery.toLowerCase();
+    
+    // Enhanced keywords with common variations and typos
+    const nutritionKeywords = [
+      'nutrition', 'nutriotn', 'nutriton', 'food', 'foods', 'calories', 'protein', 'carbs', 'fat', 'fiber',
+      'macro', 'macros', 'diet', 'eating', 'meal', 'meals', 'consumed', 'intake', 'fueling', 'fuel',
+      'ate', 'breakfast', 'lunch', 'dinner', 'snack'
+    ];
+    
+    const runningKeywords = [
+      'run', 'runs', 'running', 'runn', 'runnign', 'pace', 'heart rate', 'hr', 'activity', 'workout', 'exercise',
+      'training', 'distance', 'speed', 'power', 'zones', 'strava', 'jog', 'jogging'
+    ];
+    
+    const sleepKeywords = [
+      'sleep', 'slepe', 'slep', 'sleap', 'sleeo', 'sleeping', 'slept', 'bedtime', 'wake', 'woke', 'rest', 'recovery',
+      'tired', 'fatigue', 'readiness', 'oura', 'sleep score', 'sleep quality',
+      'deep sleep', 'rem sleep', 'light sleep', 'sleep duration', 'sleep efficiency'
+    ];
+    
+    const hasNutritionKeywords = nutritionKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasRunningKeywords = runningKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasSleepKeywords = sleepKeywords.some(keyword => lowerQuery.includes(keyword));
+    const isNutritionPerformanceQuery = detectNutritionPerformanceQuery(correctedQuery);
+    
+    // Parse date range for data fetching
+    const { startDate, endDate } = parseDateQuery(correctedQuery);
+    
+    let intent: QueryIntent;
+    
+    // Determine data needs based on keyword combinations
+    const needsNutrition = hasNutritionKeywords || isNutritionPerformanceQuery;
+    const needsRunning = hasRunningKeywords || isNutritionPerformanceQuery;
+    const needsSleep = hasSleepKeywords;
+    
+    // Determine query type based on combinations
+    if (needsNutrition && needsRunning && needsSleep) {
+      intent = {
+        type: 'all_data',
+        needsNutrition: true,
+        needsRunning: true,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        runningDataTypes: ['activity_details', 'basic_stats'],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+        isSmartTiming: isNutritionPerformanceQuery
+      };
+    } else if (needsSleep && needsRunning) {
+      intent = {
+        type: 'sleep_and_running',
+        needsNutrition: false,
+        needsRunning: true,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        runningDataTypes: ['activity_details', 'basic_stats'],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+      };
+    } else if (needsSleep && needsNutrition) {
+      intent = {
+        type: 'sleep_and_nutrition',
+        needsNutrition: true,
+        needsRunning: false,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+      };
+    } else if (needsSleep) {
+      intent = {
+        type: 'sleep_only',
+        needsNutrition: false,
+        needsRunning: false,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+      };
+    } else if (isNutritionPerformanceQuery || (needsNutrition && needsRunning)) {
+      intent = {
+        type: 'nutrition_and_running',
+        needsNutrition: true,
+        needsRunning: true,
+        needsSleep: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        runningDataTypes: ['activity_details', 'basic_stats'],
+        isSmartTiming: isNutritionPerformanceQuery
+      };
+    } else if (needsNutrition) {
+      intent = {
+        type: 'nutrition_only',
+        needsNutrition: true,
+        needsRunning: false,
+        needsSleep: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber']
+      };
+    } else if (needsRunning) {
+      intent = {
+        type: 'running_only',
+        needsNutrition: false,
+        needsRunning: true,
+        needsSleep: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        runningDataTypes: determineRunningDataTypes(correctedQuery)
+      };
+    } else {
+      // General query - might need some data for context
+      intent = {
+        type: 'general',
+        needsNutrition: true,
+        needsRunning: true,
+        needsSleep: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein'],
+        runningDataTypes: ['activity_details']
+      };
+    }
+    
+    console.log(`🧠 Query intent analysis (with typo correction):`, {
+      originalQuery: query.substring(0, 50) + '...',
+      correctedQuery: correctedQuery.substring(0, 50) + '...',
+      intent: intent.type,
+      needsNutrition: intent.needsNutrition,
+      needsRunning: intent.needsRunning,
+      needsSleep: intent.needsSleep,
+      hasNutritionKeywords,
+      hasRunningKeywords,
+      hasSleepKeywords,
+      isNutritionPerformanceQuery,
+      dateRange: intent.dateRange ? 
+        `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
+        'default range'
+    });
+    
+    return intent;
+  };
+
+  // Determine what running data types are needed based on query
+  const determineRunningDataTypes = (query: string): string[] => {
+    const lowerQuery = query.toLowerCase();
+    const dataTypes = ['activity_details']; // Always include basic details
+    
+    if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
+        lowerQuery.includes('pace') || lowerQuery.includes('power') ||
+        lowerQuery.includes('analyze') || lowerQuery.includes('distribution')) {
+      dataTypes.push('activity_streams');
+    }
+    
+    if (lowerQuery.includes('zone') || lowerQuery.includes('hr')) {
+      dataTypes.push('athlete_zones');
+    }
+    
+    if (lowerQuery.includes('stats') || lowerQuery.includes('total') || lowerQuery.includes('summary')) {
+      dataTypes.push('athlete_stats', 'athlete_profile');
+    }
+    
+    return dataTypes;
+  };
+
+  // Fetch nutrition data for a specific date range
+  const fetchNutritionDataForRange = async (startDate: Date, endDate: Date): Promise<NutritionResponse> => {
+    try {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      console.log(`🥗 Fetching nutrition data from ${startDateStr} to ${endDateStr}`);
+
+      const nutritionQuery = query(
+        collection(db, "nutritionLogs"),
+        where("date", ">=", startDateStr),
+        where("date", "<=", endDateStr),
+        orderBy("date", "desc")
+      );
+
+      const snapshot = await getDocs(nutritionQuery);
+      
+      if (snapshot.empty) {
+        console.log(`⚠️ No nutrition data found for date range ${startDateStr} to ${endDateStr}`);
+        return {
+          success: false,
+          data: null,
+          error: `No nutrition data found for the specified date range`
+        };
+      }
+
+      // Process nutrition data into a structured format
+      const nutritionData = {
+        dateRange: { startDate: startDateStr, endDate: endDateStr },
+        totalDays: snapshot.docs.length,
+        dailyLogs: [] as any[],
+        totals: {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0
+        },
+        averages: {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0
+        }
+      };
+
+             // Process each day's data based on actual Firestore structure
+       snapshot.docs.forEach(doc => {
+         const dayData = doc.data();
+         const totals = dayData.totals || {};
+         const entries = dayData.entries || [];
+         
+         // Use document ID as date if not in data
+         const dateValue = dayData.date || doc.id;
+         
+         nutritionData.dailyLogs.push({
+           date: dateValue,
+           calories: totals.calories || 0,
+           protein: totals.protein || 0,
+           carbs: totals.carbs || 0,
+           fat: totals.fat || 0,
+           fiber: totals.fiber || 0,
+           entries: entries, // Include individual food entries
+           lastUpdated: dayData.lastUpdated || null
+         });
+         
+         // Add to totals
+         nutritionData.totals.calories += totals.calories || 0;
+         nutritionData.totals.protein += totals.protein || 0;
+         nutritionData.totals.carbs += totals.carbs || 0;
+         nutritionData.totals.fat += totals.fat || 0;
+         nutritionData.totals.fiber += totals.fiber || 0;
+       });
+
+      // Calculate averages
+      const dayCount = nutritionData.dailyLogs.length;
+      if (dayCount > 0) {
+        nutritionData.averages.calories = Math.round(nutritionData.totals.calories / dayCount);
+        nutritionData.averages.protein = Math.round(nutritionData.totals.protein / dayCount);
+        nutritionData.averages.carbs = Math.round(nutritionData.totals.carbs / dayCount);
+        nutritionData.averages.fat = Math.round(nutritionData.totals.fat / dayCount);
+        nutritionData.averages.fiber = Math.round(nutritionData.totals.fiber / dayCount);
+      }
+
+      console.log(`✅ Nutrition data processed: ${dayCount} days, avg ${nutritionData.averages.calories} cal/day`);
+
+      return {
+        success: true,
+        data: nutritionData,
+        error: undefined
+      };
+      
+    } catch (error) {
+      console.error('Error fetching nutrition data:', error);
+      return {
+        success: false,
+        data: null,
+        error: `Failed to fetch nutrition data: ${error.message}`
+      };
+    }
+  };
+
+  // Fetch sleep data for a specific date range from Firestore oura_sleep_data collection
+  const fetchSleepDataForRange = async (startDate: Date, endDate: Date): Promise<SleepResponse> => {
+    try {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      console.log(`😴 Fetching sleep data from ${startDateStr} to ${endDateStr}`);
+
+      // Generate array of dates to check
+      const datesToCheck = [];
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        datesToCheck.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Fetch sleep documents using document IDs (mihir_jain_YYYY-MM-DD format)
+      const sleepPromises = datesToCheck.map(async (dateStr) => {
+        const docId = `mihir_jain_${dateStr}`;
+        console.log(`🔍 Trying to fetch sleep document: ${docId}`);
+        try {
+          const sleepDoc = await getDoc(doc(db, 'oura_sleep_data', docId));
+          console.log(`📄 Document ${docId} exists: ${sleepDoc.exists()}`);
+          if (sleepDoc.exists()) {
+            console.log(`✅ Found sleep data for ${dateStr}:`, sleepDoc.data());
+            return { date: dateStr, ...sleepDoc.data() };
+          }
+          console.log(`❌ Document ${docId} does not exist`);
+          return null;
+        } catch (error) {
+          console.error(`❌ Error fetching ${docId}:`, error);
+          return null;
+        }
+      });
+
+      const sleepResults = await Promise.all(sleepPromises);
+      const validSleepData = sleepResults.filter(data => data !== null);
+      
+      if (validSleepData.length === 0) {
+        console.log(`⚠️ No sleep data found for date range ${startDateStr} to ${endDateStr}`);
+        return {
+          success: false,
+          data: null,
+          error: `No sleep data found for the specified date range`
+        };
+      }
+
+      // Process sleep data into a structured format
+      const sleepData = {
+        dateRange: { startDate: startDateStr, endDate: endDateStr },
+        totalDays: validSleepData.length,
+        dailyLogs: [] as any[],
+        averages: {
+          sleepDuration: 0,
+          sleepScore: 0,
+          averageHeartRate: 0,
+          readinessScore: 0,
+          deepSleep: 0,
+          remSleep: 0,
+          lightSleep: 0
+        }
+      };
+
+      let totalSleepDuration = 0;
+      let totalSleepScore = 0;
+      let totalHeartRate = 0;
+      let totalReadinessScore = 0;
+      let totalDeepSleep = 0;
+      let totalRemSleep = 0;
+      let totalLightSleep = 0;
+      let heartRateCount = 0;
+
+      // Process each day's sleep data
+      validSleepData.forEach(dayData => {
+        const sleep = dayData as any;
+        const readiness = dayData as any;
+        
+        const sleepDurationHours = sleep.total_sleep_duration ? sleep.total_sleep_duration / 3600 : 0;
+        const avgHeartRate = sleep.average_heart_rate || null;
+        
+        sleepData.dailyLogs.push({
+          date: dayData.date,
+          sleepDuration: Math.round(sleepDurationHours * 10) / 10, // Hours, 1 decimal
+          sleepScore: sleep.sleep_score || 0,
+          averageHeartRate: avgHeartRate,
+          readinessScore: readiness.readiness_score || 0,
+          deepSleep: sleep.deep_sleep_duration ? Math.round(sleep.deep_sleep_duration / 3600 * 10) / 10 : 0,
+          remSleep: sleep.rem_sleep_duration ? Math.round(sleep.rem_sleep_duration / 3600 * 10) / 10 : 0,
+          lightSleep: sleep.light_sleep_duration ? Math.round(sleep.light_sleep_duration / 3600 * 10) / 10 : 0,
+          sleepEfficiency: sleep.sleep_efficiency || 0,
+          bedtimeStart: sleep.bedtime_start,
+          bedtimeEnd: sleep.bedtime_end
+        });
+        
+        // Add to totals for averaging
+        totalSleepDuration += sleepDurationHours;
+        totalSleepScore += sleep.sleep_score || 0;
+        totalReadinessScore += readiness.readiness_score || 0;
+        totalDeepSleep += sleep.deep_sleep_duration ? sleep.deep_sleep_duration / 3600 : 0;
+        totalRemSleep += sleep.rem_sleep_duration ? sleep.rem_sleep_duration / 3600 : 0;
+        totalLightSleep += sleep.light_sleep_duration ? sleep.light_sleep_duration / 3600 : 0;
+        
+        if (avgHeartRate && avgHeartRate > 0) {
+          totalHeartRate += avgHeartRate;
+          heartRateCount++;
+        }
+      });
+
+      // Calculate averages
+      const dayCount = validSleepData.length;
+      if (dayCount > 0) {
+        sleepData.averages.sleepDuration = Math.round(totalSleepDuration / dayCount * 10) / 10;
+        sleepData.averages.sleepScore = Math.round(totalSleepScore / dayCount);
+        sleepData.averages.readinessScore = Math.round(totalReadinessScore / dayCount);
+        sleepData.averages.deepSleep = Math.round(totalDeepSleep / dayCount * 10) / 10;
+        sleepData.averages.remSleep = Math.round(totalRemSleep / dayCount * 10) / 10;
+        sleepData.averages.lightSleep = Math.round(totalLightSleep / dayCount * 10) / 10;
+        sleepData.averages.averageHeartRate = heartRateCount > 0 ? Math.round(totalHeartRate / heartRateCount) : 0;
+      }
+
+      console.log(`✅ Sleep data processed: ${dayCount} days, avg ${sleepData.averages.sleepDuration}h sleep, ${sleepData.averages.sleepScore} score`);
+
+      return {
+        success: true,
+        data: sleepData
+      };
+      
+    } catch (error) {
+      console.error('Error fetching sleep data:', error);
+      return {
+        success: false,
+        data: null,
+        error: `Failed to fetch sleep data: ${error.message}`
+      };
+    }
+  };
+
+  // Smart data fetching - enhanced with caching and context preservation
   const getDataForQuery = async (query: string) => {
     // Step 1: Analyze query intent to determine what data to fetch
     const intent = analyzeQueryIntent(query);
@@ -1065,13 +1185,30 @@ export default function CoachNew() {
       intent: intent.type,
       needsNutrition: intent.needsNutrition,
       needsRunning: intent.needsRunning,
+      needsSleep: intent.needsSleep,
       dateRange: intent.dateRange ? 
         `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
         'default range'
     });
     
+    // Step 1.5: Check if we can reuse cached data
+    if (canReuseCachedData(intent)) {
+      console.log('♻️ Reusing cached data from previous query');
+      return {
+        intent: intent.type,
+        needsNutrition: intent.needsNutrition,
+        needsRunning: intent.needsRunning,
+        needsSleep: intent.needsSleep,
+        nutritionData: context.cachedData?.nutritionData || null,
+        sleepData: context.cachedData?.sleepData || null,
+        mcpResponses: context.cachedData?.mcpResponses || [],
+        dateRange: intent.dateRange
+      };
+    }
+    
     let mcpResponses: MCPResponse[] = [];
     let nutritionResponse: NutritionResponse | null = null;
+    let sleepResponse: SleepResponse | null = null;
     
     // Step 2: Fetch running data first if smart timing is needed
     if (intent.needsRunning) {
@@ -1223,8 +1360,6 @@ export default function CoachNew() {
     }
     
     // Step 5: Fetch sleep data if needed
-    let sleepResponse: SleepResponse | null = null;
-    
     if (intent.needsSleep) {
       const sleepDateRange = intent.dateRange || {
         startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
@@ -1241,7 +1376,23 @@ export default function CoachNew() {
       }
     }
     
-    // Step 6: Return combined result
+    // Step 6: Cache the fetched data
+    const cacheData = {
+      mcpResponses,
+      nutritionData: nutritionResponse?.success ? nutritionResponse.data : null,
+      sleepData: sleepResponse?.success ? sleepResponse.data : null,
+      dateRange: intent.dateRange,
+      fetchedAt: new Date()
+    };
+    
+    setContext(prev => ({
+      ...prev,
+      cachedData: cacheData
+    }));
+    
+    console.log('💾 Data cached for potential reuse');
+    
+    // Step 7: Return combined result
     return { 
       intent: intent.type,
       needsNutrition: intent.needsNutrition,
@@ -1340,126 +1491,97 @@ export default function CoachNew() {
     }
   };
 
-  // Main message handler - DATA FIRST approach with context
+  // Extract activity details from MCP responses for context
+  const extractActivityDetails = (mcpResponses: MCPResponse[]) => {
+    const activityDetails: any[] = [];
+    
+    mcpResponses.forEach(response => {
+      if (response.success && response.endpoint === 'get-activity-details' && response.data?.content) {
+        response.data.content.forEach((item: any) => {
+          if (item.text && item.text.includes('km') && item.text.includes('bpm')) {
+            activityDetails.push(item.text);
+          }
+        });
+      }
+    });
+    
+    return activityDetails.join('\n');
+  };
+
+  // Enhanced handleSendMessage with context preservation
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
+    const originalQuery = input.trim();
+    const resolvedQuery = resolveContextualQuery(originalQuery);
+    
+    console.log(`🔗 Processing query: "${originalQuery}" → "${resolvedQuery}"`);
+
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: originalQuery,
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const originalInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
-      // Step 1: Resolve contextual references from previous queries
-      const resolvedInput = resolveContextualQuery(originalInput);
-      console.log(`🔍 Processing query: "${resolvedInput}"`);
+      // Get data for the resolved query
+      const queryData = await getDataForQuery(resolvedQuery);
       
-      // Step 2: Get the RIGHT data first (no Claude guessing)
-      const dataResult = await getDataForQuery(resolvedInput);
-      const { intent, needsNutrition, needsRunning, needsSleep, nutritionData, sleepData, mcpResponses, dateRange } = dataResult;
+      // Save context for future queries
+      const dateFromQuery = extractDateFromQuery(resolvedQuery);
+      const activityDetails = extractActivityDetails(queryData.mcpResponses);
       
-      console.log(`✅ Data fetching complete:`, {
-        intent,
-        nutritionData: nutritionData ? `${nutritionData.totalDays} days` : 'none',
-        sleepData: sleepData ? `${sleepData.totalDays} days` : 'none',
-        mcpResponses: `${mcpResponses.length} responses`
-      });
-
-      // COST CONTROL: Only call Claude if we have meaningful data
-      if (!validateDataForClaude(mcpResponses, nutritionData, sleepData)) {
-        // Check if it's a network error
-        const networkError = mcpResponses.some(r => r.error?.includes('fetch') || r.error?.includes('network'));
+      // Update conversation history and context
+      setContext(prev => ({
+        ...prev,
+        lastDate: dateFromQuery,
+        lastDateParsed: queryData.dateRange?.startDate,
+        lastActivities: activityDetails,
+        lastQueryType: queryData.intent,
+        conversationHistory: [
+          ...(prev.conversationHistory || []).slice(-9), // Keep last 10 entries
+          {
+            query: resolvedQuery,
+            intent: queryData.intent,
+            dateRange: queryData.dateRange,
+            timestamp: new Date()
+          }
+        ]
+      }));
+      
+      // Validate data and generate response
+      if (validateDataForClaude(queryData.mcpResponses, queryData.nutritionData, queryData.sleepData)) {
+        const response = await generateResponseWithClaude(resolvedQuery, queryData, queryData.mcpResponses);
         
-        const errorMessage = networkError ? 
-        `🌐 **Network Connection Issue**
-
-Unable to connect to Strava data server for **"${originalInput}"**
-
-**Network troubleshooting:**
-- Check your internet connection
-- Try refreshing the page (Cmd+Shift+R)
-- Switch networks if you recently changed WiFi/cellular
-- Wait a moment and try again
-
-**Error details:** Network request failed (ERR_NETWORK_CHANGED)` :
-        
-        `❌ **Data Access Issue**
-
-I couldn't find sufficient data to analyze for **"${originalInput}"**
-
-**Possible reasons:**
-- The requested activity/date wasn't found
-- Data isn't available or properly synced  
-- Privacy settings may be blocking access
-- Date format issue (using 2025 for current year)
-
-**Next Steps:**
-1. Check if the activity exists in your Strava account
-2. Try: "show my recent runs" to see what's available
-3. Use a different date format
-4. Verify Strava sync and privacy settings
-
-**Cost-saving note:** Skipped expensive Claude API call since no meaningful data was found.`;
-
         const assistantMessage: Message = {
           role: 'assistant',
-          content: errorMessage,
+          content: response,
           timestamp: new Date()
         };
+        
         setMessages(prev => [...prev, assistantMessage]);
-        setIsLoading(false);
-        return;
+        console.log('✅ Enhanced Coach response generated with context preservation');
+      } else {
+        const fallbackMessage: Message = {
+          role: 'assistant',
+          content: "I couldn't find sufficient data to answer your question. Please try asking about a different time period or check if your data sources are connected properly.",
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, fallbackMessage]);
       }
-
-      // Step 3: Generate comprehensive response with Claude (using real data)
-      const responseText = await generateResponseWithClaude(resolvedInput, { 
-        type: intent, 
-        needsNutrition, 
-        needsRunning, 
-        needsSleep,
-        nutritionData,
-        sleepData
-      }, mcpResponses);
-
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: responseText,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
       
-      // Step 4: Save context for future queries
-      if ((needsRunning || needsNutrition) && dateRange) {
-        const contextDate = extractDateFromQuery(originalInput) || extractDateFromQuery(resolvedInput);
-        const activityDetails = extractActivityDetails(mcpResponses);
-        
-        setContext({
-          lastDate: contextDate,
-          lastDateParsed: dateRange.startDate,
-          lastActivityIds: [], // Will be populated from MCP responses if needed
-          lastQueryType: intent,
-          lastActivities: activityDetails || (nutritionData ? `Nutrition data: ${nutritionData.totalDays} days` : 'No data')
-        });
-        
-        console.log(`💾 Context saved: ${contextDate} with ${intent} data`);
-      }
-
     } catch (error) {
-      console.error('❌ Coach error:', error);
+      console.error('❌ Enhanced Coach error:', error);
       
       const errorMessage: Message = {
         role: 'assistant',
-        content: `Sorry, I encountered an error processing your request. The MCP server is ${stravaStats.connected ? 'connected' : 'disconnected'}. Please try again or ask a different question.`,
+        content: "I'm having trouble processing your request right now. Please try again in a moment.",
         timestamp: new Date()
       };
-
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
