@@ -1,14 +1,53 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Utensils } from "lucide-react";
 import { Link } from "react-router-dom";
-import { 
-  getTodayDateString, 
-  loadNutritionLogs, 
-  getWeeklyAverages
-} from "@/lib/nutritionUtils";
-import { DailyLog } from "@/types/nutrition"; // Import DailyLog type
+import { getTodayDateString } from "@/lib/nutritionUtils";
+import { DailyLog } from "@/types/nutrition";
+
+// Fallback utility functions
+const loadNutritionLogs = () => {
+  try {
+    const logs = localStorage.getItem('nutritionLogs');
+    return logs ? JSON.parse(logs) : {};
+  } catch (error) {
+    console.error('Error loading nutrition logs:', error);
+    return {};
+  }
+};
+
+const getWeeklyAverages = (logs: Record<string, DailyLog>) => {
+  const today = new Date();
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  const weeklyEntries = Object.entries(logs).filter(([dateStr]) => {
+    const date = new Date(dateStr);
+    return date >= weekAgo && date <= today;
+  });
+
+  if (weeklyEntries.length === 0) {
+    return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+  }
+
+  const totals = weeklyEntries.reduce((acc, [_, log]) => ({
+    calories: acc.calories + (log.totals?.calories || 0),
+    protein: acc.protein + (log.totals?.protein || 0),
+    carbs: acc.carbs + (log.totals?.carbs || 0),
+    fat: acc.fat + (log.totals?.fat || 0),
+    fiber: acc.fiber + (log.totals?.fiber || 0),
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  const avgDivisor = weeklyEntries.length;
+  return {
+    calories: Math.round(totals.calories / avgDivisor),
+    protein: Math.round(totals.protein / avgDivisor),
+    carbs: Math.round(totals.carbs / avgDivisor),
+    fat: Math.round(totals.fat / avgDivisor),
+    fiber: Math.round(totals.fiber / avgDivisor),
+  };
+};
 
 export function NutritionWidget() {
   // Initialize with default structure to avoid null errors
@@ -21,9 +60,9 @@ export function NutritionWidget() {
   };
 
   const [todayData, setTodayData] = useState<DailyLog["totals"] | null>(null);
-  const [weeklyData, setWeeklyData] = useState<DailyLog["totals"]>(defaultTotals); // Initialize with default
+  const [weeklyData, setWeeklyData] = useState<DailyLog["totals"]>(defaultTotals);
   const [hasData, setHasData] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     setIsLoading(true);
@@ -37,7 +76,7 @@ export function NutritionWidget() {
         setTodayData(logs[today].totals);
         setHasData(true);
       } else {
-        setTodayData(null); // Ensure todayData is null if no data
+        setTodayData(null);
         setHasData(false);
       }
       
@@ -46,7 +85,6 @@ export function NutritionWidget() {
       setWeeklyData(weeklyAverages);
     } catch (error) {
       console.error("Error loading nutrition data:", error);
-      // Keep default values if error occurs
       setTodayData(null);
       setWeeklyData(defaultTotals);
       setHasData(false);
@@ -140,4 +178,3 @@ export function NutritionWidget() {
     </div>
   );
 }
-

@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { vegetarianFoods, Food } from "@/data/vegetarianFoods";
+import { vegetarianFoods } from "@/data/vegetarianFoods";
 import { cn } from "@/lib/utils";
 
 interface CustomFoodSelectProps {
@@ -86,4 +87,3 @@ export function CustomFoodSelect({ value, onSelect }: CustomFoodSelectProps) {
     </div>
   );
 }
-
