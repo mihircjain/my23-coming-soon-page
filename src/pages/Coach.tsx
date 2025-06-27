@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Activity, Bot, Zap, TrendingUp, Flame, Utensils, Target, Heart, ArrowLeft, Sparkles, Trophy, Calendar, Users, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '@/lib/firebaseConfig';
-import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit, getDoc, doc } from 'firebase/firestore';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -565,14 +565,18 @@ export default function CoachNew() {
       // Fetch sleep documents using document IDs (mihir_jain_YYYY-MM-DD format)
       const sleepPromises = datesToCheck.map(async (dateStr) => {
         const docId = `mihir_jain_${dateStr}`;
+        console.log(`🔍 Trying to fetch sleep document: ${docId}`);
         try {
-          const sleepDoc = await db.collection('oura_sleep_data').doc(docId).get();
-          if (sleepDoc.exists) {
+          const sleepDoc = await getDoc(doc(db, 'oura_sleep_data', docId));
+          console.log(`📄 Document ${docId} exists: ${sleepDoc.exists()}`);
+          if (sleepDoc.exists()) {
+            console.log(`✅ Found sleep data for ${dateStr}:`, sleepDoc.data());
             return { date: dateStr, ...sleepDoc.data() };
           }
+          console.log(`❌ Document ${docId} does not exist`);
           return null;
         } catch (error) {
-          console.log(`Sleep data not found for ${dateStr}`);
+          console.error(`❌ Error fetching ${docId}:`, error);
           return null;
         }
       });
