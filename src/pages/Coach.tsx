@@ -2262,77 +2262,79 @@ export default function CoachNew() {
         </div>
       </header>
 
-      {/* Main Layout with Sidebar */}
+      {/* Main Layout with Sidebars */}
       <div className="max-w-7xl mx-auto flex">
-        {/* Sidebar */}
+        {/* Left Sidebar - Chat Sessions */}
         <aside className="w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
           <div className="p-4">
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Weekly Overview</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-gray-900">Chat Sessions</h2>
+              <button
+                onClick={createNewSession}
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="New Chat"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
             
-            {metricsLoading ? (
-              <div className="space-y-4">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-                </div>
-                <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-                </div>
-                <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-3 rounded-lg border border-red-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-red-600 text-sm">🔥</span>
-                    <h3 className="text-sm font-medium text-gray-900">Calories Burned</h3>
+            <div className="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto">
+              {chatSessions.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">
+                    <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
                   </div>
-                  <p className="text-xl font-bold text-red-600">{weeklyMetrics?.caloriesBurned || 0}</p>
-                  <p className="text-xs text-gray-600">avg/day this week</p>
+                  <p className="text-sm text-gray-500">No chat sessions yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Start a conversation!</p>
                 </div>
-
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-green-600 text-sm">🥗</span>
-                    <h3 className="text-sm font-medium text-gray-900">Calories Consumed</h3>
-                  </div>
-                  <p className="text-xl font-bold text-green-600">{weeklyMetrics?.caloriesConsumed || 0}</p>
-                  <p className="text-xs text-gray-600">avg/day this week</p>
-                </div>
-
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-blue-600 text-sm">💪</span>
-                    <h3 className="text-sm font-medium text-gray-900">Protein</h3>
-                  </div>
-                  <p className="text-xl font-bold text-blue-600">{weeklyMetrics?.protein || 0}g</p>
-                  <p className="text-xs text-gray-600">avg/day this week</p>
-                </div>
-
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-purple-600 text-sm">🏃</span>
-                    <h3 className="text-sm font-medium text-gray-900">Activities</h3>
-                  </div>
-                  <p className="text-xs text-gray-700 leading-relaxed">
-                    {weeklyMetrics?.activities?.length > 0 
-                      ? weeklyMetrics.activities.join(', ')
-                      : 'No activities recorded'
-                    }
-                  </p>
-                </div>
-
-                {weeklyMetrics?.lastUpdated && (
-                  <p className="text-xs text-gray-500 text-center">
-                    Updated at {weeklyMetrics.lastUpdated}
-                  </p>
-                )}
-              </div>
-            )}
+              ) : (
+                chatSessions
+                  .sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())
+                  .map((session) => (
+                    <div
+                      key={session.id}
+                      onClick={() => loadSession(session.id)}
+                      className={`group cursor-pointer p-3 rounded-lg border transition-all duration-200 ${
+                        session.id === currentSessionId
+                          ? 'bg-blue-50 border-blue-200 shadow-sm'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`text-sm font-medium truncate ${
+                            session.id === currentSessionId ? 'text-blue-900' : 'text-gray-900'
+                          }`}>
+                            {session.title}
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {session.messages.length} messages
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {session.lastUpdated.toLocaleDateString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSession(session.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all duration-200"
+                          title="Delete session"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
           </div>
         </aside>
 
@@ -2548,6 +2550,78 @@ export default function CoachNew() {
           </div>
         </div>
         </main>
+
+        {/* Right Sidebar - Weekly Metrics */}
+        <aside className="w-64 bg-white border-l border-gray-200 h-screen sticky top-0">
+          <div className="p-4">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">Weekly Overview</h2>
+            
+            {metricsLoading ? (
+              <div className="space-y-4">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-3 rounded-lg border border-red-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-red-600 text-sm">🔥</span>
+                    <h3 className="text-sm font-medium text-gray-900">Calories Burned</h3>
+                  </div>
+                  <p className="text-xl font-bold text-red-600">{weeklyMetrics?.caloriesBurned || 0}</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-green-600 text-sm">🥗</span>
+                    <h3 className="text-sm font-medium text-gray-900">Calories Consumed</h3>
+                  </div>
+                  <p className="text-xl font-bold text-green-600">{weeklyMetrics?.caloriesConsumed || 0}</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-blue-600 text-sm">💪</span>
+                    <h3 className="text-sm font-medium text-gray-900">Protein</h3>
+                  </div>
+                  <p className="text-xl font-bold text-blue-600">{weeklyMetrics?.protein || 0}g</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-purple-600 text-sm">🏃</span>
+                    <h3 className="text-sm font-medium text-gray-900">Activities</h3>
+                  </div>
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {weeklyMetrics?.activities?.length > 0 
+                      ? weeklyMetrics.activities.join(', ')
+                      : 'No activities recorded'
+                    }
+                  </p>
+                </div>
+
+                {weeklyMetrics?.lastUpdated && (
+                  <p className="text-xs text-gray-500 text-center">
+                    Updated at {weeklyMetrics.lastUpdated}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );
