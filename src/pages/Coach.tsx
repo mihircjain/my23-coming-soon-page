@@ -1113,11 +1113,18 @@ export default function CoachNew() {
 
       // Process each day's sleep data
       validSleepData.forEach(dayData => {
-        const sleep = dayData as any;
-        const readiness = dayData as any;
+        const sleep = (dayData as any).sleep || {};
+        const readiness = (dayData as any).readiness || {};
         
         const sleepDurationHours = sleep.total_sleep_duration ? sleep.total_sleep_duration / 3600 : 0;
         const avgHeartRate = sleep.average_heart_rate || null;
+        
+        console.log(`🔍 Processing sleep data for ${dayData.date}:`, {
+          sleepDurationHours: sleepDurationHours.toFixed(1),
+          sleepScore: sleep.sleep_score || 0,
+          readinessScore: readiness.readiness_score || 0,
+          hasValidData: sleepDurationHours > 0
+        });
         
         sleepData.dailyLogs.push({
           date: dayData.date,
@@ -1130,7 +1137,10 @@ export default function CoachNew() {
           lightSleep: sleep.light_sleep_duration ? Math.round(sleep.light_sleep_duration / 3600 * 10) / 10 : 0,
           sleepEfficiency: sleep.sleep_efficiency || 0,
           bedtimeStart: sleep.bedtime_start,
-          bedtimeEnd: sleep.bedtime_end
+          bedtimeEnd: sleep.bedtime_end,
+          awakeTime: sleep.awake_time ? Math.round(sleep.awake_time / 60) : 0, // Convert to minutes
+          lowestHeartRate: sleep.lowest_heart_rate || 0,
+          respiratoryRate: sleep.respiratory_rate || 0
         });
         
         // Add to totals for averaging
