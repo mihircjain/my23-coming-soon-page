@@ -875,7 +875,7 @@ export default function CoachNew() {
     return correctedQuery;
   };
 
-  // Check if we can reuse cached data for the same date range - ENHANCED
+  // Check if we can reuse cached data for the same date range - ENHANCED WITH DATA TYPE CHECKING
   const canReuseCachedData = (intent: QueryIntent): boolean => {
     if (!context.cachedData || !context.cachedData.fetchedAt) {
       console.log('❌ No cached data available');
@@ -889,6 +889,23 @@ export default function CoachNew() {
       return false;
     }
     
+    // 🆕 CHECK IF CACHED DATA HAS ALL REQUIRED DATA TYPES
+    const hasRequiredNutrition = !intent.needsNutrition || (context.cachedData.nutritionData && context.cachedData.nutritionData.totalDays > 0);
+    const hasRequiredSleep = !intent.needsSleep || (context.cachedData.sleepData && context.cachedData.sleepData.totalDays > 0);
+    const hasRequiredRunning = !intent.needsRunning || (context.cachedData.mcpResponses && context.cachedData.mcpResponses.some(r => r.success));
+    
+    if (!hasRequiredNutrition || !hasRequiredSleep || !hasRequiredRunning) {
+      console.log('❌ Cached data missing required data types:', {
+        needsNutrition: intent.needsNutrition,
+        hasNutrition: !!context.cachedData.nutritionData,
+        needsSleep: intent.needsSleep,
+        hasSleep: !!context.cachedData.sleepData,
+        needsRunning: intent.needsRunning,
+        hasRunning: !!(context.cachedData.mcpResponses && context.cachedData.mcpResponses.length > 0)
+      });
+      return false;
+    }
+    
     // More flexible date range matching
     if (intent.dateRange && context.cachedData.dateRange) {
       const intentStart = intent.dateRange.startDate.getTime();
@@ -898,21 +915,21 @@ export default function CoachNew() {
       
       // Check for exact match first
       if (intentStart === cachedStart && intentEnd === cachedEnd) {
-        console.log('✅ Found exact cached data for same date range, reusing...');
+        console.log('✅ Found exact cached data with all required data types, reusing...');
         return true;
       }
       
       // Check for overlapping ranges (more flexible)
       const hasOverlap = intentStart <= cachedEnd && intentEnd >= cachedStart;
       if (hasOverlap) {
-        console.log('✅ Found overlapping cached data, reusing...');
+        console.log('✅ Found overlapping cached data with all required data types, reusing...');
         return true;
       }
     }
     
     // If no date range in intent but we have cached data from recent conversation, use it
     if (!intent.dateRange && context.cachedData.dateRange && context.conversationHistory && context.conversationHistory.length > 0) {
-      console.log('✅ No specific date in query, using recent cached data for context...');
+      console.log('✅ No specific date in query, using recent cached data with all required data types...');
       return true;
     }
     
@@ -1432,27 +1449,54 @@ export default function CoachNew() {
         'default range'
     });
     
-    // Step 1.5: Check if we can reuse cached data
-    if (canReuseCachedData(intent)) {
-      console.log('♻️ Reusing cached data from previous query');
+    // Step 1.5: Smart cache merging - reuse what we have, fetch what we need
+    let mcpResponses: MCPResponse[] = [];
+    let nutritionResponse: NutritionResponse | null = null;
+    let sleepResponse: SleepResponse | null = null;
+    
+    // Check what data we can reuse from cache
+    const canReuseCache = canReuseCachedData(intent);
+    const hasValidCache = context.cachedData && context.cachedData.fetchedAt;
+    
+    if (hasValidCache) {
+      console.log('🔍 Analyzing cached data for reuse...');
+      
+      // Reuse cached nutrition data if we have it and need it
+      if (intent.needsNutrition && context.cachedData.nutritionData) {
+        nutritionResponse = { success: true, data: context.cachedData.nutritionData };
+        console.log('♻️ Reusing cached nutrition data');
+      }
+      
+      // Reuse cached sleep data if we have it and need it
+      if (intent.needsSleep && context.cachedData.sleepData) {
+        sleepResponse = { success: true, data: context.cachedData.sleepData };
+        console.log('♻️ Reusing cached sleep data');
+      }
+      
+      // Reuse cached MCP data if we have it and need it
+      if (intent.needsRunning && context.cachedData.mcpResponses && context.cachedData.mcpResponses.length > 0) {
+        mcpResponses = context.cachedData.mcpResponses;
+        console.log('♻️ Reusing cached MCP/running data');
+      }
+    }
+    
+    // If we have all required data from cache, return early
+    if (canReuseCache) {
+      console.log('✅ All required data available in cache, no additional fetching needed');
       return {
         intent: intent.type,
         needsNutrition: intent.needsNutrition,
         needsRunning: intent.needsRunning,
         needsSleep: intent.needsSleep,
-        nutritionData: context.cachedData?.nutritionData || null,
-        sleepData: context.cachedData?.sleepData || null,
-        mcpResponses: context.cachedData?.mcpResponses || [],
+        nutritionData: nutritionResponse?.data || null,
+        sleepData: sleepResponse?.data || null,
+        mcpResponses: mcpResponses,
         dateRange: intent.dateRange
       };
     }
     
-    let mcpResponses: MCPResponse[] = [];
-    let nutritionResponse: NutritionResponse | null = null;
-    let sleepResponse: SleepResponse | null = null;
-    
-    // Step 2: Fetch running data first if smart timing is needed
-    if (intent.needsRunning) {
+    // Step 2: Fetch running data if needed and not cached
+    if (intent.needsRunning && mcpResponses.length === 0) {
       console.log(`🏃 Fetching MCP running data...`);
       
       // Parse date requirements for MCP calls
@@ -1588,8 +1632,8 @@ export default function CoachNew() {
       }
     }
 
-    // Step 4: Fetch nutrition data if needed
-    if (intent.needsNutrition && nutritionDateRange) {
+    // Step 4: Fetch nutrition data if needed and not cached
+    if (intent.needsNutrition && nutritionDateRange && !nutritionResponse) {
       console.log(`🥗 Fetching nutrition data for date range...`);
       nutritionResponse = await fetchNutritionDataForRange(nutritionDateRange.startDate, nutritionDateRange.endDate);
       
@@ -1600,8 +1644,8 @@ export default function CoachNew() {
       }
     }
     
-    // Step 5: Fetch sleep data if needed
-    if (intent.needsSleep) {
+    // Step 5: Fetch sleep data if needed and not cached
+    if (intent.needsSleep && !sleepResponse) {
       const sleepDateRange = intent.dateRange || {
         startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
         endDate: new Date()
@@ -1617,11 +1661,11 @@ export default function CoachNew() {
       }
     }
     
-    // Step 6: Cache the fetched data
+    // Step 6: Cache the merged data (combine new fetches with existing cache)
     const cacheData = {
       mcpResponses,
-      nutritionData: nutritionResponse?.success ? nutritionResponse.data : null,
-      sleepData: sleepResponse?.success ? sleepResponse.data : null,
+      nutritionData: nutritionResponse?.success ? nutritionResponse.data : (hasValidCache ? context.cachedData.nutritionData : null),
+      sleepData: sleepResponse?.success ? sleepResponse.data : (hasValidCache ? context.cachedData.sleepData : null),
       dateRange: intent.dateRange,
       fetchedAt: new Date()
     };
