@@ -714,6 +714,12 @@ export default function CoachNew() {
     console.log(`🔍 DEBUG: Is follow-up question: ${isFollowUpQuestion}`);
     console.log(`🔍 DEBUG: Conversation history length: ${context.conversationHistory?.length || 0}`);
     
+    // 🚨 ADD WARNING IF CONVERSATION HISTORY IS UNEXPECTEDLY EMPTY
+    if (!context.conversationHistory || context.conversationHistory.length === 0) {
+      console.warn(`⚠️ WARNING: Conversation history is empty! This might explain why context is lost.`);
+      console.warn(`⚠️ Context object:`, context);
+    }
+    
     // Smart contextual resolution with conversation history
     if ((hasContextualReference || isFollowUpQuestion) && context.conversationHistory && context.conversationHistory.length > 0) {
       const lastQuery = context.conversationHistory[context.conversationHistory.length - 1];
@@ -1643,6 +1649,13 @@ export default function CoachNew() {
         console.log(`📋 Current conversation history length: ${prev.conversationHistory?.length || 0}`);
         console.log(`🔄 Adding new query to history: "${resolvedQuery.substring(0, 50)}..." with intent: ${queryData.intent}`);
         
+        // 🚨 TRACK CONVERSATION HISTORY CHANGES
+        const prevHistoryLength = prev.conversationHistory?.length || 0;
+        console.log(`🔍 CONTEXT UPDATE: Previous history length: ${prevHistoryLength}`);
+        if (prevHistoryLength === 0) {
+          console.warn(`⚠️ WARNING: Starting with empty conversation history - context may have been cleared!`);
+        }
+        
         const newHistory = [
           ...(prev.conversationHistory || []).slice(-9), // Keep last 10 entries
           {
@@ -1668,6 +1681,13 @@ export default function CoachNew() {
           intent: h.intent,
           dateRange: h.dateRange ? `${h.dateRange.startDate.toDateString()}` : 'none'
         })));
+        
+        // 🚨 DETECT UNEXPECTED HISTORY DROPS
+        if (prevHistoryLength > 0 && newHistory.length === 1) {
+          console.error(`🚨 CRITICAL: Conversation history dropped from ${prevHistoryLength} to 1! Context was unexpectedly cleared.`);
+          console.error(`🚨 Previous context:`, prev);
+          console.error(`🚨 New context:`, updatedContext);
+        }
         
         return updatedContext;
       });
@@ -1767,6 +1787,17 @@ export default function CoachNew() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 🚨 DEBUG: Track context changes to detect when conversation history gets cleared
+  useEffect(() => {
+    const historyLength = context.conversationHistory?.length || 0;
+    console.log(`🔍 CONTEXT EFFECT: Conversation history length changed to: ${historyLength}`);
+    
+    if (historyLength === 0 && messages.length > 2) {
+      console.error(`🚨 CONTEXT CLEARED: History is empty but we have ${messages.length} messages - context was reset!`);
+      console.error(`🚨 Current context:`, context);
+    }
+  }, [context.conversationHistory, messages.length]);
 
   return (
     <div className="min-h-screen bg-gray-50">
