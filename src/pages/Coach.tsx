@@ -1933,9 +1933,9 @@ export default function CoachNew() {
       {/* Main Layout with Sidebar */}
       <div className="max-w-7xl mx-auto flex">
         {/* Sidebar */}
-        <aside className="w-80 bg-white border-r border-gray-200 h-screen sticky top-0">
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Weekly Overview</h2>
+        <aside className="w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
+          <div className="p-4">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">Weekly Overview</h2>
             
             {metricsLoading ? (
               <div className="space-y-4">
@@ -1953,40 +1953,40 @@ export default function CoachNew() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 rounded-xl border border-red-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-red-600">🔥</span>
-                    <h3 className="font-medium text-gray-900">Calories Burned</h3>
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-3 rounded-lg border border-red-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-red-600 text-sm">🔥</span>
+                    <h3 className="text-sm font-medium text-gray-900">Calories Burned</h3>
                   </div>
-                  <p className="text-2xl font-bold text-red-600">{weeklyMetrics?.caloriesBurned || 0}</p>
-                  <p className="text-sm text-gray-600">avg/day this week</p>
+                  <p className="text-xl font-bold text-red-600">{weeklyMetrics?.caloriesBurned || 0}</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
                 </div>
 
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-green-600">🥗</span>
-                    <h3 className="font-medium text-gray-900">Calories Consumed</h3>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-green-600 text-sm">🥗</span>
+                    <h3 className="text-sm font-medium text-gray-900">Calories Consumed</h3>
                   </div>
-                  <p className="text-2xl font-bold text-green-600">{weeklyMetrics?.caloriesConsumed || 0}</p>
-                  <p className="text-sm text-gray-600">avg/day this week</p>
+                  <p className="text-xl font-bold text-green-600">{weeklyMetrics?.caloriesConsumed || 0}</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
                 </div>
 
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-blue-600">💪</span>
-                    <h3 className="font-medium text-gray-900">Protein</h3>
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-blue-600 text-sm">💪</span>
+                    <h3 className="text-sm font-medium text-gray-900">Protein</h3>
                   </div>
-                  <p className="text-2xl font-bold text-blue-600">{weeklyMetrics?.protein || 0}g</p>
-                  <p className="text-sm text-gray-600">avg/day this week</p>
+                  <p className="text-xl font-bold text-blue-600">{weeklyMetrics?.protein || 0}g</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
                 </div>
 
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-purple-600">🏃</span>
-                    <h3 className="font-medium text-gray-900">Activities</h3>
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-purple-600 text-sm">🏃</span>
+                    <h3 className="text-sm font-medium text-gray-900">Activities</h3>
                   </div>
-                  <p className="text-sm text-gray-700 leading-relaxed">
+                  <p className="text-xs text-gray-700 leading-relaxed">
                     {weeklyMetrics?.activities?.length > 0 
                       ? weeklyMetrics.activities.join(', ')
                       : 'No activities recorded'
@@ -2127,11 +2127,6 @@ export default function CoachNew() {
                         <Bot className="h-4 w-4 text-white" />
                       </div>
                       <div className="flex items-center gap-3 text-gray-700">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-100"></div>
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
-                        </div>
                         <span className="text-sm font-medium">AI is analyzing your health data...</span>
                       </div>
                     </div>
