@@ -995,26 +995,34 @@ export default function CoachNew() {
       
       // If the last query was about sleep and current is about running, infer same date
       if (lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
-        if (lastQuery.dateRange) {
-          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric' 
-          });
-          resolvedQuery = `how did my run on ${dateStr} go`;
-          console.log(`🎯 Smart context: Sleep query about ${dateStr} → Run query about same date`);
+        if (lastQuery.dateRange && lastQuery.dateRange.startDate) {
+          // Ensure startDate is a proper Date object
+          const startDate = new Date(lastQuery.dateRange.startDate);
+          if (!isNaN(startDate.getTime())) {
+            const dateStr = startDate.toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            resolvedQuery = `how did my run on ${dateStr} go`;
+            console.log(`🎯 Smart context: Sleep query about ${dateStr} → Run query about same date`);
+          }
         }
       }
       
       // If asking about "that day" or similar, use the last date context
       if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day')) {
-        if (lastQuery.dateRange) {
-          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric' 
-          });
-          resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
-          console.log(`🔍 DEBUG: Replaced "that day" with "${dateStr}"`);
-          console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
+        if (lastQuery.dateRange && lastQuery.dateRange.startDate) {
+          // Ensure startDate is a proper Date object
+          const startDate = new Date(lastQuery.dateRange.startDate);
+          if (!isNaN(startDate.getTime())) {
+            const dateStr = startDate.toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
+            console.log(`🔍 DEBUG: Replaced "that day" with "${dateStr}"`);
+            console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
+          }
         } else {
           console.log(`🔍 DEBUG: No dateRange in last query to resolve "that day"`);
         }
@@ -1022,12 +1030,16 @@ export default function CoachNew() {
       
       // Handle "how did that affect" type queries
       if (lowerQuery.includes('how did that affect') || lowerQuery.includes('how did that impact')) {
-        if (lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
-          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric' 
-          });
-          resolvedQuery = `how did my sleep on ${dateStr} affect my run performance`;
+        if (lastQuery.intent.includes('sleep') && lastQuery.dateRange && lastQuery.dateRange.startDate) {
+          // Ensure startDate is a proper Date object
+          const startDate = new Date(lastQuery.dateRange.startDate);
+          if (!isNaN(startDate.getTime())) {
+            const dateStr = startDate.toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            resolvedQuery = `how did my sleep on ${dateStr} affect my run performance`;
+          }
         }
       }
       
@@ -1093,10 +1105,23 @@ export default function CoachNew() {
     
     // More flexible date range matching
     if (intent.dateRange && context.cachedData.dateRange) {
-      const intentStart = intent.dateRange.startDate.getTime();
-      const intentEnd = intent.dateRange.endDate.getTime();
-      const cachedStart = context.cachedData.dateRange.startDate.getTime();
-      const cachedEnd = context.cachedData.dateRange.endDate.getTime();
+      // Ensure all dates are proper Date objects before calling getTime()
+      const intentStartDate = new Date(intent.dateRange.startDate);
+      const intentEndDate = new Date(intent.dateRange.endDate);
+      const cachedStartDate = new Date(context.cachedData.dateRange.startDate);
+      const cachedEndDate = new Date(context.cachedData.dateRange.endDate);
+      
+      // Validate that all dates are valid
+      if (isNaN(intentStartDate.getTime()) || isNaN(intentEndDate.getTime()) || 
+          isNaN(cachedStartDate.getTime()) || isNaN(cachedEndDate.getTime())) {
+        console.log('❌ Invalid dates in date range comparison, skipping cache');
+        return false;
+      }
+      
+      const intentStart = intentStartDate.getTime();
+      const intentEnd = intentEndDate.getTime();
+      const cachedStart = cachedStartDate.getTime();
+      const cachedEnd = cachedEndDate.getTime();
       
       // Check for exact match first
       if (intentStart === cachedStart && intentEnd === cachedEnd) {
