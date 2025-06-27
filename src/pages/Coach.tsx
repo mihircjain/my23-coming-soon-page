@@ -1075,10 +1075,20 @@ export default function CoachNew() {
     const lowerQuery = query.toLowerCase();
     const dataTypes = ['activity_details']; // Always include basic details
     
-    if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
-        lowerQuery.includes('pace') || lowerQuery.includes('power') ||
-        lowerQuery.includes('analyze') || lowerQuery.includes('distribution')) {
+    // Enhanced detection for detailed analysis requiring streams
+    const needsStreams = 
+      lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
+      lowerQuery.includes('pace') || lowerQuery.includes('power') ||
+      lowerQuery.includes('analyze') || lowerQuery.includes('analysis') ||
+      lowerQuery.includes('distribution') || lowerQuery.includes('speed') ||
+      lowerQuery.includes('per km') || lowerQuery.includes('per kilometre') ||
+      lowerQuery.includes('km by km') || lowerQuery.includes('kilometer') ||
+      lowerQuery.includes('split') || lowerQuery.includes('breakdown') ||
+      lowerQuery.includes('detailed') || lowerQuery.includes('segment');
+    
+    if (needsStreams) {
       dataTypes.push('activity_streams');
+      console.log(`🎯 Query "${query}" requires streams data - adding activity_streams`);
     }
     
     if (lowerQuery.includes('zone') || lowerQuery.includes('hr')) {
@@ -1089,6 +1099,7 @@ export default function CoachNew() {
       dataTypes.push('athlete_stats', 'athlete_profile');
     }
     
+    console.log(`📊 Determined running data types for "${query}": [${dataTypes.join(', ')}]`);
     return dataTypes;
   };
 
@@ -1462,9 +1473,9 @@ export default function CoachNew() {
                 endpoint: 'get-activity-streams', 
                 params: { 
                   id, 
-                  types: ['heartrate', 'velocity_smooth', 'watts'], // Only essential streams
-                  resolution: filteredActivityIds.length > 3 ? 'medium' : 'high',
-                  points_per_page: 100 // Limit data points to prevent overload
+                  types: ['heartrate', 'velocity_smooth', 'distance', 'time', 'watts'], // Include distance & time for km splits
+                  resolution: 'high', // Always use high resolution for detailed analysis
+                  points_per_page: 500 // More data points for km-by-km analysis
                 }
               });
             }
@@ -1841,8 +1852,54 @@ export default function CoachNew() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Format message content with bold titles
+  const formatMessageContent = (content: string) => {
+    const lines = content.split('\n');
+    return lines.map((line, index) => {
+      // Check if line is a title (starts with ##, #, or typical title patterns)
+      const isTitle = line.match(/^(#{1,6}\s+)|^([A-Z][^:]*:)|^(\*\*[^*]+\*\*)/);
+      const isBoldSection = line.match(/^\*\*([^*]+)\*\*/);
+      
+      if (isBoldSection) {
+        const boldText = line.replace(/\*\*(.*?)\*\*/g, '$1');
+        return (
+          <div key={index} className="mb-3 font-bold text-gray-900 text-lg">
+            {boldText}
+          </div>
+        );
+      } else if (isTitle) {
+        const cleanLine = line.replace(/^#+\s*/, '').replace(/\*\*/g, '');
+        return (
+          <div key={index} className="mb-3 font-bold text-gray-900 text-lg">
+            {cleanLine}
+          </div>
+        );
+      } else {
+        return (
+          <div key={index} className="mb-2">
+            {line}
+          </div>
+        );
+      }
+    });
+  };
+
   useEffect(() => {
-    scrollToBottom();
+    // Scroll to start of new message instead of bottom
+    if (messages.length > 0) {
+      setTimeout(() => {
+        const messagesContainer = document.querySelector('.space-y-6');
+        if (messagesContainer && messages.length > 1) {
+          const lastMessage = messagesContainer.children[messages.length - 1];
+          if (lastMessage) {
+            lastMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+          }
+        }
+        // Fallback to bottom scroll
+        scrollToBottom();
+      }, 100);
+    }
   }, [messages]);
 
   // 🚨 DEBUG: Track context changes to detect when conversation history gets cleared
@@ -1860,7 +1917,7 @@ export default function CoachNew() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-4xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <Button
               onClick={() => navigate('/')}
@@ -1880,8 +1937,82 @@ export default function CoachNew() {
         </div>
       </header>
 
-      {/* Main Chat Container */}
-      <main className="max-w-4xl mx-auto">
+      {/* Main Layout with Sidebar */}
+      <div className="max-w-7xl mx-auto flex">
+        {/* Sidebar */}
+        <aside className="w-80 bg-white border-r border-gray-200 h-screen sticky top-0">
+          <div className="p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Weekly Overview</h2>
+            
+            {metricsLoading ? (
+              <div className="space-y-4">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 rounded-xl border border-red-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-red-600">🔥</span>
+                    <h3 className="font-medium text-gray-900">Calories Burned</h3>
+                  </div>
+                  <p className="text-2xl font-bold text-red-600">{weeklyMetrics?.caloriesBurned || 0}</p>
+                  <p className="text-sm text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-green-600">🥗</span>
+                    <h3 className="font-medium text-gray-900">Calories Consumed</h3>
+                  </div>
+                  <p className="text-2xl font-bold text-green-600">{weeklyMetrics?.caloriesConsumed || 0}</p>
+                  <p className="text-sm text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-blue-600">💪</span>
+                    <h3 className="font-medium text-gray-900">Protein</h3>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-600">{weeklyMetrics?.protein || 0}g</p>
+                  <p className="text-sm text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-purple-600">🏃</span>
+                    <h3 className="font-medium text-gray-900">Activities</h3>
+                  </div>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {weeklyMetrics?.activities?.length > 0 
+                      ? weeklyMetrics.activities.join(', ')
+                      : 'No activities recorded'
+                    }
+                  </p>
+                </div>
+
+                {weeklyMetrics?.lastUpdated && (
+                  <p className="text-xs text-gray-500 text-center">
+                    Updated at {weeklyMetrics.lastUpdated}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Main Chat Container */}
+        <main className="flex-1">
         <div className="flex flex-col h-[calc(100vh-4rem)]">
           
           {/* Messages Area */}
@@ -1902,40 +2033,49 @@ export default function CoachNew() {
                 <div className="mt-12 w-full max-w-2xl">
                   <div className="grid gap-3">
                     <button 
-                      onClick={() => setInput("how has my sleep, nutrition and running been in the last 10 days")}
+                      onClick={() => {
+                        setInput("how has my sleep, nutrition and running been in the last 10 days and how have they impacted each other");
+                        setTimeout(() => handleSendMessage(), 100);
+                      }}
                       className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
                     >
                       <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                        Analyze my last 10 days
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        Get a comprehensive overview of your health metrics
-                      </div>
-                    </button>
-                    
-                    <button 
-                      onClick={() => setInput("how does my nutrition affect my running performance")}
-                      className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
-                    >
-                      <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                        Nutrition & performance insights
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        Understand how your diet impacts your training
-                      </div>
-                    </button>
-                    
-                    <button 
-                      onClick={() => setInput("analyze my sleep patterns and how they affect my recovery")}
-                      className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
-                    >
-                      <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                        Sleep & recovery analysis
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        Discover how your sleep affects your performance
-                      </div>
-                    </button>
+                         📊 Comprehensive 10-day health analysis
+                       </div>
+                       <div className="text-sm text-gray-600 mt-1">
+                         Deep dive into your sleep, nutrition, and running patterns with correlation insights
+                       </div>
+                     </button>
+                     
+                     <button 
+                       onClick={() => {
+                         setInput("how does my nutrition affect my running performance and what can I optimize");
+                         setTimeout(() => handleSendMessage(), 100);
+                       }}
+                       className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
+                     >
+                       <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                         🍎 Nutrition-performance optimization
+                       </div>
+                       <div className="text-sm text-gray-600 mt-1">
+                         Discover how your diet impacts training and get personalized fueling strategies
+                       </div>
+                     </button>
+                     
+                     <button 
+                       onClick={() => {
+                         setInput("analyze my sleep patterns, recovery quality, and how they affect my athletic performance");
+                         setTimeout(() => handleSendMessage(), 100);
+                       }}
+                       className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
+                     >
+                       <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                         😴 Sleep & recovery mastery  
+                       </div>
+                       <div className="text-sm text-gray-600 mt-1">
+                         Understand your sleep quality, recovery patterns, and performance correlations
+                       </div>
+                     </button>
                   </div>
                 </div>
               </div>
@@ -1972,7 +2112,7 @@ export default function CoachNew() {
                       <div className="flex-1 max-w-none">
                         <div className="prose prose-sm max-w-none">
                           <div className="text-[15px] leading-relaxed text-gray-800 whitespace-pre-wrap font-normal">
-                            {message.content}
+                            {formatMessageContent(message.content)}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 mt-3">
@@ -1987,20 +2127,20 @@ export default function CoachNew() {
               ))}
               
               {isLoading && (
-                <div className="flex">
-                  <div className="flex-shrink-0 mr-4">
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-white" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                <div className="flex justify-center">
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-full px-6 py-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center animate-pulse">
+                        <Bot className="h-4 w-4 text-white" />
                       </div>
-                      <span className="text-sm font-medium">Analyzing your data...</span>
+                      <div className="flex items-center gap-3 text-gray-700">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-100"></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
+                        </div>
+                        <span className="text-sm font-medium">AI is analyzing your health data...</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2087,7 +2227,8 @@ export default function CoachNew() {
             </div>
           </div>
         </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 } 
