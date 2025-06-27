@@ -1,19 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  ArrowLeft,
+  Bot,
+  Sparkles,
+  Mic,
+  MicOff
+} from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Bot, ArrowLeft, Mic, MicOff, Sparkles } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
-import { firebaseConfig } from '../lib/firebaseConfig';
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  getDocs, 
+  doc, 
+  getDoc 
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  context: ConversationContext;
+  lastUpdated: Date;
+  createdAt: Date;
 }
 
 interface MCPResponse {
@@ -97,13 +116,146 @@ export default function CoachNew() {
   });
   const [metricsLoading, setMetricsLoading] = useState(false);
   
+  // Chat history management
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   // Speech recognition state
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Chat session management functions
+  const loadChatSessions = () => {
+    try {
+      const savedSessions = localStorage.getItem('healthCoachSessions');
+      if (savedSessions) {
+        const sessions: ChatSession[] = JSON.parse(savedSessions).map((session: any) => ({
+          ...session,
+          lastUpdated: new Date(session.lastUpdated),
+          createdAt: new Date(session.createdAt),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setChatSessions(sessions);
+        
+        // Load the most recent session if no current session
+        if (!currentSessionId && sessions.length > 0) {
+          const mostRecent = sessions.sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())[0];
+          loadSession(mostRecent.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat sessions:', error);
+    }
+  };
+
+  const saveChatSessions = (sessions: ChatSession[]) => {
+    try {
+      localStorage.setItem('healthCoachSessions', JSON.stringify(sessions));
+    } catch (error) {
+      console.error('Error saving chat sessions:', error);
+    }
+  };
+
+  const generateSessionTitle = (firstMessage: string): string => {
+    // Generate a smart title from the first message
+    const words = firstMessage.toLowerCase().split(' ');
+    if (words.includes('nutrition') || words.includes('food') || words.includes('eat')) {
+      return '🍽️ Nutrition Analysis';
+    } else if (words.includes('sleep') || words.includes('rest')) {
+      return '😴 Sleep Analysis';
+    } else if (words.includes('run') || words.includes('activity') || words.includes('workout')) {
+      return '🏃 Running Analysis';
+    } else if (words.includes('last') && words.includes('days')) {
+      const days = words.find(w => /\d+/.test(w));
+      return `📊 Last ${days || '7'} Days`;
+    } else {
+      return `💬 ${firstMessage.substring(0, 30)}${firstMessage.length > 30 ? '...' : ''}`;
+    }
+  };
+
+  const createNewSession = (): string => {
+    const sessionId = Date.now().toString();
+    const newSession: ChatSession = {
+      id: sessionId,
+      title: 'New Conversation',
+      messages: [],
+      context: {},
+      lastUpdated: new Date(),
+      createdAt: new Date()
+    };
+    
+    setChatSessions(prev => [newSession, ...prev]);
+    setCurrentSessionId(sessionId);
+    setMessages([]);
+    setContext({});
+    
+    return sessionId;
+  };
+
+  const loadSession = (sessionId: string) => {
+    const session = chatSessions.find(s => s.id === sessionId);
+    if (session) {
+      setCurrentSessionId(sessionId);
+      setMessages(session.messages);
+      setContext(session.context);
+    }
+  };
+
+  const updateCurrentSession = () => {
+    if (!currentSessionId) return;
+    
+    setChatSessions(prev => prev.map(session => {
+      if (session.id === currentSessionId) {
+        const updatedSession = {
+          ...session,
+          messages: [...messages],
+          context: {...context},
+          lastUpdated: new Date()
+        };
+        
+        // Update title based on first message if it's still "New Conversation"
+        if (session.title === 'New Conversation' && messages.length > 0) {
+          const firstUserMessage = messages.find(m => m.role === 'user');
+          if (firstUserMessage) {
+            updatedSession.title = generateSessionTitle(firstUserMessage.content);
+          }
+        }
+        
+        return updatedSession;
+      }
+      return session;
+    }));
+  };
+
+  const deleteSession = (sessionId: string) => {
+    setChatSessions(prev => {
+      const updated = prev.filter(s => s.id !== sessionId);
+      saveChatSessions(updated);
+      
+      // If we deleted the current session, create a new one
+      if (sessionId === currentSessionId) {
+        createNewSession();
+      }
+      
+      return updated;
+    });
+  };
+
+  const renameSession = (sessionId: string, newTitle: string) => {
+    setChatSessions(prev => prev.map(session => 
+      session.id === sessionId 
+        ? { ...session, title: newTitle, lastUpdated: new Date() }
+        : session
+    ));
+  };
 
   useEffect(() => {
+    loadChatSessions();
     fetchWeeklyMetrics();
     
     // Check for speech recognition support
@@ -128,7 +280,8 @@ export default function CoachNew() {
         }, 100);
       };
       
-      recognitionRef.current.onerror = () => {
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
         setIsRecording(false);
       };
       
@@ -138,20 +291,44 @@ export default function CoachNew() {
     }
   }, []);
 
+  // Auto-save sessions when they change
+  useEffect(() => {
+    if (chatSessions.length > 0) {
+      saveChatSessions(chatSessions);
+    }
+  }, [chatSessions]);
+
+  // Update current session when messages or context change
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0) {
+      updateCurrentSession();
+    }
+  }, [messages, context]);
+
+  // Ensure we always have a current session
+  useEffect(() => {
+    if (!currentSessionId && chatSessions.length === 0) {
+      createNewSession();
+    }
+  }, [currentSessionId, chatSessions]);
+
   const testMCPConnection = async () => {
     try {
-      const response = await fetch('/api/claude-coach', {
+      const response = await fetch('/api/runs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: 'test connection' })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'test_connection'
+        })
       });
-      return response.ok;
     } catch (error) {
-      console.error('MCP connection test failed:', error);
-      return false;
+      console.log('MCP connection test failed');
     }
   };
 
+  // Speech recognition functions
   const startRecording = () => {
     if (recognitionRef.current && speechSupported) {
       setIsRecording(true);
@@ -161,11 +338,12 @@ export default function CoachNew() {
 
   const stopRecording = () => {
     if (recognitionRef.current && isRecording) {
-      setIsRecording(false);
       recognitionRef.current.stop();
+      setIsRecording(false);
     }
   };
 
+  // Fetch last 7 days average metrics using same logic as OverallJam
   const fetchWeeklyMetrics = async (): Promise<void> => {
     try {
       setMetricsLoading(true);
@@ -280,6 +458,8 @@ export default function CoachNew() {
     }
   };
 
+  // Analyze query to determine what data to fetch (nutrition, running, or both)
+  // Detect nutrition-performance relationship queries and adjust timing intelligently
   const detectNutritionPerformanceQuery = (query: string) => {
     const lowerQuery = query.toLowerCase();
     
@@ -295,6 +475,7 @@ export default function CoachNew() {
     return nutritionPerformancePatterns.some(pattern => lowerQuery.includes(pattern));
   };
 
+  // Extract activity timing to determine relevant nutrition day
   const determineNutritionDateForActivity = async (activityData: any, runDate: Date): Promise<Date> => {
     // If we have activity data, try to extract time
     let runTime = null;
@@ -338,6 +519,7 @@ export default function CoachNew() {
     return previousDay;
   };
 
+  // Enhanced typo correction for all fitness keywords
   const correctTypos = (query: string): string => {
     let correctedQuery = query.toLowerCase();
     
@@ -394,6 +576,7 @@ export default function CoachNew() {
     return correctedQuery;
   };
 
+  // Extract date string from query for context saving
   const extractDateFromQuery = (query: string): string | null => {
     const lowerQuery = query.toLowerCase();
     
@@ -411,6 +594,7 @@ export default function CoachNew() {
     return null;
   };
 
+  // Dynamic date parsing system (handles ANY date query format)
   const parseDateQuery = (query: string): { startDate: Date | null, endDate: Date | null, criteria: any } => {
     const lowerQuery = query.toLowerCase();
     const today = new Date();
@@ -529,6 +713,7 @@ export default function CoachNew() {
     return { startDate: defaultStart, endDate: today, criteria: { type: 'default' } };
   };
 
+  // Activity filtering criteria
   const determineActivityCriteria = (query: string) => {
     const lowerQuery = query.toLowerCase();
     
@@ -554,6 +739,7 @@ export default function CoachNew() {
     return { minDistance, activityType, analysisType };
   };
 
+  // Parse activity date from text (like Python function)
   const extractDateFromActivity = (activityText: string): Date | null => {
     const match = activityText.match(/on (\d+\/\d+\/\d+)/);
     if (match) {
@@ -563,6 +749,7 @@ export default function CoachNew() {
     return null;
   };
 
+  // Extract distance in km from activity text
   const extractDistanceFromActivity = (activityText: string): number => {
     const match = activityText.match(/— (\d+(?:\.\d+)?)m on/);
     if (match) {
@@ -571,6 +758,7 @@ export default function CoachNew() {
     return 0;
   };
 
+  // Extract activity type from text
   const extractActivityType = (activityText: string): string => {
     if (activityText.includes('Weight Training')) return 'Weight Training';
     if (activityText.includes('Run')) return 'Run';
@@ -579,6 +767,7 @@ export default function CoachNew() {
     return 'Other';
   };
 
+  // Client-side activity filtering (core function like Python implementation)
   const filterActivitiesByDateAndCriteria = (
     activitiesText: string, 
     startDate: Date, 
@@ -646,6 +835,7 @@ export default function CoachNew() {
     return filteredActivityIds;
   };
 
+  // Execute MCP calls
   const executeMCPCalls = async (mcpCalls: Array<{ endpoint: string; params: any }>): Promise<MCPResponse[]> => {
     const responses: MCPResponse[] = [];
     
@@ -699,6 +889,7 @@ export default function CoachNew() {
     return responses;
   };
 
+  // Enhanced context-aware query resolution
   const resolveContextualQuery = (query: string): string => {
     const correctedQuery = correctTypos(query);
     const lowerQuery = correctedQuery.toLowerCase();
@@ -803,69 +994,40 @@ export default function CoachNew() {
       }
       
       // If the last query was about sleep and current is about running, infer same date
-      if (lastQuery.intent && lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
-        if (lastQuery.dateRange && lastQuery.dateRange.startDate) {
-          // Ensure startDate is a proper Date object
-          const startDate = new Date(lastQuery.dateRange.startDate);
-          if (!isNaN(startDate.getTime())) {
-            const dateStr = startDate.toLocaleDateString('en-US', { 
-              month: 'long', 
-              day: 'numeric' 
-            });
-            resolvedQuery = `how did my run on ${dateStr} go`;
-            console.log(`🎯 Smart context: Sleep query about ${dateStr} → Run query about same date`);
-          }
+      if (lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
+        if (lastQuery.dateRange) {
+          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          resolvedQuery = `how did my run on ${dateStr} go`;
+          console.log(`🎯 Smart context: Sleep query about ${dateStr} → Run query about same date`);
         }
       }
       
       // If asking about "that day" or similar, use the last date context
       if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day')) {
-        if (lastQuery.dateRange && lastQuery.dateRange.startDate) {
-          // Ensure startDate is a proper Date object
-          const startDate = new Date(lastQuery.dateRange.startDate);
-          if (!isNaN(startDate.getTime())) {
-            const dateStr = startDate.toLocaleDateString('en-US', { 
-              month: 'long', 
-              day: 'numeric' 
-            });
-            resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
-            console.log(`🔍 DEBUG: Replaced "that day" with "${dateStr}"`);
-            console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
-          }
+        if (lastQuery.dateRange) {
+          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
+          console.log(`🔍 DEBUG: Replaced "that day" with "${dateStr}"`);
+          console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
         } else {
           console.log(`🔍 DEBUG: No dateRange in last query to resolve "that day"`);
         }
       }
       
-      // Handle "how did that affect" type queries - ENHANCED FOR RANGE CONTEXTS
-      if (lowerQuery.includes('how did it affect') || lowerQuery.includes('how did that affect') || lowerQuery.includes('how did that impact')) {
-        if (lastQuery.intent && lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
-          const startDate = new Date(lastQuery.dateRange.startDate);
-          const endDate = new Date(lastQuery.dateRange.endDate);
-          const isMultiDayRange = Math.abs(endDate.getTime() - startDate.getTime()) > 24 * 60 * 60 * 1000;
-          
-          if (isMultiDayRange) {
-            // For multi-day ranges, create a comprehensive analysis query
-            const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
-            const rangeDescription = daysDiff <= 7 ? `last ${daysDiff} days` : 
-                                    daysDiff <= 14 ? `last ${daysDiff} days` : 
-                                    'recent period';
-                                    
-            if (lowerQuery.includes('run')) {
-              resolvedQuery = `analyze how my sleep patterns over the ${rangeDescription} affected my running performance, including correlations between sleep quality/duration and run performance metrics`;
-            } else {
-              resolvedQuery = `analyze how my sleep over the ${rangeDescription} affected my overall performance and recovery`;
-            }
-            console.log(`🎯 Cross-domain analysis: Sleep (${rangeDescription}) → Running performance correlation`);
-          } else {
-            // Single day analysis
-            const dateStr = startDate.toLocaleDateString('en-US', { 
-              month: 'long', 
-              day: 'numeric' 
-            });
-            resolvedQuery = `how did my sleep on ${dateStr} affect my run performance that day`;
-            console.log(`🎯 Single day context: Sleep → Running correlation for ${dateStr}`);
-          }
+      // Handle "how did that affect" type queries
+      if (lowerQuery.includes('how did that affect') || lowerQuery.includes('how did that impact')) {
+        if (lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
+          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric' 
+          });
+          resolvedQuery = `how did my sleep on ${dateStr} affect my run performance`;
         }
       }
       
@@ -877,6 +1039,7 @@ export default function CoachNew() {
     return correctedQuery;
   };
 
+  // Check if we can reuse cached data for the same date range - ENHANCED WITH DATA TYPE CHECKING
   const canReuseCachedData = (intent: QueryIntent): boolean => {
     if (!context.cachedData || !context.cachedData.fetchedAt) {
       console.log('❌ No cached data available');
@@ -930,23 +1093,10 @@ export default function CoachNew() {
     
     // More flexible date range matching
     if (intent.dateRange && context.cachedData.dateRange) {
-      // Ensure all dates are proper Date objects before calling getTime()
-      const intentStartDate = new Date(intent.dateRange.startDate);
-      const intentEndDate = new Date(intent.dateRange.endDate);
-      const cachedStartDate = new Date(context.cachedData.dateRange.startDate);
-      const cachedEndDate = new Date(context.cachedData.dateRange.endDate);
-      
-      // Validate that all dates are valid
-      if (isNaN(intentStartDate.getTime()) || isNaN(intentEndDate.getTime()) || 
-          isNaN(cachedStartDate.getTime()) || isNaN(cachedEndDate.getTime())) {
-        console.log('❌ Invalid dates in date range comparison, skipping cache');
-        return false;
-      }
-      
-      const intentStart = intentStartDate.getTime();
-      const intentEnd = intentEndDate.getTime();
-      const cachedStart = cachedStartDate.getTime();
-      const cachedEnd = cachedEndDate.getTime();
+      const intentStart = intent.dateRange.startDate.getTime();
+      const intentEnd = intent.dateRange.endDate.getTime();
+      const cachedStart = context.cachedData.dateRange.startDate.getTime();
+      const cachedEnd = context.cachedData.dateRange.endDate.getTime();
       
       // Check for exact match first
       if (intentStart === cachedStart && intentEnd === cachedEnd) {
@@ -972,6 +1122,7 @@ export default function CoachNew() {
     return false;
   };
 
+  // Enhanced analyzeQueryIntent with typo correction and context awareness
   const analyzeQueryIntent = (query: string): QueryIntent => {
     // First apply typo correction
     const correctedQuery = correctTypos(query);
@@ -1115,7 +1266,7 @@ export default function CoachNew() {
       });
       
       // If asking about how nutrition affected sleep/runs, expand to include all data
-      if (lastQuery.intent && lastQuery.intent.includes('nutrition') && (askingAboutSleepAndRuns || askingAboutAffectOrImpact)) {
+      if (lastQuery.intent.includes('nutrition') && (askingAboutSleepAndRuns || askingAboutAffectOrImpact)) {
         console.log(`🎯 CONTEXT EXPANSION: Nutrition query followed by sleep/run impact question - fetching all data types`);
         intent = {
           ...intent,
@@ -1125,7 +1276,7 @@ export default function CoachNew() {
           needsSleep: true,
           dateRange: intent.dateRange || lastQuery.dateRange, // Inherit date range
           nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-          runningDataTypes: intent.runningDataTypes || ['activity_details', 'basic_stats'], // Preserve streams if detected
+          runningDataTypes: ['activity_details', 'basic_stats'],
           sleepDataTypes: ['duration', 'scores', 'heart_rate'],
           isSmartTiming: true
         };
@@ -1139,7 +1290,7 @@ export default function CoachNew() {
           needsRunning: true,
           needsNutrition: true,
           dateRange: intent.dateRange || lastQuery.dateRange,
-          runningDataTypes: intent.runningDataTypes || ['activity_details', 'basic_stats'], // Preserve existing data types
+          runningDataTypes: ['activity_details', 'basic_stats'],
           nutritionDataTypes: intent.nutritionDataTypes || ['calories', 'protein', 'carbs', 'fat', 'fiber']
         };
       }
@@ -1185,6 +1336,7 @@ export default function CoachNew() {
     return intent;
   };
 
+  // Determine what running data types are needed based on query
   const determineRunningDataTypes = (query: string): string[] => {
     const lowerQuery = query.toLowerCase();
     const dataTypes = ['activity_details']; // Always include basic details
@@ -1198,9 +1350,7 @@ export default function CoachNew() {
       lowerQuery.includes('per km') || lowerQuery.includes('per kilometre') ||
       lowerQuery.includes('km by km') || lowerQuery.includes('kilometer') ||
       lowerQuery.includes('split') || lowerQuery.includes('breakdown') ||
-      lowerQuery.includes('detailed') || lowerQuery.includes('segment') ||
-      lowerQuery.includes('data') || lowerQuery.includes('darta') || // Common typo
-      lowerQuery.includes('hr data') || lowerQuery.includes('heart rate data');
+      lowerQuery.includes('detailed') || lowerQuery.includes('segment');
     
     if (needsStreams) {
       dataTypes.push('activity_streams');
@@ -1219,6 +1369,7 @@ export default function CoachNew() {
     return dataTypes;
   };
 
+  // Fetch nutrition data for a specific date range
   const fetchNutritionDataForRange = async (startDate: Date, endDate: Date): Promise<NutritionResponse> => {
     try {
       const startDateStr = startDate.toISOString().split('T')[0];
@@ -1321,6 +1472,7 @@ export default function CoachNew() {
     }
   };
 
+  // Fetch sleep data for a specific date range from Firestore oura_sleep_data collection
   const fetchSleepDataForRange = async (startDate: Date, endDate: Date): Promise<SleepResponse> => {
     try {
       const startDateStr = startDate.toISOString().split('T')[0];
@@ -1467,6 +1619,7 @@ export default function CoachNew() {
     }
   };
 
+  // Smart data fetching - enhanced with caching and context preservation
   const getDataForQuery = async (query: string) => {
     // Step 1: Analyze query intent to determine what data to fetch
     const intent = analyzeQueryIntent(query);
@@ -1522,7 +1675,7 @@ export default function CoachNew() {
         needsSleep: intent.needsSleep,
         nutritionData: nutritionResponse?.data || null,
         sleepData: sleepResponse?.data || null,
-        mcpResponses,
+        mcpResponses: mcpResponses,
         dateRange: intent.dateRange
       };
     }
@@ -1730,6 +1883,7 @@ export default function CoachNew() {
     };
   };
 
+  // Validate if we have sufficient data before calling Claude
   const validateDataForClaude = (mcpResponses: MCPResponse[], nutritionData: any = null, sleepData: any = null): boolean => {
     const successfulMcpResponses = mcpResponses.filter(r => r.success && r.data?.content?.[0]?.text);
     
@@ -1759,6 +1913,7 @@ export default function CoachNew() {
     return true;
   };
 
+  // Generate response using Claude with focused data
   const generateResponseWithClaude = async (query: string, intent: any, mcpResponses: MCPResponse[]): Promise<string> => {
     try {
       console.log('🔍 Sending to Claude API:', {
@@ -1832,6 +1987,7 @@ export default function CoachNew() {
     }
   };
 
+  // Extract activity details from MCP responses for context
   const extractActivityDetails = (mcpResponses: MCPResponse[]) => {
     const activityDetails: any[] = [];
     
@@ -1848,12 +2004,24 @@ export default function CoachNew() {
     return activityDetails.join('\n');
   };
 
+  // Enhanced handleSendMessage with context preservation
   const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim()) return;
+
+    // Ensure we have a current session
+    let sessionId = currentSessionId;
+    if (!sessionId) {
+      sessionId = createNewSession();
+    }
+
+    const originalQuery = input.trim();
+    const resolvedQuery = resolveContextualQuery(originalQuery);
+    
+    console.log(`🔗 Processing query: "${originalQuery}" → "${resolvedQuery}"`);
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: originalQuery,
       timestamp: new Date()
     };
 
@@ -1862,60 +2030,88 @@ export default function CoachNew() {
     setIsLoading(true);
 
     try {
-      const resolvedQuery = resolveContextualQuery(input);
-      console.log(`🔍 Original query: "${input}"`);
-      console.log(`🎯 Resolved query: "${resolvedQuery}"`);
-
-                    const { mcpResponses, nutritionData, sleepData, intent } = await getDataForQuery(resolvedQuery);
-       
-       if (!validateDataForClaude(mcpResponses, nutritionData, sleepData)) {
-         throw new Error('Failed to retrieve sufficient data for analysis');
-       }
-
-       // Add fetched data to intent object before sending to Claude
-       const enrichedIntent = {
-         type: intent,
-         nutritionData,
-         sleepData
-       };
-
-       const response = await generateResponseWithClaude(resolvedQuery, enrichedIntent, mcpResponses);
-       
-       const assistantMessage: Message = {
-         role: 'assistant',
-         content: response,
-         timestamp: new Date()
-       };
-
-       setMessages(prev => [...prev, assistantMessage]);
-
-       // Update context with conversation history
-       setContext(prev => {
-         const updatedHistory = [
-           ...(prev.conversationHistory || []),
-           {
-             query: resolvedQuery,
-             intent: intent.type,
-             dateRange: intent.dateRange,
-             timestamp: new Date()
-           }
-         ];
-
-         return {
-           ...prev,
-           conversationHistory: updatedHistory,
-           lastDate: intent.dateRange ? 
-             `${intent.dateRange.startDate.toDateString()} to ${intent.dateRange.endDate.toDateString()}` : 
-             prev.lastDate,
-           lastDateParsed: intent.dateRange ? intent.dateRange.startDate : prev.lastDateParsed
-         };
-       });
-
+      // Get data for the resolved query
+      const queryData = await getDataForQuery(resolvedQuery);
+      
+      // Save context for future queries
+      const dateFromQuery = extractDateFromQuery(resolvedQuery);
+      const activityDetails = extractActivityDetails(queryData.mcpResponses);
+      
+      // Update conversation history and context
+      setContext(prev => {
+        console.log(`📋 Current conversation history length: ${prev.conversationHistory?.length || 0}`);
+        console.log(`🔄 Adding new query to history: "${resolvedQuery.substring(0, 50)}..." with intent: ${queryData.intent}`);
+        
+        // 🚨 TRACK CONVERSATION HISTORY CHANGES
+        const prevHistoryLength = prev.conversationHistory?.length || 0;
+        console.log(`🔍 CONTEXT UPDATE: Previous history length: ${prevHistoryLength}`);
+        if (prevHistoryLength === 0) {
+          console.warn(`⚠️ WARNING: Starting with empty conversation history - context may have been cleared!`);
+        }
+        
+        const newHistory = [
+          ...(prev.conversationHistory || []).slice(-9), // Keep last 10 entries
+          {
+            query: resolvedQuery,
+            intent: queryData.intent,
+            dateRange: queryData.dateRange,
+            timestamp: new Date()
+          }
+        ];
+        
+        const updatedContext = {
+          ...prev,
+          lastDate: dateFromQuery,
+          lastDateParsed: queryData.dateRange?.startDate,
+          lastActivities: activityDetails,
+          lastQueryType: queryData.intent,
+          conversationHistory: newHistory
+        };
+        
+        console.log(`📋 Updated conversation history length: ${newHistory.length}`);
+        console.log(`🔍 Last 3 queries in history:`, newHistory.slice(-3).map(h => ({
+          query: h.query.substring(0, 30) + '...',
+          intent: h.intent,
+          dateRange: h.dateRange ? `${h.dateRange.startDate.toDateString()}` : 'none'
+        })));
+        
+        // 🚨 DETECT UNEXPECTED HISTORY DROPS
+        if (prevHistoryLength > 0 && newHistory.length === 1) {
+          console.error(`🚨 CRITICAL: Conversation history dropped from ${prevHistoryLength} to 1! Context was unexpectedly cleared.`);
+          console.error(`🚨 Previous context:`, prev);
+          console.error(`🚨 New context:`, updatedContext);
+        }
+        
+        return updatedContext;
+      });
+      
+      // Validate data and generate response
+      if (validateDataForClaude(queryData.mcpResponses, queryData.nutritionData, queryData.sleepData)) {
+        const response = await generateResponseWithClaude(resolvedQuery, queryData, queryData.mcpResponses);
+        
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: response,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        console.log('✅ Enhanced Coach response generated with context preservation');
+      } else {
+        const fallbackMessage: Message = {
+          role: 'assistant',
+          content: "❌ **No Sufficient Data Found**\n\nI couldn't find enough data to answer your question. This could mean:\n• No activities found for the specified date range\n• No nutrition data logged for those dates\n• Data sources not connected properly\n\nPlease try:\n• Asking about a different time period\n• Checking if your Strava/nutrition data is synced\n• Being more specific about what you want to analyze",
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, fallbackMessage]);
+      }
+      
     } catch (error) {
-      console.error('Error processing message:', error);
+      console.error('❌ Enhanced Coach error:', error);
+      
       const errorMessage: Message = {
         role: 'assistant',
-        content: `I apologize, but I encountered an error while processing your request. ${error.message}`,
+        content: "I'm having trouble processing your request right now. Please try again in a moment.",
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -1931,21 +2127,76 @@ export default function CoachNew() {
     }
   };
 
+  // Smart coaching prompts organized by category
+  const runningPrompts = [
+    "analyze my pace trends this month",
+    "show my longest runs from last week", 
+    "how has my running consistency been",
+    "compare my run times this week vs last week",
+    "what's my average heart rate during runs"
+  ];
+
+  const nutritionPrompts = [
+    "show my protein intake for the last 7 days",
+    "analyze my calorie patterns this week",
+    "what foods am I eating most often",
+    "compare my nutrition goals vs actual intake",
+    "how balanced has my diet been lately"
+  ];
+
+  const sleepPrompts = [
+    "how has my sleep quality been this week",
+    "analyze my sleep duration patterns",
+    "show my sleep scores and trends",
+    "how does my sleep affect my running",
+    "compare my deep sleep vs light sleep"
+  ];
+
+  const combinedPrompts = [
+    "how does my nutrition affect my running performance",
+    "compare my energy intake to calories burned this week",
+    "analyze my pre-run fueling strategies",
+    "show the relationship between my diet and recovery",
+    "how does my sleep impact my running performance"
+  ];
+
+  // Contextual prompts shown when context is available
+  const contextualPrompts = [
+    "what did I eat that day",
+    "how was my nutrition that day", 
+    "compare my calories to my activity",
+    "analyze my protein intake that day",
+    "how was my sleep that night"
+  ];
+
+  // Add useRef for auto-scroll
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Format message content with bold titles
   const formatMessageContent = (content: string) => {
     const lines = content.split('\n');
     return lines.map((line, index) => {
-      const cleanLine = line.trim();
+      // Check if line is a title (starts with ##, #, or typical title patterns)
+      const isTitle = line.match(/^(#{1,6}\s+)|^([A-Z][^:]*:)|^(\*\*[^*]+\*\*)/);
+      const isBoldSection = line.match(/^\*\*([^*]+)\*\*/);
       
-      // Check if line starts with #, ##, ###, etc (markdown headers)
-      const headerMatch = cleanLine.match(/^(#{1,6})\s+(.+)$/);
-      if (headerMatch) {
+      if (isBoldSection) {
+        const boldText = line.replace(/\*\*(.*?)\*\*/g, '$1');
         return (
           <div key={index} className="mb-3 font-bold text-gray-900 text-lg">
-            {headerMatch[2]}
+            {boldText}
+          </div>
+        );
+      } else if (isTitle) {
+        const cleanLine = line.replace(/^#+\s*/, '').replace(/\*\*/g, '');
+        return (
+          <div key={index} className="mb-3 font-bold text-gray-900 text-lg">
+            {cleanLine}
           </div>
         );
       } else {
@@ -1991,7 +2242,7 @@ export default function CoachNew() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-4xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <Button
               onClick={() => navigate('/')}
@@ -2011,8 +2262,82 @@ export default function CoachNew() {
         </div>
       </header>
 
-      {/* Main Layout */}
-      <div className="max-w-4xl mx-auto">
+      {/* Main Layout with Sidebar */}
+      <div className="max-w-7xl mx-auto flex">
+        {/* Sidebar */}
+        <aside className="w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
+          <div className="p-4">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">Weekly Overview</h2>
+            
+            {metricsLoading ? (
+              <div className="space-y-4">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-3 rounded-lg border border-red-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-red-600 text-sm">🔥</span>
+                    <h3 className="text-sm font-medium text-gray-900">Calories Burned</h3>
+                  </div>
+                  <p className="text-xl font-bold text-red-600">{weeklyMetrics?.caloriesBurned || 0}</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-green-600 text-sm">🥗</span>
+                    <h3 className="text-sm font-medium text-gray-900">Calories Consumed</h3>
+                  </div>
+                  <p className="text-xl font-bold text-green-600">{weeklyMetrics?.caloriesConsumed || 0}</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-blue-600 text-sm">💪</span>
+                    <h3 className="text-sm font-medium text-gray-900">Protein</h3>
+                  </div>
+                  <p className="text-xl font-bold text-blue-600">{weeklyMetrics?.protein || 0}g</p>
+                  <p className="text-xs text-gray-600">avg/day this week</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-purple-600 text-sm">🏃</span>
+                    <h3 className="text-sm font-medium text-gray-900">Activities</h3>
+                  </div>
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {weeklyMetrics?.activities?.length > 0 
+                      ? weeklyMetrics.activities.join(', ')
+                      : 'No activities recorded'
+                    }
+                  </p>
+                </div>
+
+                {weeklyMetrics?.lastUpdated && (
+                  <p className="text-xs text-gray-500 text-center">
+                    Updated at {weeklyMetrics.lastUpdated}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Main Chat Container */}
+        <main className="flex-1">
         <div className="flex flex-col h-[calc(100vh-4rem)]">
           
           {/* Messages Area */}
@@ -2222,6 +2547,7 @@ export default function CoachNew() {
             </div>
           </div>
         </div>
+        </main>
       </div>
     </div>
   );
