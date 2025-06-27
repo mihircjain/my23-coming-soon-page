@@ -421,7 +421,9 @@ Provide comprehensive analysis as an expert coach:`;
   });
 
   if (!response.ok) {
-    throw new Error(`Claude API error: ${response.status}`);
+    const errorText = await response.text();
+    console.error(`❌ Claude API failed: ${response.status} - ${errorText}`);
+    throw new Error(`Claude API failed with status ${response.status}: ${errorText}`);
   }
 
   const data = await response.json();

@@ -1646,18 +1646,33 @@ export default function CoachNew() {
     } catch (error) {
       console.error('❌ Claude response generation failed:', error);
       
-      // Fixed: Handle multiple content items properly for fallback display
-      const contextData = mcpResponses
-        .filter(r => r.success && r.data?.content?.length > 0)
-        .map(r => {
-          const allContentText = r.data.content
-            .map((item: any) => item.text)
-            .join('\n');
-          return `\n🏃 ${r.endpoint.toUpperCase()}:\n${allContentText}`;
-        })
-        .join('\n');
+      // Show real error instead of fabricating data
+      let errorMessage = "❌ **Claude AI Analysis Failed**\n\n";
       
-      return `I can see your data but had trouble generating a detailed response. Here's what I found:\n\n${contextData}`;
+      if (error.message.includes('500')) {
+        errorMessage += "**Issue:** Claude AI service returned a 500 error\n\n";
+        errorMessage += "**Likely causes:**\n";
+        errorMessage += "• Your data payload is very large (lots of detailed nutrition/activity data)\n";
+        errorMessage += "• Claude API rate limits or temporary service issues\n";
+        errorMessage += "• Token limits exceeded due to comprehensive data\n\n";
+        errorMessage += "**Your data collection was successful:**\n";
+        
+        // Show summary of what data we actually have
+        const activities = mcpResponses.filter(r => r.endpoint === 'get-activity-details').length;
+        if (activities > 0) {
+          errorMessage += `• ✅ ${activities} detailed activities found\n`;
+        }
+        
+        errorMessage += "\n**Solutions:**\n";
+        errorMessage += "• Try asking about a shorter time range (e.g., 'last 3 days' instead of 'last 30 days')\n";
+        errorMessage += "• Ask more specific questions\n";
+        errorMessage += "• Wait a few minutes and try again\n";
+      } else {
+        errorMessage += `**Technical error:** ${error.message}\n\n`;
+        errorMessage += "Please try again or contact support if the issue persists.";
+      }
+      
+      return errorMessage;
     }
   };
 
@@ -1768,7 +1783,7 @@ export default function CoachNew() {
       } else {
         const fallbackMessage: Message = {
           role: 'assistant',
-          content: "I couldn't find sufficient data to answer your question. Please try asking about a different time period or check if your data sources are connected properly.",
+          content: "❌ **No Sufficient Data Found**\n\nI couldn't find enough data to answer your question. This could mean:\n• No activities found for the specified date range\n• No nutrition data logged for those dates\n• Data sources not connected properly\n\nPlease try:\n• Asking about a different time period\n• Checking if your Strava/nutrition data is synced\n• Being more specific about what you want to analyze",
           timestamp: new Date()
         };
         setMessages(prev => [...prev, fallbackMessage]);
