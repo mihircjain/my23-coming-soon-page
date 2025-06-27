@@ -202,7 +202,10 @@ export default function CoachNew() {
     if (session) {
       setCurrentSessionId(sessionId);
       setMessages(session.messages);
-      setContext(session.context);
+      // Ensure context is properly loaded with conversation history
+      const loadedContext = session.context || {};
+      console.log(`🔄 Loading session ${sessionId}: ${session.messages.length} messages, context history: ${loadedContext.conversationHistory?.length || 0}`);
+      setContext(loadedContext);
     }
   };
 
@@ -303,7 +306,22 @@ export default function CoachNew() {
     if (currentSessionId && messages.length > 0) {
       updateCurrentSession();
     }
-  }, [messages, context]);
+  }, [messages, context, currentSessionId]);
+
+  // Prevent context from being accidentally cleared
+  useEffect(() => {
+    const historyLength = context.conversationHistory?.length || 0;
+    if (messages.length > 1 && historyLength === 0) {
+      console.warn(`🚨 Context preservation issue detected: ${messages.length} messages but 0 conversation history`);
+      console.warn(`🔧 Attempting to restore context from current session...`);
+      
+      const currentSession = chatSessions.find(s => s.id === currentSessionId);
+      if (currentSession?.context?.conversationHistory?.length > 0) {
+        console.log(`✅ Restoring ${currentSession.context.conversationHistory.length} history entries from session`);
+        setContext(currentSession.context);
+      }
+    }
+  }, [messages.length, context.conversationHistory, chatSessions, currentSessionId]);
 
   // Ensure we always have a current session
   useEffect(() => {
