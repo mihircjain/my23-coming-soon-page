@@ -22,6 +22,12 @@ interface MCPResponse {
   error?: string;
 }
 
+interface NutritionResponse {
+  success: boolean;
+  data: any;
+  error?: string;
+}
+
 interface StravaStats {
   connected: boolean;
   lastChecked: string;
@@ -42,6 +48,15 @@ interface TodayMetrics {
   heartRate: number | null;
   activities: string[];
   lastUpdated: string;
+}
+
+interface QueryIntent {
+  type: 'nutrition_only' | 'running_only' | 'nutrition_and_running' | 'general';
+  needsNutrition: boolean;
+  needsRunning: boolean;
+  dateRange?: { startDate: Date; endDate: Date };
+  nutritionDataTypes?: string[];
+  runningDataTypes?: string[];
 }
 
 export default function CoachNew() {
@@ -84,62 +99,43 @@ export default function CoachNew() {
     }
   };
 
-  // Fetch today's health metrics from Firebase (using OverallJam approach)
-  const fetchTodayMetrics = async () => {
+  // Fetch today's health metrics from Firebase (nutrition only, no Strava from Firestore)
+  const fetchTodayMetrics = async (): Promise<void> => {
     try {
       setMetricsLoading(true);
       const today = new Date().toISOString().split('T')[0];
       
-      console.log(`🔄 Fetching today's health data from Firebase (${today})...`);
+      console.log(`🔄 Fetching today's nutrition data from Firebase (${today})...`);
 
-      // Initialize today's data structure
+      // Initialize today's data structure (nutrition only)
       const todayData = {
         date: today,
-        heartRateRuns: null,
-        caloriesBurned: 0,
         caloriesConsumed: 0,
         protein: 0,
         carbs: 0,
         fat: 0,
-        fiber: 0,
-        workoutDuration: 0,
-        activityTypes: [],
-        runCount: 0
+        fiber: 0
       };
 
-      // Get last 7 days to ensure we have data (same approach as OverallJam)
+      // Get last 7 days to ensure we have nutrition data
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const dateString = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Prepare Firebase queries (same as OverallJam)
+      // Only fetch nutrition data from Firebase
       const nutritionQuery = query(
         collection(db, "nutritionLogs"),
         where("date", ">=", dateString),
         orderBy("date", "desc")
       );
 
-      const stravaQuery = query(
-        collection(db, "strava_data"),
-        where("userId", "==", "mihir_jain"),
-        orderBy("start_date", "desc"),
-        limit(50) // Same as OverallJam
-      );
+      // Execute nutrition query only
+      const nutritionSnapshot = await getDocs(nutritionQuery).catch((error) => {
+        console.error("Error fetching nutrition data:", error);
+        return { docs: [] };
+      });
 
-      // Execute queries
-      const [nutritionSnapshot, stravaSnapshot] = await Promise.all([
-        getDocs(nutritionQuery).catch((error) => {
-          console.error("Error fetching nutrition data:", error);
-          return { docs: [] };
-        }),
-        getDocs(stravaQuery).catch((error) => {
-          console.error("Error fetching Strava data:", error);
-          return { docs: [] };
-        })
-      ]);
-
-      console.log(`📊 Fetched ${nutritionSnapshot.docs.length} nutrition logs for ${today}`);
-      console.log(`🏃 Fetched ${stravaSnapshot.docs.length} recent Strava activities`);
+      console.log(`📊 Fetched ${nutritionSnapshot.docs.length} nutrition logs`);
 
       // Debug: Log actual nutrition data
       nutritionSnapshot.docs.forEach((doc, index) => {
@@ -191,85 +187,230 @@ export default function CoachNew() {
         }
       }
 
-      // Debug: Log actual Strava data
-      stravaSnapshot.docs.forEach((doc, index) => {
-        const data = doc.data();
-        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
-        console.log(`Strava doc ${index}: date=${activityDate}, today=${today}, type=${data.type}, calories=${data.calories}`);
-      });
-
-      // Process Strava data (same logic as OverallJam)
-      stravaSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
-        
-        console.log(`Checking activity: date=${activityDate} vs today=${today}`);
-        
-        // Process recent activities (last 3 days) if no activity today
-        const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        const threeDaysAgoString = threeDaysAgo.toISOString().split('T')[0];
-        
-        if (activityDate < threeDaysAgoString) return;
-
-        console.log(`Processing today's activity:`, data);
-        const activityType = data.type || '';
-        const isRun = activityType.toLowerCase().includes('run');
-
-        // Heart Rate: Only track for runs and average properly (same as OverallJam)
-        if (data.heart_rate != null && isRun) {
-          const currentHR = todayData.heartRateRuns;
-          const runCount = todayData.runCount;
-          
-          if (currentHR === null) {
-            todayData.heartRateRuns = data.heart_rate;
-            todayData.runCount = 1;
-          } else {
-            // Calculate weighted average
-            todayData.heartRateRuns = ((currentHR * runCount) + data.heart_rate) / (runCount + 1);
-            todayData.runCount = runCount + 1;
-          }
-        }
-
-        // Calories: Use direct Strava calories field (same as OverallJam)
-        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
-        todayData.caloriesBurned += activityCalories;
-        
-        // Duration and activity types
-        todayData.workoutDuration += data.duration || 0;
-
-        if (activityType && !todayData.activityTypes.includes(activityType)) {
-          todayData.activityTypes.push(activityType);
-        }
-      });
-
-      // Round heart rate to match OverallJam format
-      if (todayData.heartRateRuns) {
-        todayData.heartRateRuns = Math.round(todayData.heartRateRuns);
-      }
-
-      // Update state
+      // Update state (nutrition only, running data comes from MCP)
       setTodayMetrics({
-        caloriesBurned: todayData.caloriesBurned,
+        caloriesBurned: 0, // Will be populated from MCP if needed
         caloriesConsumed: todayData.caloriesConsumed,
         protein: Math.round(todayData.protein),
-        heartRate: todayData.heartRateRuns,
-        activities: todayData.activityTypes,
+        heartRate: null, // Will be populated from MCP if needed
+        activities: [], // Will be populated from MCP if needed
         lastUpdated: new Date().toLocaleTimeString()
       });
 
-      console.log('✅ Today metrics updated:', {
-        calories_burned: todayData.caloriesBurned,
+      console.log('✅ Today nutrition metrics updated:', {
         calories_consumed: todayData.caloriesConsumed,
         protein: todayData.protein,
-        heart_rate: todayData.heartRateRuns,
-        activities: todayData.activityTypes
+        carbs: todayData.carbs,
+        fat: todayData.fat,
+        fiber: todayData.fiber
       });
       
     } catch (error) {
-      console.error('Error fetching today metrics:', error);
+      console.error('Error fetching today nutrition metrics:', error);
     } finally {
       setMetricsLoading(false);
+    }
+  };
+
+  // Analyze query to determine what data to fetch (nutrition, running, or both)
+  const analyzeQueryIntent = (query: string): QueryIntent => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Keywords that indicate nutrition-related queries
+    const nutritionKeywords = [
+      'nutrition', 'food', 'calories', 'protein', 'carbs', 'fat', 'fiber',
+      'macro', 'diet', 'eating', 'meal', 'consumed', 'intake'
+    ];
+    
+    // Keywords that indicate running/activity-related queries
+    const runningKeywords = [
+      'run', 'pace', 'heart rate', 'hr', 'activity', 'workout', 'exercise',
+      'training', 'distance', 'speed', 'power', 'zones', 'strava'
+    ];
+    
+    const hasNutritionKeywords = nutritionKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasRunningKeywords = runningKeywords.some(keyword => lowerQuery.includes(keyword));
+    
+    // Parse date range for data fetching
+    const { startDate, endDate } = parseDateQuery(query);
+    
+    let intent: QueryIntent;
+    
+    if (hasNutritionKeywords && hasRunningKeywords) {
+      // Both nutrition and running mentioned
+      intent = {
+        type: 'nutrition_and_running',
+        needsNutrition: true,
+        needsRunning: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        runningDataTypes: ['activity_details', 'basic_stats']
+      };
+    } else if (hasNutritionKeywords) {
+      // Only nutrition mentioned
+      intent = {
+        type: 'nutrition_only',
+        needsNutrition: true,
+        needsRunning: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber']
+      };
+    } else if (hasRunningKeywords) {
+      // Only running mentioned
+      intent = {
+        type: 'running_only',
+        needsNutrition: false,
+        needsRunning: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        runningDataTypes: determineRunningDataTypes(query)
+      };
+    } else {
+      // General query - might need both for context
+      intent = {
+        type: 'general',
+        needsNutrition: true,
+        needsRunning: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein'],
+        runningDataTypes: ['activity_details']
+      };
+    }
+    
+    console.log(`🧠 Query intent analysis:`, {
+      query: query.substring(0, 50) + '...',
+      intent: intent.type,
+      needsNutrition: intent.needsNutrition,
+      needsRunning: intent.needsRunning,
+      dateRange: intent.dateRange ? 
+        `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
+        'default range'
+    });
+    
+    return intent;
+  };
+
+  // Determine what running data types are needed based on query
+  const determineRunningDataTypes = (query: string): string[] => {
+    const lowerQuery = query.toLowerCase();
+    const dataTypes = ['activity_details']; // Always include basic details
+    
+    if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
+        lowerQuery.includes('pace') || lowerQuery.includes('power') ||
+        lowerQuery.includes('analyze') || lowerQuery.includes('distribution')) {
+      dataTypes.push('activity_streams');
+    }
+    
+    if (lowerQuery.includes('zone') || lowerQuery.includes('hr')) {
+      dataTypes.push('athlete_zones');
+    }
+    
+    if (lowerQuery.includes('stats') || lowerQuery.includes('total') || lowerQuery.includes('summary')) {
+      dataTypes.push('athlete_stats', 'athlete_profile');
+    }
+    
+    return dataTypes;
+  };
+
+  // Fetch nutrition data for a specific date range
+  const fetchNutritionDataForRange = async (startDate: Date, endDate: Date): Promise<NutritionResponse> => {
+    try {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      console.log(`🥗 Fetching nutrition data from ${startDateStr} to ${endDateStr}`);
+
+      const nutritionQuery = query(
+        collection(db, "nutritionLogs"),
+        where("date", ">=", startDateStr),
+        where("date", "<=", endDateStr),
+        orderBy("date", "desc")
+      );
+
+      const snapshot = await getDocs(nutritionQuery);
+      
+      if (snapshot.empty) {
+        console.log(`⚠️ No nutrition data found for date range ${startDateStr} to ${endDateStr}`);
+        return {
+          success: false,
+          data: null,
+          error: `No nutrition data found for the specified date range`
+        };
+      }
+
+      // Process nutrition data into a structured format
+      const nutritionData = {
+        dateRange: { startDate: startDateStr, endDate: endDateStr },
+        totalDays: snapshot.docs.length,
+        dailyLogs: [] as any[],
+        totals: {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0
+        },
+        averages: {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0
+        }
+      };
+
+             // Process each day's data based on actual Firestore structure
+       snapshot.docs.forEach(doc => {
+         const dayData = doc.data();
+         const totals = dayData.totals || {};
+         const entries = dayData.entries || [];
+         
+         // Use document ID as date if not in data
+         const dateValue = dayData.date || doc.id;
+         
+         nutritionData.dailyLogs.push({
+           date: dateValue,
+           calories: totals.calories || 0,
+           protein: totals.protein || 0,
+           carbs: totals.carbs || 0,
+           fat: totals.fat || 0,
+           fiber: totals.fiber || 0,
+           entries: entries, // Include individual food entries
+           lastUpdated: dayData.lastUpdated || null
+         });
+         
+         // Add to totals
+         nutritionData.totals.calories += totals.calories || 0;
+         nutritionData.totals.protein += totals.protein || 0;
+         nutritionData.totals.carbs += totals.carbs || 0;
+         nutritionData.totals.fat += totals.fat || 0;
+         nutritionData.totals.fiber += totals.fiber || 0;
+       });
+
+      // Calculate averages
+      const dayCount = nutritionData.dailyLogs.length;
+      if (dayCount > 0) {
+        nutritionData.averages.calories = Math.round(nutritionData.totals.calories / dayCount);
+        nutritionData.averages.protein = Math.round(nutritionData.totals.protein / dayCount);
+        nutritionData.averages.carbs = Math.round(nutritionData.totals.carbs / dayCount);
+        nutritionData.averages.fat = Math.round(nutritionData.totals.fat / dayCount);
+        nutritionData.averages.fiber = Math.round(nutritionData.totals.fiber / dayCount);
+      }
+
+      console.log(`✅ Nutrition data processed: ${dayCount} days, avg ${nutritionData.averages.calories} cal/day`);
+
+      return {
+        success: true,
+        data: nutritionData,
+        error: undefined
+      };
+      
+    } catch (error) {
+      console.error('Error fetching nutrition data:', error);
+      return {
+        success: false,
+        data: null,
+        error: `Failed to fetch nutrition data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
     }
   };
 
@@ -391,13 +532,22 @@ export default function CoachNew() {
       return { startDate: daysAgo, endDate: today, criteria: { type: 'range', days: parseInt(daysMatch[1]) } };
     }
     
-    // "Since [month] [day]" pattern  
-    if (lowerQuery.includes('since march 16')) {
-      return { startDate: new Date(2025, 2, 16), endDate: today, criteria: { type: 'since' } };
-    }
-    
-    if (lowerQuery.includes('since june 24')) {
-      return { startDate: new Date(2025, 5, 24), endDate: today, criteria: { type: 'since' } };
+    // "Since [month] [day]" pattern - dynamic parsing
+    const sinceMatch = lowerQuery.match(/since (\w+) (\d{1,2})/);
+    if (sinceMatch) {
+      const monthName = sinceMatch[1].toLowerCase();
+      const day = parseInt(sinceMatch[2]);
+      const monthMap: { [key: string]: number } = {
+        'january': 0, 'jan': 0, 'february': 1, 'feb': 1, 'march': 2, 'mar': 2,
+        'april': 3, 'apr': 3, 'may': 4, 'june': 5, 'jun': 5,
+        'july': 6, 'jul': 6, 'august': 7, 'aug': 7, 'september': 8, 'sep': 8,
+        'october': 9, 'oct': 9, 'november': 10, 'nov': 10, 'december': 11, 'dec': 11
+      };
+      
+      if (monthMap[monthName] !== undefined) {
+        const year = today.getFullYear(); // Use current year
+        return { startDate: new Date(year, monthMap[monthName], day), endDate: today, criteria: { type: 'since' } };
+      }
     }
     
     // "From X to Y" pattern
@@ -408,15 +558,29 @@ export default function CoachNew() {
       return { startDate, endDate, criteria: { type: 'range' } };
     }
     
-    // Specific month/day patterns
-    if (lowerQuery.includes('june 24') || (lowerQuery.includes('june') && lowerQuery.includes('24'))) {
-      const targetDate = new Date(2025, 5, 24);  // June 24, 2025
-      const nextDay = new Date(2025, 5, 25);     // June 25, 2025 (exclusive)
-      return { 
-        startDate: targetDate, 
-        endDate: nextDay, 
-        criteria: { type: 'specific' } 
+    // Specific month/day patterns - dynamic parsing
+    const monthDayMatch = lowerQuery.match(/(\w+) (\d{1,2})(?:\b|$)/);
+    if (monthDayMatch) {
+      const monthName = monthDayMatch[1].toLowerCase();
+      const day = parseInt(monthDayMatch[2]);
+      const monthMap: { [key: string]: number } = {
+        'january': 0, 'jan': 0, 'february': 1, 'feb': 1, 'march': 2, 'mar': 2,
+        'april': 3, 'apr': 3, 'may': 4, 'june': 5, 'jun': 5,
+        'july': 6, 'jul': 6, 'august': 7, 'aug': 7, 'september': 8, 'sep': 8,
+        'october': 9, 'oct': 9, 'november': 10, 'nov': 10, 'december': 11, 'dec': 11
       };
+      
+      if (monthMap[monthName] !== undefined && day >= 1 && day <= 31) {
+        const year = today.getFullYear(); // Use current year
+        const targetDate = new Date(year, monthMap[monthName], day);
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        return { 
+          startDate: targetDate, 
+          endDate: nextDay, 
+          criteria: { type: 'specific' } 
+        };
+      }
     }
     
     if (lowerQuery.includes('yesterday')) {
@@ -625,158 +789,182 @@ export default function CoachNew() {
 
   // Smart data fetching - only get what the user actually asks for
   const getDataForQuery = async (query: string) => {
-    // Parse date requirements
-    const { startDate, endDate, criteria } = parseDateQuery(query);
-    const activityCriteria = determineActivityCriteria(query);
-    const lowerQuery = query.toLowerCase();
+    // Step 1: Analyze query intent to determine what data to fetch
+    const intent = analyzeQueryIntent(query);
     
-    console.log(`🧠 Smart query analysis:`, { 
-      dateRange: `${startDate?.toDateString()} → ${endDate?.toDateString()}`,
-      criteria: activityCriteria 
+    console.log(`🧠 Query analysis complete:`, { 
+      intent: intent.type,
+      needsNutrition: intent.needsNutrition,
+      needsRunning: intent.needsRunning,
+      dateRange: intent.dateRange ? 
+        `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
+        'default range'
     });
     
     let mcpResponses: MCPResponse[] = [];
+    let nutritionResponse: NutritionResponse | null = null;
     
-         // STEP 1: Calculate EXACT activities needed based on query type
-     let activitiesNeeded = 10; // Default
-     
-     if (lowerQuery.includes('june 24') || lowerQuery.includes('june 25') || lowerQuery.includes('june 22') || lowerQuery.includes('yesterday') || lowerQuery.includes('today')) {
-       // Single day: just get enough recent activities to find that date (max 2 activities on any day)
-       activitiesNeeded = 10; // Small number to find the specific date
-       console.log(`📅 Single date query: fetching ${activitiesNeeded} recent activities to find date`);
-     } else if (lowerQuery.includes('last 7 days') || lowerQuery.includes('this week')) {
-       activitiesNeeded = 14; // 7 days × 2/day = 14
-     } else if (lowerQuery.includes('last 30 days') || lowerQuery.includes('last month')) {
-       activitiesNeeded = 60; // 30 days × 2/day = 60
-     } else if (lowerQuery.includes('march') || lowerQuery.includes('since march')) {
-       activitiesNeeded = 200; // Long historical range
-     }
-    
-         console.log(`📥 Fetching ${activitiesNeeded} activities (optimized for query type)`);
-     
-     // Use API date filtering for specific dates instead of client-side filtering
-     const activitiesCall: { endpoint: string; params: any } = {
-       endpoint: 'get-recent-activities',
-       params: { per_page: activitiesNeeded }
-     };
-     
-     // For specific dates, use API date filtering 
-     if (startDate && endDate && (lowerQuery.includes('june 24') || lowerQuery.includes('june 25') || lowerQuery.includes('june 22'))) {
-       const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
-       const endDateStr = endDate.toISOString().split('T')[0];     // YYYY-MM-DD
-       
-       activitiesCall.params = {
-         per_page: 5, // Max 2 activities per day + buffer
-         after: startDateStr,
-         before: endDateStr
-       };
-       console.log(`📅 Using API date filter: ${startDateStr} to ${endDateStr}`);
-     }
-    
-    const activitiesResponse = await executeMCPCalls([activitiesCall]);
-    mcpResponses.push(...activitiesResponse);
-    
-    if (!activitiesResponse[0]?.success) {
-      console.log('❌ Failed to fetch activities');
-      return { intent: { type: 'error' }, mcpResponses };
-    }
-    
-    // STEP 2: Client-side filtering to find matching activities
-    const allContentItems = activitiesResponse[0].data?.content || [];
-    const activitiesText = allContentItems
-      .map(item => item.text)
-      .filter(text => text && text.trim())
-      .join('\n');
-    
-    console.log(`📋 Processing ${allContentItems.length} activity items from MCP server`);
-    
-    const filteredActivityIds = filterActivitiesByDateAndCriteria(
-      activitiesText,
-      startDate!,
-      endDate!,
-      activityCriteria
-    );
-    
-    if (filteredActivityIds.length === 0) {
-      console.log('❌ No activities found matching criteria');
-      return { intent: { type: 'no_match', criteria: activityCriteria }, mcpResponses };
-    }
-    
-    console.log(`✅ Found ${filteredActivityIds.length} matching activities`);
-    
-    // STEP 3: Smart data fetching based on what's actually needed
-    const detailedCalls = [];
-    
-    // Always get basic details for all matching activities
-    for (const id of filteredActivityIds) {
-      detailedCalls.push({ endpoint: 'get-activity-details', params: { activityId: id } });
-    }
-    
-    // Only get streams if user asks for HR/pace/power analysis
-    const needsStreams = lowerQuery.includes('hr') || lowerQuery.includes('heart rate') || 
-                        lowerQuery.includes('pace') || lowerQuery.includes('power') ||
-                        lowerQuery.includes('analyze') || lowerQuery.includes('distribution');
-    
-    if (needsStreams) {
-      console.log(`📊 Adding streams for HR/pace analysis (${filteredActivityIds.length} activities)`);
-      for (const id of filteredActivityIds) {
-        detailedCalls.push({ 
-          endpoint: 'get-activity-streams', 
-          params: { 
-            id, 
-            types: ['heartrate', 'velocity_smooth', 'watts'], // Only essential streams
-            resolution: filteredActivityIds.length > 3 ? 'medium' : 'high',
-            points_per_page: 100 // Limit data points to prevent overload
-          }
-        });
+    // Step 2: Fetch nutrition data if needed
+    if (intent.needsNutrition && intent.dateRange) {
+      console.log(`🥗 Fetching nutrition data for date range...`);
+      nutritionResponse = await fetchNutritionDataForRange(intent.dateRange.startDate, intent.dateRange.endDate);
+      
+      if (!nutritionResponse.success) {
+        console.log(`⚠️ Nutrition data fetch failed: ${nutritionResponse.error}`);
+      } else {
+        console.log(`✅ Nutrition data fetched successfully: ${nutritionResponse.data?.totalDays} days`);
       }
     }
     
-    // Only add zones if specifically needed
-    if (needsStreams || lowerQuery.includes('zone')) {
-      detailedCalls.push({ endpoint: 'get-athlete-zones', params: {} });
+    // Step 3: Fetch MCP running data if needed
+    if (intent.needsRunning) {
+      console.log(`🏃 Fetching MCP running data...`);
+      
+      // Parse date requirements for MCP calls
+      const { startDate, endDate, criteria } = parseDateQuery(query);
+      const activityCriteria = determineActivityCriteria(query);
+      const lowerQuery = query.toLowerCase();
+      
+      // Calculate EXACT activities needed based on query type
+      let activitiesNeeded = 10; // Default
+      
+      if (lowerQuery.includes('yesterday') || lowerQuery.includes('today') || 
+          criteria.type === 'specific') {
+        // Single day: just get enough recent activities to find that date
+        activitiesNeeded = 10;
+        console.log(`📅 Single date query: fetching ${activitiesNeeded} recent activities to find date`);
+      } else if (lowerQuery.includes('last 7 days') || lowerQuery.includes('this week')) {
+        activitiesNeeded = 14; // 7 days × 2/day = 14
+      } else if (lowerQuery.includes('last 30 days') || lowerQuery.includes('last month')) {
+        activitiesNeeded = 60; // 30 days × 2/day = 60
+      } else if (lowerQuery.includes('since') || criteria.type === 'since') {
+        activitiesNeeded = 200; // Long historical range
+      }
+      
+      console.log(`📥 Fetching ${activitiesNeeded} activities (optimized for query type)`);
+      
+      // Use API date filtering for specific dates instead of client-side filtering
+      const activitiesCall: { endpoint: string; params: any } = {
+        endpoint: 'get-recent-activities',
+        params: { per_page: activitiesNeeded }
+      };
+      
+      // For specific dates, use API date filtering 
+      if (startDate && endDate && criteria.type === 'specific') {
+        const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+        const endDateStr = endDate.toISOString().split('T')[0];     // YYYY-MM-DD
+        
+        activitiesCall.params = {
+          per_page: 5, // Max 2 activities per day + buffer
+          after: startDateStr,
+          before: endDateStr
+        };
+        console.log(`📅 Using API date filter: ${startDateStr} to ${endDateStr}`);
+      }
+      
+      const activitiesResponse = await executeMCPCalls([activitiesCall]);
+      mcpResponses.push(...activitiesResponse);
+      
+      if (!activitiesResponse[0]?.success) {
+        console.log('❌ Failed to fetch MCP activities');
+        // Don't return early - we might still have nutrition data
+      } else {
+        // Client-side filtering to find matching activities
+        const allContentItems = activitiesResponse[0].data?.content || [];
+        const activitiesText = allContentItems
+          .map(item => item.text)
+          .filter(text => text && text.trim())
+          .join('\n');
+        
+        console.log(`📋 Processing ${allContentItems.length} activity items from MCP server`);
+        
+        const filteredActivityIds = filterActivitiesByDateAndCriteria(
+          activitiesText,
+          startDate!,
+          endDate!,
+          activityCriteria
+        );
+        
+        if (filteredActivityIds.length > 0) {
+          console.log(`✅ Found ${filteredActivityIds.length} matching activities`);
+          
+          // Smart data fetching based on what's actually needed
+          const detailedCalls = [];
+          
+          // Always get basic details for all matching activities
+          for (const id of filteredActivityIds) {
+            detailedCalls.push({ endpoint: 'get-activity-details', params: { activityId: id } });
+          }
+          
+          // Only get streams if user asks for HR/pace/power analysis
+          const needsStreams = intent.runningDataTypes?.includes('activity_streams') || false;
+          
+          if (needsStreams) {
+            console.log(`📊 Adding streams for HR/pace analysis (${filteredActivityIds.length} activities)`);
+            for (const id of filteredActivityIds) {
+              detailedCalls.push({ 
+                endpoint: 'get-activity-streams', 
+                params: { 
+                  id, 
+                  types: ['heartrate', 'velocity_smooth', 'watts'], // Only essential streams
+                  resolution: filteredActivityIds.length > 3 ? 'medium' : 'high',
+                  points_per_page: 100 // Limit data points to prevent overload
+                }
+              });
+            }
+          }
+          
+          // Only add zones if specifically needed
+          if (intent.runningDataTypes?.includes('athlete_zones')) {
+            detailedCalls.push({ endpoint: 'get-athlete-zones', params: {} });
+          }
+          
+          console.log(`🔍 Making ${detailedCalls.length} targeted MCP calls`);
+          
+          const detailedData = await executeMCPCalls(detailedCalls);
+          mcpResponses.push(...detailedData);
+          
+          console.log(`✅ MCP data retrieval complete: ${filteredActivityIds.length} activities, ${detailedCalls.length} API calls`);
+        } else {
+          console.log('❌ No activities found matching criteria');
+        }
+      }
     }
     
-    console.log(`🔍 Making ${detailedCalls.length} targeted MCP calls (vs previous 10+ calls)`);
-    
-    const detailedData = await executeMCPCalls(detailedCalls);
-    mcpResponses.push(...detailedData);
-    
-    console.log(`✅ Smart data retrieval complete: ${filteredActivityIds.length} activities, ${detailedCalls.length} API calls`);
-    
+    // Step 4: Return combined result
     return { 
-      intent: { 
-        type: 'smart_fetch',
-        matchedActivities: filteredActivityIds.length,
-        streamsIncluded: needsStreams,
-        criteria: activityCriteria,
-        dateRange: { startDate, endDate }
-      }, 
-      mcpResponses 
+      intent: intent.type,
+      needsNutrition: intent.needsNutrition,
+      needsRunning: intent.needsRunning,
+      nutritionData: nutritionResponse?.success ? nutritionResponse.data : null,
+      mcpResponses,
+      dateRange: intent.dateRange
     };
   };
 
   // Validate if we have sufficient data before calling Claude
-  const validateDataForClaude = (mcpResponses: MCPResponse[]): boolean => {
-    const successfulResponses = mcpResponses.filter(r => r.success && r.data?.content?.[0]?.text);
+  const validateDataForClaude = (mcpResponses: MCPResponse[], nutritionData: any = null): boolean => {
+    const successfulMcpResponses = mcpResponses.filter(r => r.success && r.data?.content?.[0]?.text);
     
-    if (successfulResponses.length === 0) {
-      console.log('❌ No successful MCP responses - skip Claude call');
-      return false;
-    }
-    
-    // Check if we have meaningful data (not just empty lists)
-    const hasRealData = successfulResponses.some(r => {
+    // Check MCP data quality
+    const hasRealMcpData = successfulMcpResponses.some(r => {
       const text = r.data.content[0].text;
       return text.length > 100 && !text.includes('No activities found');
     });
     
-    if (!hasRealData) {
-      console.log('❌ No meaningful data in MCP responses - skip Claude call');
+    // Check nutrition data quality
+    const hasNutritionData = nutritionData && nutritionData.totalDays > 0;
+    
+    // Need at least one type of meaningful data
+    if (!hasRealMcpData && !hasNutritionData) {
+      console.log('❌ No meaningful MCP or nutrition data - skip Claude call');
       return false;
     }
     
-    console.log(`✅ Data validation passed: ${successfulResponses.length} successful responses with real data`);
+    console.log(`✅ Data validation passed:`, {
+      mcpResponses: `${successfulMcpResponses.length} successful`,
+      nutritionDays: hasNutritionData ? nutritionData.totalDays : 0
+    });
     return true;
   };
 
@@ -847,12 +1035,17 @@ export default function CoachNew() {
       console.log(`🔍 Processing query: "${resolvedInput}"`);
       
       // Step 2: Get the RIGHT data first (no Claude guessing)
-      const { intent, mcpResponses } = await getDataForQuery(resolvedInput);
+      const dataResult = await getDataForQuery(resolvedInput);
+      const { intent, needsNutrition, needsRunning, nutritionData, mcpResponses, dateRange } = dataResult;
       
-      console.log(`✅ Got ${mcpResponses.length} MCP responses for intent: ${intent.type}`);
+      console.log(`✅ Data fetching complete:`, {
+        intent,
+        nutritionData: nutritionData ? `${nutritionData.totalDays} days` : 'none',
+        mcpResponses: `${mcpResponses.length} responses`
+      });
 
       // COST CONTROL: Only call Claude if we have meaningful data
-      if (!validateDataForClaude(mcpResponses)) {
+      if (!validateDataForClaude(mcpResponses, nutritionData)) {
         // Check if it's a network error
         const networkError = mcpResponses.some(r => r.error?.includes('fetch') || r.error?.includes('network'));
         
@@ -898,7 +1091,12 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
       }
 
       // Step 3: Generate comprehensive response with Claude (using real data)
-      const responseText = await generateResponseWithClaude(resolvedInput, intent, mcpResponses);
+      const responseText = await generateResponseWithClaude(resolvedInput, { 
+        type: intent, 
+        needsNutrition, 
+        needsRunning, 
+        nutritionData 
+      }, mcpResponses);
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -909,20 +1107,19 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
       setMessages(prev => [...prev, assistantMessage]);
       
       // Step 4: Save context for future queries
-      if (intent.type === 'smart_fetch' && intent.matchedActivities > 0) {
-        const parsedQuery = parseDateQuery(resolvedInput);
+      if ((needsRunning || needsNutrition) && dateRange) {
         const contextDate = extractDateFromQuery(originalInput) || extractDateFromQuery(resolvedInput);
         const activityDetails = extractActivityDetails(mcpResponses);
         
         setContext({
           lastDate: contextDate,
-          lastDateParsed: parsedQuery.startDate,
+          lastDateParsed: dateRange.startDate,
           lastActivityIds: [], // Will be populated from MCP responses if needed
-          lastQueryType: intent.type,
-          lastActivities: activityDetails || `Found ${intent.matchedActivities} activities`
+          lastQueryType: intent,
+          lastActivities: activityDetails || (nutritionData ? `Nutrition data: ${nutritionData.totalDays} days` : 'No data')
         });
         
-        console.log(`💾 Context saved: ${contextDate} with activity details`);
+        console.log(`💾 Context saved: ${contextDate} with ${intent} data`);
       }
 
     } catch (error) {
@@ -950,20 +1147,20 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
   // Smart coaching prompts that leverage the dynamic system
   const smartPrompts = [
     "analyze my runs from last week",
-    "show me my longest runs this month", 
+    "show my nutrition for the last 7 days", 
     "how has my pace improved lately",
-    "show my heart rate trends in recent runs",
-    "analyze my last 7 days of running",
-    "what's my average pace this month"
+    "compare my nutrition and running for yesterday",
+    "what's my protein intake this week",
+    "analyze my calories and training balance last month"
   ];
 
   // Contextual prompts shown when context is available
   const contextualPrompts = [
-    "how was weather that day",
-    "what was my pace during that run", 
-    "how was my heart rate that day",
-    "compare that to my average",
-    "what was my effort level"
+    "what did I eat that day",
+    "how was my nutrition that day", 
+    "compare my calories to my activity",
+    "analyze my protein intake that day",
+    "was I fueled properly for that workout"
   ];
 
   return (

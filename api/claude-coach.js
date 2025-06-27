@@ -233,8 +233,8 @@ RESPOND ONLY WITH VALID JSON:`;
 
 // Claude response generation
 async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey) {
-  // Smart data reduction to prevent rate limits
-  const processedResponses = mcpResponses
+  // Process MCP data
+  const processedMcpResponses = mcpResponses
     .filter(r => r.success && r.data?.content?.length > 0)
     .map(r => {
       const allContent = r.data.content
@@ -250,9 +250,30 @@ async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey)
       return `\n🏃 ${r.endpoint.toUpperCase()}:\n${allContent}`;
     });
   
-  const contextData = processedResponses.join('\n');
+  // Process nutrition data if available
+  let nutritionContext = '';
+  if (analysis.nutritionData) {
+    const nutrition = analysis.nutritionData;
+    nutritionContext = `\n📊 NUTRITION DATA (${nutrition.totalDays} days):
+Average daily intake:
+- Calories: ${nutrition.averages.calories} cal/day
+- Protein: ${nutrition.averages.protein}g/day
+- Carbs: ${nutrition.averages.carbs}g/day
+- Fat: ${nutrition.averages.fat}g/day
+- Fiber: ${nutrition.averages.fiber}g/day
+
+Total period:
+- Calories: ${nutrition.totals.calories.toLocaleString()} cal
+- Protein: ${nutrition.totals.protein}g
+- Carbs: ${nutrition.totals.carbs}g
+- Fat: ${nutrition.totals.fat}g
+- Fiber: ${nutrition.totals.fiber}g`;
+  }
   
-  const prompt = `You are an expert running coach analyzing Strava data. Provide clean, insightful analysis focused on what the user asked for.
+  const mcpContext = processedMcpResponses.join('\n');
+  const contextData = mcpContext + nutritionContext;
+  
+  const prompt = `You are an expert coach analyzing both running performance and nutrition data. Provide clean, insightful analysis focused on what the user asked for.
 
 FORMATTING GUIDELINES:
 • Use clean, minimal formatting - avoid excessive bold text
@@ -263,13 +284,15 @@ FORMATTING GUIDELINES:
 
 USER QUERY: "${query}"
 
-STRAVA DATA CONTEXT:
+DATA CONTEXT:
 ${contextData}
 
 ANALYSIS GUIDELINES:
-• Use GET-ACTIVITY-DETAILS for accurate pace, duration, distance stats
-• Use GET-ACTIVITY-STREAMS for heart rate distribution and detailed analysis  
+• For running data: Use GET-ACTIVITY-DETAILS for pace, duration, distance stats
+• For heart rate analysis: Use GET-ACTIVITY-STREAMS for detailed HR distribution
+• For nutrition data: Reference daily averages and totals from the nutrition summary
 • Convert pace from m/s to min/km for readability
+• Look for patterns and relationships between nutrition and performance when both are available
 • Reference specific metrics and data points
 • Be encouraging but technically accurate
 
@@ -310,12 +333,20 @@ function handleFallback(action, query, mcpResponses, res) {
     const analysis = analyzeQueryRuleBased(query);
     return res.status(200).json({ analysis, fallback: true });
   } else if (action === 'generate_response') {
-    const contextData = mcpResponses
+    const mcpData = mcpResponses
       ?.filter(r => r.success && r.data?.content?.[0]?.text)
       .map(r => `\n🏃 ${r.endpoint.toUpperCase()}:\n${r.data.content[0].text}`)
-      .join('\n') || 'No data available';
+      .join('\n') || '';
     
-    const fallbackResponse = `Based on your query "${query}", here's what I found from your Strava data:\n\n${contextData}\n\n**Note**: Using fallback analysis mode. For detailed AI coaching insights, Claude API key is required.`;
+    // Check if nutrition data is included in the analysis object
+    const nutritionData = res.req.body?.analysis?.nutritionData;
+    let nutritionSummary = '';
+    if (nutritionData) {
+      nutritionSummary = `\n\n📊 **Nutrition Summary (${nutritionData.totalDays} days)**:\n- Average daily calories: ${nutritionData.averages.calories}\n- Average daily protein: ${nutritionData.averages.protein}g\n- Total calories: ${nutritionData.totals.calories.toLocaleString()}`;
+    }
+    
+    const contextData = mcpData + nutritionSummary;
+    const fallbackResponse = `Based on your query "${query}", here's what I found:\n\n${contextData || 'No data available'}\n\n**Note**: Using fallback analysis mode. For detailed AI coaching insights, Claude API key is required.`;
     
     return res.status(200).json({ response: fallbackResponse, fallback: true });
   }
