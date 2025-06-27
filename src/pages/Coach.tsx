@@ -384,23 +384,16 @@ export default function CoachNew() {
       'jogging': 'running'
     };
     
-    // Nutrition/food-related typos
+    // Nutrition/food-related typos (only actual typos, not valid words)
     const nutritionCorrections = {
       'nutriotn': 'nutrition',
       'nutriton': 'nutrition',
       'nutritoin': 'nutrition',
       'nutrtion': 'nutrition',
-      'food': 'nutrition',
-      'foods': 'nutrition',
-      'eating': 'nutrition',
-      'ate': 'nutrition',
-      'meal': 'nutrition',
-      'meals': 'nutrition',
-      'calories': 'nutrition',
-      'protein': 'nutrition',
-      'carbs': 'nutrition',
-      'fueling': 'nutrition',
-      'fuel': 'nutrition'
+      'protien': 'protein',
+      'protean': 'protein',
+      'carbz': 'carbs',
+      'carbohydrates': 'carbs'
     };
     
     // Apply corrections
