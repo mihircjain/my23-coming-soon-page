@@ -907,6 +907,14 @@ export default function CoachNew() {
   // Generate response using Claude with focused data
   const generateResponseWithClaude = async (query: string, intent: any, mcpResponses: MCPResponse[]): Promise<string> => {
     try {
+      console.log('🔍 Sending to Claude API:', {
+        query,
+        intentType: intent.type,
+        hasNutritionData: !!intent.nutritionData,
+        nutritionDays: intent.nutritionData?.totalDays || 0,
+        mcpResponseCount: mcpResponses.length
+      });
+
       const response = await fetch('/api/claude-coach', {
         method: 'POST',
         headers: {
@@ -916,7 +924,8 @@ export default function CoachNew() {
           action: 'generate_response',
           query,
           intent,
-          mcpResponses
+          mcpResponses,
+          nutritionData: intent.nutritionData  // Pass nutritionData separately
         })
       });
 
