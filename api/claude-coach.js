@@ -265,9 +265,28 @@ async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey)
       const nutrition = analysis.nutritionData;
       console.log('📊 Processing nutrition data:', {
         totalDays: nutrition.totalDays,
-        avgCalories: nutrition.averages?.calories
+        avgCalories: nutrition.averages?.calories,
+        hasDailyLogs: !!(nutrition.dailyLogs && nutrition.dailyLogs.length > 0),
+        firstDayEntries: nutrition.dailyLogs?.[0]?.entries?.length || 0
       });
       
+      // Build detailed daily food logs
+      let dailyFoodDetails = '';
+      if (nutrition.dailyLogs && nutrition.dailyLogs.length > 0) {
+        dailyFoodDetails = nutrition.dailyLogs.map(day => {
+          let dayText = `\n📅 ${day.date}: ${day.calories}cal, ${day.protein}g protein, ${day.carbs}g carbs, ${day.fat}g fat`;
+          
+          if (day.entries && day.entries.length > 0) {
+            const foodItems = day.entries.map(entry => 
+              `  • ${entry.food || entry.name || 'Unknown'}: ${entry.calories || 0}cal, ${entry.protein || 0}g protein`
+            ).join('\n');
+            dayText += `\n  Foods eaten:\n${foodItems}`;
+          }
+          
+          return dayText;
+        }).join('\n');
+      }
+
       nutritionContext = `\n📊 NUTRITION DATA (${nutrition.totalDays} days):
 Average daily intake:
 - Calories: ${nutrition.averages.calories} cal/day
@@ -276,12 +295,14 @@ Average daily intake:
 - Fat: ${nutrition.averages.fat}g/day
 - Fiber: ${nutrition.averages.fiber}g/day
 
-Total period:
+Total period summary:
 - Calories: ${nutrition.totals.calories.toLocaleString()} cal
 - Protein: ${nutrition.totals.protein}g
 - Carbs: ${nutrition.totals.carbs}g
 - Fat: ${nutrition.totals.fat}g
-- Fiber: ${nutrition.totals.fiber}g`;
+- Fiber: ${nutrition.totals.fiber}g
+
+DAILY FOOD DETAILS:${dailyFoodDetails}`;
     } else {
       console.log('⚠️ No nutrition data found in analysis object');
     }
@@ -312,10 +333,11 @@ ${contextData}
 ANALYSIS GUIDELINES:
 • For running data: Use GET-ACTIVITY-DETAILS for pace, duration, distance stats
 • For heart rate analysis: Use GET-ACTIVITY-STREAMS for detailed HR distribution
-• For nutrition data: Reference daily averages and totals from the nutrition summary
+• For nutrition data: You have access to both macro summaries AND individual food items eaten each day
+• When asked about food suggestions, reference actual foods the user has eaten to make personalized recommendations
 • Convert pace from m/s to min/km for readability
 • Look for patterns and relationships between nutrition and performance when both are available
-• Reference specific metrics and data points
+• Reference specific metrics and data points from the detailed daily food logs
 • Be encouraging but technically accurate
 
 RESPONSE APPROACH:
