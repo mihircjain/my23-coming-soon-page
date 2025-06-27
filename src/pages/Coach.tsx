@@ -692,17 +692,52 @@ export default function CoachNew() {
     
     const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
     
+    // Check if this is a follow-up question (no specific date mentioned but conversational)
+    const isFollowUpQuestion = !hasContextualReference && 
+      context.conversationHistory && 
+      context.conversationHistory.length > 0 &&
+      !lowerQuery.includes('yesterday') && 
+      !lowerQuery.includes('today') && 
+      !lowerQuery.includes('june') && 
+      !lowerQuery.includes('last week') &&
+      !lowerQuery.includes('this week') &&
+      !(/\d+/.test(lowerQuery)); // No numbers/dates in query
+    
     // Smart contextual resolution with conversation history
-    if (hasContextualReference && context.conversationHistory && context.conversationHistory.length > 0) {
+    if ((hasContextualReference || isFollowUpQuestion) && context.conversationHistory && context.conversationHistory.length > 0) {
       const lastQuery = context.conversationHistory[context.conversationHistory.length - 1];
       
-      console.log(`🔗 Contextual query detected! Last query context:`, {
+      console.log(`🔗 Contextual query detected! Type: ${hasContextualReference ? 'explicit' : 'follow-up'}`, {
         lastQuery: lastQuery.query.substring(0, 50),
         lastIntent: lastQuery.intent,
-        lastDateRange: lastQuery.dateRange
+        lastDateRange: lastQuery.dateRange,
+        hasContextualReference,
+        isFollowUpQuestion
       });
       
       let resolvedQuery = correctedQuery;
+      
+      // For follow-up questions, inherit the date context from previous query
+      if (isFollowUpQuestion && lastQuery.dateRange) {
+        const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        
+        // Add date context based on the query type
+        if (lowerQuery.includes('run') || lowerQuery.includes('activity')) {
+          resolvedQuery = `${correctedQuery} on ${dateStr}`;
+        } else if (lowerQuery.includes('nutrition') || lowerQuery.includes('food')) {
+          resolvedQuery = `${correctedQuery} on ${dateStr}`;
+        } else if (lowerQuery.includes('sleep')) {
+          resolvedQuery = `${correctedQuery} on ${dateStr}`;
+        } else {
+          // Generic follow-up
+          resolvedQuery = `${correctedQuery} on ${dateStr}`;
+        }
+        
+        console.log(`🎯 Follow-up context: Adding date ${dateStr} to query`);
+      }
       
       // If the last query was about sleep and current is about running, infer same date
       if (lastQuery.intent.includes('sleep') && lowerQuery.includes('run')) {
@@ -745,30 +780,48 @@ export default function CoachNew() {
     return correctedQuery;
   };
 
-  // Check if we can reuse cached data for the same date range
+  // Check if we can reuse cached data for the same date range - ENHANCED
   const canReuseCachedData = (intent: QueryIntent): boolean => {
     if (!context.cachedData || !context.cachedData.fetchedAt) {
+      console.log('❌ No cached data available');
       return false;
     }
     
-    // Only reuse data if fetched within last 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    if (context.cachedData.fetchedAt < fiveMinutesAgo) {
-      console.log('🕒 Cached data too old, will refetch');
+    // Extend cache timeout to 15 minutes for better conversation flow
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    if (context.cachedData.fetchedAt < fifteenMinutesAgo) {
+      console.log('🕒 Cached data too old (>15 min), will refetch');
       return false;
     }
     
-    // Check if date ranges match
+    // More flexible date range matching
     if (intent.dateRange && context.cachedData.dateRange) {
-      const sameStartDate = intent.dateRange.startDate.getTime() === context.cachedData.dateRange.startDate.getTime();
-      const sameEndDate = intent.dateRange.endDate.getTime() === context.cachedData.dateRange.endDate.getTime();
+      const intentStart = intent.dateRange.startDate.getTime();
+      const intentEnd = intent.dateRange.endDate.getTime();
+      const cachedStart = context.cachedData.dateRange.startDate.getTime();
+      const cachedEnd = context.cachedData.dateRange.endDate.getTime();
       
-      if (sameStartDate && sameEndDate) {
-        console.log('✅ Found cached data for same date range, reusing...');
+      // Check for exact match first
+      if (intentStart === cachedStart && intentEnd === cachedEnd) {
+        console.log('✅ Found exact cached data for same date range, reusing...');
+        return true;
+      }
+      
+      // Check for overlapping ranges (more flexible)
+      const hasOverlap = intentStart <= cachedEnd && intentEnd >= cachedStart;
+      if (hasOverlap) {
+        console.log('✅ Found overlapping cached data, reusing...');
         return true;
       }
     }
     
+    // If no date range in intent but we have cached data from recent conversation, use it
+    if (!intent.dateRange && context.cachedData.dateRange && context.conversationHistory && context.conversationHistory.length > 0) {
+      console.log('✅ No specific date in query, using recent cached data for context...');
+      return true;
+    }
+    
+    console.log('❌ No suitable cached data found');
     return false;
   };
 
@@ -1546,13 +1599,11 @@ export default function CoachNew() {
       const activityDetails = extractActivityDetails(queryData.mcpResponses);
       
       // Update conversation history and context
-      setContext(prev => ({
-        ...prev,
-        lastDate: dateFromQuery,
-        lastDateParsed: queryData.dateRange?.startDate,
-        lastActivities: activityDetails,
-        lastQueryType: queryData.intent,
-        conversationHistory: [
+      setContext(prev => {
+        console.log(`📋 Current conversation history length: ${prev.conversationHistory?.length || 0}`);
+        console.log(`🔄 Adding new query to history: "${resolvedQuery.substring(0, 50)}..." with intent: ${queryData.intent}`);
+        
+        const newHistory = [
           ...(prev.conversationHistory || []).slice(-9), // Keep last 10 entries
           {
             query: resolvedQuery,
@@ -1560,8 +1611,26 @@ export default function CoachNew() {
             dateRange: queryData.dateRange,
             timestamp: new Date()
           }
-        ]
-      }));
+        ];
+        
+        const updatedContext = {
+          ...prev,
+          lastDate: dateFromQuery,
+          lastDateParsed: queryData.dateRange?.startDate,
+          lastActivities: activityDetails,
+          lastQueryType: queryData.intent,
+          conversationHistory: newHistory
+        };
+        
+        console.log(`📋 Updated conversation history length: ${newHistory.length}`);
+        console.log(`🔍 Last 3 queries in history:`, newHistory.slice(-3).map(h => ({
+          query: h.query.substring(0, 30) + '...',
+          intent: h.intent,
+          dateRange: h.dateRange ? `${h.dateRange.startDate.toDateString()}` : 'none'
+        })));
+        
+        return updatedContext;
+      });
       
       // Validate data and generate response
       if (validateDataForClaude(queryData.mcpResponses, queryData.nutritionData, queryData.sleepData)) {
