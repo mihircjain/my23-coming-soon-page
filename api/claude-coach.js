@@ -318,8 +318,8 @@ DAILY FOOD DETAILS:${dailyFoodDetails}`;
       const sleep = analysis.sleepData;
       console.log('😴 Processing sleep data:', {
         totalDays: sleep.totalDays,
-        avgDuration: sleep.averages?.duration,
-        avgScore: sleep.averages?.score,
+        avgDuration: sleep.averages?.sleepDuration,
+        avgScore: sleep.averages?.sleepScore,
         hasDailyLogs: !!(sleep.dailyLogs && sleep.dailyLogs.length > 0)
       });
       
@@ -327,17 +327,17 @@ DAILY FOOD DETAILS:${dailyFoodDetails}`;
       let dailySleepDetails = '';
       if (sleep.dailyLogs && sleep.dailyLogs.length > 0) {
         dailySleepDetails = sleep.dailyLogs.map(day => {
-          const duration = day.duration ? (day.duration / 3600).toFixed(1) : 'N/A'; // Convert seconds to hours
-          const bedtime = day.bedtime || 'N/A';
-          const wakeup = day.wakeup || 'N/A';
-          const efficiency = day.efficiency ? `${day.efficiency}%` : 'N/A';
-          const heartRate = day.heart_rate || day.averageHeartRate || 'N/A';
+          const duration = day.sleepDuration || 'N/A'; // Already in hours from frontend
+          const bedtime = day.bedtimeStart ? new Date(day.bedtimeStart).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A';
+          const wakeup = day.bedtimeEnd ? new Date(day.bedtimeEnd).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A';
+          const efficiency = day.sleepEfficiency ? `${day.sleepEfficiency}%` : 'N/A';
+          const heartRate = day.averageHeartRate || 'N/A';
           
-          let dayText = `\n😴 ${day.date}: ${duration}h sleep, Score: ${day.score || 'N/A'}, HR: ${heartRate} bpm`;
+          let dayText = `\n😴 ${day.date}: ${duration}h sleep, Score: ${day.sleepScore || 'N/A'}, HR: ${heartRate} bpm`;
           dayText += `\n  • Bedtime: ${bedtime}, Wake: ${wakeup}, Efficiency: ${efficiency}`;
           
-          if (day.stages) {
-            dayText += `\n  • Deep: ${day.stages.deep || 0}min, REM: ${day.stages.rem || 0}min, Light: ${day.stages.light || 0}min`;
+          if (day.deepSleep || day.remSleep || day.lightSleep) {
+            dayText += `\n  • Deep: ${day.deepSleep || 0}h, REM: ${day.remSleep || 0}h, Light: ${day.lightSleep || 0}h`;
           }
           
           return dayText;
@@ -346,15 +346,15 @@ DAILY FOOD DETAILS:${dailyFoodDetails}`;
 
       sleepContext = `\n😴 SLEEP DATA (${sleep.totalDays} days):
 Average nightly stats:
-- Duration: ${sleep.averages.duration ? (sleep.averages.duration / 3600).toFixed(1) : 'N/A'} hours/night
-- Sleep Score: ${sleep.averages.score || 'N/A'}
-- Heart Rate: ${sleep.averages.heart_rate || 'N/A'} bpm
-- Efficiency: ${sleep.averages.efficiency || 'N/A'}%
+- Duration: ${sleep.averages.sleepDuration || 'N/A'} hours/night
+- Sleep Score: ${sleep.averages.sleepScore || 'N/A'}
+- Heart Rate: ${sleep.averages.averageHeartRate || 'N/A'} bpm
+- Readiness Score: ${sleep.averages.readinessScore || 'N/A'}
 
 Sleep Stage Averages:
-- Deep Sleep: ${sleep.averages.deep_sleep || 'N/A'} min/night
-- REM Sleep: ${sleep.averages.rem_sleep || 'N/A'} min/night
-- Light Sleep: ${sleep.averages.light_sleep || 'N/A'} min/night
+- Deep Sleep: ${sleep.averages.deepSleep || 'N/A'} hours/night
+- REM Sleep: ${sleep.averages.remSleep || 'N/A'} hours/night
+- Light Sleep: ${sleep.averages.lightSleep || 'N/A'} hours/night
 
 DAILY SLEEP DETAILS:${dailySleepDetails}`;
     } else {
