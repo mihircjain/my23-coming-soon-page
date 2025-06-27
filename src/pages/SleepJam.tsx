@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Moon, RefreshCw, Home, TrendingUp, Activity, Heart, Clock, Zap, Brain, Droplet, ArrowLeft } from 'lucide-react';
+import { Moon, RefreshCw, Home, TrendingUp, Activity, Heart, Clock, Zap, Brain, Droplet, ArrowLeft, BarChart3 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
+import Chart from 'chart.js/auto';
 
 // Types
 interface SleepData {
@@ -164,10 +168,12 @@ const SleepDayCard: React.FC<{ dayData: SleepData }> = ({ dayData }) => {
 
 // Main Sleep Jam Component
 const SleepJam: React.FC = () => {
+  const navigate = useNavigate();
   const [sleepData, setSleepData] = useState<SleepData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [chartData, setChartData] = useState<any>(null);
 
   // FIXED: fetchSleepData with auto-fallback to refresh when no cached data
   const fetchSleepData = async () => {
@@ -247,6 +253,165 @@ const SleepJam: React.FC = () => {
       setRefreshing(false);
     }
   };
+
+  // Process sleep data for charts
+  const processSleepChartData = (data: SleepData[]) => {
+    // Only show last 7 days (filter out any 8th day data)
+    const last7Days = data.slice(-7);
+    
+    const labels = last7Days.map(d => {
+      const date = new Date(d.date);
+      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    });
+
+    const sleepDurationData = last7Days.map(d => {
+      const durationHours = d.sleep?.total_sleep_duration ? d.sleep.total_sleep_duration / 3600 : 0;
+      return Math.round(durationHours * 10) / 10; // Round to 1 decimal
+    });
+
+    const heartRateData = last7Days.map(d => d.sleep?.average_heart_rate || null);
+    const sleepScoreData = last7Days.map(d => d.sleep?.sleep_score || null);
+
+    return {
+      labels,
+      sleepDuration: sleepDurationData,
+      heartRate: heartRateData,
+      sleepScore: sleepScoreData
+    };
+  };
+
+  // Create sleep duration chart
+  const createSleepDurationChart = (chartData: any) => {
+    const container = document.getElementById('sleep-duration-chart');
+    if (!container) return;
+
+    let canvas = container.querySelector('canvas');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      container.appendChild(canvas);
+    } else {
+      const chartInstance = Chart.getChart(canvas);
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+    }
+
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: chartData.labels,
+        datasets: [{
+          label: 'Sleep Duration (hours)',
+          data: chartData.sleepDuration,
+          borderColor: 'rgb(147, 51, 234)',
+          backgroundColor: 'rgba(147, 51, 234, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 5,
+          pointHoverRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { maxTicksLimit: 7 }
+          },
+          y: {
+            beginAtZero: true,
+            max: 12,
+            grid: { color: 'rgba(0,0,0,0.1)' },
+            ticks: {
+              callback: function(value) {
+                return value + 'h';
+              }
+            }
+          }
+        }
+      }
+    });
+  };
+
+  // Create sleep heart rate chart
+  const createSleepHeartRateChart = (chartData: any) => {
+    const container = document.getElementById('sleep-heartrate-chart');
+    if (!container) return;
+
+    let canvas = container.querySelector('canvas');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      container.appendChild(canvas);
+    } else {
+      const chartInstance = Chart.getChart(canvas);
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+    }
+
+    const validHeartRateData = chartData.heartRate.filter((hr: number | null) => hr !== null && hr > 0);
+    if (validHeartRateData.length === 0) return;
+
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: chartData.labels,
+        datasets: [{
+          label: 'Average Sleep Heart Rate (bpm)',
+          data: chartData.heartRate,
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 5,
+          pointHoverRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { maxTicksLimit: 7 }
+          },
+          y: {
+            beginAtZero: false,
+            min: Math.min(...validHeartRateData) - 5,
+            max: Math.max(...validHeartRateData) + 5,
+            grid: { color: 'rgba(0,0,0,0.1)' },
+            ticks: {
+              callback: function(value) {
+                return value + ' bpm';
+              }
+            }
+          }
+        }
+      }
+    });
+  };
+
+  // Update charts when sleep data changes
+  useEffect(() => {
+    if (sleepData.length > 0) {
+      const processedData = processSleepChartData(sleepData);
+      setChartData(processedData);
+      
+      setTimeout(() => {
+        createSleepDurationChart(processedData);
+        createSleepHeartRateChart(processedData);
+      }, 100);
+    }
+  }, [sleepData]);
 
   useEffect(() => {
     fetchSleepData();
@@ -368,6 +533,65 @@ const SleepJam: React.FC = () => {
             {refreshing ? 'Refreshing...' : 'Refresh Sleep Data'}
           </Button>
         </div>
+
+        {/* Sleep Charts Section */}
+        {sleepData.length > 0 && chartData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            {/* Sleep Duration Chart */}
+            <Card className="bg-gradient-to-r from-purple-200 to-indigo-200 rounded-2xl p-6 text-gray-800 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold bg-gradient-to-r from-purple-700 to-indigo-700 bg-clip-text text-transparent flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-gray-700" />
+                  Sleep Duration Trends
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    Last 7 Days
+                  </Badge>
+                </CardTitle>
+                <p className="text-sm text-gray-700 mt-2">
+                  Track your sleep duration patterns over the past week
+                </p>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <Skeleton className="h-full w-full" />
+                  </div>
+                ) : (
+                  <div className="h-64 bg-white/30 backdrop-blur-sm rounded-lg p-4" id="sleep-duration-chart">
+                    {/* Chart will be rendered here */}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Sleep Heart Rate Chart */}
+            <Card className="bg-gradient-to-r from-blue-200 to-cyan-200 rounded-2xl p-6 text-gray-800 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold bg-gradient-to-r from-blue-700 to-cyan-700 bg-clip-text text-transparent flex items-center gap-2">
+                  <Heart className="h-5 w-5 text-gray-700" />
+                  Sleep Heart Rate Trends
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    Last 7 Days
+                  </Badge>
+                </CardTitle>
+                <p className="text-sm text-gray-700 mt-2">
+                  Monitor your average heart rate during sleep
+                </p>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <Skeleton className="h-full w-full" />
+                  </div>
+                ) : (
+                  <div className="h-64 bg-white/30 backdrop-blur-sm rounded-lg p-4" id="sleep-heartrate-chart">
+                    {/* Chart will be rendered here */}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Sleep Data Grid */}
         {sleepData.length > 0 ? (
