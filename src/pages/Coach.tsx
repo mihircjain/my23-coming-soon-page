@@ -41,11 +41,10 @@ interface ConversationContext {
   lastActivities?: string;  // Activity descriptions for reference
 }
 
-interface TodayMetrics {
+interface WeeklyMetrics {
   caloriesBurned: number;
   caloriesConsumed: number;
   protein: number;
-  heartRate: number | null;
   activities: string[];
   lastUpdated: string;
 }
@@ -67,11 +66,10 @@ export default function CoachNew() {
   const [isLoading, setIsLoading] = useState(false);
   const [stravaStats, setStravaStats] = useState<StravaStats>({ connected: false, lastChecked: 'Never' });
   const [context, setContext] = useState<ConversationContext>({});
-  const [todayMetrics, setTodayMetrics] = useState<TodayMetrics>({
+  const [weeklyMetrics, setWeeklyMetrics] = useState<WeeklyMetrics>({
     caloriesBurned: 0,
     caloriesConsumed: 0,
     protein: 0,
-    heartRate: null,
     activities: [],
     lastUpdated: 'Never'
   });
@@ -79,7 +77,7 @@ export default function CoachNew() {
 
   useEffect(() => {
     testMCPConnection();
-    fetchTodayMetrics();
+    fetchWeeklyMetrics();
   }, []);
 
   const testMCPConnection = async () => {
@@ -100,50 +98,116 @@ export default function CoachNew() {
     }
   };
 
-  // Fetch minimal today's metrics (only when user clicks refresh)
-  const fetchTodayMetrics = async (): Promise<void> => {
+  // Fetch last 7 days average metrics using same logic as OverallJam
+  const fetchWeeklyMetrics = async (): Promise<void> => {
     try {
       setMetricsLoading(true);
-      const today = new Date().toISOString().split('T')[0];
       
-      console.log(`🔄 Fetching today's nutrition summary (${today})...`);
+      console.log(`🔄 Fetching last 7 days metrics...`);
 
-      // Fetch only today's nutrition data (not last 7 days)
+      // Get the last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const dateString = sevenDaysAgo.toISOString().split('T')[0];
+
+      // Fetch last 7 days nutrition data
       const nutritionQuery = query(
         collection(db, "nutritionLogs"),
-        where("date", "==", today)
+        where("date", ">=", dateString),
+        orderBy("date", "desc")
       );
 
-      const nutritionSnapshot = await getDocs(nutritionQuery).catch((error) => {
-        console.error("Error fetching today's nutrition:", error);
-        return { docs: [] };
-      });
+      // Fetch last 7 days Strava data
+      const stravaQuery = query(
+        collection(db, "strava_data"),
+        where("userId", "==", "mihir_jain"),
+        orderBy("start_date", "desc"),
+        limit(50)
+      );
 
-      let todayNutrition = { calories: 0, protein: 0 };
+      const [nutritionSnapshot, stravaSnapshot] = await Promise.all([
+        getDocs(nutritionQuery).catch((error) => {
+          console.error("Error fetching nutrition data:", error);
+          return { docs: [] };
+        }),
+        getDocs(stravaQuery).catch((error) => {
+          console.error("Error fetching Strava data:", error);
+          return { docs: [] };
+        })
+      ]);
+
+      // Initialize data structure for 7 days
+      const weekData: Record<string, { caloriesBurned: number; caloriesConsumed: number; protein: number; activities: Set<string> }> = {};
       
-      if (nutritionSnapshot.docs.length > 0) {
-        const data = nutritionSnapshot.docs[0].data();
-        todayNutrition = {
-          calories: data.totals?.calories || 0,
-          protein: data.totals?.protein || 0
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        weekData[dateStr] = {
+          caloriesBurned: 0,
+          caloriesConsumed: 0,
+          protein: 0,
+          activities: new Set<string>()
         };
-        console.log(`✅ Found today's nutrition: ${todayNutrition.calories} cal, ${todayNutrition.protein}g protein`);
-      } else {
-        console.log(`⚠️ No nutrition data found for ${today}`);
       }
 
-      // Update state with minimal data
-      setTodayMetrics({
-        caloriesBurned: 0, // Will be populated from MCP queries when needed
-        caloriesConsumed: todayNutrition.calories,
-        protein: Math.round(todayNutrition.protein),
-        heartRate: null, // Will be populated from MCP queries when needed
-        activities: [], // Will be populated from MCP queries when needed
+      // Process nutrition data (same as OverallJam)
+      nutritionSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (weekData[data.date]) {
+          weekData[data.date].caloriesConsumed = data.totals?.calories || 0;
+          weekData[data.date].protein = data.totals?.protein || 0;
+        }
+      });
+
+      // Process Strava data (same logic as OverallJam)
+      stravaSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const activityDate = data.date || (data.start_date ? data.start_date.substring(0, 10) : undefined);
+        
+        if (!activityDate || !weekData[activityDate]) return;
+
+        // Use direct Strava calories field (same as OverallJam)
+        const activityCalories = data.calories || data.activity?.calories || data.kilojoules_to_calories || 0;
+        weekData[activityDate].caloriesBurned += activityCalories;
+        
+        // Track activity types
+        const activityType = data.type || '';
+        if (activityType) {
+          weekData[activityDate].activities.add(activityType);
+        }
+      });
+
+      // Calculate averages
+      const validDays = Object.values(weekData).filter(day => 
+        day.caloriesBurned > 0 || day.caloriesConsumed > 0 || day.protein > 0
+      );
+      
+      const daysCount = validDays.length > 0 ? validDays.length : 7;
+      
+      const avgCaloriesBurned = validDays.reduce((sum, day) => sum + day.caloriesBurned, 0) / daysCount;
+      const avgCaloriesConsumed = validDays.reduce((sum, day) => sum + day.caloriesConsumed, 0) / daysCount;
+      const avgProtein = validDays.reduce((sum, day) => sum + day.protein, 0) / daysCount;
+      
+      // Collect all unique activities from the week
+      const allActivities = new Set<string>();
+      Object.values(weekData).forEach(day => {
+        day.activities.forEach(activity => allActivities.add(activity));
+      });
+
+      console.log(`✅ 7-day averages: ${avgCaloriesBurned.toFixed(0)} cal burned, ${avgCaloriesConsumed.toFixed(0)} cal consumed, ${avgProtein.toFixed(0)}g protein`);
+
+      // Update state with averaged data
+      setWeeklyMetrics({
+        caloriesBurned: Math.round(avgCaloriesBurned),
+        caloriesConsumed: Math.round(avgCaloriesConsumed),
+        protein: Math.round(avgProtein),
+        activities: Array.from(allActivities),
         lastUpdated: new Date().toLocaleTimeString()
       });
       
     } catch (error) {
-      console.error('Error fetching today metrics:', error);
+      console.error('Error fetching weekly metrics:', error);
     } finally {
       setMetricsLoading(false);
     }
@@ -1191,14 +1255,29 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
     }
   };
 
-  // Smart coaching prompts that leverage the dynamic system
-  const smartPrompts = [
-    "analyze my runs from last week",
-    "show my nutrition for the last 7 days", 
-    "how has my pace improved lately",
-    "compare my nutrition and running for yesterday",
-    "what's my protein intake this week",
-    "analyze my calories and training balance last month"
+  // Smart coaching prompts organized by category with different color themes
+  const runningPrompts = [
+    "analyze my pace trends this month",
+    "show my longest runs from last week", 
+    "how has my running consistency been",
+    "compare my run times this week vs last week",
+    "what's my average heart rate during runs"
+  ];
+
+  const nutritionPrompts = [
+    "show my protein intake for the last 7 days",
+    "analyze my calorie patterns this week",
+    "what foods am I eating most often",
+    "compare my nutrition goals vs actual intake",
+    "how balanced has my diet been lately"
+  ];
+
+  const combinedPrompts = [
+    "how does my nutrition affect my running performance",
+    "compare my energy intake to calories burned this week",
+    "analyze my pre-run fueling strategies",
+    "show the relationship between my diet and recovery",
+    "optimize my nutrition for better running results"
   ];
 
   // Contextual prompts shown when context is available
@@ -1211,178 +1290,315 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col relative overflow-hidden">
-      {/* Background decoration - OverallJam style */}
-      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
+    <div className="min-h-screen bg-gray-50 flex flex-col relative">{/* Minimalist background */}
 
-      {/* Header - OverallJam style */}
-      <header className="relative z-10 pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-6">
+      {/* Header - Minimalist */}
+      <header className="pt-6 px-6 md:px-12">
+        <div className="flex items-center justify-between mb-8">
           <Button
             onClick={() => navigate('/')}
             variant="ghost"
-            className="hover:bg-white/20"
+            className="text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
+            Back
           </Button>
+          <Badge variant="outline" className={`${stravaStats.connected ? 'text-green-700 border-green-300' : 'text-red-700 border-red-300'}`}>
+            {stravaStats.connected ? 'Connected' : 'Offline'}
+          </Badge>
         </div>
 
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
-            🤖 AI Running Coach
+        <div className="text-center max-w-2xl mx-auto mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            AI Running Coach
           </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            Intelligent analysis with conversational context powered by real Strava data
+          <p className="text-gray-600">
+            Intelligent analysis powered by your Strava data and nutrition logs
           </p>
-          <div className="flex flex-wrap justify-center gap-2 mt-2">
-            <Badge variant="outline" className="text-xs bg-white/50">
-              <Zap className="h-3 w-3 mr-1" />
-              Real-Time Data
-            </Badge>
-            <Badge variant="outline" className="text-xs bg-white/50">
-              <Activity className="h-3 w-3 mr-1" />
-              Strava Connected
-            </Badge>
-            <Badge variant="outline" className="text-xs bg-white/50">
-              <Bot className="h-3 w-3 mr-1" />
-              Contextual Memory
-            </Badge>
-          </div>
         </div>
       </header>
 
-      {/* Main Content - Two Column Layout */}
-      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Main Content - Minimalist Layout */}
+      <main className="flex-grow px-6 md:px-12 pb-8">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-          {/* Metrics Sidebar - Left Column */}
-          <div className="lg:col-span-1 space-y-4">
+          {/* Central Chat Area - Spans most width */}
+          <div className="lg:col-span-3 space-y-6">
             
-            {/* Connection Status */}
-            <Card className="bg-white/80 backdrop-blur border border-green-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-green-600" />
-                  System Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Badge variant={stravaStats.connected ? "default" : "destructive"} className="w-full justify-center">
-                  MCP: {stravaStats.connected ? "Connected" : "Disconnected"}
-                </Badge>
-                <div className="text-xs text-gray-600 mt-2 text-center">
-                  Last check: {stravaStats.lastChecked}
+            {/* Smart Prompts Section - At Top */}
+            <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-lg rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-slate-600 to-slate-700 text-white pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Sparkles className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold">
+                      {context.lastDate ? '🔗 Contextual Questions' : 'Smart Prompts'}
+                    </CardTitle>
+                    <CardDescription className="text-slate-100 text-sm">
+                      {context.lastDate 
+                        ? `Ask follow-up questions about: ${context.lastDate}`
+                        : 'Choose a category and click any prompt to get started'
+                      }
+                    </CardDescription>
+                  </div>
                 </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {context.lastDate ? (
+                  // Contextual prompts when context is active
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {contextualPrompts.map((prompt, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInput(prompt)}
+                        className="text-sm justify-start h-auto py-3 px-4 transition-all duration-300 hover:shadow-md border-blue-200 text-blue-700 hover:bg-blue-50 bg-gradient-to-r from-blue-50/50 to-blue-100/30"
+                        disabled={isLoading}
+                      >
+                        <Activity className="h-4 w-4 mr-3 flex-shrink-0" />
+                        <span className="text-left leading-relaxed">{prompt}</span>
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setContext({})}
+                      className="text-sm border-gray-200 text-gray-600 hover:bg-gray-50 bg-gradient-to-r from-gray-50/50 to-gray-100/30 h-auto py-3 px-4"
+                      disabled={isLoading}
+                    >
+                      <Zap className="h-4 w-4 mr-3" />
+                      Clear Context & Start Fresh
+                    </Button>
+                  </div>
+                ) : (
+                  // Categorized prompts with different color themes
+                  <div className="space-y-6">
+                    {/* Running Category */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Activity className="h-5 w-5 text-blue-600" />
+                        <h3 className="font-semibold text-blue-900">Running Analysis</h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {runningPrompts.map((prompt, index) => (
+                          <Button
+                            key={`running-${index}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInput(prompt)}
+                            className="text-sm justify-start h-auto py-2 px-3 transition-all duration-300 hover:shadow-md border-blue-200 text-blue-700 hover:bg-blue-50 bg-blue-50/30"
+                            disabled={isLoading}
+                          >
+                            <span className="text-left leading-relaxed">{prompt}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Nutrition Category */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Utensils className="h-5 w-5 text-green-600" />
+                        <h3 className="font-semibold text-green-900">Nutrition Analysis</h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {nutritionPrompts.map((prompt, index) => (
+                          <Button
+                            key={`nutrition-${index}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInput(prompt)}
+                            className="text-sm justify-start h-auto py-2 px-3 transition-all duration-300 hover:shadow-md border-green-200 text-green-700 hover:bg-green-50 bg-green-50/30"
+                            disabled={isLoading}
+                          >
+                            <span className="text-left leading-relaxed">{prompt}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Combined Category */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Target className="h-5 w-5 text-purple-600" />
+                        <h3 className="font-semibold text-purple-900">Performance & Nutrition</h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {combinedPrompts.map((prompt, index) => (
+                          <Button
+                            key={`combined-${index}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInput(prompt)}
+                            className="text-sm justify-start h-auto py-2 px-3 transition-all duration-300 hover:shadow-md border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50/30"
+                            disabled={isLoading}
+                          >
+                            <span className="text-left leading-relaxed">{prompt}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            {/* Today's Metrics - OverallJam Style */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-green-600" />
-                  Today's Metrics
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={fetchTodayMetrics}
-                  disabled={metricsLoading}
-                  className="text-xs hover:bg-white/50"
-                >
-                  {metricsLoading ? <Zap className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                </Button>
-              </div>
-              
-              {/* Activities Status */}
-              {todayMetrics.activities.length > 0 && (
-                <div className="bg-green-50 rounded-lg p-2 border border-green-200">
-                  <div className="flex items-center gap-2 text-green-800">
-                    <Activity className="h-3 w-3" />
-                    <span className="text-xs font-medium">
-                      {todayMetrics.activities.join(', ')} Today
-                    </span>
+            {/* Chat Interface - Below Prompts */}
+            <Card className="bg-white border shadow-lg rounded-lg overflow-hidden">
+              <CardHeader className="bg-gray-900 text-white">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  Chat
+                  {context.lastDate && (
+                    <Badge variant="secondary" className="bg-white/20 text-white border-white/30 text-xs">
+                      Context: {context.lastDate}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {/* Messages - Dynamic Height */}
+                <div className="bg-gradient-to-b from-gray-50 to-white rounded-xl border border-gray-200 mb-6">
+                  <div className={`p-4 space-y-4 ${messages.length > 0 ? 'min-h-[400px] max-h-[600px] overflow-y-auto' : 'h-64'}`}>
+                    {messages.length === 0 && (
+                      <div className="text-center py-12 text-gray-500">
+                        <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                        <p className="text-lg font-medium">Ready to help!</p>
+                        <p className="text-sm mt-2">Choose a prompt above or ask your own question</p>
+                      </div>
+                    )}
+                    
+                    {messages.map((message, index) => (
+                      <div
+                        key={index}
+                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${
+                            message.role === 'user'
+                              ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white'
+                              : 'bg-white text-gray-800 border border-gray-200'
+                          }`}
+                        >
+                          <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
+                          <div className={`text-xs mt-2 flex items-center gap-1 ${
+                            message.role === 'user' ? 'text-emerald-100' : 'text-gray-500'
+                          }`}>
+                            {message.role === 'user' ? <Users className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                            {message.timestamp.toLocaleTimeString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white text-gray-800 p-4 rounded-2xl shadow-lg border border-gray-200 max-w-[85%]">
+                          <div className="flex items-center gap-3">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-200"></div>
+                            </div>
+                            <span className="text-sm font-medium">AI is analyzing your data...</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2">Fetching Strava data • Processing insights</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-              
-              {/* Calories Burned - OverallJam green theme */}
-              <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-white">Calories Out</h4>
-                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                    <Flame className="h-4 w-4 text-white" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold text-white">
-                    {metricsLoading ? '...' : todayMetrics.caloriesBurned.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-green-100">cal/day</p>
-                  <p className="text-xs text-green-200">From Strava</p>
-                </div>
-              </div>
 
-              {/* Calories In - OverallJam emerald theme */}
-              <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-white">Calories In</h4>
-                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                    <Utensils className="h-4 w-4 text-white" />
+                {/* Input */}
+                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                  <div className="flex gap-3">
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask about your running or nutrition..."
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={isLoading || !input.trim()}
+                      className="bg-gray-900 hover:bg-gray-800 text-white px-6"
+                    >
+                      {isLoading ? (
+                        <Zap className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Bot className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold text-white">
-                    {metricsLoading ? '...' : todayMetrics.caloriesConsumed.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-emerald-100">cal/day</p>
-                </div>
-              </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* Protein - OverallJam blue theme */}
-              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-white">Protein</h4>
-                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                    <Target className="h-4 w-4 text-white" />
+          {/* Sidebar */}
+          <div className="lg:col-span-1 space-y-4">
+            
+            {/* Weekly Averages */}
+            <Card className="bg-white border shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Last 7 Days Avg
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={fetchWeeklyMetrics}
+                    disabled={metricsLoading}
+                    className="h-6 w-6 p-0"
+                  >
+                    {metricsLoading ? <Zap className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                
+                {/* Activities */}
+                {weeklyMetrics.activities.length > 0 && (
+                  <div className="bg-gray-50 rounded p-2 border">
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <Activity className="h-3 w-3" />
+                      <span className="text-xs font-medium">
+                        {weeklyMetrics.activities.join(', ')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Simple Metrics */}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Calories out</span>
+                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.caloriesBurned.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Calories in</span>
+                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.caloriesConsumed.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Protein</span>
+                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.protein}g</span>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold text-white">
-                    {metricsLoading ? '...' : todayMetrics.protein}
-                  </p>
-                  <p className="text-xs text-blue-100">g/day</p>
+                
+                <div className="text-center pt-2">
+                  <Badge variant="outline" className="text-xs text-gray-500">
+                    Updated: {weeklyMetrics.lastUpdated}
+                  </Badge>
                 </div>
-              </div>
-
-              {/* Heart Rate - OverallJam cyan theme */}
-              <div className="bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-white">Run HR</h4>
-                  <div className="w-8 h-8 bg-white/30 rounded-lg flex items-center justify-center">
-                    <Heart className="h-4 w-4 text-white" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold text-white">
-                    {metricsLoading ? '...' : (todayMetrics.heartRate || '--')}
-                  </p>
-                  <p className="text-xs text-cyan-100">bpm avg</p>
-                  <p className="text-xs text-cyan-200">Runs only</p>
-                </div>
-              </div>
-
-              {/* Data freshness indicator */}
-              <div className="text-center pt-2">
-                <Badge variant="outline" className="bg-white/60 text-gray-600 text-xs">
-                  <Sparkles className="h-3 w-3 mr-1" />
-                  Updated: {todayMetrics.lastUpdated}
-                </Badge>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Context Display */}
             {context.lastDate && (
@@ -1458,9 +1674,9 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                           className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                           <div
-                            className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${
+                            className={`max-w-[85%] p-4 rounded-lg shadow-sm ${
                               message.role === 'user'
-                                ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white'
+                                ? 'bg-gray-900 text-white'
                                 : 'bg-white text-gray-800 border border-gray-200'
                             }`}
                           >
@@ -1529,7 +1745,7 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(context.lastDate ? contextualPrompts : smartPrompts).map((prompt, index) => (
+                    {(context.lastDate ? contextualPrompts : [...runningPrompts, ...nutritionPrompts, ...combinedPrompts]).map((prompt, index) => (
                       <Button
                         key={index}
                         variant="outline"
