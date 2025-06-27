@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   Bot,
-  Sparkles
+  Sparkles,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
 import { 
   collection, 
   query, 
@@ -96,40 +97,85 @@ export default function CoachNew() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [stravaStats, setStravaStats] = useState<StravaStats>({ connected: false, lastChecked: 'Never' });
-  const [context, setContext] = useState<ConversationContext>({
-    cachedData: {},
-    conversationHistory: []
-  });
+  const [context, setContext] = useState<ConversationContext>({});
   const [weeklyMetrics, setWeeklyMetrics] = useState<WeeklyMetrics>({
     caloriesBurned: 0,
     caloriesConsumed: 0,
     protein: 0,
     activities: [],
-    lastUpdated: 'Never'
+    lastUpdated: ''
   });
-  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  
+  // Speech recognition state
+  const [isRecording, setIsRecording] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    testMCPConnection();
     fetchWeeklyMetrics();
+    
+    // Check for speech recognition support
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+      
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsRecording(false);
+        
+        // Auto-submit the transcribed text
+        setTimeout(() => {
+          if (transcript.trim()) {
+            handleSendMessage();
+          }
+        }, 100);
+      };
+      
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+      };
+      
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    }
   }, []);
 
   const testMCPConnection = async () => {
     try {
-      const response = await fetch('/api/claude-coach', {
+      const response = await fetch('/api/runs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           action: 'test_connection'
         })
       });
-      
-      if (response.ok) {
-        setStravaStats({ connected: true, lastChecked: new Date().toLocaleTimeString() });
-      }
     } catch (error) {
       console.log('MCP connection test failed');
+    }
+  };
+
+  // Speech recognition functions
+  const startRecording = () => {
+    if (recognitionRef.current && speechSupported) {
+      setIsRecording(true);
+      recognitionRef.current.start();
+    }
+  };
+
+  const stopRecording = () => {
+    if (recognitionRef.current && isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
     }
   };
 
@@ -997,10 +1043,11 @@ export default function CoachNew() {
         type: 'general',
         needsNutrition: true,
         needsRunning: true,
-        needsSleep: false,
+        needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein'],
-        runningDataTypes: ['activity_details']
+        runningDataTypes: ['activity_details'],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
       };
     }
     
@@ -1828,9 +1875,7 @@ export default function CoachNew() {
               Health Coach
             </h1>
             
-            <Badge variant={stravaStats.connected ? "default" : "destructive"} className="text-xs font-medium">
-              {stravaStats.connected ? 'Connected' : 'Offline'}
-            </Badge>
+            <div className="w-20"></div> {/* Spacer for balance */}
           </div>
         </div>
       </header>
@@ -1992,13 +2037,34 @@ export default function CoachNew() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Ask about your health data..."
-                    disabled={isLoading}
-                    className="w-full px-4 py-4 pr-12 text-[15px] border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-500 font-normal bg-white shadow-sm disabled:bg-gray-50"
+                    placeholder={isRecording ? "Listening..." : "Ask about your health data or speak..."}
+                    disabled={isLoading || isRecording}
+                    className="w-full px-4 py-4 pr-20 text-[15px] border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-500 font-normal bg-white shadow-sm disabled:bg-gray-50"
                   />
+                  
+                  {/* Microphone button */}
+                  {speechSupported && (
+                    <button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      disabled={isLoading}
+                      className={`absolute right-12 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                        isRecording 
+                          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' 
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                      } disabled:cursor-not-allowed`}
+                    >
+                      {isRecording ? (
+                        <MicOff className="w-4 h-4" />
+                      ) : (
+                        <Mic className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                  
+                  {/* Send button */}
                   <button
                     onClick={handleSendMessage}
-                    disabled={isLoading || !input.trim()}
+                    disabled={isLoading || (!input.trim() && !isRecording)}
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl flex items-center justify-center transition-colors duration-200 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
