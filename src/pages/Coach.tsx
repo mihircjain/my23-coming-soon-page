@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Bot, Zap, TrendingUp, Flame, Utensils, Target, Heart, ArrowLeft, Sparkles, Trophy, Calendar, Users } from 'lucide-react';
+import { Activity, Bot, Zap, TrendingUp, Flame, Utensils, Target, Heart, ArrowLeft, Sparkles, Trophy, Calendar, Users, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '@/lib/firebaseConfig';
 import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
@@ -23,6 +23,12 @@ interface MCPResponse {
 }
 
 interface NutritionResponse {
+  success: boolean;
+  data: any;
+  error?: string;
+}
+
+interface SleepResponse {
   success: boolean;
   data: any;
   error?: string;
@@ -50,13 +56,15 @@ interface WeeklyMetrics {
 }
 
 interface QueryIntent {
-  type: 'nutrition_only' | 'running_only' | 'nutrition_and_running' | 'general';
+  type: 'nutrition_only' | 'running_only' | 'nutrition_and_running' | 'sleep_only' | 'sleep_and_running' | 'sleep_and_nutrition' | 'all_data' | 'general';
   needsNutrition: boolean;
   needsRunning: boolean;
+  needsSleep: boolean;
   dateRange?: { startDate: Date; endDate: Date };
   nutritionDataTypes?: string[];
   runningDataTypes?: string[];
-  isSmartTiming?: boolean;  // Flag for intelligent nutrition timing based on activity time
+  sleepDataTypes?: string[];
+  isSmartTiming?: boolean;
 }
 
 export default function CoachNew() {
@@ -289,8 +297,16 @@ export default function CoachNew() {
       'training', 'distance', 'speed', 'power', 'zones', 'strava'
     ];
     
+    // Keywords that indicate sleep-related queries
+    const sleepKeywords = [
+      'sleep', 'sleeping', 'slept', 'bedtime', 'wake', 'woke', 'rest', 'recovery',
+      'tired', 'fatigue', 'readiness', 'oura', 'sleep score', 'sleep quality',
+      'deep sleep', 'rem sleep', 'light sleep', 'sleep duration', 'sleep efficiency'
+    ];
+    
     const hasNutritionKeywords = nutritionKeywords.some(keyword => lowerQuery.includes(keyword));
     const hasRunningKeywords = runningKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasSleepKeywords = sleepKeywords.some(keyword => lowerQuery.includes(keyword));
     const isNutritionPerformanceQuery = detectNutritionPerformanceQuery(query);
     
     // Parse date range for data fetching
@@ -298,52 +314,89 @@ export default function CoachNew() {
     
     let intent: QueryIntent;
     
-    if (isNutritionPerformanceQuery) {
-      // Special case: nutrition-performance relationship query
-      // Needs smart timing logic to fetch correct nutrition day
+    // Determine data needs based on keyword combinations
+    const needsNutrition = hasNutritionKeywords || isNutritionPerformanceQuery;
+    const needsRunning = hasRunningKeywords || isNutritionPerformanceQuery;
+    const needsSleep = hasSleepKeywords;
+    
+    // Determine query type based on combinations
+    if (needsNutrition && needsRunning && needsSleep) {
       intent = {
-        type: 'nutrition_and_running',
+        type: 'all_data',
         needsNutrition: true,
         needsRunning: true,
+        needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
         runningDataTypes: ['activity_details', 'basic_stats'],
-        isSmartTiming: true  // Flag for smart timing logic
+        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+        isSmartTiming: isNutritionPerformanceQuery
       };
-    } else if (hasNutritionKeywords && hasRunningKeywords) {
-      // Both nutrition and running mentioned
+    } else if (needsSleep && needsRunning) {
+      intent = {
+        type: 'sleep_and_running',
+        needsNutrition: false,
+        needsRunning: true,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        runningDataTypes: ['activity_details', 'basic_stats'],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+      };
+    } else if (needsSleep && needsNutrition) {
+      intent = {
+        type: 'sleep_and_nutrition',
+        needsNutrition: true,
+        needsRunning: false,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+      };
+    } else if (needsSleep) {
+      intent = {
+        type: 'sleep_only',
+        needsNutrition: false,
+        needsRunning: false,
+        needsSleep: true,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+      };
+    } else if (isNutritionPerformanceQuery || (needsNutrition && needsRunning)) {
       intent = {
         type: 'nutrition_and_running',
         needsNutrition: true,
         needsRunning: true,
+        needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-        runningDataTypes: ['activity_details', 'basic_stats']
+        runningDataTypes: ['activity_details', 'basic_stats'],
+        isSmartTiming: isNutritionPerformanceQuery
       };
-    } else if (hasNutritionKeywords) {
-      // Only nutrition mentioned
+    } else if (needsNutrition) {
       intent = {
         type: 'nutrition_only',
         needsNutrition: true,
         needsRunning: false,
+        needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber']
       };
-    } else if (hasRunningKeywords) {
-      // Only running mentioned
+    } else if (needsRunning) {
       intent = {
         type: 'running_only',
         needsNutrition: false,
         needsRunning: true,
+        needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         runningDataTypes: determineRunningDataTypes(query)
       };
     } else {
-      // General query - might need both for context
+      // General query - might need some data for context
       intent = {
         type: 'general',
         needsNutrition: true,
         needsRunning: true,
+        needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein'],
         runningDataTypes: ['activity_details']
@@ -355,8 +408,10 @@ export default function CoachNew() {
       intent: intent.type,
       needsNutrition: intent.needsNutrition,
       needsRunning: intent.needsRunning,
+      needsSleep: intent.needsSleep,
       hasNutritionKeywords,
       hasRunningKeywords,
+      hasSleepKeywords,
       isNutritionPerformanceQuery,
       dateRange: intent.dateRange ? 
         `${intent.dateRange.startDate.toDateString()} → ${intent.dateRange.endDate.toDateString()}` : 
@@ -486,7 +541,140 @@ export default function CoachNew() {
       return {
         success: false,
         data: null,
-        error: `Failed to fetch nutrition data: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: `Failed to fetch nutrition data: ${error.message}`
+      };
+    }
+  };
+
+  // Fetch sleep data for a specific date range from Firestore oura_sleep_data collection
+  const fetchSleepDataForRange = async (startDate: Date, endDate: Date): Promise<SleepResponse> => {
+    try {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      console.log(`😴 Fetching sleep data from ${startDateStr} to ${endDateStr}`);
+
+      // Generate array of dates to check
+      const datesToCheck = [];
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        datesToCheck.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Fetch sleep documents using document IDs (mihir_jain_YYYY-MM-DD format)
+      const sleepPromises = datesToCheck.map(async (dateStr) => {
+        const docId = `mihir_jain_${dateStr}`;
+        try {
+          const sleepDoc = await db.collection('oura_sleep_data').doc(docId).get();
+          if (sleepDoc.exists) {
+            return { date: dateStr, ...sleepDoc.data() };
+          }
+          return null;
+        } catch (error) {
+          console.log(`Sleep data not found for ${dateStr}`);
+          return null;
+        }
+      });
+
+      const sleepResults = await Promise.all(sleepPromises);
+      const validSleepData = sleepResults.filter(data => data !== null);
+      
+      if (validSleepData.length === 0) {
+        console.log(`⚠️ No sleep data found for date range ${startDateStr} to ${endDateStr}`);
+        return {
+          success: false,
+          data: null,
+          error: `No sleep data found for the specified date range`
+        };
+      }
+
+      // Process sleep data into a structured format
+      const sleepData = {
+        dateRange: { startDate: startDateStr, endDate: endDateStr },
+        totalDays: validSleepData.length,
+        dailyLogs: [] as any[],
+        averages: {
+          sleepDuration: 0,
+          sleepScore: 0,
+          averageHeartRate: 0,
+          readinessScore: 0,
+          deepSleep: 0,
+          remSleep: 0,
+          lightSleep: 0
+        }
+      };
+
+      let totalSleepDuration = 0;
+      let totalSleepScore = 0;
+      let totalHeartRate = 0;
+      let totalReadinessScore = 0;
+      let totalDeepSleep = 0;
+      let totalRemSleep = 0;
+      let totalLightSleep = 0;
+      let heartRateCount = 0;
+
+      // Process each day's sleep data
+      validSleepData.forEach(dayData => {
+        const sleep = dayData.sleep || {};
+        const readiness = dayData.readiness || {};
+        
+        const sleepDurationHours = sleep.total_sleep_duration ? sleep.total_sleep_duration / 3600 : 0;
+        const avgHeartRate = sleep.average_heart_rate || null;
+        
+        sleepData.dailyLogs.push({
+          date: dayData.date,
+          sleepDuration: Math.round(sleepDurationHours * 10) / 10, // Hours, 1 decimal
+          sleepScore: sleep.sleep_score || 0,
+          averageHeartRate: avgHeartRate,
+          readinessScore: readiness.readiness_score || 0,
+          deepSleep: sleep.deep_sleep_duration ? Math.round(sleep.deep_sleep_duration / 3600 * 10) / 10 : 0,
+          remSleep: sleep.rem_sleep_duration ? Math.round(sleep.rem_sleep_duration / 3600 * 10) / 10 : 0,
+          lightSleep: sleep.light_sleep_duration ? Math.round(sleep.light_sleep_duration / 3600 * 10) / 10 : 0,
+          sleepEfficiency: sleep.sleep_efficiency || 0,
+          bedtimeStart: sleep.bedtime_start,
+          bedtimeEnd: sleep.bedtime_end
+        });
+        
+        // Add to totals for averaging
+        totalSleepDuration += sleepDurationHours;
+        totalSleepScore += sleep.sleep_score || 0;
+        totalReadinessScore += readiness.readiness_score || 0;
+        totalDeepSleep += sleep.deep_sleep_duration ? sleep.deep_sleep_duration / 3600 : 0;
+        totalRemSleep += sleep.rem_sleep_duration ? sleep.rem_sleep_duration / 3600 : 0;
+        totalLightSleep += sleep.light_sleep_duration ? sleep.light_sleep_duration / 3600 : 0;
+        
+        if (avgHeartRate && avgHeartRate > 0) {
+          totalHeartRate += avgHeartRate;
+          heartRateCount++;
+        }
+      });
+
+      // Calculate averages
+      const dayCount = validSleepData.length;
+      if (dayCount > 0) {
+        sleepData.averages.sleepDuration = Math.round(totalSleepDuration / dayCount * 10) / 10;
+        sleepData.averages.sleepScore = Math.round(totalSleepScore / dayCount);
+        sleepData.averages.readinessScore = Math.round(totalReadinessScore / dayCount);
+        sleepData.averages.deepSleep = Math.round(totalDeepSleep / dayCount * 10) / 10;
+        sleepData.averages.remSleep = Math.round(totalRemSleep / dayCount * 10) / 10;
+        sleepData.averages.lightSleep = Math.round(totalLightSleep / dayCount * 10) / 10;
+        sleepData.averages.averageHeartRate = heartRateCount > 0 ? Math.round(totalHeartRate / heartRateCount) : 0;
+      }
+
+      console.log(`✅ Sleep data processed: ${dayCount} days, avg ${sleepData.averages.sleepDuration}h sleep, ${sleepData.averages.sleepScore} score`);
+
+      return {
+        success: true,
+        data: sleepData
+      };
+      
+    } catch (error) {
+      console.error('Error fetching sleep data:', error);
+      return {
+        success: false,
+        data: null,
+        error: `Failed to fetch sleep data: ${error.message}`
       };
     }
   };
@@ -1030,14 +1218,33 @@ export default function CoachNew() {
       }
     }
     
-
+    // Step 5: Fetch sleep data if needed
+    let sleepResponse: SleepResponse | null = null;
     
-    // Step 4: Return combined result
+    if (intent.needsSleep) {
+      const sleepDateRange = intent.dateRange || {
+        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
+        endDate: new Date()
+      };
+      
+      console.log(`😴 Fetching sleep data for date range...`);
+      sleepResponse = await fetchSleepDataForRange(sleepDateRange.startDate, sleepDateRange.endDate);
+      
+      if (!sleepResponse.success) {
+        console.log(`⚠️ Sleep data fetch failed: ${sleepResponse.error}`);
+      } else {
+        console.log(`✅ Sleep data fetched successfully`);
+      }
+    }
+    
+    // Step 6: Return combined result
     return { 
       intent: intent.type,
       needsNutrition: intent.needsNutrition,
       needsRunning: intent.needsRunning,
+      needsSleep: intent.needsSleep,
       nutritionData: nutritionResponse?.success ? nutritionResponse.data : null,
+      sleepData: sleepResponse?.success ? sleepResponse.data : null,
       mcpResponses,
       dateRange: intent.dateRange
     };
@@ -1147,11 +1354,12 @@ export default function CoachNew() {
       
       // Step 2: Get the RIGHT data first (no Claude guessing)
       const dataResult = await getDataForQuery(resolvedInput);
-      const { intent, needsNutrition, needsRunning, nutritionData, mcpResponses, dateRange } = dataResult;
+      const { intent, needsNutrition, needsRunning, nutritionData, sleepData, mcpResponses, dateRange } = dataResult;
       
       console.log(`✅ Data fetching complete:`, {
         intent,
         nutritionData: nutritionData ? `${nutritionData.totalDays} days` : 'none',
+        sleepData: sleepData ? `${sleepData.totalDays} days` : 'none',
         mcpResponses: `${mcpResponses.length} responses`
       });
 
@@ -1206,7 +1414,9 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
         type: intent, 
         needsNutrition, 
         needsRunning, 
-        nutritionData 
+        needsSleep,
+        nutritionData,
+        sleepData
       }, mcpResponses);
 
       const assistantMessage: Message = {
@@ -1255,7 +1465,7 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
     }
   };
 
-  // Smart coaching prompts organized by category with different color themes
+  // Smart coaching prompts organized by category
   const runningPrompts = [
     "analyze my pace trends this month",
     "show my longest runs from last week", 
@@ -1272,12 +1482,20 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
     "how balanced has my diet been lately"
   ];
 
+  const sleepPrompts = [
+    "how has my sleep quality been this week",
+    "analyze my sleep duration patterns",
+    "show my sleep scores and trends",
+    "how does my sleep affect my running",
+    "compare my deep sleep vs light sleep"
+  ];
+
   const combinedPrompts = [
     "how does my nutrition affect my running performance",
     "compare my energy intake to calories burned this week",
     "analyze my pre-run fueling strategies",
     "show the relationship between my diet and recovery",
-    "optimize my nutrition for better running results"
+    "how does my sleep impact my running performance"
   ];
 
   // Contextual prompts shown when context is available
@@ -1286,108 +1504,108 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
     "how was my nutrition that day", 
     "compare my calories to my activity",
     "analyze my protein intake that day",
-    "was I fueled properly for that workout"
+    "how was my sleep that night"
   ];
 
+  // Add useRef for auto-scroll
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
-      {/* Background decoration - Match OverallJam */}
-      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-
-      {/* Header - Match OverallJam style */}
-      <header className="relative z-10 pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-6">
-          <Button
-            onClick={() => navigate('/')}
-            variant="ghost"
-            className="hover:bg-white/20"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-          
-          <Badge variant="outline" className={`${stravaStats.connected ? 'text-green-700 border-green-300' : 'text-red-700 border-red-300'}`}>
-            {stravaStats.connected ? 'Connected' : 'Offline'}
-          </Badge>
-        </div>
-
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
-            🤖 AI Running Coach
-          </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            Intelligent analysis powered by your Strava data and nutrition logs
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="border-b border-gray-200 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <Button
+              onClick={() => navigate('/')}
+              variant="ghost"
+              className="text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            
+            <h1 className="text-xl font-semibold text-gray-900">
+              AI Health Coach
+            </h1>
+            
+            <Badge variant={stravaStats.connected ? "default" : "destructive"} className="text-xs">
+              {stravaStats.connected ? 'Connected' : 'Offline'}
+            </Badge>
+          </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-          {/* Central Chat Area - spans 3 columns */}
-          <div className="lg:col-span-3 space-y-6">
+          {/* Main Chat Area */}
+          <div className="lg:col-span-3 space-y-4">
             
-            {/* Smart Prompts Section */}
-            <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-teal-500" />
-                  {context.lastDate ? 'Contextual Questions' : 'Smart Prompts'}
+            {/* Smart Prompts */}
+            <Card className="border-gray-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium text-gray-900 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
+                  {context.lastDate ? 'Follow-up Questions' : 'Quick Start'}
                   {context.lastDate && (
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      Context: {context.lastDate}
+                    <Badge variant="secondary" className="text-xs">
+                      {context.lastDate}
                     </Badge>
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 {context.lastDate ? (
-                  // Contextual prompts
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="flex flex-wrap gap-2">
                     {contextualPrompts.map((prompt, index) => (
                       <Button
                         key={index}
                         variant="outline"
                         size="sm"
                         onClick={() => setInput(prompt)}
-                        className="text-sm justify-start h-auto py-3 px-4 border-blue-200 text-blue-700 hover:bg-blue-50"
+                        className="text-sm h-8 px-3 border-gray-300 text-gray-700 hover:bg-gray-50"
                         disabled={isLoading}
                       >
-                        <Activity className="h-4 w-4 mr-3 flex-shrink-0" />
-                        <span className="text-left">{prompt}</span>
+                        {prompt}
                       </Button>
                     ))}
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => setContext({})}
-                      className="text-sm border-gray-200 text-gray-600 hover:bg-gray-50 h-auto py-3 px-4"
+                      className="text-sm h-8 px-3 text-gray-500"
                       disabled={isLoading}
                     >
-                      <Zap className="h-4 w-4 mr-3" />
-                      Clear Context
+                      Clear
                     </Button>
                   </div>
                 ) : (
-                  // Categorized prompts
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {/* Running */}
                     <div>
-                      <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                      <div className="text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
                         <Activity className="h-4 w-4" />
-                        Running Analysis
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        Running
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         {runningPrompts.map((prompt, index) => (
                           <Button
                             key={`running-${index}`}
                             variant="outline"
                             size="sm"
                             onClick={() => setInput(prompt)}
-                            className="text-xs justify-start h-auto py-2 px-3 border-blue-200 text-blue-700 hover:bg-blue-50"
+                            className="text-xs h-7 px-2 border-blue-200 text-blue-700 hover:bg-blue-50"
                             disabled={isLoading}
                           >
                             {prompt}
@@ -1398,18 +1616,40 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
 
                     {/* Nutrition */}
                     <div>
-                      <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                      <div className="text-sm font-medium text-green-900 mb-2 flex items-center gap-2">
                         <Utensils className="h-4 w-4" />
-                        Nutrition Analysis
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        Nutrition
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         {nutritionPrompts.map((prompt, index) => (
                           <Button
                             key={`nutrition-${index}`}
                             variant="outline"
                             size="sm"
                             onClick={() => setInput(prompt)}
-                            className="text-xs justify-start h-auto py-2 px-3 border-green-200 text-green-700 hover:bg-green-50"
+                            className="text-xs h-7 px-2 border-green-200 text-green-700 hover:bg-green-50"
+                            disabled={isLoading}
+                          >
+                            {prompt}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Sleep */}
+                    <div>
+                      <div className="text-sm font-medium text-purple-900 mb-2 flex items-center gap-2">
+                        <Moon className="h-4 w-4" />
+                        Sleep
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {sleepPrompts.map((prompt, index) => (
+                          <Button
+                            key={`sleep-${index}`}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInput(prompt)}
+                            className="text-xs h-7 px-2 border-purple-200 text-purple-700 hover:bg-purple-50"
                             disabled={isLoading}
                           >
                             {prompt}
@@ -1420,18 +1660,18 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
 
                     {/* Combined */}
                     <div>
-                      <h3 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                      <div className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
                         <Target className="h-4 w-4" />
-                        Performance & Nutrition
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        Combined Analysis
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         {combinedPrompts.map((prompt, index) => (
                           <Button
                             key={`combined-${index}`}
                             variant="outline"
                             size="sm"
                             onClick={() => setInput(prompt)}
-                            className="text-xs justify-start h-auto py-2 px-3 border-purple-200 text-purple-700 hover:bg-purple-50"
+                            className="text-xs h-7 px-2 border-gray-300 text-gray-700 hover:bg-gray-50"
                             disabled={isLoading}
                           >
                             {prompt}
@@ -1445,24 +1685,28 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
             </Card>
 
             {/* Chat Interface */}
-            <Card className="bg-gradient-to-r from-green-200 to-blue-200 rounded-2xl p-6 text-gray-800 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold bg-gradient-to-r from-green-700 to-blue-700 bg-clip-text text-transparent flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-gray-700" />
-                  AI Coach Chat
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    Live Analysis
-                  </Badge>
+            <Card className="border-gray-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium text-gray-900 flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-blue-600" />
+                  Chat
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {/* Messages */}
-                <div className="bg-white/30 backdrop-blur-sm rounded-lg p-4 mb-4" style={{ minHeight: '400px', maxHeight: '600px', overflowY: 'auto' }}>
+              <CardContent className="pt-0">
+                {/* Messages Container - Dynamic height based on content */}
+                <div 
+                  className="border border-gray-200 rounded-lg p-4 bg-gray-50 overflow-y-auto"
+                  style={{ 
+                    minHeight: messages.length === 0 ? '300px' : '400px',
+                    maxHeight: '800px',
+                    height: messages.length > 0 ? 'auto' : '300px'
+                  }}
+                >
                   {messages.length === 0 && (
-                    <div className="text-center py-12 text-gray-500">
-                      <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                      <p className="text-lg font-medium">Ready to help!</p>
-                      <p className="text-sm mt-2">Choose a prompt above or ask your own question</p>
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                      <Bot className="h-12 w-12 mb-3 text-gray-400" />
+                      <p className="text-base font-medium">Ready to help with your health data</p>
+                      <p className="text-sm mt-1">Ask about your running, nutrition, or sleep patterns</p>
                     </div>
                   )}
                   
@@ -1473,15 +1717,17 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                         className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
-                          className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${
+                          className={`max-w-[80%] p-3 rounded-lg ${
                             message.role === 'user'
-                              ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white'
-                              : 'bg-white text-gray-800 border border-gray-200'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white text-gray-900 border border-gray-200'
                           }`}
                         >
-                          <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
+                          <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {message.content}
+                          </div>
                           <div className={`text-xs mt-2 flex items-center gap-1 ${
-                            message.role === 'user' ? 'text-green-100' : 'text-gray-500'
+                            message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
                           }`}>
                             {message.role === 'user' ? <Users className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
                             {message.timestamp.toLocaleTimeString()}
@@ -1492,35 +1738,38 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                     
                     {isLoading && (
                       <div className="flex justify-start">
-                        <div className="bg-white text-gray-800 p-4 rounded-2xl shadow-lg border border-gray-200 max-w-[85%]">
-                          <div className="flex items-center gap-3">
+                        <div className="bg-white text-gray-900 p-3 rounded-lg border border-gray-200 max-w-[80%]">
+                          <div className="flex items-center gap-2">
                             <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-200"></div>
+                              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-100"></div>
+                              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-200"></div>
                             </div>
-                            <span className="text-sm font-medium">AI is analyzing your data...</span>
+                            <span className="text-sm">Analyzing your data...</span>
                           </div>
                         </div>
                       </div>
                     )}
+                    
+                    {/* Invisible div for auto-scroll */}
+                    <div ref={messagesEndRef} />
                   </div>
                 </div>
 
                 {/* Input */}
-                <div className="flex gap-3">
+                <div className="mt-4 flex gap-3">
                   <Input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Ask about your running or nutrition..."
+                    placeholder="Ask about your health data..."
                     disabled={isLoading}
-                    className="flex-1 bg-white/50"
+                    className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   />
                   <Button 
                     onClick={handleSendMessage} 
                     disabled={isLoading || !input.trim()}
-                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-6"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                   >
                     {isLoading ? (
                       <Zap className="h-4 w-4 animate-spin" />
@@ -1533,23 +1782,23 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
             </Card>
           </div>
 
-          {/* Sidebar - Right column */}
+          {/* Sidebar */}
           <div className="lg:col-span-1 space-y-4">
             
-            {/* Weekly Averages - Match OverallJam style */}
-            <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
+            {/* Weekly Metrics */}
+            <Card className="border-gray-200">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-teal-500" />
-                  Last 7 Days Avg
+                <CardTitle className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  Last 7 Days
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-3">
                 
                 {/* Activities */}
                 {weeklyMetrics.activities.length > 0 && (
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-3 border border-green-200">
-                    <div className="flex items-center gap-2 text-teal-700">
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                    <div className="flex items-center gap-2 text-blue-700">
                       <Activity className="h-4 w-4" />
                       <span className="text-xs font-medium">
                         {weeklyMetrics.activities.join(', ')}
@@ -1559,41 +1808,18 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                 )}
                 
                 {/* Metrics */}
-                <div className="space-y-3">
-                  <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Flame className="h-4 w-4 text-green-600" />
-                        <span className="text-xs text-green-700">Calories Out</span>
-                      </div>
-                      <span className="font-semibold text-green-800">
-                        {metricsLoading ? '...' : weeklyMetrics.caloriesBurned.toLocaleString()}
-                      </span>
-                    </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Calories out</span>
+                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.caloriesBurned.toLocaleString()}</span>
                   </div>
-                  
-                  <div className="bg-gradient-to-r from-emerald-100 to-teal-100 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Utensils className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs text-emerald-700">Calories In</span>
-                      </div>
-                      <span className="font-semibold text-emerald-800">
-                        {metricsLoading ? '...' : weeklyMetrics.caloriesConsumed.toLocaleString()}
-                      </span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Calories in</span>
+                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.caloriesConsumed.toLocaleString()}</span>
                   </div>
-                  
-                  <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Target className="h-4 w-4 text-blue-600" />
-                        <span className="text-xs text-blue-700">Protein</span>
-                      </div>
-                      <span className="font-semibold text-blue-800">
-                        {metricsLoading ? '...' : weeklyMetrics.protein}g
-                      </span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Protein</span>
+                    <span className="font-medium">{metricsLoading ? '...' : weeklyMetrics.protein}g</span>
                   </div>
                 </div>
                 
@@ -1602,7 +1828,7 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
                   size="sm"
                   onClick={fetchWeeklyMetrics}
                   disabled={metricsLoading}
-                  className="w-full text-xs"
+                  className="w-full text-xs h-8"
                 >
                   {metricsLoading ? <Zap className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
                   Refresh
@@ -1612,21 +1838,21 @@ I couldn't find sufficient data to analyze for **"${originalInput}"**
 
             {/* Context Display */}
             {context.lastDate && (
-              <Card className="bg-gradient-to-r from-blue-100 to-cyan-100 border border-blue-200">
+              <Card className="border-blue-200 bg-blue-50">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium text-blue-700 flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
                     Context Active
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                   <div className="text-xs text-blue-700 space-y-2">
                     <div><strong>Query:</strong> {context.lastDate}</div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setContext({})}
-                      className="w-full text-xs h-7"
+                      className="w-full text-xs h-7 border-blue-300"
                     >
                       Clear Context
                     </Button>

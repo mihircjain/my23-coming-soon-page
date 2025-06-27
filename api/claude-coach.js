@@ -311,8 +311,62 @@ DAILY FOOD DETAILS:${dailyFoodDetails}`;
     nutritionContext = '\n⚠️ Nutrition data unavailable due to processing error';
   }
   
+  // Process sleep data if available
+  let sleepContext = '';
+  try {
+    if (analysis && analysis.sleepData) {
+      const sleep = analysis.sleepData;
+      console.log('😴 Processing sleep data:', {
+        totalDays: sleep.totalDays,
+        avgDuration: sleep.averages?.duration,
+        avgScore: sleep.averages?.score,
+        hasDailyLogs: !!(sleep.dailyLogs && sleep.dailyLogs.length > 0)
+      });
+      
+      // Build detailed daily sleep logs
+      let dailySleepDetails = '';
+      if (sleep.dailyLogs && sleep.dailyLogs.length > 0) {
+        dailySleepDetails = sleep.dailyLogs.map(day => {
+          const duration = day.duration ? (day.duration / 3600).toFixed(1) : 'N/A'; // Convert seconds to hours
+          const bedtime = day.bedtime || 'N/A';
+          const wakeup = day.wakeup || 'N/A';
+          const efficiency = day.efficiency ? `${day.efficiency}%` : 'N/A';
+          const heartRate = day.heart_rate || day.averageHeartRate || 'N/A';
+          
+          let dayText = `\n😴 ${day.date}: ${duration}h sleep, Score: ${day.score || 'N/A'}, HR: ${heartRate} bpm`;
+          dayText += `\n  • Bedtime: ${bedtime}, Wake: ${wakeup}, Efficiency: ${efficiency}`;
+          
+          if (day.stages) {
+            dayText += `\n  • Deep: ${day.stages.deep || 0}min, REM: ${day.stages.rem || 0}min, Light: ${day.stages.light || 0}min`;
+          }
+          
+          return dayText;
+        }).join('\n');
+      }
+
+      sleepContext = `\n😴 SLEEP DATA (${sleep.totalDays} days):
+Average nightly stats:
+- Duration: ${sleep.averages.duration ? (sleep.averages.duration / 3600).toFixed(1) : 'N/A'} hours/night
+- Sleep Score: ${sleep.averages.score || 'N/A'}
+- Heart Rate: ${sleep.averages.heart_rate || 'N/A'} bpm
+- Efficiency: ${sleep.averages.efficiency || 'N/A'}%
+
+Sleep Stage Averages:
+- Deep Sleep: ${sleep.averages.deep_sleep || 'N/A'} min/night
+- REM Sleep: ${sleep.averages.rem_sleep || 'N/A'} min/night
+- Light Sleep: ${sleep.averages.light_sleep || 'N/A'} min/night
+
+DAILY SLEEP DETAILS:${dailySleepDetails}`;
+    } else {
+      console.log('⚠️ No sleep data found in analysis object');
+    }
+  } catch (error) {
+    console.error('❌ Error processing sleep data:', error);
+    sleepContext = '\n⚠️ Sleep data unavailable due to processing error';
+  }
+  
   const mcpContext = processedMcpResponses.join('\n');
-  const contextData = mcpContext + nutritionContext;
+  const contextData = mcpContext + nutritionContext + sleepContext;
   
   console.log('📋 Final context data length:', contextData.length);
   
