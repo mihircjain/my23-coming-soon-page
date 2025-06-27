@@ -902,9 +902,10 @@ export default function CoachNew() {
     const contextualPhrases = [
       'that day', 'that run', 'that activity', 'that date',
       'the same day', 'how was weather', 'what was', 
-      'during that', 'on that day', 'from that', 'compare that',
+      'during that', 'during that time', 'on that day', 'from that', 'compare that',
       'how did that affect', 'how did that impact', 'effect on',
-      'impact on', 'because of that', 'due to that'
+      'impact on', 'because of that', 'due to that', 'that time',
+      'that period', 'same time', 'same period'
     ];
     
     const hasContextualReference = contextualPhrases.some(phrase => lowerQuery.includes(phrase));
@@ -1005,29 +1006,60 @@ export default function CoachNew() {
         }
       }
       
-      // If asking about "that day" or similar, use the last date context
-      if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day')) {
+      // If asking about "that day/time/period" or similar, use the last date context - ENHANCED FOR RANGES
+      if (lowerQuery.includes('that day') || lowerQuery.includes('that date') || lowerQuery.includes('on that day') ||
+          lowerQuery.includes('that time') || lowerQuery.includes('during that time') || lowerQuery.includes('that period')) {
         if (lastQuery.dateRange) {
-          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric' 
-          });
-          resolvedQuery = resolvedQuery.replace(/that day|that date|on that day/gi, dateStr);
-          console.log(`🔍 DEBUG: Replaced "that day" with "${dateStr}"`);
-          console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
+          const startDate = lastQuery.dateRange.startDate;
+          const endDate = lastQuery.dateRange.endDate;
+          const isMultiDayRange = Math.abs(endDate.getTime() - startDate.getTime()) > 24 * 60 * 60 * 1000;
+          
+          if (isMultiDayRange) {
+            const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+            const rangeDescription = daysDiff <= 7 ? `last ${daysDiff} days` : 
+                                    daysDiff <= 14 ? `last ${daysDiff} days` : 
+                                    'recent period';
+            
+            // Replace temporal references with range descriptions
+            resolvedQuery = resolvedQuery.replace(/that day|that date|on that day|that time|during that time|that period/gi, `over the ${rangeDescription}`);
+            console.log(`🔍 DEBUG: Replaced temporal reference with range "${rangeDescription}"`);
+            console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
+          } else {
+            const dateStr = startDate.toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            resolvedQuery = resolvedQuery.replace(/that day|that date|on that day|that time|during that time|that period/gi, `on ${dateStr}`);
+            console.log(`🔍 DEBUG: Replaced temporal reference with single date "${dateStr}"`);
+            console.log(`🔍 DEBUG: New resolved query: "${resolvedQuery}"`);
+          }
         } else {
-          console.log(`🔍 DEBUG: No dateRange in last query to resolve "that day"`);
+          console.log(`🔍 DEBUG: No dateRange in last query to resolve temporal reference`);
         }
       }
       
-      // Handle "how did that affect" type queries
+      // Handle "how did that affect" type queries - ENHANCED FOR RANGE CONTEXTS
       if (lowerQuery.includes('how did that affect') || lowerQuery.includes('how did that impact')) {
-        if (lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
-          const dateStr = lastQuery.dateRange.startDate.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric' 
-          });
-          resolvedQuery = `how did my sleep on ${dateStr} affect my run performance`;
+        if (lastQuery.intent && lastQuery.intent.includes('sleep') && lastQuery.dateRange) {
+          const startDate = lastQuery.dateRange.startDate;
+          const endDate = lastQuery.dateRange.endDate;
+          const isMultiDayRange = Math.abs(endDate.getTime() - startDate.getTime()) > 24 * 60 * 60 * 1000;
+          
+          if (isMultiDayRange) {
+            const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+            const rangeDescription = daysDiff <= 7 ? `last ${daysDiff} days` : 
+                                    daysDiff <= 14 ? `last ${daysDiff} days` : 
+                                    'recent period';
+            resolvedQuery = `how did my sleep patterns over the ${rangeDescription} affect my running performance, including correlations between sleep quality/duration and run performance metrics`;
+            console.log(`🎯 Multi-day sleep correlation: Analyzing ${rangeDescription} sleep → running impact`);
+          } else {
+            const dateStr = startDate.toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            resolvedQuery = `how did my sleep on ${dateStr} affect my run performance`;
+            console.log(`🎯 Single-day sleep correlation: ${dateStr} sleep → run impact`);
+          }
         }
       }
       
