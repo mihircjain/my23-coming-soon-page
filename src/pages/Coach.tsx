@@ -826,41 +826,40 @@ export default function CoachNew() {
       const activityCriteria = determineActivityCriteria(query);
       const lowerQuery = query.toLowerCase();
       
-      // Calculate EXACT activities needed based on query type
-      let activitiesNeeded = 10; // Default
-      
-      if (lowerQuery.includes('yesterday') || lowerQuery.includes('today') || 
-          criteria.type === 'specific') {
-        // Single day: just get enough recent activities to find that date
-        activitiesNeeded = 10;
-        console.log(`📅 Single date query: fetching ${activitiesNeeded} recent activities to find date`);
-      } else if (lowerQuery.includes('last 7 days') || lowerQuery.includes('this week')) {
-        activitiesNeeded = 14; // 7 days × 2/day = 14
-      } else if (lowerQuery.includes('last 30 days') || lowerQuery.includes('last month')) {
-        activitiesNeeded = 60; // 30 days × 2/day = 60
-      } else if (lowerQuery.includes('since') || criteria.type === 'since') {
-        activitiesNeeded = 200; // Long historical range
-      }
-      
-      console.log(`📥 Fetching ${activitiesNeeded} activities (optimized for query type)`);
-      
-      // Use API date filtering for specific dates instead of client-side filtering
+      // Smart activity fetching - optimize based on query type and use precise API filtering
       const activitiesCall: { endpoint: string; params: any } = {
         endpoint: 'get-recent-activities',
-        params: { per_page: activitiesNeeded }
+        params: { per_page: 10 } // Default fallback
       };
       
-      // For specific dates, use API date filtering 
+      // For specific dates, use precise API date filtering 
       if (startDate && endDate && criteria.type === 'specific') {
         const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
         const endDateStr = endDate.toISOString().split('T')[0];     // YYYY-MM-DD
         
+        // Same start/end date = single day query
+        const isSingleDay = startDateStr === endDateStr;
+        
         activitiesCall.params = {
-          per_page: 5, // Max 2 activities per day + buffer
+          per_page: isSingleDay ? 3 : 5, // Single day: max 1-2 activities + buffer, Multi-day: 5
           after: startDateStr,
           before: endDateStr
         };
-        console.log(`📅 Using API date filter: ${startDateStr} to ${endDateStr}`);
+        console.log(`📅 Using precise API date filter: ${startDateStr} to ${endDateStr} (${isSingleDay ? 'single day' : 'date range'})`);
+      } else {
+        // Calculate activities needed for broader queries
+        let activitiesNeeded = 10; // Default
+        
+        if (lowerQuery.includes('last 7 days') || lowerQuery.includes('this week')) {
+          activitiesNeeded = 14; // 7 days × 2/day = 14
+        } else if (lowerQuery.includes('last 30 days') || lowerQuery.includes('last month')) {
+          activitiesNeeded = 60; // 30 days × 2/day = 60
+        } else if (lowerQuery.includes('since') || criteria.type === 'since') {
+          activitiesNeeded = 200; // Long historical range
+        }
+        
+        activitiesCall.params.per_page = activitiesNeeded;
+        console.log(`📥 Fetching ${activitiesNeeded} activities for broad query`);
       }
       
       const activitiesResponse = await executeMCPCalls([activitiesCall]);
