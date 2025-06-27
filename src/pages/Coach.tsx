@@ -1115,7 +1115,7 @@ export default function CoachNew() {
       });
       
       // If asking about how nutrition affected sleep/runs, expand to include all data
-      if (lastQuery.intent.includes('nutrition') && (askingAboutSleepAndRuns || askingAboutAffectOrImpact)) {
+      if (lastQuery.intent && lastQuery.intent.includes('nutrition') && (askingAboutSleepAndRuns || askingAboutAffectOrImpact)) {
         console.log(`🎯 CONTEXT EXPANSION: Nutrition query followed by sleep/run impact question - fetching all data types`);
         intent = {
           ...intent,
@@ -1872,7 +1872,14 @@ export default function CoachNew() {
          throw new Error('Failed to retrieve sufficient data for analysis');
        }
 
-       const response = await generateResponseWithClaude(resolvedQuery, intent, mcpResponses);
+       // Add fetched data to intent object before sending to Claude
+       const enrichedIntent = {
+         type: intent,
+         nutritionData,
+         sleepData
+       };
+
+       const response = await generateResponseWithClaude(resolvedQuery, enrichedIntent, mcpResponses);
        
        const assistantMessage: Message = {
          role: 'assistant',
