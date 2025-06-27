@@ -912,7 +912,8 @@ export default function CoachNew() {
         intentType: intent.type,
         hasNutritionData: !!intent.nutritionData,
         nutritionDays: intent.nutritionData?.totalDays || 0,
-        mcpResponseCount: mcpResponses.length
+        mcpResponseCount: mcpResponses.length,
+        fullIntentObject: intent
       });
 
       const response = await fetch('/api/claude-coach', {
@@ -923,7 +924,7 @@ export default function CoachNew() {
         body: JSON.stringify({
           action: 'generate_response',
           query,
-          intent,
+          analysis: intent,  // Backend expects 'analysis', not 'intent'
           mcpResponses,
           nutritionData: intent.nutritionData  // Pass nutritionData separately
         })
