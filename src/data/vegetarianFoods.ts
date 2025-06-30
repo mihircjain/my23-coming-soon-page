@@ -76,6 +76,43 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 5
   },
   {
+    name: "Paneer Biryani",
+    servingSize: "248g",
+    calories: 361,
+    protein: 11.1,
+    carbs: 33.9,
+    fat: 20.0,
+    fiber: 2.0
+  },
+  {
+    name: "Ghee Masala Dosa",
+    servingSize: "211.5g",
+    calories: 371,
+    protein: 6.6,
+    carbs: 44.4,
+    fat: 18.7,
+    fiber: 3.7
+  },
+  {
+    name: "Mushroom Burrito",
+    servingSize: "300g",
+    calories: 327,
+    protein: 10.9,
+    carbs: 48.2,
+    fat: 11.4,
+    fiber: 11.1
+  },
+  {
+    name: "Palak Paneer Paratha",
+    servingSize: "200g",
+    calories: 499,
+    protein: 19.1,
+    carbs: 44.8,
+    fat: 27.1,
+    fiber: 8.1
+  }
+,
+  {
   name: "Sevaiya",  // You can replace this with the actual food name
   servingSize: "100g",
   calories: 108,
