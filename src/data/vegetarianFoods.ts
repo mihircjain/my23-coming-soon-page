@@ -40,15 +40,6 @@ export const vegetarianFoods: FoodItem[] = [
   fiber: 1.1
 },
   {
-  name: "Mushroom Burrito",
-  servingSize: "300g",
-  calories: 327,
-  protein: 10.9,
-  carbs: 48.2,
-  fat: 11.4,
-  fiber: 11.1
-},
-  {
   name: "Doritos Minis – Doritos",
   servingSize: "50g",
   calories: 268,
@@ -309,15 +300,6 @@ export const vegetarianFoods: FoodItem[] = [
     "carbs": 24.0,
     "fat": 17.1,
     "fiber": 3.4
-  },
-  {
-    "name": "Capsicum Tomato Onion",
-    "servingSize": "120g",
-    "calories": 77,
-    "protein": 1.3,
-    "carbs": 7.0,
-    "fat": 5.2,
-    "fiber": 2.5
   },
   {
     name: "Zucchini Bell Pepper Salad",
