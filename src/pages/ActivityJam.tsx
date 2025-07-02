@@ -642,33 +642,43 @@ const ActivityJam = () => {
       
       {/* Header */}
       <header className="relative z-10 pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <Button onClick={() => navigate('/')} variant="ghost" className="hover:bg-white/20">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Home
           </Button>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button 
               onClick={handleRefreshToday}
               variant="outline"
               disabled={refreshing}
-              className="hover:bg-white/20"
+              className="hover:bg-white/20 w-full sm:w-auto mobile-button"
               title="Quick refresh - only checks for today's new activities (1 API call)"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === 'today' ? 'animate-spin' : ''}`} />
-              {refreshing && refreshType === 'today' ? 'Checking Today...' : 'Refresh Today'}
+              <span className="hidden sm:inline">
+                {refreshing && refreshType === 'today' ? 'Checking Today...' : 'Refresh Today'}
+              </span>
+              <span className="sm:hidden">
+                {refreshing && refreshType === 'today' ? 'Today...' : 'Today'}
+              </span>
             </Button>
             
             <Button 
               onClick={handleRefresh30Days}
               variant="outline"
               disabled={refreshing}
-              className="hover:bg-white/20"
+              className="hover:bg-white/20 w-full sm:w-auto mobile-button"
               title="Full refresh - fetches all activities from last 30 days (1 API call)"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing && refreshType === '30days' ? 'animate-spin' : ''}`} />
-              {refreshing && refreshType === '30days' ? 'Refreshing All...' : 'Refresh 30 Days'}
+              <span className="hidden sm:inline">
+                {refreshing && refreshType === '30days' ? 'Refreshing All...' : 'Refresh 30 Days'}
+              </span>
+              <span className="sm:hidden">
+                {refreshing && refreshType === '30days' ? 'Loading...' : '30 Days'}
+              </span>
             </Button>
           </div>
         </div>
