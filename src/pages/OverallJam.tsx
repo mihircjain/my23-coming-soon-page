@@ -797,12 +797,12 @@ const OverallJam = () => {
     return Math.round(sum / validData.length);
   };
 
-  // Generate last 7 days dates for the daily boxes
+  // Generate last 7 days dates for the daily boxes - newest first (latest day at top)
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - i);
     return date.toISOString().split('T')[0];
-  }).reverse();
+  }); // FIXED: Removed reverse() so latest day appears first on mobile
 
   // Fetch data on component mount
   useEffect(() => {
