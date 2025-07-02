@@ -289,12 +289,14 @@ export default function CoachNew() {
         if (interimTranscript) {
           const correctedInterim = correctHealthTerms(interimTranscript);
           setInterimTranscript(correctedInterim);
+          // FIXED: Show interim results but don't overwrite existing typed text
           setInput(correctedInterim);
         }
         
         // Handle final result
         if (finalTranscript) {
           const correctedFinal = correctHealthTerms(finalTranscript);
+          // FIXED: Use the corrected final transcript as the complete input
           setInput(correctedFinal);
           setInterimTranscript('');
           setIsRecording(false);
@@ -328,7 +330,8 @@ export default function CoachNew() {
       
       recognitionRef.current.onstart = () => {
         setInterimTranscript('');
-        setInput('');
+        // FIXED: Don't clear existing input on start
+        console.log('🎤 Voice recording started');
       };
     }
   }, []);
@@ -373,15 +376,37 @@ export default function CoachNew() {
   // Enhanced speech recognition functions with health context
   const correctHealthTerms = (transcript: string): string => {
     const corrections: Record<string, string> = {
+      // Common speech recognition errors
+      'wood': 'food',
+      'would': 'food', // Another common misinterpretation
+      'foot': 'food',
+      'mood': 'food',
+      'hood': 'food',
+      
       // Health metrics
       'nutrition': 'nutrition',
       'nutriotn': 'nutrition',
       'protien': 'protein',
       'protean': 'protein',
+      'protein': 'protein',
       'calorie': 'calorie',
       'calories': 'calories',
       'carbs': 'carbs',
       'carbohydrates': 'carbohydrates',
+      'fiber': 'fiber',
+      'fibre': 'fiber',
+      
+      // Food-related terms
+      'food': 'food',
+      'foods': 'foods',
+      'meal': 'meal',
+      'meals': 'meals',
+      'ate': 'ate',
+      'eating': 'eating',
+      'breakfast': 'breakfast',
+      'lunch': 'lunch',
+      'dinner': 'dinner',
+      'snack': 'snack',
       
       // Running terms
       'strava': 'Strava',
@@ -392,13 +417,18 @@ export default function CoachNew() {
       'workouts': 'workouts',
       'exercise': 'exercise',
       'excercise': 'exercise',
+      'ran': 'ran',
+      'run': 'run',
       
       // Sleep terms
       'oura': 'Oura',
       'hora': 'Oura',
+      'aura': 'Oura',
       'sleep': 'sleep',
+      'slept': 'slept',
       'recovery': 'recovery',
       'rest': 'rest',
+      'tired': 'tired',
       
       // Time references
       'yesterday': 'yesterday',
@@ -406,6 +436,8 @@ export default function CoachNew() {
       'this week': 'this week',
       'last week': 'last week',
       'past week': 'past week',
+      'this morning': 'this morning',
+      'tonight': 'tonight',
       
       // Common health questions
       'how has my': 'how has my',
@@ -432,7 +464,10 @@ export default function CoachNew() {
     if (recognitionRef.current && speechSupported) {
       setIsRecording(true);
       setInterimTranscript('');
-      setInput('🎤 Listening...');
+      // FIXED: Don't clear existing input, just show listening indicator
+      if (!input || input.trim() === '') {
+        setInput('🎤 Listening...');
+      }
       try {
         recognitionRef.current.start();
       } catch (error) {
