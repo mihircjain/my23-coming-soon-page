@@ -121,9 +121,10 @@ export default function CoachNew() {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Speech recognition state
+  // Enhanced speech recognition state
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
   const recognitionRef = useRef<any>(null);
 
   // Chat session management functions
@@ -258,35 +259,76 @@ export default function CoachNew() {
     loadChatSessions();
     fetchWeeklyMetrics();
     
-    // Check for speech recognition support
+    // Enhanced speech recognition setup
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       setSpeechSupported(true);
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+      
+      // Enhanced settings for better real-time experience
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.maxAlternatives = 3;
       
       recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        setIsRecording(false);
+        let interimTranscript = '';
+        let finalTranscript = '';
         
-        // Auto-submit the transcribed text
-        setTimeout(() => {
-          if (transcript.trim()) {
-            handleSendMessage();
+        // Process all results
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript;
+          } else {
+            interimTranscript += result[0].transcript;
           }
-        }, 100);
+        }
+        
+        // Update interim results in real-time
+        if (interimTranscript) {
+          const correctedInterim = correctHealthTerms(interimTranscript);
+          setInterimTranscript(correctedInterim);
+          setInput(correctedInterim);
+        }
+        
+        // Handle final result
+        if (finalTranscript) {
+          const correctedFinal = correctHealthTerms(finalTranscript);
+          setInput(correctedFinal);
+          setInterimTranscript('');
+          setIsRecording(false);
+          
+          // Auto-submit with slight delay
+          setTimeout(() => {
+            if (correctedFinal.trim()) {
+              handleSendMessage();
+            }
+          }, 200);
+        }
       };
       
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsRecording(false);
+        setInterimTranscript('');
+        
+        // Provide user feedback for common errors
+        if (event.error === 'no-speech') {
+          setInput('(No speech detected - try speaking closer to microphone)');
+        } else if (event.error === 'network') {
+          setInput('(Network error - check your connection)');
+        }
       };
       
       recognitionRef.current.onend = () => {
         setIsRecording(false);
+        setInterimTranscript('');
+      };
+      
+      recognitionRef.current.onstart = () => {
+        setInterimTranscript('');
+        setInput('');
       };
     }
   }, []);
@@ -328,11 +370,76 @@ export default function CoachNew() {
     }
   };
 
-  // Speech recognition functions
+  // Enhanced speech recognition functions with health context
+  const correctHealthTerms = (transcript: string): string => {
+    const corrections: Record<string, string> = {
+      // Health metrics
+      'nutrition': 'nutrition',
+      'nutriotn': 'nutrition',
+      'protien': 'protein',
+      'protean': 'protein',
+      'calorie': 'calorie',
+      'calories': 'calories',
+      'carbs': 'carbs',
+      'carbohydrates': 'carbohydrates',
+      
+      // Running terms
+      'strava': 'Strava',
+      'straava': 'Strava',
+      'running': 'running',
+      'runing': 'running',
+      'workout': 'workout',
+      'workouts': 'workouts',
+      'exercise': 'exercise',
+      'excercise': 'exercise',
+      
+      // Sleep terms
+      'oura': 'Oura',
+      'hora': 'Oura',
+      'sleep': 'sleep',
+      'recovery': 'recovery',
+      'rest': 'rest',
+      
+      // Time references
+      'yesterday': 'yesterday',
+      'today': 'today',
+      'this week': 'this week',
+      'last week': 'last week',
+      'past week': 'past week',
+      
+      // Common health questions
+      'how has my': 'how has my',
+      'what was my': 'what was my',
+      'analyze my': 'analyze my',
+      'tell me about': 'tell me about',
+      'performance': 'performance',
+      'performace': 'performance'
+    };
+    
+    let corrected = transcript.toLowerCase();
+    
+    // Apply corrections
+    Object.entries(corrections).forEach(([wrong, right]) => {
+      const regex = new RegExp(wrong, 'gi');
+      corrected = corrected.replace(regex, right);
+    });
+    
+    // Capitalize first letter
+    return corrected.charAt(0).toUpperCase() + corrected.slice(1);
+  };
+
   const startRecording = () => {
     if (recognitionRef.current && speechSupported) {
       setIsRecording(true);
-      recognitionRef.current.start();
+      setInterimTranscript('');
+      setInput('🎤 Listening...');
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Failed to start recording:', error);
+        setIsRecording(false);
+        setInput('(Failed to start recording - please try again)');
+      }
     }
   };
 
@@ -340,6 +447,7 @@ export default function CoachNew() {
     if (recognitionRef.current && isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
+      setInterimTranscript('');
     }
   };
 
@@ -2549,9 +2657,11 @@ export default function CoachNew() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder={isRecording ? "Listening..." : "Ask about your health data..."}
-                    disabled={isLoading || isRecording}
-                    className="w-full px-3 sm:px-4 py-3 sm:py-4 pr-16 sm:pr-20 text-sm sm:text-[15px] border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-500 font-normal bg-white shadow-sm disabled:bg-gray-50"
+                    placeholder={isRecording ? "🎤 Listening..." : "Ask about your health data..."}
+                    disabled={isLoading}
+                    className={`w-full px-3 sm:px-4 py-3 sm:py-4 pr-16 sm:pr-20 text-sm sm:text-[15px] border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-500 font-normal shadow-sm ${
+                      isRecording ? 'bg-blue-50 border-blue-300' : 'bg-white'
+                    }`}
                   />
                   
                   {/* Microphone button */}
