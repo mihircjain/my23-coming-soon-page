@@ -117,8 +117,22 @@
     letter-spacing: -0.025em;
   }
   
+  /* Mobile-first typography */
+  h1 {
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl;
+  }
+  
+  h2 {
+    @apply text-xl sm:text-2xl md:text-3xl;
+  }
+  
+  h3 {
+    @apply text-lg sm:text-xl md:text-2xl;
+  }
+  
   p {
     line-height: 1.6;
+    @apply text-sm sm:text-base;
   }
   
   /* Custom scrollbar for better aesthetics */
@@ -169,6 +183,85 @@
   
   .delay-1000 {
     animation-delay: 1s;
+  }
+
+  /* Mobile-specific utilities */
+  .mobile-container {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .mobile-grid-1 {
+    @apply grid grid-cols-1;
+  }
+
+  .mobile-grid-2 {
+    @apply grid grid-cols-1 sm:grid-cols-2;
+  }
+
+  .mobile-grid-3 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .mobile-grid-4 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .mobile-grid-auto {
+    @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5;
+  }
+
+  /* Touch-friendly interactive elements */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  .mobile-button {
+    @apply touch-target px-4 py-3 text-sm sm:text-base;
+  }
+
+  /* Mobile-optimized spacing */
+  .mobile-section {
+    @apply py-6 sm:py-8 lg:py-12;
+  }
+
+  .mobile-card {
+    @apply p-4 sm:p-6 lg:p-8;
+  }
+
+  /* Mobile text sizing */
+  .mobile-heading {
+    @apply text-lg sm:text-xl md:text-2xl font-semibold;
+  }
+
+  .mobile-subheading {
+    @apply text-base sm:text-lg md:text-xl font-medium;
+  }
+
+  /* Responsive flex utilities */
+  .mobile-stack {
+    @apply flex flex-col sm:flex-row gap-4;
+  }
+
+  .mobile-center {
+    @apply flex flex-col items-center justify-center text-center;
+  }
+
+  /* Mobile-optimized tables */
+  .mobile-table {
+    @apply overflow-x-auto;
+  }
+
+  .mobile-table table {
+    @apply min-w-full;
+  }
+
+  /* Chart containers for mobile */
+  .mobile-chart {
+    @apply w-full h-64 sm:h-80 lg:h-96;
+  }
+
+  .mobile-chart-sm {
+    @apply w-full h-48 sm:h-64;
   }
 }
 

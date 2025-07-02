@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple, Droplet } from "lucide-react";
+import { ArrowLeft, Activity, Info, Scale, Heart, Dumbbell, Flame, Apple, Droplet, Target, TrendingUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -488,281 +488,172 @@ const BodyJam = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
-      {/* Background decoration - Updated with green/blue theme */}
-      <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
-      <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-      
-      {/* Header - Updated with green/blue theme */}
-      <header className="relative z-10 pt-8 px-6 md:px-12">
-        <Button 
-          onClick={() => navigate('/')} 
-          variant="ghost" 
-          className="mb-6 hover:bg-white/20"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
-        </Button>
-        
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
-            🩺 Mihir's Body Jam
-          </h1>
-          <p className="mt-3 text-lg text-gray-600">
-            Track your key health metrics and body composition
-          </p>
-          <p className="mt-2 text-md font-medium text-green-600">
-            📅 Latest: June 15, 2025 | Previous: April 7, 2025
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-pink-50">
+      {/* Header */}
+      <div className="mobile-container">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-6 pb-4 gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
+              ❤️ Body Jam
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
+              Monitor your health metrics and biomarkers
+            </p>
+          </div>
+          <Button 
+            onClick={() => window.location.href = '/'} 
+            variant="outline"
+            className="mobile-button"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Back to</span> Home
+          </Button>
         </div>
-      </header>
-      
-      {/* Main content */}
-      <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
-        <Tabs defaultValue="blood" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-green-100 border border-green-200">
-            <TabsTrigger value="blood" className="data-[state=active]:bg-green-200">Blood Markers</TabsTrigger>
-            <TabsTrigger value="composition" className="data-[state=active]:bg-green-200">Body Composition</TabsTrigger>
-            <TabsTrigger value="macros" className="data-[state=active]:bg-green-200">Maintenance Macros</TabsTrigger>
+      </div>
+
+      <div className="mobile-container mobile-section">
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-8 bg-green-100 border border-green-200">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="blood-markers" className="text-xs sm:text-sm">Blood Markers</TabsTrigger>
+            <TabsTrigger value="vitals" className="text-xs sm:text-sm">Vitals</TabsTrigger>
           </TabsList>
           
-          {/* Blood Markers Tab */}
-          <TabsContent value="blood">
-            {loading ? (
-              // Loading skeletons
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {Array(8).fill(0).map((_, i) => (
-                  <Card key={i} className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-gray-500 flex items-center">
-                        <Skeleton className="h-4 w-4 mr-2 rounded-full" />
-                        <Skeleton className="h-4 w-24" />
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="h-8 w-24" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              // Categorized blood markers
-              <div className="space-y-10">
-                {markerCategories.map(category => (
-                  <div key={category.id} className="space-y-4">
-                    {/* Category Header */}
-                    <div className="flex items-center space-x-2 border-b border-green-200 pb-2">
-                      {category.icon}
-                      <h2 className="text-xl font-semibold text-gray-800">{category.name}</h2>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-4">{category.description}</p>
-                    
-                    {/* Category Markers */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {category.markers.map((marker) => (
-                        <TooltipProvider key={marker.id}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-green-300">
-                                <CardHeader className="pb-2">
-                                  <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
-                                    <span className="flex items-center">
-                                      <Activity className="mr-2 h-4 w-4 text-green-500" />
-                                      {marker.name}
-                                    </span>
-                                    <Info className={`h-4 w-4 ${getStatusColor(marker.status)}`} />
-                                  </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-1">
-                                    <div className={`text-2xl font-bold ${getStatusColor(marker.status)}`}>
-                                      {formatValue(marker.value, marker.unit)}
-                                    </div>
-                                    {marker.previousValue && (
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-sm text-gray-500">
-                                          Was: {formatValue(marker.previousValue, marker.unit)}
-                                        </span>
-                                        {typeof marker.value === 'number' && typeof marker.previousValue === 'number' && (
-                                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                            marker.value > marker.previousValue 
-                                              ? 'bg-green-100 text-green-700' 
-                                              : marker.value < marker.previousValue
-                                              ? 'bg-blue-100 text-blue-700'
-                                              : 'bg-gray-100 text-gray-700'
-                                          }`}>
-                                            {marker.value > marker.previousValue ? '↗' : marker.value < marker.previousValue ? '↘' : '→'}
-                                            {Math.abs(((marker.value - marker.previousValue) / marker.previousValue * 100)).toFixed(1)}%
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs p-4">
-                              <div className="space-y-2">
-                                <h4 className="font-semibold">{marker.name}</h4>
-                                <p className="text-sm text-gray-500">{marker.explanation}</p>
-                                <div className="text-xs">
-                                  <span className="font-medium">Normal Range:</span> {marker.normalRange}
-                                </div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-          
-          {/* Body Composition Tab */}
-          <TabsContent value="composition">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {bodyComposition.map((item) => (
-                <TooltipProvider key={item.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-green-300">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
-                            <span className="flex items-center">
-                              {item.icon}
-                              <span className="ml-2">{item.name}</span>
-                            </span>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-1">
-                            <div className="text-2xl font-bold text-gray-800">
-                              {formatValue(item.value, item.unit)}
-                            </div>
-                            {item.previousValue && (
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm text-gray-500">
-                                  Was: {formatValue(item.previousValue, item.unit)}
-                                </span>
-                                {typeof item.value === 'number' && typeof item.previousValue === 'number' && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                    // Determine if the change is good based on the metric
-                                    (['body_fat', 'fat_mass', 'visceral_fat_mass', 'visceral_fat_volume', 'android_gynoid_ratio'].includes(item.id) && item.value < item.previousValue) ||
-                                    (['lean_mass'].includes(item.id) && item.value > item.previousValue)
-                                      ? 'bg-green-100 text-green-700' 
-                                      : (['body_fat', 'fat_mass', 'visceral_fat_mass', 'visceral_fat_volume', 'android_gynoid_ratio'].includes(item.id) && item.value > item.previousValue) ||
-                                        (['lean_mass'].includes(item.id) && item.value < item.previousValue)
-                                      ? 'bg-orange-100 text-orange-700'
-                                      : 'bg-blue-100 text-blue-700'
-                                  }`}>
-                                    {item.value > item.previousValue ? '↗' : item.value < item.previousValue ? '↘' : '→'}
-                                    {Math.abs(((item.value - item.previousValue) / item.previousValue * 100)).toFixed(1)}%
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs p-4">
-                      <div className="space-y-2">
-                        <h4 className="font-semibold">{item.name}</h4>
-                        <p className="text-sm text-gray-500">{item.explanation}</p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Quick Health Stats */}
+            <div className="mobile-grid-4 gap-6">
+              <Card className="bg-gradient-to-r from-red-100 to-red-200 border-red-300">
+                <CardContent className="mobile-card text-center">
+                  <Heart className="h-8 w-8 text-red-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-red-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-red-700">Heart Rate</div>
+                  <div className="text-xs text-gray-600">bpm</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-blue-100 to-blue-200 border-blue-300">
+                <CardContent className="mobile-card text-center">
+                  <Activity className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-blue-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-blue-700">Blood Pressure</div>
+                  <div className="text-xs text-gray-600">mmHg</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-green-100 to-green-200 border-green-300">
+                <CardContent className="mobile-card text-center">
+                  <Target className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-green-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-green-700">Weight</div>
+                  <div className="text-xs text-gray-600">kg</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-purple-100 to-purple-200 border-purple-300">
+                <CardContent className="mobile-card text-center">
+                  <TrendingUp className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-purple-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-purple-700">Body Fat</div>
+                  <div className="text-xs text-gray-600">%</div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
-          
-          {/* Maintenance Macros Tab */}
-          <TabsContent value="macros">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {macros.map((item) => (
-                <TooltipProvider key={item.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Card className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-green-300">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium text-gray-500 flex items-center justify-between">
-                            <span className="flex items-center">
-                              {item.icon}
-                              <span className="ml-2">{item.name}</span>
-                            </span>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-1">
-                            <div className="text-2xl font-bold text-gray-800">
-                              {formatValue(item.value, item.unit)}
-                            </div>
-                            {item.previousValue && (
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm text-gray-500">
-                                  Was: {formatValue(item.previousValue, item.unit)}
-                                </span>
-                                {typeof item.value === 'number' && typeof item.previousValue === 'number' && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                    item.value > item.previousValue 
-                                      ? 'bg-blue-100 text-blue-700' 
-                                      : item.value < item.previousValue
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-gray-100 text-gray-700'
-                                  }`}>
-                                    {item.value > item.previousValue ? '↗' : item.value < item.previousValue ? '↘' : '→'}
-                                    {Math.abs(((item.value - item.previousValue) / item.previousValue * 100)).toFixed(1)}%
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs p-4">
-                      <div className="space-y-2">
-                        <h4 className="font-semibold">{item.name}</h4>
-                        <p className="text-sm text-gray-500">{item.explanation}</p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
+
+          <TabsContent value="blood-markers" className="space-y-6">
+            {/* Blood Markers Grid */}
+            <div className="mobile-grid-4 gap-6">
+              <Card className="bg-gradient-to-r from-orange-100 to-orange-200 border-orange-300">
+                <CardContent className="mobile-card text-center">
+                                     <Droplet className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-orange-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-orange-700">Cholesterol</div>
+                  <div className="text-xs text-gray-600">mg/dL</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-pink-100 to-pink-200 border-pink-300">
+                <CardContent className="mobile-card text-center">
+                  <Heart className="h-8 w-8 text-pink-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-pink-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-pink-700">Glucose</div>
+                  <div className="text-xs text-gray-600">mg/dL</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-teal-100 to-teal-200 border-teal-300">
+                <CardContent className="mobile-card text-center">
+                  <Activity className="h-8 w-8 text-teal-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-teal-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-teal-700">HbA1c</div>
+                  <div className="text-xs text-gray-600">%</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-indigo-100 to-indigo-200 border-indigo-300">
+                <CardContent className="mobile-card text-center">
+                  <Zap className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-indigo-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-indigo-700">Vitamin D</div>
+                  <div className="text-xs text-gray-600">ng/mL</div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="vitals" className="space-y-6">
+            {/* Vitals Grid */}
+            <div className="mobile-grid-3 gap-6">
+              <Card className="bg-gradient-to-r from-cyan-100 to-cyan-200 border-cyan-300">
+                <CardContent className="mobile-card text-center">
+                  <Activity className="h-8 w-8 text-cyan-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-cyan-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-cyan-700">Resting HR</div>
+                  <div className="text-xs text-gray-600">bpm</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-emerald-100 to-emerald-200 border-emerald-300">
+                <CardContent className="mobile-card text-center">
+                  <Heart className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-emerald-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-emerald-700">HRV</div>
+                  <div className="text-xs text-gray-600">ms</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-yellow-100 to-yellow-200 border-yellow-300">
+                <CardContent className="mobile-card text-center">
+                  <TrendingUp className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+                  <div className="text-xl sm:text-2xl font-bold text-yellow-600 mb-1">--</div>
+                  <div className="text-xs sm:text-sm text-yellow-700">Temperature</div>
+                  <div className="text-xs text-gray-600">°C</div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
-      </main>
-      
-      {/* Footer - Updated with green/blue theme */}
-      <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>Data from your latest health assessment</span>
-            <span className="hidden md:inline">•</span>
-            <span className="flex items-center gap-1">
-              <Heart className="h-4 w-4 text-teal-500" />
-              18 Blood markers
-            </span>
-            <span className="hidden md:inline">•</span>
-            <span className="flex items-center gap-1">
-              <Scale className="h-4 w-4 text-green-500" />
-              11 Body metrics
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>Latest Update: June 15, 2025 | Compared to: April 7, 2025</span>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Progress tracking</span>
+
+        {/* Connect Devices */}
+        <Card className="mt-8 bg-white/60 backdrop-blur-sm border border-white/30">
+          <CardContent className="mobile-card text-center">
+            <div className="text-4xl mb-4">🔗</div>
+            <h3 className="mobile-subheading mb-2">Connect Your Health Devices</h3>
+            <p className="text-sm sm:text-base text-gray-600 mb-6">
+              Sync with Apple Health, Google Fit, or other health monitoring devices
+            </p>
+            
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Button className="mobile-button bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white">
+                Connect Apple Health
+              </Button>
+              <Button variant="outline" className="mobile-button">
+                Other Devices
+              </Button>
             </div>
-          </div>
-        </div>
-      </footer>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

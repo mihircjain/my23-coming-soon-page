@@ -137,7 +137,7 @@ const WeeklyGoalsTracker: React.FC<{
       
       <CardContent className="space-y-4">
         {/* Compact Goal Widgets */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {Object.entries(goals).map(([key, goal]) => {
             const actual = weeklyTotals[key as keyof typeof weeklyTotals];
             const percentage = Math.min((actual / goal.target) * 100, 100);
@@ -156,7 +156,7 @@ const WeeklyGoalsTracker: React.FC<{
                 <div className="text-sm font-bold text-gray-800 mb-2">
                   {Math.round(actual).toLocaleString()}
                   {key === 'protein' ? 'g' : ' cal'}
-                  <span className="text-xs text-gray-600">
+                  <span className="text-xs text-gray-600 block sm:inline">
                     /{goal.target.toLocaleString()}{key === 'protein' ? 'g' : ' cal'}
                   </span>
                 </div>
@@ -761,19 +761,19 @@ const Index = () => {
       <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
       <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-teal-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
       
-      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
+      <div className="relative z-10 mobile-container max-w-6xl mx-auto mobile-section">
         {/* Main heading section */}
-        <div className="text-center mb-12">
-          <div className="space-y-6 mb-8">
-            <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-green-600 via-blue-600 to-teal-600 bg-clip-text text-transparent animate-fade-in leading-tight">
+        <div className="text-center mb-8 sm:mb-12">
+          <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-green-600 via-blue-600 to-teal-600 bg-clip-text text-transparent animate-fade-in leading-tight">
               🩺 MY HEALTH.<br />
               🗄️ MY DATA.<br />
               🧬 MY 23.
             </h1>
           </div>
           
-          <div className="mb-8 animate-slide-up delay-300">
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+          <div className="mb-6 sm:mb-8 animate-slide-up delay-300">
+            <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed px-4">
               Your complete genetic blueprint lives in 23 pairs of chromosomes. 
               Take control of your health journey with AI-powered insights from your personal health data. 🔬✨
             </p>
@@ -781,7 +781,7 @@ const Index = () => {
         </div>
 
         {/* Interactive Cards Grid - Updated layout with new order */}
-        <div className="space-y-8 mb-12">
+        <div className="space-y-6 mb-12">
           {/* 1. Health Overview - Full width */}
           <HealthOverviewCard />
           
@@ -796,7 +796,7 @@ const Index = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Button 
                 onClick={() => window.location.href = '/overall-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <BarChart2 className="mr-3 h-5 w-5" />
                 Overall Jam
@@ -804,45 +804,49 @@ const Index = () => {
               
               <Button 
                 onClick={() => window.location.href = '/coach'} 
-                className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Bot className="mr-3 h-5 w-5" />
                 AI Running Coach
               </Button>
             </div>
             
-            {/* Second row - Activity, Nutrition, Body, Running Coach */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-             <Button 
-            onClick={() => window.location.href = '/activity-jam'} 
-            className="bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            <Footprints className="mr-3 h-5 w-5" />
-            Activity Jam
-          </Button>
-
+            {/* Second row - Activity, Nutrition, Body, Sleep */}
+            <div className="mobile-grid-4 gap-4">
+              <Button 
+                onClick={() => window.location.href = '/activity-jam'} 
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <Footprints className="mr-3 h-5 w-5" />
+                <span className="hidden sm:inline">Activity Jam</span>
+                <span className="sm:hidden">Activity</span>
+              </Button>
               
               <Button 
                 onClick={() => window.location.href = '/nutrition-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Utensils className="mr-3 h-5 w-5" />
-                Nutrition Jam
+                <span className="hidden sm:inline">Nutrition Jam</span>
+                <span className="sm:hidden">Nutrition</span>
               </Button>
               
               <Button 
                 onClick={() => window.location.href = '/body-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-teal-200 hover:bg-white text-teal-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-teal-200 hover:bg-white text-teal-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Heart className="mr-3 h-5 w-5" />
-                Body Jam
+                <span className="hidden sm:inline">Body Jam</span>
+                <span className="sm:hidden">Body</span>
               </Button>
-                       <Button 
+              
+              <Button 
                 onClick={() => window.location.href = '/sleep-jam'} 
-                className="bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Moon className="mr-3 h-5 w-5" />
-                Sleep Jam
+                <span className="hidden sm:inline">Sleep Jam</span>
+                <span className="sm:hidden">Sleep</span>
               </Button>
             </div>
           </div>

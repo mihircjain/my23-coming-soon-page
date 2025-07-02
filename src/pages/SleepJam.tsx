@@ -517,156 +517,128 @@ const SleepJam: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-400/10 to-blue-400/10 animate-pulse"></div>
-      
-      {/* Floating elements */}
-      <div className="absolute top-20 left-20 w-32 h-32 bg-purple-200/30 rounded-full blur-xl animate-bounce"></div>
-      <div className="absolute bottom-20 right-20 w-24 h-24 bg-blue-200/30 rounded-full blur-xl animate-bounce delay-1000"></div>
-      <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-indigo-200/30 rounded-full blur-xl animate-bounce delay-500"></div>
-      
-      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent mb-4">
-            🌙 Sleep Jam
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Your sleep insights from Oura Ring. Track your sleep quality, duration, and recovery.
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4 mb-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      {/* Header */}
+      <div className="mobile-container">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-6 pb-4 gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              🌙 Sleep Jam
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
+              Track your sleep patterns and recovery
+            </p>
+          </div>
           <Button 
-            onClick={() => window.location.href = '/'}
+            onClick={() => window.location.href = '/'} 
             variant="outline"
-            className="border-purple-200 text-purple-600 hover:bg-purple-50"
+            className="mobile-button"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-          
-          <Button 
-            onClick={refreshSleepData}
-            disabled={refreshing}
-            className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white"
-          >
-            {refreshing ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            {refreshing ? 'Refreshing...' : 'Refresh Sleep Data'}
+            <span className="hidden sm:inline">Back to</span> Home
           </Button>
         </div>
+      </div>
 
-        {/* Sleep Charts Section */}
-        {sleepData.length > 0 && chartData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Sleep Duration Chart */}
-            <Card className="bg-gradient-to-r from-purple-200 to-indigo-200 rounded-2xl p-6 text-gray-800 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold bg-gradient-to-r from-purple-700 to-indigo-700 bg-clip-text text-transparent flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-gray-700" />
-                  Sleep Duration Trends
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    Last 7 Days
-                  </Badge>
-                </CardTitle>
-                <p className="text-sm text-gray-700 mt-2">
-                  Track your sleep duration patterns over the past week
-                </p>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="h-64 flex items-center justify-center">
-                    <Skeleton className="h-full w-full" />
-                  </div>
-                ) : (
-                  <div className="h-64 bg-white/30 backdrop-blur-sm rounded-lg p-4" id="sleep-duration-chart">
-                    {/* Chart will be rendered here */}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Sleep Heart Rate Chart */}
-            <Card className="bg-gradient-to-r from-blue-200 to-cyan-200 rounded-2xl p-6 text-gray-800 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold bg-gradient-to-r from-blue-700 to-cyan-700 bg-clip-text text-transparent flex items-center gap-2">
-                  <Heart className="h-5 w-5 text-gray-700" />
-                  Sleep Heart Rate Trends
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    Last 7 Days
-                  </Badge>
-                </CardTitle>
-                <p className="text-sm text-gray-700 mt-2">
-                  Monitor your average heart rate during sleep
-                </p>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="h-64 flex items-center justify-center">
-                    <Skeleton className="h-full w-full" />
-                  </div>
-                ) : (
-                  <div className="h-64 bg-white/30 backdrop-blur-sm rounded-lg p-4" id="sleep-heartrate-chart">
-                    {/* Chart will be rendered here */}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Sleep Data Grid */}
-        {sleepData.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {(() => {
-              // Get exactly last 7 days from today backwards, ordered oldest to newest
-              const today = new Date();
-              const last7DaysData: SleepData[] = [];
+      <div className="mobile-container mobile-section">
+        {/* Connection Status */}
+        <Card className="mb-6 bg-white/60 backdrop-blur-sm border border-white/30">
+          <CardContent className="mobile-card">
+            <div className="text-center">
+              <div className="text-4xl mb-4">🔗</div>
+              <h3 className="mobile-subheading mb-2">Connect Your Sleep Tracker</h3>
+              <p className="text-sm sm:text-base text-gray-600 mb-6">
+                Link your Oura Ring, Apple Watch, or other sleep tracking device to get personalized insights
+              </p>
               
-              for (let i = 6; i >= 0; i--) {
-                const targetDate = new Date(today);
-                targetDate.setDate(today.getDate() - i);
-                const targetDateStr = targetDate.toISOString().split('T')[0];
-                
-                // Find data for this specific date
-                const dayData = sleepData.find(d => d.date === targetDateStr);
-                if (dayData) {
-                  last7DaysData.push(dayData);
-                }
-              }
-              
-              return last7DaysData.map((dayData) => (
-                <SleepDayCard key={dayData.date} dayData={dayData} />
-              ));
-            })()}
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">😴</div>
-            <h2 className="text-2xl font-bold text-gray-600 mb-4">No Sleep Data Available</h2>
-            <p className="text-gray-500 mb-8">No sleep data found for the last 7 days.</p>
-            
-            <Button 
-              onClick={refreshSleepData}
-              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh Sleep Data
-            </Button>
-          </div>
-        )}
+              <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
+                <Button className="mobile-button bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white">
+                  Connect Oura Ring
+                </Button>
+                <Button variant="outline" className="mobile-button">
+                  Other Devices
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Footer */}
-        <div className="text-center">
+        {/* Sleep Metrics Overview */}
+        <div className="mobile-grid-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-gradient-to-r from-blue-100 to-indigo-100 border-blue-200">
+            <CardHeader>
+              <CardTitle className="mobile-subheading bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent flex items-center gap-2">
+                <Moon className="h-5 w-5" />
+                Total Sleep
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mobile-chart flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-blue-600 mb-2">--</div>
+                  <p className="text-xs sm:text-sm">Hours last night</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-green-100 to-emerald-100 border-green-200">
+            <CardHeader>
+              <CardTitle className="mobile-subheading bg-gradient-to-r from-green-700 to-emerald-700 bg-clip-text text-transparent flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Sleep Quality
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mobile-chart flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">--</div>
+                  <p className="text-xs sm:text-sm">Quality score</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200">
+            <CardHeader>
+              <CardTitle className="mobile-subheading bg-gradient-to-r from-purple-700 to-pink-700 bg-clip-text text-transparent flex items-center gap-2">
+                <Heart className="h-5 w-5" />
+                REM Sleep
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mobile-chart flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-purple-600 mb-2">--</div>
+                  <p className="text-xs sm:text-sm">Minutes</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-orange-100 to-red-100 border-orange-200">
+            <CardHeader>
+              <CardTitle className="mobile-subheading bg-gradient-to-r from-orange-700 to-red-700 bg-clip-text text-transparent flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Deep Sleep
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mobile-chart flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-orange-600 mb-2">--</div>
+                  <p className="text-xs sm:text-sm">Minutes</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Coming Soon */}
+        <div className="text-center mobile-section">
           <div className="inline-flex items-center space-x-2 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3 border border-white/20">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600 font-medium">🏃 Powered by Oura Ring</span>
+            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600 font-medium">💤 Sleep insights coming soon</span>
           </div>
         </div>
       </div>

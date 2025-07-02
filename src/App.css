@@ -1,16 +1,39 @@
 #root {
-  max-width: 1280px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 1rem;
   text-align: center;
 }
 
+/* Mobile-first responsive padding */
+@media (min-width: 640px) {
+  #root {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  #root {
+    max-width: 1280px;
+    padding: 2rem;
+  }
+}
+
 .logo {
-  height: 6em;
-  padding: 1.5em;
+  height: 4em;
+  padding: 1em;
   will-change: filter;
   transition: filter 300ms;
 }
+
+/* Mobile-optimized logo size */
+@media (min-width: 768px) {
+  .logo {
+    height: 6em;
+    padding: 1.5em;
+  }
+}
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
@@ -34,9 +57,44 @@
 }
 
 .card {
-  padding: 2em;
+  padding: 1.5em;
+}
+
+/* Mobile-optimized card padding */
+@media (min-width: 768px) {
+  .card {
+    padding: 2em;
+  }
 }
 
 .read-the-docs {
   color: #888;
+}
+
+/* Mobile-specific utilities */
+.mobile-stack {
+  @apply flex flex-col space-y-4;
+}
+
+@media (min-width: 768px) {
+  .mobile-stack {
+    @apply flex-row space-y-0 space-x-4;
+  }
+}
+
+/* Touch-friendly buttons */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Mobile-friendly text sizes */
+.mobile-text-sm {
+  @apply text-sm;
+}
+
+@media (min-width: 768px) {
+  .mobile-text-sm {
+    @apply text-base;
+  }
 }

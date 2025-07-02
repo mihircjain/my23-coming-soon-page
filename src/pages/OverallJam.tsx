@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Drumstick, Leaf, RefreshCw, BarChart3, Target, TrendingUp, Plus, Calendar } from "lucide-react";
+import { ArrowLeft, Activity, Heart, Flame, Utensils, Droplet, Apple, Wheat, Drumstick, Leaf, RefreshCw, BarChart3, Target, TrendingUp, Plus, Calendar, Moon, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -133,19 +133,10 @@ const WeeklyGoalsTracker: React.FC<{
       
       <CardContent className="space-y-4">
         {/* Compact Goal Widgets */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="mobile-grid-3 gap-3">
           {Object.entries(goals).map(([key, goal]) => {
             const actual = weeklyTotals[key as keyof typeof weeklyTotals];
-            const isNegativeGoal = key === 'calorieSurplus';
-            let percentage;
-            
-            if (isNegativeGoal) {
-              // For surplus, calculate how well we're doing relative to negative goal
-              percentage = (actual / goal.target) * 100;
-            } else {
-              percentage = Math.min((actual / goal.target) * 100, 100);
-            }
-            
+            const percentage = Math.min((actual / goal.target) * 100, 100);
             const IconComponent = goal.icon;
             
             return (
@@ -159,33 +150,29 @@ const WeeklyGoalsTracker: React.FC<{
                 </div>
                 
                 <div className="text-sm font-bold text-gray-800 mb-2">
-                  {actual >= 0 && key === 'calorieSurplus' ? '+' : ''}{Math.round(actual).toLocaleString()}
+                  {Math.round(actual).toLocaleString()}
                   {key === 'protein' ? 'g' : ' cal'}
-                  <span className="text-xs text-gray-600">
-                    /{goal.target < 0 ? '' : goal.target.toLocaleString()}{goal.target < 0 ? Math.abs(goal.target).toLocaleString() + ' cal' : (key === 'protein' ? 'g' : ' cal')}
+                  <span className="text-xs text-gray-600 block sm:inline">
+                    /{goal.target.toLocaleString()}{key === 'protein' ? 'g' : ' cal'}
                   </span>
                 </div>
                 
                 <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
                   <div 
-                    className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(percentage, isNegativeGoal)}`}
-                    style={{ width: `${Math.min(Math.abs(percentage), 100)}%` }}
+                    className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(percentage)}`}
+                    style={{ width: `${Math.min(percentage, 100)}%` }}
                   />
                 </div>
                 
-                <div className={`text-xs font-semibold ${
-                  isNegativeGoal 
-                    ? (actual <= goal.target ? 'text-green-600' : actual <= 0 ? 'text-teal-600' : 'text-red-600')
-                    : (percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-teal-600' : 'text-blue-600')
-                }`}>
-                  {isNegativeGoal ? (actual <= goal.target ? '✓' : actual <= 0 ? '~' : '⚠') : `${Math.round(percentage)}%`}
+                <div className={`text-xs font-semibold ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-blue-600' : 'text-emerald-600'}`}>
+                  {Math.round(percentage)}%
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Compact Daily Breakdown - Updated with surplus */}
+        {/* Compact Daily Breakdown */}
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-gray-700 text-center">This Week</h4>
           <div className="grid grid-cols-7 gap-1">
@@ -197,9 +184,10 @@ const WeeklyGoalsTracker: React.FC<{
               const isToday = dateStr === new Date().toISOString().split('T')[0];
               
               const BMR = 1479;
-              const dailySurplus = (dayData.caloriesConsumed || 0) - ((dayData.caloriesBurned || 0) + BMR);
+              const caloriesConsumed = dayData.caloriesConsumed || 0;
+              const caloriesBurned = dayData.caloriesBurned || 0;
+              const dailySurplus = caloriesConsumed - (caloriesBurned + BMR);
               const protein = dayData.protein || 0;
-              const burned = dayData.caloriesBurned || 0;
               
               return (
                 <div 
@@ -208,30 +196,42 @@ const WeeklyGoalsTracker: React.FC<{
                     isToday ? 'border-green-500 bg-white/80' : 'border-white/30 bg-white/60'
                   }`}
                 >
-                  <div className="font-semibold text-gray-600 text-xs mb-1">
+                  <div className="font-semibold text-gray-700">
                     {date.toLocaleDateString('en-US', { weekday: 'short' })}
                   </div>
-                  
-                  {/* Protein */}
-                  <div className="text-xs text-blue-600 font-medium">
-                    P: {Math.round(protein)}g
-                  </div>
-                  
-                  {/* Calories Burned */}
-                  <div className="text-xs text-green-600 font-medium">
-                    Cal Burn: {Math.round(burned)}
-                  </div>
-                  
-                  {/* Surplus */}
-                  <div className={`text-xs font-semibold ${dailySurplus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    Cal Surplus: {dailySurplus >= 0 ? '+' : ''}{Math.round(dailySurplus)}
+                  <div className="text-xs mt-1 space-y-1">
+                    <div className="mobile-grid-2 gap-1 text-xs">
+                      <div>
+                        <div className="text-xs text-gray-600">Cal</div>
+                        <div className="font-semibold text-blue-600">
+                          {caloriesConsumed > 0 ? Math.round(caloriesConsumed) : '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600">Pro</div>
+                        <div className="font-semibold text-green-600">
+                          {protein > 0 ? Math.round(protein) : '-'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mobile-grid-2 gap-1 text-xs">
+                      <div>
+                        <div className="text-xs text-gray-600">Burn</div>
+                        <div className="font-semibold text-orange-600">
+                          {caloriesBurned > 0 ? Math.round(caloriesBurned) : '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-600">Sur</div>
+                        <div className={`font-semibold ${dailySurplus >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {caloriesConsumed > 0 ? (dailySurplus >= 0 ? '+' : '') + Math.round(dailySurplus) : '-'}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
             })}
-          </div>
-          <div className="text-xs text-gray-600 text-center">
-            P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal) • Positive = Good
           </div>
         </div>
       </CardContent>
