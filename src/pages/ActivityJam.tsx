@@ -1,7 +1,7 @@
 // ActivityJam.tsx - FULLY OPTIMIZED: Cache-first, minimal API calls, chart caching, no calorie estimation
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X, TrendingUp, MapPin, Timer, Target, Route, ChevronRight, Flame } from "lucide-react";
+import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X, TrendingUp, MapPin, Timer, Target, Route, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -437,28 +437,42 @@ const RunDetailModal = ({ activity, onClose }: { activity: ActivityData; onClose
 
           <TabsContent value="overview" className="space-y-4">
             {/* Quick Stats */}
-            <div className="mobile-grid-4 gap-4 mb-6">
-              {[
-                { label: "This Week", value: `${thisWeekStats.runs} runs`, icon: Activity, color: "text-blue-600" },
-                { label: "Distance", value: `${thisWeekStats.distance.toFixed(1)} km`, icon: MapPin, color: "text-green-600" },
-                { label: "Time", value: formatTime(thisWeekStats.time), icon: Clock, color: "text-purple-600" },
-                { label: "Avg Pace", value: thisWeekStats.avgPace, icon: Target, color: "text-orange-600" }
-              ].map((stat, index) => {
-                const IconComponent = stat.icon;
-                return (
-                  <Card key={index} className="bg-white/60 backdrop-blur-sm border border-white/30">
-                    <CardContent className="mobile-card">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm text-gray-600 mb-1">{stat.label}</p>
-                          <p className={`text-lg sm:text-xl font-bold ${stat.color}`}>{stat.value}</p>
-                        </div>
-                        <IconComponent className={`h-6 w-6 sm:h-8 sm:w-8 ${stat.color}`} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {(activity.distance).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-600">Distance (km)</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {formatTime(activity.moving_time)}
+                  </div>
+                  <div className="text-sm text-gray-600">Moving Time</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-teal-600">
+                    {formatPace(activity.moving_time / activity.distance)}
+                  </div>
+                  <div className="text-sm text-gray-600">Avg Pace</div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-emerald-600">
+                    {activity.average_heartrate || 'N/A'}
+                  </div>
+                  <div className="text-sm text-gray-600">Avg HR</div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Additional Details */}
@@ -1522,7 +1536,7 @@ const ActivityJam = () => {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="mobile-grid-3 gap-6">
                 {/* Calories Chart */}
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
@@ -1602,28 +1616,51 @@ const ActivityJam = () => {
 
             {/* Quick Stats */}
             <section>
-              <div className="mobile-grid-4 gap-4 mb-6">
-                {[
-                  { label: "This Week", value: `${thisWeekStats.runs} runs`, icon: Activity, color: "text-blue-600" },
-                  { label: "Distance", value: `${thisWeekStats.distance.toFixed(1)} km`, icon: MapPin, color: "text-green-600" },
-                  { label: "Time", value: formatTime(thisWeekStats.time), icon: Clock, color: "text-purple-600" },
-                  { label: "Avg Pace", value: thisWeekStats.avgPace, icon: Target, color: "text-orange-600" }
-                ].map((stat, index) => {
-                  const IconComponent = stat.icon;
-                  return (
-                    <Card key={index} className="bg-white/60 backdrop-blur-sm border border-white/30">
-                      <CardContent className="mobile-card">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs sm:text-sm text-gray-600 mb-1">{stat.label}</p>
-                            <p className={`text-lg sm:text-xl font-bold ${stat.color}`}>{stat.value}</p>
-                          </div>
-                          <IconComponent className={`h-6 w-6 sm:h-8 sm:w-8 ${stat.color}`} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+              <div className="flex items-center mb-6">
+                <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-800">Quick Overview</h2>
+              </div>
+              
+              <div className="mobile-grid-4 gap-4">
+                <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-green-600 mb-1">
+                      {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Calories</div>
+                    <div className="text-xs text-gray-500 mt-1">From Strava (when available)</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-blue-600 mb-1">
+                      {Math.round(activities.reduce((sum, a) => sum + a.distance, 0) * 10) / 10}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Distance (km)</div>
+                    <div className="text-xs text-gray-500 mt-1">All activities</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-teal-600 mb-1">
+                      {activities.filter(a => a.is_run_activity).length}
+                    </div>
+                    <div className="text-sm text-gray-600">Running Activities</div>
+                    <div className="text-xs text-gray-500 mt-1">Click for details</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200">
+                  <CardContent className="p-4 text-center">
+                    <div className="text-3xl font-bold text-emerald-600 mb-1">
+                      {activities.length}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Activities</div>
+                    <div className="text-xs text-gray-500 mt-1">Last 30 days</div>
+                  </CardContent>
+                </Card>
               </div>
             </section>
 
