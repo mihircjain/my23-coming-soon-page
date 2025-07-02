@@ -1573,7 +1573,7 @@ const NutritionJam = () => {
                       Today's Foods ({currentLog?.entries?.length || 0})
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="max-h-[500px] overflow-y-auto">
+                  <CardContent>
                     {currentLog?.entries?.length > 0 ? (
                       <div className="space-y-3">
                         {currentLog.entries.map((entry, index) => (

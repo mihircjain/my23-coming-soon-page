@@ -92,7 +92,7 @@ export function FoodSelector({ onAddFood, disabled }: FoodSelectorProps) {
               onKeyPress={handleKeyPress}
               onFocus={() => searchTerm && setShowSuggestions(true)}
               disabled={disabled}
-              className="pl-10 h-12 border-2 border-green-200 focus:border-green-500 mobile-button"
+              className="pl-14 h-12 border-2 border-green-200 focus:border-green-500 mobile-button"
             />
           </div>
           

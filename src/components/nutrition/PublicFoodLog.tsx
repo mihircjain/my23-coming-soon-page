@@ -48,7 +48,7 @@ export const PublicFoodLog = () => {
         ) : allLogs.length === 0 ? (
           <p className="text-center text-gray-500">No food logs found.</p>
         ) : (
-          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+          <div className="space-y-4">
             {allLogs.map((log) => (
               <div key={log.date} className="border border-gray-100 rounded-md overflow-hidden">
                 <div 
