@@ -211,19 +211,24 @@ const WeeklyGoalsTracker: React.FC<{
                   
                   {/* Calories Burned */}
                   <div className="text-xs text-green-600 font-medium">
-                    Cal Burn: {Math.round(caloriesBurned)}
+                    <span className="hidden sm:inline">Cal Burn: </span>
+                    <span className="sm:hidden">🔥 </span>
+                    {Math.round(caloriesBurned)}
                   </div>
                   
                   {/* Surplus */}
                   <div className={`text-xs font-semibold ${dailySurplus >= 0 ? 'text-emerald-600' : 'text-teal-600'}`}>
-                    Cal Surplus: {dailySurplus >= 0 ? '+' : ''}{Math.round(dailySurplus)}
+                    <span className="hidden sm:inline">Cal Surplus: </span>
+                    <span className="sm:hidden">📈 </span>
+                    {dailySurplus >= 0 ? '+' : ''}{Math.round(dailySurplus)}
                   </div>
                 </div>
               );
             })}
           </div>
           <div className="text-xs text-gray-600 text-center">
-            P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal)
+            <span className="hidden sm:inline">P: Protein (g) • Cal Burn: Burned (cal) • Cal Surplus: Surplus (cal)</span>
+            <span className="sm:hidden">P: Protein • 🔥: Cal Burned • 📈: Cal Surplus</span>
           </div>
         </div>
       </CardContent>

@@ -2274,30 +2274,30 @@ export default function CoachNew() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="mobile-container">
           <div className="flex items-center justify-between h-16">
             <Button
               onClick={() => navigate('/')}
               variant="ghost"
-              className="text-gray-600 hover:text-gray-900 font-medium"
+              className="text-gray-600 hover:text-gray-900 font-medium touch-target"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
+              <span className="hidden sm:inline">Back</span>
             </Button>
             
-            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 tracking-tight">
               Health Coach
             </h1>
             
-            <div className="w-20"></div> {/* Spacer for balance */}
+            <div className="w-16 sm:w-20"></div> {/* Spacer for balance */}
           </div>
         </div>
       </header>
 
-      {/* Main Layout with Sidebar */}
-      <div className="max-w-7xl mx-auto flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
+      {/* Main Layout with Responsive Sidebar */}
+      <div className="flex flex-col lg:flex-row max-w-7xl mx-auto">
+        {/* Sidebar - Hidden on mobile, visible on desktop */}
+        <aside className="hidden lg:block lg:w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
           <div className="p-4">
             <h2 className="text-base font-semibold text-gray-900 mb-3">Weekly Overview</h2>
             
@@ -2368,26 +2368,46 @@ export default function CoachNew() {
           </div>
         </aside>
 
+        {/* Mobile Metrics Summary - Only visible on mobile */}
+        <div className="lg:hidden bg-white border-b border-gray-200 mobile-container py-4">
+          {metricsLoading ? (
+            <div className="text-center">
+              <div className="animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="text-sm font-medium text-gray-600 mb-2">This Week</div>
+              <div className="flex justify-center gap-4 text-xs">
+                <span className="text-red-600">🔥 {weeklyMetrics?.caloriesBurned || 0}</span>
+                <span className="text-green-600">🥗 {weeklyMetrics?.caloriesConsumed || 0}</span>
+                <span className="text-blue-600">💪 {weeklyMetrics?.protein || 0}g</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Main Chat Container */}
         <main className="flex-1">
-        <div className="flex flex-col h-[calc(100vh-4rem)]">
+        <div className="flex flex-col h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)]">
           
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-6 py-8">
+          <div className="flex-1 overflow-y-auto mobile-container py-4 sm:py-8">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
                   <Bot className="h-8 w-8 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-3 tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3 tracking-tight">
                   Welcome to your Health Coach
                 </h2>
-                <p className="text-gray-600 text-lg max-w-md leading-relaxed">
+                <p className="text-gray-600 text-base sm:text-lg max-w-md leading-relaxed px-4">
                   I can analyze your running, nutrition, and sleep data to provide personalized insights and recommendations.
                 </p>
                 
                 {/* Elegant prompt suggestions */}
-                <div className="mt-12 w-full max-w-2xl">
+                <div className="mt-8 sm:mt-12 w-full max-w-2xl px-4">
                   <div className="grid gap-3">
                     <button 
                       onClick={() => {
@@ -2396,10 +2416,10 @@ export default function CoachNew() {
                       }}
                       className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
                     >
-                      <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                                             <div className="font-medium text-sm sm:text-base text-gray-900 group-hover:text-blue-600 transition-colors">
                          📊 Comprehensive 10-day health analysis
                        </div>
-                       <div className="text-sm text-gray-600 mt-1">
+                       <div className="text-xs sm:text-sm text-gray-600 mt-1">
                          Deep dive into your sleep, nutrition, and running patterns with correlation insights
                        </div>
                      </button>
@@ -2411,10 +2431,10 @@ export default function CoachNew() {
                        }}
                        className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
                      >
-                       <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                       <div className="font-medium text-sm sm:text-base text-gray-900 group-hover:text-blue-600 transition-colors">
                          🍎 Nutrition-performance optimization
                        </div>
-                       <div className="text-sm text-gray-600 mt-1">
+                       <div className="text-xs sm:text-sm text-gray-600 mt-1">
                          Discover how your diet impacts training and get personalized fueling strategies
                        </div>
                      </button>
@@ -2426,10 +2446,10 @@ export default function CoachNew() {
                        }}
                        className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
                      >
-                       <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                       <div className="font-medium text-sm sm:text-base text-gray-900 group-hover:text-blue-600 transition-colors">
                          😴 Sleep & recovery mastery  
                        </div>
-                       <div className="text-sm text-gray-600 mt-1">
+                       <div className="text-xs sm:text-sm text-gray-600 mt-1">
                          Understand your sleep quality, recovery patterns, and performance correlations
                        </div>
                      </button>
@@ -2439,15 +2459,15 @@ export default function CoachNew() {
             )}
             
             {/* Message Thread */}
-            <div className="space-y-6 max-w-3xl mx-auto">
+            <div className="space-y-4 sm:space-y-6 max-w-3xl mx-auto">
               {messages.map((message, index) => (
                 <div key={index} className="group">
                   {message.role === 'user' ? (
                     // User message
                     <div className="flex justify-end">
-                      <div className="max-w-xs sm:max-w-md lg:max-w-lg">
-                        <div className="bg-blue-600 text-white rounded-3xl rounded-br-lg px-6 py-4 shadow-sm">
-                          <div className="text-[15px] leading-relaxed font-medium">
+                      <div className="max-w-[85%] sm:max-w-xs md:max-w-md lg:max-w-lg">
+                        <div className="bg-blue-600 text-white rounded-3xl rounded-br-lg px-4 sm:px-6 py-3 sm:py-4 shadow-sm">
+                          <div className="text-sm sm:text-[15px] leading-relaxed font-medium">
                             {message.content}
                           </div>
                         </div>
@@ -2461,14 +2481,14 @@ export default function CoachNew() {
                   ) : (
                     // Assistant message
                     <div className="flex">
-                      <div className="flex-shrink-0 mr-4">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <Bot className="h-4 w-4 text-white" />
+                      <div className="flex-shrink-0 mr-2 sm:mr-4">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                          <Bot className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                         </div>
                       </div>
                       <div className="flex-1 max-w-none">
                         <div className="prose prose-sm max-w-none">
-                          <div className="text-[15px] leading-relaxed text-gray-800 whitespace-pre-wrap font-normal">
+                          <div className="text-sm sm:text-[15px] leading-relaxed text-gray-800 whitespace-pre-wrap font-normal">
                             {formatMessageContent(message.content)}
                           </div>
                         </div>
@@ -2505,7 +2525,7 @@ export default function CoachNew() {
 
           {/* Input Area */}
           <div className="border-t border-gray-200 bg-white">
-            <div className="px-6 py-4">
+            <div className="mobile-container py-3 sm:py-4">
               <div className="max-w-3xl mx-auto">
                 {/* Context indicator */}
                 {context.lastDate && (
@@ -2529,9 +2549,9 @@ export default function CoachNew() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder={isRecording ? "Listening..." : "Ask about your health data or speak..."}
+                    placeholder={isRecording ? "Listening..." : "Ask about your health data..."}
                     disabled={isLoading || isRecording}
-                    className="w-full px-4 py-4 pr-20 text-[15px] border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-500 font-normal bg-white shadow-sm disabled:bg-gray-50"
+                    className="w-full px-3 sm:px-4 py-3 sm:py-4 pr-16 sm:pr-20 text-sm sm:text-[15px] border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-500 font-normal bg-white shadow-sm disabled:bg-gray-50"
                   />
                   
                   {/* Microphone button */}
@@ -2539,16 +2559,16 @@ export default function CoachNew() {
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
                       disabled={isLoading}
-                      className={`absolute right-12 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                      className={`absolute right-10 sm:right-12 top-1/2 transform -translate-y-1/2 w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center transition-all duration-200 touch-target ${
                         isRecording 
                           ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' 
                           : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
                       } disabled:cursor-not-allowed`}
                     >
                       {isRecording ? (
-                        <MicOff className="w-4 h-4" />
+                        <MicOff className="w-3 h-3 sm:w-4 sm:h-4" />
                       ) : (
-                        <Mic className="w-4 h-4" />
+                        <Mic className="w-3 h-3 sm:w-4 sm:h-4" />
                       )}
                     </button>
                   )}
@@ -2557,12 +2577,12 @@ export default function CoachNew() {
                   <button
                     onClick={handleSendMessage}
                     disabled={isLoading || (!input.trim() && !isRecording)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl flex items-center justify-center transition-colors duration-200 disabled:cursor-not-allowed"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl flex items-center justify-center transition-colors duration-200 disabled:cursor-not-allowed touch-target"
                   >
                     {isLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                       </svg>
                     )}
