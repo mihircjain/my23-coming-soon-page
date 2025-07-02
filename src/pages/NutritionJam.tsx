@@ -290,37 +290,60 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
           </div>
         </div>
 
-        <div className="h-64 sm:h-96 w-full">
+        <div className="h-48 sm:h-80 lg:h-96 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ 
+              top: window.innerWidth < 768 ? 10 : 20, 
+              right: window.innerWidth < 768 ? 15 : 30, 
+              left: window.innerWidth < 768 ? 5 : 10, 
+              bottom: window.innerWidth < 768 ? 20 : 5 
+            }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis 
                 dataKey="date" 
                 stroke="#6b7280"
-                fontSize={12}
+                fontSize={window.innerWidth < 768 ? 10 : 12}
+                tick={window.innerWidth < 768 ? { fontSize: 10 } : true}
+                interval={window.innerWidth < 768 ? 1 : 0}
               />
-              {/* Left Y-axis for Calories (0-3000 range) */}
+              {/* Left Y-axis for Calories */}
               <YAxis 
                 yAxisId="calories"
                 orientation="left"
                 stroke="#6b7280"
-                fontSize={12}
+                fontSize={window.innerWidth < 768 ? 10 : 12}
+                tick={window.innerWidth < 768 ? { fontSize: 10 } : true}
                 domain={[0, 'dataMax + 200']}
-                label={{ value: 'Calories', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+                label={window.innerWidth >= 768 ? { 
+                  value: 'Calories', 
+                  angle: -90, 
+                  position: 'insideLeft', 
+                  style: { textAnchor: 'middle' } 
+                } : undefined}
               />
-              {/* Right Y-axis for Macros (0-200 range) */}
+              {/* Right Y-axis for Macros */}
               <YAxis 
                 yAxisId="macros"
                 orientation="right"
                 stroke="#6b7280"
-                fontSize={12}
+                fontSize={window.innerWidth < 768 ? 10 : 12}
+                tick={window.innerWidth < 768 ? { fontSize: 10 } : true}
                 domain={[0, 'dataMax + 20']}
-                label={{ value: 'Grams', angle: 90, position: 'insideRight', style: { textAnchor: 'middle' } }}
+                label={window.innerWidth >= 768 ? { 
+                  value: 'Grams', 
+                  angle: 90, 
+                  position: 'insideRight', 
+                  style: { textAnchor: 'middle' } 
+                } : undefined}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend 
-                wrapperStyle={{ paddingTop: '20px' }}
+                wrapperStyle={{ 
+                  paddingTop: window.innerWidth < 768 ? '10px' : '20px',
+                  fontSize: window.innerWidth < 768 ? '12px' : '14px'
+                }}
                 iconType="line"
+                payload={window.innerWidth < 768 ? undefined : undefined}
               />
               
               {/* Calories In - Deep Forest Green stroke - Left axis */}

@@ -694,16 +694,17 @@ const OverallJam = () => {
             min: Math.max(0, caloriesMin - caloriesPadding),
             max: caloriesMax + caloriesPadding,
             ticks: { 
-              font: { size: 11 },
-              stepSize: Math.max(50, Math.round(caloriesRange / 6)),
+              font: { size: window.innerWidth < 768 ? 8 : 11 },
+              stepSize: Math.max(window.innerWidth < 768 ? 200 : 50, Math.round(caloriesRange / (window.innerWidth < 768 ? 3 : 6))),
+              maxTicksLimit: window.innerWidth < 768 ? 4 : 6,
               callback: function(value) {
-                return Math.round(value) + ' cal';
+                return window.innerWidth < 768 ? Math.round(value) : Math.round(value) + ' cal';
               }
             },
             title: {
-              display: true,
+              display: window.innerWidth >= 768,
               text: 'Calories',
-              font: { size: 12, weight: 'bold' },
+              font: { size: window.innerWidth < 768 ? 10 : 12, weight: 'bold' },
               color: 'rgba(34, 197, 94, 0.8)'
             }
           },
@@ -993,11 +994,11 @@ const OverallJam = () => {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="h-80 flex items-center justify-center">
+                <div className="h-48 sm:h-80 flex items-center justify-center">
                   <Skeleton className="h-full w-full" />
                 </div>
               ) : (
-                <div className="h-64 sm:h-80 bg-white/30 backdrop-blur-sm rounded-lg p-2 sm:p-4" id="combined-health-chart">
+                <div className="h-48 sm:h-80 lg:h-96 bg-white/30 backdrop-blur-sm rounded-lg p-1 sm:p-4" id="combined-health-chart">
                   {/* Chart will be rendered here */}
                 </div>
               )}
