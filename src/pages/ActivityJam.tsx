@@ -1,15 +1,13 @@
-// ActivityJam.tsx - FULLY OPTIMIZED: Cache-first, minimal API calls, chart caching, no calorie estimation
+// ActivityJam.tsx - Activity tracking without detailed analysis
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X, TrendingUp, MapPin, Timer, Target, Route, ChevronRight } from "lucide-react";
+import { ArrowLeft, RefreshCw, Calendar, Clock, Zap, Heart, Activity, BarChart3, Tag, Edit3, Check, X, TrendingUp, MapPin, Timer, Target, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Chart from 'chart.js/auto';
 
 // Run tag types
@@ -49,648 +47,6 @@ interface ActivityData {
   run_tag?: RunTag;
 }
 
-// Detailed run analysis interface
-interface RunDetail {
-  id: string;
-  summary: ActivityData;
-  splits_metric?: Array<{
-    distance: number;
-    elapsed_time: number;
-    elevation_difference: number;
-    moving_time: number;
-    average_speed: number;
-    pace_zone?: number;
-    average_heartrate?: number;
-  }>;
-  laps?: Array<{
-    name: string;
-    distance: number;
-    moving_time: number;
-    elapsed_time: number;
-    average_speed: number;
-    max_speed: number;
-    average_heartrate?: number;
-    max_heartrate?: number;
-    total_elevation_gain: number;
-  }>;
-  best_efforts?: Array<{
-    name: string;
-    distance: number;
-    moving_time: number;
-    elapsed_time: number;
-    start_date_local: string;
-    pr_rank?: number;
-  }>;
-  zones?: Array<{
-    type: string;
-    distribution_buckets: Array<{
-      min: number;
-      max: number;
-      time: number;
-    }>;
-  }>;
-  gear?: {
-    id: string;
-    name: string;
-    distance: number;
-    brand_name?: string;
-    model_name?: string;
-  };
-  streams?: {
-    time?: number[];
-    distance?: number[];
-    heartrate?: number[];
-    velocity_smooth?: number[];
-    altitude?: number[];
-    grade_smooth?: number[];
-  };
-}
-
-// Detailed Run Analysis Modal Component
-const RunDetailModal = ({ activity, onClose }: { activity: ActivityData; onClose: () => void }) => {
-  const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState("overview");
-  
-  // Chart refs for detailed analysis
-  const paceChartRef = useRef<HTMLCanvasElement>(null);
-  const hrChartRef = useRef<HTMLCanvasElement>(null);
-  const elevationChartRef = useRef<HTMLCanvasElement>(null);
-  
-  const chartInstances = useRef<{ [key: string]: Chart | null }>({
-    pace: null,
-    hr: null,
-    elevation: null
-  });
-
-  // Load detailed run data
-  const loadRunDetail = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      console.log(`🏃 Loading detailed analysis for run ${activity.id}`);
-      
-      const response = await fetch(`/api/strava-detail?activityId=${activity.id}&userId=mihir_jain`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        if (response.status === 429 || errorData.isRateLimit) {
-          throw new Error('Strava API rate limit reached. Detailed analysis temporarily unavailable. Please try again in 15 minutes.');
-        }
-        
-        throw new Error(errorData.message || `Failed to load run details: ${response.status}`);
-      }
-      
-      const detail = await response.json();
-      
-      // Check if this is rate-limited basic data
-      if (detail.rate_limited) {
-        console.log('⚠️ Received rate-limited data - showing basic analysis only');
-        setError('⚠️ Showing basic analysis - detailed data temporarily unavailable due to API limits');
-      }
-      
-      setRunDetail(detail);
-      
-      // Create charts with a small delay
-      setTimeout(() => {
-        createDetailCharts(detail);
-      }, 100);
-      
-    } catch (error) {
-      console.error('❌ Error loading run detail:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load run details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Destroy all detail charts
-  const destroyDetailCharts = () => {
-    Object.values(chartInstances.current).forEach(chart => {
-      if (chart) {
-        chart.destroy();
-      }
-    });
-    chartInstances.current = {
-      pace: null,
-      hr: null,
-      elevation: null
-    };
-  };
-
-  // Create detailed analysis charts
-  const createDetailCharts = (detail: RunDetail) => {
-    destroyDetailCharts();
-    
-    if (detail.splits_metric && detail.splits_metric.length > 0) {
-      createPaceChart(detail.splits_metric);
-      createHRChart(detail.splits_metric);
-    }
-    
-    if (detail.streams && detail.streams.distance && detail.streams.altitude) {
-      createElevationChart(detail.streams);
-    }
-  };
-
-  // Create km-by-km pace chart
-  const createPaceChart = (splits: any[]) => {
-    if (!paceChartRef.current) return;
-    
-    const ctx = paceChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    const labels = splits.map((_, index) => `km ${index + 1}`);
-    const paces = splits.map(split => {
-      const paceSeconds = split.moving_time;
-      const minutes = Math.floor(paceSeconds / 60);
-      const seconds = paceSeconds % 60;
-      return parseFloat(`${minutes}.${(seconds / 60 * 100).toFixed(0)}`);
-    });
-
-    try {
-      chartInstances.current.pace = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Pace (min/km)',
-            data: paces,
-            borderColor: 'rgb(59, 130, 246)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 4,
-            pointHoverRadius: 6
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            x: {
-              grid: { display: false }
-            },
-            y: {
-              beginAtZero: false,
-              grid: { color: 'rgba(0,0,0,0.1)' },
-              ticks: {
-                callback: function(value: any) {
-                  const minutes = Math.floor(value);
-                  const seconds = Math.round((value - minutes) * 60);
-                  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                }
-              }
-            }
-          }
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error creating pace chart:', error);
-    }
-  };
-
-  // Create km-by-km heart rate chart
-  const createHRChart = (splits: any[]) => {
-    if (!hrChartRef.current || !splits.some(s => s.average_heartrate)) return;
-    
-    const ctx = hrChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    const labels = splits.map((_, index) => `km ${index + 1}`);
-    const heartRates = splits.map(split => split.average_heartrate || 0);
-
-    try {
-      chartInstances.current.hr = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Heart Rate (bpm)',
-            data: heartRates,
-            borderColor: 'rgb(20, 184, 166)',
-            backgroundColor: 'rgba(20, 184, 166, 0.1)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 4,
-            pointHoverRadius: 6
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            x: {
-              grid: { display: false }
-            },
-            y: {
-              beginAtZero: false,
-              grid: { color: 'rgba(0,0,0,0.1)' }
-            }
-          }
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error creating HR chart:', error);
-    }
-  };
-
-  // Create elevation profile chart
-  const createElevationChart = (streams: any) => {
-    if (!elevationChartRef.current) return;
-    
-    const ctx = elevationChartRef.current.getContext('2d');
-    if (!ctx) return;
-
-    const distances = streams.distance.map((d: number) => d / 1000);
-    const elevations = streams.altitude;
-
-    try {
-      chartInstances.current.elevation = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: distances.map((d: number) => `${d.toFixed(1)}km`),
-          datasets: [{
-            label: 'Elevation (m)',
-            data: elevations,
-            borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.1,
-            pointRadius: 0,
-            pointHoverRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: { maxTicksLimit: 8 }
-            },
-            y: {
-              grid: { color: 'rgba(0,0,0,0.1)' }
-            }
-          }
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error creating elevation chart:', error);
-    }
-  };
-
-  // Helper functions
-  const formatPace = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Load data when modal opens
-  useEffect(() => {
-    loadRunDetail();
-    
-    return () => {
-      destroyDetailCharts();
-    };
-  }, [activity.id]);
-
-  if (loading) {
-    return (
-      <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Loading Run Analysis...</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (error) {
-    return (
-      <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Error Loading Run Details</DialogTitle>
-          </DialogHeader>
-          <div className="text-center py-4">
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={loadRunDetail}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Try Again
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-blue-600" />
-            Detailed Run Analysis: {activity.name}
-          </DialogTitle>
-        </DialogHeader>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="splits">Km Splits</TabsTrigger>
-            <TabsTrigger value="charts">Charts</TabsTrigger>
-            <TabsTrigger value="efforts">Best Efforts</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-4">
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {(activity.distance).toFixed(2)}
-                  </div>
-                  <div className="text-sm text-gray-600">Distance (km)</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {formatTime(activity.moving_time)}
-                  </div>
-                  <div className="text-sm text-gray-600">Moving Time</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-teal-600">
-                    {formatPace(activity.moving_time / activity.distance)}
-                  </div>
-                  <div className="text-sm text-gray-600">Avg Pace</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-bold text-emerald-600">
-                    {activity.average_heartrate || 'N/A'}
-                  </div>
-                  <div className="text-sm text-gray-600">Avg HR</div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Additional Details */}
-            {runDetail && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Run Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Elevation Gain:</span>
-                      <span className="font-medium">{activity.total_elevation_gain}m</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Max Speed:</span>
-                      <span className="font-medium">{((activity.max_speed || 0) * 3.6).toFixed(1)} km/h</span>
-                    </div>
-                    {activity.max_heartrate && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Max HR:</span>
-                        <span className="font-medium">{activity.max_heartrate} bpm</span>
-                      </div>
-                    )}
-                    {activity.calories > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Calories:</span>
-                        <span className="font-medium">{activity.calories}</span>
-                      </div>
-                    )}
-                    {runDetail.gear && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Shoes:</span>
-                        <span className="font-medium">{runDetail.gear.name}</span>
-                      </div>
-                    )}
-                    {runDetail.gear && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Shoe Mileage:</span>
-                        <span className="font-medium">{(runDetail.gear.distance / 1000).toFixed(0)} km</span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="splits" className="space-y-4">
-            {runDetail?.splits_metric && runDetail.splits_metric.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Kilometre Splits</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {runDetail.splits_metric.map((split, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="font-medium">Km {index + 1}</div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="flex items-center gap-1">
-                            <Timer className="h-3 w-3 text-blue-500" />
-                            <span>{formatPace(split.moving_time)}</span>
-                          </div>
-                          {split.average_heartrate && (
-                            <div className="flex items-center gap-1">
-                              <Heart className="h-3 w-3 text-red-500" />
-                              <span>{Math.round(split.average_heartrate)} bpm</span>
-                            </div>
-                          )}
-                          {split.elevation_difference !== undefined && (
-                            <div className="flex items-center gap-1">
-                              <TrendingUp className="h-3 w-3 text-green-500" />
-                              <span>{split.elevation_difference > 0 ? '+' : ''}{split.elevation_difference}m</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center text-gray-500">
-                  <Activity className="h-8 w-8 mx-auto mb-2" />
-                  <p>No split data available for this run</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="charts" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Pace Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <Timer className="h-4 w-4 mr-2 text-blue-500" />
-                    Pace per Kilometre
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <canvas ref={paceChartRef} className="w-full h-full"></canvas>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Heart Rate Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <Heart className="h-4 w-4 mr-2 text-teal-500" />
-                    Heart Rate per Kilometre
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <canvas ref={hrChartRef} className="w-full h-full"></canvas>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Elevation Profile */}
-            {runDetail?.streams?.altitude && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <TrendingUp className="h-4 w-4 mr-2 text-green-500" />
-                    Elevation Profile
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <canvas ref={elevationChartRef} className="w-full h-full"></canvas>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="efforts" className="space-y-4">
-            {runDetail?.best_efforts && runDetail.best_efforts.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Best Efforts / Personal Records</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {runDetail.best_efforts.map((effort, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-orange-500" />
-                          <span className="font-medium">{effort.name}</span>
-                          {effort.pr_rank && effort.pr_rank <= 3 && (
-                            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
-                              PR #{effort.pr_rank}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span>{formatTime(effort.moving_time)}</span>
-                          <span className="text-gray-500">
-                            {formatPace(effort.moving_time / (effort.distance / 1000))} pace
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center text-gray-500">
-                  <Target className="h-8 w-8 mx-auto mb-2" />
-                  <p>No best efforts data available for this run</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Heart Rate Zones */}
-            {runDetail?.zones && runDetail.zones.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Heart Rate Zones</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {runDetail.zones.map((zone, zoneIndex) => (
-                    <div key={zoneIndex} className="space-y-2">
-                      <h4 className="font-medium">{zone.type} Zones</h4>
-                      <div className="space-y-1">
-                        {zone.distribution_buckets.map((bucket, bucketIndex) => (
-                          <div key={bucketIndex} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                            <span>Zone {bucketIndex + 1} ({bucket.min}-{bucket.max})</span>
-                            <span>{formatTime(bucket.time)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
 const ActivityJam = () => {
   const navigate = useNavigate();
   const [activities, setActivities] = useState<ActivityData[]>([]);
@@ -700,7 +56,6 @@ const ActivityJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
-  const [selectedRunDetail, setSelectedRunDetail] = useState<ActivityData | null>(null);
 
   // Chart refs
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
@@ -840,14 +195,7 @@ const ActivityJam = () => {
     return RUN_TAG_OPTIONS.find(option => option.value === tag) || RUN_TAG_OPTIONS[0];
   };
 
-  // Handle run click for detailed analysis
-  const handleRunClick = (activity: ActivityData) => {
-    if (activity.is_run_activity) {
-      setSelectedRunDetail(activity);
-    }
-  };
-
-// Process activities data for charts
+  // Process activities data for charts
   const processChartData = (activities: ActivityData[]) => {
     console.log('📊 PROCESSING CHART DATA from', activities.length, 'activities');
     
@@ -855,18 +203,6 @@ const ActivityJam = () => {
       console.log('📊 No activities to process');
       return null;
     }
-
-    // 🔥 DEBUG: Check for May/June activities specifically  
-    const mayJuneActivities = activities.filter(a => {
-      const date = a.start_date.split('T')[0];
-      return (date >= '2025-05-18' && date <= '2025-05-22') || date === '2025-06-18';
-    });
-
-    console.log('🔥 MAY/JUNE ACTIVITIES found:', mayJuneActivities.length);
-    mayJuneActivities.forEach(activity => {
-      const date = activity.start_date.split('T')[0];
-      console.log(`   ${date}: ${activity.type} "${activity.name}" - ${activity.calories} cal, ${activity.distance} km`);
-    });
 
     // Sort activities by date
     const sortedActivities = [...activities].sort((a, b) => 
@@ -891,64 +227,45 @@ const ActivityJam = () => {
       }
 
       const dayData = dailyData.get(date);
-      dayData.calories += activity.calories || 0;
-      dayData.distance += activity.distance || 0;
       
-      // Heart rate ONLY from runs
-      if (activity.is_run_activity && activity.has_heartrate && activity.average_heartrate) {
+      // Add calories (if available)
+      if (activity.calories && activity.calories > 0) {
+        dayData.calories += activity.calories;
+      }
+      
+      // Add distance
+      dayData.distance += activity.distance;
+      
+      // Add heart rate for averaging
+      if (activity.has_heartrate && activity.average_heartrate) {
         dayData.heartRateTotal += activity.average_heartrate;
         dayData.heartRateCount += 1;
       }
-
-      // 🔥 DEBUG: Log May/June processing
-      if ((date >= '2025-05-18' && date <= '2025-05-22') || date === '2025-06-18') {
-        console.log(`🔄 Adding ${date}: ${activity.type} "${activity.name}" → +${activity.calories} cal, +${activity.distance} km`);
-        console.log(`   Day total now: ${dayData.calories} cal, ${dayData.distance.toFixed(2)} km`);
-      }
     });
 
-    // Convert to arrays
-    const dates = Array.from(dailyData.keys()).sort();
-    const labels = dates.map(date => new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    }));
+    // Convert to arrays for charts
+    const labels: string[] = [];
+    const calories: number[] = [];
+    const distance: number[] = [];
+    const heartRate: number[] = [];
 
-    const chartData = {
-      labels,
-      calories: dates.map(date => dailyData.get(date).calories),
-      distance: dates.map(date => Math.round(dailyData.get(date).distance * 10) / 10),
-      heartRate: dates.map(date => {
-        const dayData = dailyData.get(date);
-        return dayData.heartRateCount > 0 ? Math.round(dayData.heartRateTotal / dayData.heartRateCount) : 0;
-      })
-    };
+    // Sort by date and build arrays
+    Array.from(dailyData.entries())
+      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+      .forEach(([date, data]) => {
+        labels.push(new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        calories.push(data.calories);
+        distance.push(data.distance);
+        heartRate.push(data.heartRateCount > 0 ? data.heartRateTotal / data.heartRateCount : 0);
+      });
 
-    // 🔥 DEBUG: Check final chart data for May/June
-    console.log('🔥 FINAL CHART DATA for May/June:');
-    dates.forEach((date, index) => {
-      if ((date >= '2025-05-18' && date <= '2025-05-22') || date === '2025-06-18') {
-        const label = labels[index];
-        const calories = chartData.calories[index];
-        const distance = chartData.distance[index];
-        const heartRate = chartData.heartRate[index];
-        console.log(`   ${date} (${label}): ${calories} cal, ${distance} km, ${heartRate} bpm`);
-      }
-    });
-
-    console.log('📊 Chart data summary:', {
-      totalDataPoints: chartData.labels.length,
-      totalCalories: chartData.calories.reduce((sum, cal) => sum + cal, 0),
-      daysWithCalories: chartData.calories.filter(cal => cal > 0).length,
-      daysWithDistance: chartData.distance.filter(dist => dist > 0).length
-    });
-
-    return chartData;
+    console.log('📊 Chart data processed:', { labels: labels.length, calories: calories.length, distance: distance.length, heartRate: heartRate.length });
+    
+    return { labels, calories, distance, heartRate };
   };
 
   // Destroy all charts
   const destroyCharts = () => {
-    console.log('🗑️ Destroying existing charts');
     Object.values(chartInstances.current).forEach(chart => {
       if (chart) {
         chart.destroy();
@@ -963,33 +280,22 @@ const ActivityJam = () => {
 
   // Create calories chart
   const createCaloriesChart = (data: any) => {
-    if (!caloriesChartRef.current || !data) return;
-
+    if (!caloriesChartRef.current) return;
+    
     const ctx = caloriesChartRef.current.getContext('2d');
     if (!ctx) return;
 
-    // Destroy existing chart
-    if (chartInstances.current.calories) {
-      chartInstances.current.calories.destroy();
-    }
-
-    console.log('📊 Creating calories chart with', data.calories.length, 'data points');
-
     try {
       chartInstances.current.calories = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
           labels: data.labels,
           datasets: [{
             label: 'Calories Burned',
             data: data.calories,
+            backgroundColor: 'rgba(34, 197, 94, 0.6)',
             borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 5
+            borderWidth: 1
           }]
         },
         options: {
@@ -1000,8 +306,7 @@ const ActivityJam = () => {
           },
           scales: {
             x: {
-              grid: { display: false },
-              ticks: { maxTicksLimit: 6 }
+              grid: { display: false }
             },
             y: {
               beginAtZero: true,
@@ -1010,8 +315,6 @@ const ActivityJam = () => {
           }
         }
       });
-      
-      console.log('✅ Calories chart created successfully');
     } catch (error) {
       console.error('❌ Error creating calories chart:', error);
     }
@@ -1019,30 +322,24 @@ const ActivityJam = () => {
 
   // Create distance chart
   const createDistanceChart = (data: any) => {
-    if (!distanceChartRef.current || !data) return;
-
+    if (!distanceChartRef.current) return;
+    
     const ctx = distanceChartRef.current.getContext('2d');
     if (!ctx) return;
 
-    // Destroy existing chart
-    if (chartInstances.current.distance) {
-      chartInstances.current.distance.destroy();
-    }
-
-    console.log('📊 Creating distance chart with', data.distance.length, 'data points');
-
     try {
       chartInstances.current.distance = new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
           labels: data.labels,
           datasets: [{
             label: 'Distance (km)',
             data: data.distance,
-            backgroundColor: 'rgba(59, 130, 246, 0.8)',
             borderColor: 'rgb(59, 130, 246)',
-            borderWidth: 1,
-            borderRadius: 4
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4
           }]
         },
         options: {
@@ -1053,8 +350,7 @@ const ActivityJam = () => {
           },
           scales: {
             x: {
-              grid: { display: false },
-              ticks: { maxTicksLimit: 6 }
+              grid: { display: false }
             },
             y: {
               beginAtZero: true,
@@ -1063,8 +359,6 @@ const ActivityJam = () => {
           }
         }
       });
-      
-      console.log('✅ Distance chart created successfully');
     } catch (error) {
       console.error('❌ Error creating distance chart:', error);
     }
@@ -1072,17 +366,15 @@ const ActivityJam = () => {
 
   // Create heart rate chart
   const createHeartRateChart = (data: any) => {
-    if (!heartRateChartRef.current || !data) return;
-
+    if (!heartRateChartRef.current) return;
+    
     const ctx = heartRateChartRef.current.getContext('2d');
     if (!ctx) return;
 
-    // Destroy existing chart
-    if (chartInstances.current.heartRate) {
-      chartInstances.current.heartRate.destroy();
-    }
-
-    console.log('📊 Creating heart rate chart with', data.heartRate.length, 'data points');
+    // Filter out zero values for heart rate
+    const filteredData = data.heartRate.map((hr: number, index: number) => 
+      hr > 0 ? hr : null
+    );
 
     try {
       chartInstances.current.heartRate = new Chart(ctx, {
@@ -1090,15 +382,14 @@ const ActivityJam = () => {
         data: {
           labels: data.labels,
           datasets: [{
-            label: 'Heart Rate (bpm)',
-            data: data.heartRate,
-            borderColor: 'rgb(20, 184, 166)',
-            backgroundColor: 'rgba(20, 184, 166, 0.1)',
+            label: 'Average Heart Rate (bpm)',
+            data: filteredData,
+            borderColor: 'rgb(239, 68, 68)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
             borderWidth: 2,
             fill: true,
             tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 5
+            spanGaps: true
           }]
         },
         options: {
@@ -1109,222 +400,160 @@ const ActivityJam = () => {
           },
           scales: {
             x: {
-              grid: { display: false },
-              ticks: { maxTicksLimit: 6 }
+              grid: { display: false }
             },
             y: {
               beginAtZero: false,
+              min: 120,
               grid: { color: 'rgba(0,0,0,0.1)' }
             }
           }
         }
       });
-      
-      console.log('✅ Heart rate chart created successfully');
     } catch (error) {
       console.error('❌ Error creating heart rate chart:', error);
     }
   };
 
-  // OPTIMIZED: Load cached chart data or create new charts
+  // Load or create charts
   const loadOrCreateCharts = async (activities: ActivityData[], forceRecreate = false) => {
-    console.log('📊 Loading or creating charts...');
+    console.log('📊 loadOrCreateCharts called with', activities.length, 'activities, forceRecreate:', forceRecreate);
     
-    if (!forceRecreate) {
-      // Try to load cached chart data first
-      try {
-        const chartCacheResponse = await fetch('/api/chart-cache?userId=mihir_jain');
+    try {
+      if (forceRecreate) {
+        console.log('📊 Force recreating charts...');
+        destroyCharts();
+        setChartData(null);
+      }
+
+      if (!chartData || forceRecreate) {
+        console.log('📊 Processing new chart data...');
+        const newChartData = processChartData(activities);
         
-        if (chartCacheResponse.ok) {
-          const cachedChartData = await chartCacheResponse.json();
-          console.log(`📊 Using cached chart data (${cachedChartData.age})`);
+        if (newChartData) {
+          setChartData(newChartData);
           
-          setChartData(cachedChartData);
-          
-          // Create charts with cached data immediately
+          // Small delay to ensure canvas elements are ready
           setTimeout(() => {
-            if (cachedChartData) {
-              createCaloriesChart(cachedChartData);
-              createDistanceChart(cachedChartData);
-              createHeartRateChart(cachedChartData);
-            }
+            console.log('📊 Creating charts with processed data...');
+            createCaloriesChart(newChartData);
+            createDistanceChart(newChartData);
+            createHeartRateChart(newChartData);
           }, 100);
-          
-          return; // Use cached charts
         }
-      } catch (cacheError) {
-        console.log('📊 No cached chart data available, creating fresh charts');
+      } else {
+        console.log('📊 Using existing chart data');
+        // Recreate charts with existing data if canvas elements are missing
+        setTimeout(() => {
+          if (chartData && (!chartInstances.current.calories || !chartInstances.current.distance || !chartInstances.current.heartRate)) {
+            console.log('📊 Recreating missing charts...');
+            createCaloriesChart(chartData);
+            createDistanceChart(chartData);
+            createHeartRateChart(chartData);
+          }
+        }, 100);
       }
-    }
-    
-    // Create fresh charts and cache them
-    console.log('📊 Creating fresh charts...');
-    const processedData = processChartData(activities);
-    
-    if (processedData) {
-      setChartData(processedData);
-      
-      // Create charts
-      setTimeout(() => {
-        createCaloriesChart(processedData);
-        createDistanceChart(processedData);
-        createHeartRateChart(processedData);
-      }, 100);
-      
-      // Cache the chart data for future use
-      try {
-        await fetch('/api/chart-cache', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chartData: processedData,
-            generatedAt: new Date().toISOString()
-          })
-        });
-        console.log('📊 Chart data cached successfully');
-      } catch (cacheError) {
-        console.error('❌ Failed to cache chart data:', cacheError);
-      }
+    } catch (error) {
+      console.error('❌ Error in loadOrCreateCharts:', error);
     }
   };
 
-  // Fetch activities with OPTIMIZED cache-first approach
+  // Fetch activities from API
   const fetchActivities = async (refreshMode: 'cached' | 'today' | 'refresh' = 'cached') => {
     try {
-      if (refreshMode !== 'cached') {
-        setRefreshing(true);
-        setRefreshType(refreshMode === 'today' ? 'today' : '30days');
-      } else {
-        setLoading(true);
-      }
-
       setError('');
+      console.log(`📡 Fetching activities (mode: ${refreshMode})`);
       
       const params = new URLSearchParams({
         userId: 'mihir_jain',
-        mode: refreshMode
+        refreshMode
       });
-
-      // Different refresh strategies
-      if (refreshMode === 'today') {
-        params.set('timestamp', Date.now().toString());
-        console.log('📅 Today refresh mode');
-      } else if (refreshMode === 'refresh') {
-        params.set('refresh', 'true');
-        params.set('days', '30');
-        params.set('preserveTags', 'true');
-        params.set('timestamp', Date.now().toString());
-        console.log('🔄 Full refresh mode');
-      } else {
-        console.log('⚡ Cache-first mode (instant loading)');
-      }
       
-      const apiUrl = `/api/strava?${params.toString()}`;
-      console.log('📡 Making API request to:', apiUrl);
-      
-      const response = await fetch(apiUrl);
+      const response = await fetch(`/api/runs?${params}`);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        if (response.status === 404 && errorData.recommendRefresh) {
-          console.log('📦 No cached data - need initial refresh');
-          setError('No data available. Click "Refresh 30 Days" to load your activities.');
-          return;
-        }
-        
-        throw new Error(errorData.message || `Failed to fetch activities: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
+        throw new Error(`API Error: ${response.status}`);
       }
-
+      
       const data = await response.json();
-      console.log('📊 Data received:', data?.length, 'activities');
+      console.log(`✅ Received ${data.activities?.length || 0} activities`);
       
-      // Log performance info from headers
-      const dataSource = response.headers.get('X-Data-Source');
-      const apiCalls = response.headers.get('X-API-Calls');
-      const isRateLimited = response.headers.get('X-Rate-Limited');
-      
-      console.log(`📈 Performance: Source=${dataSource}, API calls=${apiCalls}${isRateLimited ? ', Rate Limited' : ''}`);
-      
-      if (!Array.isArray(data)) {
-        console.error('❌ Expected array but got:', typeof data, data);
-        throw new Error('Invalid data format received from API');
+      if (data.activities && Array.isArray(data.activities)) {
+        // Process activities - add run detection and auto-tagging
+        const processedActivities = data.activities.map((activity: any) => {
+          const isRun = isRunActivity(activity.type);
+          const processedActivity: ActivityData = {
+            ...activity,
+            is_run_activity: isRun,
+            run_tag: activity.run_tag || (isRun ? autoTagRun({...activity, is_run_activity: isRun}) : undefined)
+          };
+          return processedActivity;
+        });
+        
+        setActivities(processedActivities);
+        setLastUpdate(new Date().toLocaleTimeString());
+        
+        // Load charts after setting activities
+        await loadOrCreateCharts(processedActivities, refreshMode !== 'cached');
+        
+        console.log('✅ Activities loaded and charts updated');
+      } else {
+        console.warn('⚠️ No activities array in response');
+        setActivities([]);
       }
       
-      // Process activities
-      const processedActivities = data.map((activity: any) => {
-        const activityType = activity.type || 'Activity';
-        const isRun = isRunActivity(activityType);
-
-        const processedActivity: ActivityData = {
-          id: activity.id?.toString() || Math.random().toString(),
-          name: activity.name || 'Unnamed Activity',
-          type: activityType,
-          start_date: activity.start_date,
-          distance: typeof activity.distance === 'number' 
-            ? activity.distance 
-            : (activity.distance || 0) / 1000,
-          moving_time: activity.moving_time || activity.duration * 60 || 0,
-          total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
-          average_speed: activity.average_speed || 0,
-          max_speed: activity.max_speed || 0,
-          has_heartrate: activity.has_heartrate || false,
-          average_heartrate: activity.average_heartrate || activity.heart_rate,
-          max_heartrate: activity.max_heartrate,
-          calories: activity.calories || 0, // Use Strava calories directly
-          is_run_activity: isRun
-        };
-
-        if (isRun) {
-          processedActivity.run_tag = activity.run_tag || activity.runType || autoTagRun(processedActivity);
-        }
-
-        return processedActivity;
-      });
-
-      const sortedActivities = processedActivities.sort((a: ActivityData, b: ActivityData) => 
-        new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-      );
-
-      console.log('🏃 Processing complete:', {
-        mode: refreshMode,
-        totalActivities: sortedActivities.length,
-        runActivities: sortedActivities.filter(a => a.is_run_activity).length,
-        dataSource,
-        apiCallsUsed: apiCalls || '0'
-      });
-
-      setActivities(sortedActivities);
-      setLastUpdate(new Date().toLocaleTimeString());
-      
-      // Try to load cached chart data first, then create if needed
-      await loadOrCreateCharts(sortedActivities, refreshMode !== 'cached' || dataSource?.includes('strava'));
-
     } catch (error) {
-      console.error('❌ Error fetching activities:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch activities');
+      console.error('❌ Failed to fetch activities:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load activities');
+    }
+  };
+
+  // Refresh handlers
+  const handleRefreshToday = async () => {
+    setRefreshing(true);
+    setRefreshType('today');
+    try {
+      await fetchActivities('today');
     } finally {
-      setLoading(false);
       setRefreshing(false);
       setRefreshType(null);
     }
   };
 
-  const handleRefreshToday = async () => {
-    await fetchActivities('today');
-  };
-
   const handleRefresh30Days = async () => {
-    await fetchActivities('refresh');
+    setRefreshing(true);
+    setRefreshType('30days');
+    try {
+      await fetchActivities('refresh');
+    } finally {
+      setRefreshing(false);
+      setRefreshType(null);
+    }
   };
 
   const handleRefresh = async () => {
-    await fetchActivities('refresh');
+    setRefreshing(true);
+    try {
+      await fetchActivities('cached');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  // Load on mount - OPTIMIZED: Cache-first for instant loading
+  // Load cached activities on mount
   useEffect(() => {
-    fetchActivities('cached'); // Start with cached data for instant loading
+    const loadInitialData = async () => {
+      setLoading(true);
+      try {
+        await fetchActivities('cached');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadInitialData();
     
     // Cleanup charts on unmount
     return () => {
@@ -1332,71 +561,30 @@ const ActivityJam = () => {
     };
   }, []);
 
-  // Helper functions
+  // Format helper functions
   const formatDistance = (distance: number) => {
-    if (distance === 0) return '0.00';
-    if (distance < 0.1) return distance.toFixed(3);
-    return distance.toFixed(2);
+    return distance.toFixed(1);
   };
 
   const formatTime = (seconds: number) => {
-    if (!seconds) return '0m';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
   };
 
   const formatPace = (distance: number, time: number) => {
-    if (distance === 0 || time === 0) return 'N/A';
+    if (distance === 0) return '--:--';
     const paceSeconds = time / distance;
     const minutes = Math.floor(paceSeconds / 60);
     const seconds = Math.floor(paceSeconds % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
-        <header className="pt-8 px-6 md:px-12">
-          <div className="flex items-center justify-between mb-6">
-            <Button onClick={() => navigate('/')} variant="ghost">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
-            <Button onClick={handleRefresh} variant="outline" disabled={refreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Try Again
-            </Button>
-          </div>
-        </header>
-        
-        <main className="flex-grow flex items-center justify-center px-6">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-6 text-center">
-              <div className="text-red-500 mb-4">⚠️</div>
-              <h3 className="text-lg font-semibold mb-2">Unable to Load Activities</h3>
-              <p className="text-gray-600 text-sm mb-4">{error}</p>
-              <Button onClick={handleRefresh} disabled={refreshing}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Retrying...' : 'Try Again'}
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {/* Detailed Run Analysis Modal */}
-      {selectedRunDetail && (
-        <RunDetailModal
-          activity={selectedRunDetail}
-          onClose={() => setSelectedRunDetail(null)}
-        />
-      )}
-
       {/* Background decoration */}
       <div className="absolute inset-0 bg-gradient-to-r from-green-400/10 to-blue-400/10 animate-pulse"></div>
       <div className="absolute top-20 left-20 w-32 h-32 bg-green-200/30 rounded-full blur-xl animate-bounce"></div>
@@ -1440,11 +628,11 @@ const ActivityJam = () => {
             Activity Jam
           </h1>
           <p className="mt-3 text-lg text-gray-600">
-            Your recent workouts and activities from Strava with optimized loading, smart run tagging and detailed analysis
+            Your recent workouts and activities from Strava with optimized loading and smart run tagging
           </p>
           {lastUpdate && (
             <p className="mt-1 text-sm text-gray-500">
-              Last updated: {lastUpdate} • Instant cache-first loading • Click runs for detailed analysis
+              Last updated: {lastUpdate} • Instant cache-first loading
             </p>
           )}
         </div>
@@ -1591,10 +779,10 @@ const ActivityJam = () => {
                 <Card className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
-                      <Heart className="h-5 w-5 mr-2 text-teal-500" />
-                      Run Heart Rate
+                      <Heart className="h-5 w-5 mr-2 text-red-500" />
+                      Heart Rate
                     </CardTitle>
-                    <p className="text-xs text-gray-600">Average from running activities only</p>
+                    <p className="text-xs text-gray-600">Daily average (when available)</p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-64 relative">
@@ -1614,107 +802,36 @@ const ActivityJam = () => {
               </div>
             </section>
 
-            {/* Quick Stats */}
+            {/* Activities List */}
             <section>
-              <div className="flex items-center mb-6">
-                <BarChart3 className="h-6 w-6 mr-3 text-gray-600" />
-                <h2 className="text-2xl font-semibold text-gray-800">Quick Overview</h2>
-              </div>
-              
-              <div className="mobile-grid-4 gap-4">
-                <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-green-600 mb-1">
-                      {activities.reduce((sum, a) => sum + (a.calories || 0), 0).toLocaleString()}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Calories</div>
-                    <div className="text-xs text-gray-500 mt-1">From Strava (when available)</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-blue-600 mb-1">
-                      {Math.round(activities.reduce((sum, a) => sum + a.distance, 0) * 10) / 10}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Distance (km)</div>
-                    <div className="text-xs text-gray-500 mt-1">All activities</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-teal-600 mb-1">
-                      {activities.filter(a => a.is_run_activity).length}
-                    </div>
-                    <div className="text-sm text-gray-600">Running Activities</div>
-                    <div className="text-xs text-gray-500 mt-1">Click for details</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-3xl font-bold text-emerald-600 mb-1">
-                      {activities.length}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Activities</div>
-                    <div className="text-xs text-gray-500 mt-1">Last 30 days</div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-
-            {/* Activities List Section */}
-            <section>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center">
-                  <Calendar className="h-6 w-6 mr-3 text-gray-600" />
+                  <Activity className="h-6 w-6 mr-3 text-gray-600" />
                   <h2 className="text-2xl font-semibold text-gray-800">Recent Activities</h2>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm text-gray-500">
                   <div className="flex items-center gap-1">
                     <Tag className="h-4 w-4" />
-                    <span>Click run tags to edit • Click runs for detailed analysis</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {RUN_TAG_OPTIONS.map(option => (
-                      <Badge key={option.value} variant="outline" className={`text-xs ${option.color} ${option.bgColor}`}>
-                        {option.label}
-                      </Badge>
-                    ))}
+                    <span className="hidden sm:inline">Click run tags to edit</span>
+                    <span className="sm:hidden">Tap to edit tags</span>
                   </div>
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="mobile-grid-3 gap-6">
                 {activities.map((activity) => (
                   <Card 
                     key={activity.id} 
-                    className={`bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm transition-all duration-200 ${
-                      activity.is_run_activity 
-                        ? 'hover:shadow-lg hover:scale-105 cursor-pointer hover:border-blue-300' 
-                        : 'hover:shadow-md'
-                    }`}
-                    onClick={() => activity.is_run_activity && handleRunClick(activity)}
+                    className="bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:bg-white/90 hover:shadow-md transition-all duration-300"
                   >
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg font-semibold text-gray-800 leading-tight flex items-center gap-2">
+                        <CardTitle className="text-lg font-semibold text-gray-800 leading-tight">
                           {activity.name}
-                          {activity.is_run_activity && (
-                            <ChevronRight className="h-4 w-4 text-blue-500" />
-                          )}
                         </CardTitle>
-                        <div className="flex flex-col gap-1">
-                          <Badge variant="secondary" className="ml-2 shrink-0">
-                            {activity.type}
-                          </Badge>
-                          {activity.is_run_activity && (
-                            <Badge variant="outline" className="ml-2 shrink-0 text-xs bg-blue-50 text-blue-700 border-blue-200">
-                              Click for analysis
-                            </Badge>
-                          )}
-                        </div>
+                        <Badge variant="secondary" className="ml-2 shrink-0">
+                          {activity.type}
+                        </Badge>
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
                         <Calendar className="h-4 w-4 mr-2" />
@@ -1786,15 +903,15 @@ const ActivityJam = () => {
                             </span>
                           </div>
                         )}
-                        {/* Run Type Tag */}
+                        {/* Run Type Tag - Mobile Optimized */}
                         {activity.is_run_activity && activity.run_tag && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Run Type:</span>
-                            <div className="flex items-center">
+                          <div className="pt-2 border-t border-gray-100">
+                            <div className="flex flex-col gap-2">
+                              <span className="text-gray-600 text-xs">Run Type:</span>
                               {editingTag === activity.id ? (
                                 <div className="flex items-center gap-2">
                                   <Select value={activity.run_tag} onValueChange={(value) => handleTagChange(activity.id, value as RunTag)}>
-                                    <SelectTrigger className="w-24 h-6 text-xs">
+                                    <SelectTrigger className="w-full h-8 text-xs">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1808,7 +925,7 @@ const ActivityJam = () => {
                                   <Button 
                                     size="sm" 
                                     variant="ghost" 
-                                    className="h-6 w-6 p-0"
+                                    className="h-8 w-8 p-0 shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingTag(null);
@@ -1820,7 +937,7 @@ const ActivityJam = () => {
                               ) : (
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs cursor-pointer transition-all duration-200 ${getRunTagOption(activity.run_tag).color} ${getRunTagOption(activity.run_tag).bgColor} hover:bg-opacity-80`}
+                                  className={`text-xs cursor-pointer transition-all duration-200 w-fit ${getRunTagOption(activity.run_tag).color} ${getRunTagOption(activity.run_tag).bgColor} hover:bg-opacity-80`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setEditingTag(activity.id);
@@ -1847,7 +964,7 @@ const ActivityJam = () => {
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-gray-800 flex items-center">
                     <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
-                    Activity Summary with Run Analysis
+                    Activity Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1900,42 +1017,26 @@ const ActivityJam = () => {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Footer info */}
+                  <div className="border-t pt-4 mt-4 text-center">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-gray-600">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {activities.length} total activities
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Route className="h-4 w-4" />
+                        View your running activities and performance metrics
+                      </span>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </section>
           </div>
         )}
       </main>
-      
-      {/* Footer */}
-      <footer className="relative z-10 py-6 px-6 md:px-12 text-center text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center gap-4 mb-2 md:mb-0">
-            <span>⚡ Optimized cache-first loading</span>
-            <span className="hidden md:inline">•</span>
-            <span className="flex items-center gap-1">
-              <Tag className="h-4 w-4" />
-              Smart run tagging with manual editing
-            </span>
-            <span className="hidden md:inline">•</span>
-            <span className="flex items-center gap-1">
-              <Route className="h-4 w-4" />
-              Click runs for detailed km-by-km analysis
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>Updated: {new Date().toLocaleDateString()}</span>
-            <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full ${chartData ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}></div>
-              <span className="text-xs">{chartData ? 'Charts Ready' : 'Loading Charts'}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-              <span className="text-xs">Minimal API Usage</span>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

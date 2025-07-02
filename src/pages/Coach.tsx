@@ -125,6 +125,7 @@ export default function CoachNew() {
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const recognitionRef = useRef<any>(null);
 
   // Chat session management functions
