@@ -625,7 +625,7 @@ const SleepJam: React.FC = () => {
         {sleepData.length > 0 ? (
                      <div className="mobile-grid-3 gap-6 mb-8">
             {(() => {
-              // Get exactly last 7 days from today backwards, ordered oldest to newest
+              // Get exactly last 7 days from today backwards, ordered newest to oldest (latest day first)
               const today = new Date();
               const last7DaysData: SleepData[] = [];
               
@@ -641,7 +641,8 @@ const SleepJam: React.FC = () => {
                 }
               }
               
-              return last7DaysData.map((dayData) => (
+              // FIXED: Reverse array so latest day appears first (newest at top)
+              return last7DaysData.reverse().map((dayData) => (
                 <SleepDayCard key={dayData.date} dayData={dayData} />
               ));
             })()}

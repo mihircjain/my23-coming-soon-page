@@ -1070,7 +1070,8 @@ const NutritionJam = () => {
         last7Days.push(dayLog);
       }
       
-      setLastXDaysData(last7Days);
+      // FIXED: Reverse array so latest day appears first on mobile
+      setLastXDaysData(last7Days.reverse());
     } catch (error) {
       console.error('Error loading last X days data:', error);
       // Still create empty 7 days structure
@@ -1090,7 +1091,8 @@ const NutritionJam = () => {
         });
       }
       
-      setLastXDaysData(fallback7Days);
+      // FIXED: Reverse array so latest day appears first on mobile
+      setLastXDaysData(fallback7Days.reverse());
     }
   }, []);
 

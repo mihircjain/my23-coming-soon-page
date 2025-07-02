@@ -2671,7 +2671,7 @@ export default function CoachNew() {
                       disabled={isLoading}
                       className={`absolute right-10 sm:right-12 top-1/2 transform -translate-y-1/2 w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center transition-all duration-200 touch-target ${
                         isRecording 
-                          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' 
+                          ? 'bg-green-500 hover:bg-green-600 text-white' 
                           : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
                       } disabled:cursor-not-allowed`}
                     >
