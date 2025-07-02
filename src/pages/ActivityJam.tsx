@@ -466,43 +466,93 @@ const ActivityJam = () => {
       
       const params = new URLSearchParams({
         userId: 'mihir_jain',
-        refreshMode
+        mode: refreshMode
       });
       
-      const response = await fetch(`/api/runs?${params}`);
+      // Different refresh strategies
+      if (refreshMode === 'today') {
+        params.set('timestamp', Date.now().toString());
+        console.log('📅 Today refresh mode');
+      } else if (refreshMode === 'refresh') {
+        params.set('refresh', 'true');
+        params.set('days', '30');
+        params.set('preserveTags', 'true');
+        params.set('timestamp', Date.now().toString());
+        console.log('🔄 Full refresh mode');
+      } else {
+        console.log('⚡ Cache-first mode (instant loading)');
+      }
+      
+      const response = await fetch(`/api/strava?${params.toString()}`);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error:', response.status, errorText);
-        throw new Error(`API Error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (response.status === 404 && errorData.recommendRefresh) {
+          console.log('📦 No cached data - need initial refresh');
+          setError('No data available. Click "Refresh 30 Days" to load your activities.');
+          return;
+        }
+        
+        throw new Error(errorData.message || `Failed to fetch activities: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log(`✅ Received ${data.activities?.length || 0} activities`);
+      console.log('📊 Data received:', data?.length, 'activities');
       
-      if (data.activities && Array.isArray(data.activities)) {
-        // Process activities - add run detection and auto-tagging
-        const processedActivities = data.activities.map((activity: any) => {
-          const isRun = isRunActivity(activity.type);
-          const processedActivity: ActivityData = {
-            ...activity,
-            is_run_activity: isRun,
-            run_tag: activity.run_tag || (isRun ? autoTagRun({...activity, is_run_activity: isRun}) : undefined)
-          };
-          return processedActivity;
-        });
-        
-        setActivities(processedActivities);
-        setLastUpdate(new Date().toLocaleTimeString());
-        
-        // Load charts after setting activities
-        await loadOrCreateCharts(processedActivities, refreshMode !== 'cached');
-        
-        console.log('✅ Activities loaded and charts updated');
-      } else {
-        console.warn('⚠️ No activities array in response');
-        setActivities([]);
+      if (!Array.isArray(data)) {
+        console.error('❌ Expected array but got:', typeof data, data);
+        throw new Error('Invalid data format received from API');
       }
+      
+      // Process activities - add run detection and auto-tagging
+      const processedActivities = data.map((activity: any) => {
+        const activityType = activity.type || 'Activity';
+        const isRun = isRunActivity(activityType);
+
+        const processedActivity: ActivityData = {
+          id: activity.id?.toString() || Math.random().toString(),
+          name: activity.name || 'Unnamed Activity',
+          type: activityType,
+          start_date: activity.start_date,
+          distance: typeof activity.distance === 'number' 
+            ? activity.distance 
+            : (activity.distance || 0) / 1000,
+          moving_time: activity.moving_time || activity.duration * 60 || 0,
+          total_elevation_gain: activity.total_elevation_gain || activity.elevation_gain || 0,
+          average_speed: activity.average_speed || 0,
+          max_speed: activity.max_speed || 0,
+          has_heartrate: activity.has_heartrate || false,
+          average_heartrate: activity.average_heartrate || activity.heart_rate,
+          max_heartrate: activity.max_heartrate,
+          calories: activity.calories || 0,
+          is_run_activity: isRun
+        };
+
+        if (isRun) {
+          processedActivity.run_tag = activity.run_tag || activity.runType || autoTagRun(processedActivity);
+        }
+
+        return processedActivity;
+      });
+      
+      const sortedActivities = processedActivities.sort((a: ActivityData, b: ActivityData) => 
+        new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+      );
+
+      console.log('🏃 Processing complete:', {
+        mode: refreshMode,
+        totalActivities: sortedActivities.length,
+        runActivities: sortedActivities.filter(a => a.is_run_activity).length
+      });
+
+      setActivities(sortedActivities);
+      setLastUpdate(new Date().toLocaleTimeString());
+      
+      // Load charts after setting activities
+      await loadOrCreateCharts(sortedActivities, refreshMode !== 'cached');
+      
+      console.log('✅ Activities loaded and charts updated');
       
     } catch (error) {
       console.error('❌ Failed to fetch activities:', error);
