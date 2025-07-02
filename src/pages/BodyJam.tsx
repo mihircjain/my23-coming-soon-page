@@ -521,17 +521,26 @@ const BodyJam = () => {
       {/* Main content */}
       <main className="flex-grow relative z-10 px-6 md:px-12 py-8">
         <Tabs defaultValue="blood" className="w-full">
-                     <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-8 bg-green-100 border border-green-200">
-            <TabsTrigger value="blood" className="data-[state=active]:bg-green-200">Blood Markers</TabsTrigger>
-            <TabsTrigger value="composition" className="data-[state=active]:bg-green-200">Body Composition</TabsTrigger>
-            <TabsTrigger value="macros" className="data-[state=active]:bg-green-200">Maintenance Macros</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 mb-8 bg-green-100 border border-green-200 h-auto">
+            <TabsTrigger value="blood" className="data-[state=active]:bg-green-200 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <span className="hidden sm:inline">Blood Markers</span>
+              <span className="sm:hidden">Blood</span>
+            </TabsTrigger>
+            <TabsTrigger value="composition" className="data-[state=active]:bg-green-200 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <span className="hidden sm:inline">Body Composition</span>
+              <span className="sm:hidden">Body</span>
+            </TabsTrigger>
+            <TabsTrigger value="macros" className="data-[state=active]:bg-green-200 text-xs sm:text-sm py-2 px-1 sm:px-3">
+              <span className="hidden sm:inline">Maintenance Macros</span>
+              <span className="sm:hidden">Macros</span>
+            </TabsTrigger>
           </TabsList>
           
           {/* Blood Markers Tab */}
           <TabsContent value="blood">
             {loading ? (
               // Loading skeletons
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="mobile-grid-2 gap-4 sm:gap-6">
                 {Array(8).fill(0).map((_, i) => (
                   <Card key={i} className="bg-white/80 backdrop-blur-sm border border-green-200 shadow-sm">
                     <CardHeader className="pb-2">
@@ -559,7 +568,7 @@ const BodyJam = () => {
                     <p className="text-sm text-gray-600 mb-4">{category.description}</p>
                     
                     {/* Category Markers */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="mobile-grid-2 gap-4 sm:gap-6">
                       {category.markers.map((marker) => (
                         <TooltipProvider key={marker.id}>
                           <Tooltip>
@@ -623,7 +632,7 @@ const BodyJam = () => {
           
           {/* Body Composition Tab */}
           <TabsContent value="composition">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="mobile-grid-2 gap-4 sm:gap-6">
               {bodyComposition.map((item) => (
                 <TooltipProvider key={item.id}>
                   <Tooltip>
@@ -682,7 +691,7 @@ const BodyJam = () => {
           
           {/* Maintenance Macros Tab */}
           <TabsContent value="macros">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="mobile-grid-1 gap-4 sm:gap-6">
               {macros.map((item) => (
                 <TooltipProvider key={item.id}>
                   <Tooltip>

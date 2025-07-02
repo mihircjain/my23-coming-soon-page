@@ -1342,38 +1342,35 @@ const NutritionJam = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col">
       <Toaster position="top-right" />
       
-      <header className="pt-8 px-6 md:px-12">
-        <div className="flex items-center justify-between mb-8">
-          <Button 
-            onClick={() => navigate('/')} 
-            variant="ghost" 
-            className="hover:bg-white/20"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <Utensils className="h-8 w-8 text-green-600" />
-                Nutrition Jam
-              </h1>
-              <p className="text-gray-600 mt-1">Track your daily nutrition and meals</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
+      <header className="pt-8 px-4 md:px-12">
+        <div className="flex flex-col gap-4 mb-6">
+          {/* Top row - Back button and date picker */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <Button 
+              onClick={() => navigate('/')} 
+              variant="ghost" 
+              className="hover:bg-white/20 mobile-button"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-[240px] justify-start text-left font-normal",
+                    "w-full sm:w-[200px] justify-start text-left font-normal mobile-button",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? safeFormatDateForDisplay(selectedDate) : <span>Pick a date</span>}
+                  <span className="hidden sm:inline">
+                    {selectedDate ? safeFormatDateForDisplay(selectedDate) : "Pick a date"}
+                  </span>
+                  <span className="sm:hidden">
+                    {selectedDate ? safeFormatDateForDisplay(selectedDate).split(',')[0] : "Pick date"}
+                  </span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -1385,18 +1382,15 @@ const NutritionJam = () => {
                 />
               </PopoverContent>
             </Popover>
+          </div>
 
-            {isToday && (
-              <Button
-                onClick={handleAutoFillFromYesterday}
-                disabled={saving}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <TrendingUp className="h-4 w-4" />
-                Auto-fill from Yesterday
-              </Button>
-            )}
+          {/* Title section */}
+          <div className="text-center sm:text-left">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center justify-center sm:justify-start gap-3">
+              <Utensils className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+              Nutrition Jam
+            </h1>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">Track your daily nutrition and meals</p>
           </div>
         </div>
       </header>
