@@ -640,8 +640,8 @@ const OverallJam = () => {
             position: 'top',
             labels: {
               usePointStyle: true,
-              padding: 20,
-              font: { size: 12 }
+              padding: window.innerWidth < 768 ? 8 : 20,
+              font: { size: window.innerWidth < 768 ? 10 : 12 }
             }
           },
           tooltip: {
@@ -682,8 +682,8 @@ const OverallJam = () => {
           x: {
             grid: { display: false },
             ticks: {
-              maxRotation: 0,
-              font: { size: 11 }
+              maxRotation: window.innerWidth < 768 ? 45 : 0,
+              font: { size: window.innerWidth < 768 ? 9 : 11 }
             }
           },
           'y-calories': {
@@ -875,7 +875,7 @@ const OverallJam = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              <div className="mobile-grid-1 gap-3 sm:gap-4">
                 {last7Days.map((date) => (
                   <DailyHealthBox
                     key={date}
@@ -895,7 +895,7 @@ const OverallJam = () => {
           <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
             Weekly Averages
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="mobile-grid-2 gap-4 sm:gap-6">
             
             {/* Calories In Card - Updated with green theme */}
             <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
@@ -997,7 +997,7 @@ const OverallJam = () => {
                   <Skeleton className="h-full w-full" />
                 </div>
               ) : (
-                <div className="h-80 bg-white/30 backdrop-blur-sm rounded-lg p-4" id="combined-health-chart">
+                <div className="h-64 sm:h-80 bg-white/30 backdrop-blur-sm rounded-lg p-2 sm:p-4" id="combined-health-chart">
                   {/* Chart will be rendered here */}
                 </div>
               )}

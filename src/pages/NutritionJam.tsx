@@ -251,7 +251,7 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
         {/* Weekly Averages Summary */}
         <div className="mb-6 p-4 bg-white/60 rounded-lg border border-green-200">
           <h4 className="text-sm font-semibold text-gray-700 mb-3 text-center">Weekly Averages vs Daily Goals</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="mobile-grid-2 gap-3">
             <div className="text-center p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
               <div className="text-lg font-bold text-green-700">{weeklyAverages.calories}</div>
               <div className="text-xs text-green-800 font-medium">Avg Calories</div>
@@ -290,9 +290,9 @@ const MultiLineNutritionChart = ({ last7DaysData }) => {
           </div>
         </div>
 
-        <div className="h-96 w-full">
+        <div className="h-64 sm:h-96 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 20, right: 60, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis 
                 dataKey="date" 
@@ -555,11 +555,11 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
 
   return (
     <Card className="group hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-green-50">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex-1">
-            <div className="font-medium text-gray-800 mb-1">{entry.foodId}</div>
-            <div className="flex items-center gap-4 text-sm text-gray-600">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-gray-800 mb-1 truncate">{entry.foodId}</div>
+            <div className="flex items-center gap-2 sm:gap-4 text-sm text-gray-600">
               <span className="flex items-center gap-1">
                 <Flame className="h-3 w-3 text-green-600" />
                 {totalCals} cal
@@ -571,54 +571,60 @@ const FoodItemCard = ({ entry, index, onRemove, onUpdateQuantity }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 min-w-0">
             {isEditing ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <input
                   type="number"
                   value={quantity}
                   onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                  className="w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-green-500"
+                  className="w-full sm:w-16 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-green-500"
                   step="0.1"
                   min="0"
                 />
-                <Button size="sm" onClick={handleSave}>Save</Button>
-                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSave} className="flex-1 sm:flex-none">Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="flex-1 sm:flex-none">Cancel</Button>
+                </div>
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => onUpdateQuantity(index, Math.max(0.1, safeNumber(entry.quantity) - 0.5))}
+                    className="h-8 w-8 p-0"
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
-                  <span className="w-16 text-center text-sm font-medium">
+                  <span className="min-w-0 flex-1 sm:w-16 text-center text-sm font-medium px-2">
                     {safeNumber(entry.quantity)} {entry.unit}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => onUpdateQuantity(index, safeNumber(entry.quantity) + 0.5)}
+                    className="h-8 w-8 p-0"
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
                 </div>
 
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  <Edit className="h-3 w-3" />
-                </Button>
+                <div className="flex gap-2 justify-center sm:justify-start">
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-8 w-8 p-0">
+                    <Edit className="h-3 w-3" />
+                  </Button>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onRemove(index)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onRemove(index)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
               </>
             )}
           </div>
@@ -1397,12 +1403,25 @@ const NutritionJam = () => {
 
       <main className="flex-1 px-6 md:px-12 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="today">Today's Log</TabsTrigger>
-            <TabsTrigger value="last7days">Last 7 Days</TabsTrigger>
-            <TabsTrigger value="presets">Combined Meals</TabsTrigger>
-            <TabsTrigger value="daily">Daily Nutrition</TabsTrigger>
-            <TabsTrigger value="public">Public Logs</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 gap-0.5 h-auto p-1">
+            <TabsTrigger value="today" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded">
+              <span className="hidden sm:inline">Today's Log</span>
+              <span className="sm:hidden">Today</span>
+            </TabsTrigger>
+            <TabsTrigger value="last7days" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded">
+              <span className="hidden sm:inline">Last 7 Days</span>
+              <span className="sm:hidden">7 Days</span>
+            </TabsTrigger>
+            <TabsTrigger value="presets" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded">
+              <span className="hidden sm:inline">Combined Meals</span>
+              <span className="sm:hidden">Meals</span>
+            </TabsTrigger>
+            <TabsTrigger value="daily" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded hidden sm:block">
+              Daily Nutrition
+            </TabsTrigger>
+            <TabsTrigger value="public" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded hidden sm:block">
+              Public Logs
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="today" className="space-y-6">
@@ -1566,7 +1585,7 @@ const NutritionJam = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                <div className="mobile-grid-1 gap-3 sm:gap-4">
                   {lastXDaysData.map((log, index) => (
                     <DailyMacroBox
                       key={log?.date || index}
@@ -1603,7 +1622,7 @@ const NutritionJam = () => {
                 <h2 className="text-2xl font-semibold text-gray-800">Combined Meals (Presets)</h2>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="mobile-grid-1 gap-4 sm:gap-6">
                 {mealPresets.map((preset) => (
                   <div key={preset.id} className="h-full">
                     <CombinedMealCard
@@ -1626,7 +1645,7 @@ const NutritionJam = () => {
                 Complete daily meal plans for each day of the week. Each plan includes all meals with calculated nutrition totals.
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="mobile-grid-1 gap-4 sm:gap-6">
                 {dailyMealPlans.map((dailyPlan) => (
                   <div key={dailyPlan.id} className="h-full">
                     <DailyMealPlanCard
