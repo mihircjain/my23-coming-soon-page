@@ -467,18 +467,18 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group min-h-[280px] flex flex-col",
+        "cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg group min-h-[200px] flex flex-col",
         getCardStyle()
       )}
       onClick={onClick}
     >
-      <CardContent className="p-4 flex flex-col h-full">
-        <div className="flex justify-between items-center mb-3">
-          <div className="text-sm font-medium text-gray-700">
+      <CardContent className="p-3 flex flex-col h-full">
+        <div className="flex justify-between items-center mb-2">
+          <div className="text-xs font-medium text-gray-700">
             {formatDate(date)}
           </div>
           {isToday && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
               Today
             </span>
           )}
@@ -487,54 +487,54 @@ const DailyMacroBox = ({ log, date, isToday, onClick }) => {
         {hasData ? (
           <div className="flex-1 flex flex-col justify-between">
             {/* Calories Section */}
-            <div className="space-y-3 mb-4">
+            <div className="space-y-2 mb-3">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1 mb-1">
-                  <Flame className="h-4 w-4 text-green-600" />
-                  <span className="text-2xl font-bold text-gray-800">
+                  <Flame className="h-3 w-3 text-green-600" />
+                  <span className="text-lg font-bold text-gray-800">
                     {Math.round(totals.calories)}
                   </span>
-                  <span className="text-sm text-gray-500">cal</span>
+                  <span className="text-xs text-gray-500">cal</span>
                 </div>
-                <div className="text-xs text-gray-500 font-medium mb-2">
+                <div className="text-xs text-gray-500 font-medium mb-1">
                   {Math.round(caloriePercent)}% of goal
                 </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-1.5">
                 <div
-                  className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-green-400 to-blue-500 h-1.5 rounded-full transition-all duration-300"
                   style={{ width: `${caloriePercent}%` }}
                 />
               </div>
             </div>
 
             {/* Macros Grid */}
-            <div className="grid grid-cols-2 gap-6">
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-blue-200">
-                <div className="font-bold text-blue-700 text-lg">{Math.round(totals.protein)}g</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-center bg-white/60 rounded-lg py-2 border border-blue-200">
+                <div className="font-bold text-blue-700 text-sm">{Math.round(totals.protein)}g</div>
                 <div className="text-blue-800 text-xs">Protein</div>
-                <div className="text-blue-600 text-xs mt-1">
+                <div className="text-blue-600 text-xs">
                   {Math.round((totals.protein / 150) * 100)}%
                 </div>
               </div>
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-emerald-200">
-                <div className="font-bold text-emerald-600 text-lg">{Math.round(totals.carbs)}g</div>
+              <div className="text-center bg-white/60 rounded-lg py-2 border border-emerald-200">
+                <div className="font-bold text-emerald-600 text-sm">{Math.round(totals.carbs)}g</div>
                 <div className="text-emerald-700 text-xs">Carbs</div>
-                <div className="text-emerald-600 text-xs mt-1">
+                <div className="text-emerald-600 text-xs">
                   {Math.round((totals.carbs / 311) * 100)}%
                 </div>
               </div>
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-teal-200">
-                <div className="font-bold text-teal-600 text-lg">{Math.round(totals.fat)}g</div>
+              <div className="text-center bg-white/60 rounded-lg py-2 border border-teal-200">
+                <div className="font-bold text-teal-600 text-sm">{Math.round(totals.fat)}g</div>
                 <div className="text-teal-700 text-xs">Fat</div>
-                <div className="text-teal-600 text-xs mt-1">
+                <div className="text-teal-600 text-xs">
                   {Math.round((totals.fat / 51) * 100)}%
                 </div>
               </div>
-              <div className="text-center bg-white/60 rounded-lg py-3 border border-green-200">
-                <div className="font-bold text-green-600 text-lg">{Math.round(totals.fiber || 0)}g</div>
+              <div className="text-center bg-white/60 rounded-lg py-2 border border-green-200">
+                <div className="font-bold text-green-600 text-sm">{Math.round(totals.fiber || 0)}g</div>
                 <div className="text-green-700 text-xs">Fiber</div>
-                <div className="text-green-600 text-xs mt-1">
+                <div className="text-green-600 text-xs">
                   Daily
                 </div>
               </div>
@@ -1608,7 +1608,7 @@ const NutritionJam = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="mobile-grid-1 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
                   {lastXDaysData.map((log, index) => (
                     <DailyMacroBox
                       key={log?.date || index}
