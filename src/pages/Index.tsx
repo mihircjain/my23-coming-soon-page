@@ -621,9 +621,9 @@ const ChatbotCard: React.FC = () => {
           <div className="mx-auto w-12 h-12 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-3">
             <Bot className="h-6 w-6 text-white" />
           </div>
-          <CardTitle className="text-lg font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-            🤖 AI Health Chat
-          </CardTitle>
+                      <CardTitle className="text-lg font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+              🤖 AI Triathlon Coach
+            </CardTitle>
           <p className="text-sm text-gray-600">
             Get personalized health insights
           </p>
@@ -657,7 +657,7 @@ const ChatbotCard: React.FC = () => {
             </div>
             <div>
               <CardTitle className="text-sm font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                AI Health Chat
+                AI Triathlon Coach
               </CardTitle>
               <p className="text-xs text-gray-500">Powered by Gemini</p>
             </div>
@@ -744,7 +744,7 @@ const ChatbotCard: React.FC = () => {
               onClick={() => window.location.href = '/coach'}
               className="text-xs text-green-600 hover:text-green-700 underline"
             >
-              Open AI Running Coach →
+              Open AI Triathlon Coach →
             </button>
           </div>
         </div>
@@ -816,7 +816,7 @@ const Index = () => {
                 className="mobile-button bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Bot className="mr-3 h-5 w-5" />
-                AI Running Coach
+                AI Triathlon Coach
               </Button>
             </div>
             
