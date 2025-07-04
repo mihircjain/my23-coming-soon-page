@@ -863,7 +863,7 @@ export default function CoachNew() {
   };
 
   // Activity filtering criteria
-  const determineActivityCriteria = (query: string) => {
+  const determineActivityCriteria = (query: string, intent?: QueryIntent) => {
     const lowerQuery = query.toLowerCase();
     
     let minDistance = 0;
@@ -875,10 +875,23 @@ export default function CoachNew() {
     if (lowerQuery.includes('marathon')) minDistance = 40;
     if (lowerQuery.includes('half marathon')) minDistance = 20;
     
-    // Activity type
-    if (lowerQuery.includes('weight') || lowerQuery.includes('strength')) activityType = 'Weight Training';
-    if (lowerQuery.includes('walk')) activityType = 'Walk';
-    if (lowerQuery.includes('swim')) activityType = 'Swim';
+    // Activity type - use intent if available, otherwise fall back to keyword detection
+    if (intent) {
+      // Use intent analysis to determine activity type
+      if (intent.needsSwimming) {
+        activityType = 'Swim';
+      } else if (intent.needsCycling) {
+        activityType = 'Ride';
+      } else if (intent.needsRunning) {
+        activityType = 'Run';
+      }
+    } else {
+      // Fallback to keyword detection
+      if (lowerQuery.includes('weight') || lowerQuery.includes('strength')) activityType = 'Weight Training';
+      if (lowerQuery.includes('walk')) activityType = 'Walk';
+      if (lowerQuery.includes('swim')) activityType = 'Swim';
+      if (lowerQuery.includes('cycle') || lowerQuery.includes('bike') || lowerQuery.includes('ride')) activityType = 'Ride';
+    }
     
     // Analysis type
     if (lowerQuery.includes('heart rate') || lowerQuery.includes('hr')) analysisType = 'hr_analysis';
@@ -2100,7 +2113,7 @@ export default function CoachNew() {
       
       // Parse date requirements for MCP calls
       const { startDate, endDate, criteria } = parseDateQuery(query);
-      const activityCriteria = determineActivityCriteria(query);
+      const activityCriteria = determineActivityCriteria(query, intent);
       const lowerQuery = query.toLowerCase();
       
       // Smart activity fetching - optimize based on query type and use precise API filtering
