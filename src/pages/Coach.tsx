@@ -2031,10 +2031,15 @@ export default function CoachNew() {
       };
     }
     
-    // Step 2: Fetch running data if needed and not cached (LAZY LOADING)
-    if (intent.needsRunning && mcpResponses.length === 0) {
-      console.log(`🏃 Fetching MCP running data based on query requirements...`);
-      console.log(`📋 Required data types: ${intent.runningDataTypes?.join(', ') || 'basic'}`);
+    // Step 2: Fetch activity data if needed and not cached (LAZY LOADING)
+    if ((intent.needsRunning || intent.needsCycling || intent.needsSwimming) && mcpResponses.length === 0) {
+      const sportType = intent.primarySport || 'all';
+      console.log(`🏃 Fetching MCP ${sportType} data based on query requirements...`);
+      console.log(`📋 Required data types:`, {
+        running: intent.runningDataTypes,
+        cycling: intent.cyclingDataTypes,
+        swimming: intent.swimmingDataTypes
+      });
 
       // Only fetch what's specifically needed for this query
       const needsStreams = intent.runningDataTypes?.includes('activity_streams') || 

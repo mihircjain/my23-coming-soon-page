@@ -68,16 +68,13 @@ export default async function handler(req, res) {
       } catch (error) {
         console.log(`❌ MCP server call failed for ${endpoint}: ${error.message}`);
         console.log(`❌ Full error:`, error);
-        console.log('🔄 Falling back to mock data for development...');
         
-        // Fallback to mock data if MCP server is unavailable
-        const mockResponse = {
-          content: [{
-            text: generateMockStravaData(endpoint, params)
-          }]
-        };
-        
-        return res.status(200).json({ result: mockResponse });
+        // Return error instead of falling back to mock data
+        return res.status(500).json({ 
+          error: `MCP server unavailable: ${error.message}`,
+          endpoint: endpoint,
+          params: params
+        });
       }
     }
 
@@ -119,146 +116,7 @@ export default async function handler(req, res) {
   }
 }
 
-// Generate mock Strava data for testing the dynamic filtering
-function generateMockStravaData(endpoint, params) {
-  if (endpoint === 'get-recent-activities') {
-    // Check if specific activity type is requested
-    const activityType = params?.activityType?.toLowerCase();
-    
-    if (activityType === 'ride' || activityType === 'cycling') {
-      return `🚴 Morning Ride (ID: 14910785861) — 45.2km on 6/25/2025
-🚴 Evening Ride (ID: 14900123456) — 32.1km on 6/24/2025  
-🚴 Long Ride (ID: 14890567890) — 78.5km on 6/22/2025
-🚴 Recovery Ride (ID: 14880111222) — 25.0km on 6/20/2025
-🚴 Time Trial (ID: 14870333444) — 20.0km on 6/18/2025
-🚴 Mountain Bike (ID: 14860555666) — 35.8km on 6/16/2025
-🚴 Road Ride (ID: 14850777888) — 65.2km on 6/14/2025
-🚴 Easy Ride (ID: 14840999000) — 28.5km on 6/12/2025`;
-    } else if (activityType === 'swim') {
-      return `🏊 Morning Swim (ID: 14910785861) — 2000m on 6/25/2025
-🏊 Evening Swim (ID: 14900123456) — 1500m on 6/24/2025  
-🏊 Long Swim (ID: 14890567890) — 3000m on 6/22/2025
-🏊 Recovery Swim (ID: 14880111222) — 800m on 6/20/2025
-🏊 Freestyle (ID: 14870333444) — 1200m on 6/18/2025
-🏊 Breaststroke (ID: 14860555666) — 1000m on 6/16/2025
-🏊 Butterfly (ID: 14850777888) — 800m on 6/14/2025
-🏊 Backstroke (ID: 14840999000) — 600m on 6/12/2025`;
-    } else {
-      // Default to mixed activities
-      return `🏃 Morning Run (ID: 14910785861) — 10010m on 6/25/2025
-🚴 Evening Ride (ID: 14900123456) — 32.1km on 6/24/2025  
-🏊 Morning Swim (ID: 14890567890) — 2000m on 6/22/2025
-🏃 Recovery Run (ID: 14880111222) — 8000m on 6/20/2025
-🚴 Time Trial (ID: 14870333444) — 20.0km on 6/18/2025
-🏊 Freestyle (ID: 14860555666) — 1500m on 6/16/2025
-🏃 Long Run (ID: 14850777888) — 18000m on 6/14/2025
-🏊 Breaststroke (ID: 14840999000) — 1000m on 6/12/2025`;
-    }
-  }
-  
-  if (endpoint === 'get-activity-details') {
-    // Generate sport-specific details based on activity ID
-    const activityId = params.activityId;
-    const lastDigit = activityId % 10;
-    
-    if (lastDigit >= 0 && lastDigit <= 3) {
-      // Running activities
-      return `🏃 **Morning Run** (ID: ${params.activityId})
-   - Type: Run
-   - Date: 6/25/2025, 7:30 AM
-   - Distance: 10.01 km
-   - Duration: 52:15
-   - Pace: 5:13 /km
-   - Avg Heart Rate: 165 bpm
-   - Max Heart Rate: 180 bpm
-   - Elevation Gain: 45m
-   - Calories: 650 cal`;
-    } else if (lastDigit >= 4 && lastDigit <= 6) {
-      // Cycling activities
-      return `🚴 **Morning Ride** (ID: ${params.activityId})
-   - Type: Ride
-   - Date: 6/25/2025, 7:30 AM
-   - Distance: 45.2 km
-   - Duration: 1:45:30
-   - Avg Speed: 25.7 km/h
-   - Avg Power: 185 watts
-   - Avg Cadence: 85 rpm
-   - Avg Heart Rate: 145 bpm
-   - Max Heart Rate: 170 bpm
-   - Elevation Gain: 320m
-   - Calories: 850 cal`;
-    } else {
-      // Swimming activities
-      return `🏊 **Morning Swim** (ID: ${params.activityId})
-   - Type: Swim
-   - Date: 6/25/2025, 7:30 AM
-   - Distance: 2000m
-   - Duration: 45:20
-   - Avg Pace: 2:16 /100m
-   - Stroke Rate: 28 spm
-   - Swolf: 45
-   - Avg Heart Rate: 135 bpm
-   - Max Heart Rate: 155 bpm
-   - Calories: 400 cal`;
-    }
-  }
-  
-  if (endpoint === 'get-activity-streams') {
-    // Generate sport-specific streams based on activity ID
-    const activityId = params.id;
-    const lastDigit = activityId % 10;
-    
-    if (lastDigit >= 0 && lastDigit <= 3) {
-      // Running streams
-      return `🏃 Running Streams for ${params.id}:
-Time: [0, 60, 120, 180, 240, 300]
-Distance: [0, 250, 500, 750, 1000, 1250]  
-Heart Rate: [145, 155, 165, 170, 175, 165]
-Velocity: [4.2, 4.1, 4.0, 3.9, 4.1, 4.2]
-Altitude: [100, 105, 110, 108, 106, 102]
-Cadence: [165, 168, 170, 172, 175, 170]`;
-    } else if (lastDigit >= 4 && lastDigit <= 6) {
-      // Cycling streams
-      return `🚴 Cycling Streams for ${params.id}:
-Time: [0, 60, 120, 180, 240, 300]
-Distance: [0, 2.5, 5.0, 7.5, 10.0, 12.5]  
-Heart Rate: [130, 140, 145, 150, 155, 150]
-Velocity: [22.5, 24.0, 25.5, 26.2, 27.1, 26.8]
-Altitude: [100, 105, 110, 108, 106, 102]
-Power: [170, 180, 185, 190, 195, 190]
-Cadence: [80, 82, 85, 87, 90, 88]`;
-    } else {
-      // Swimming streams
-      return `🏊 Swimming Streams for ${params.id}:
-Time: [0, 60, 120, 180, 240, 300]
-Distance: [0, 50, 100, 150, 200, 250]  
-Heart Rate: [120, 125, 130, 135, 140, 135]
-Velocity: [1.8, 1.9, 2.0, 2.1, 2.2, 2.1]
-Stroke Rate: [26, 27, 28, 29, 30, 29]
-Swolf: [42, 43, 44, 45, 46, 45]`;
-    }
-  }
-  
-  if (endpoint === 'get-athlete-zones') {
-    return `Heart Rate Zones:
-Zone 1: 50-60% (125-150 bpm) - Active Recovery
-Zone 2: 60-70% (150-175 bpm) - Aerobic Base  
-Zone 3: 70-80% (175-200 bpm) - Aerobic Threshold
-Zone 4: 80-90% (200-225 bpm) - Lactate Threshold
-Zone 5: 90-100% (225-250 bpm) - Neuromuscular Power
-
-Power Zones (FTP: 250 watts):
-Zone 1: 0-55% (0-138 watts) - Active Recovery
-Zone 2: 55-75% (138-188 watts) - Endurance
-Zone 3: 75-90% (188-225 watts) - Tempo
-Zone 4: 90-105% (225-263 watts) - Threshold
-Zone 5: 105-120% (263-300 watts) - VO2 Max
-Zone 6: 120-150% (300-375 watts) - Anaerobic Capacity
-Zone 7: 150%+ (375+ watts) - Neuromuscular Power`;
-  }
-  
-  return `Mock data for ${endpoint}`;
-}
+// Mock data generation removed - using real MCP server data only
 
 // Claude query analysis
 async function analyzeQueryWithClaude(query, apiKey) {
