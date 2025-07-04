@@ -2835,7 +2835,7 @@ export default function CoachNew() {
                   Welcome to your AI Health Coach
                 </h2>
                 <p className="text-slate-600 text-lg sm:text-xl max-w-lg leading-relaxed px-4 mb-8">
-                  I can analyze your running, nutrition, and sleep data to provide personalized insights and recommendations.
+                  I can analyze your running, cycling, swimming, nutrition, and sleep data to provide personalized insights and recommendations.
                 </p>
                 
                 {/* Elegant prompt suggestions */}
@@ -3025,7 +3025,7 @@ export default function CoachNew() {
                 {/* Footer */}
                 <div className="text-center mt-3">
                   <p className="text-xs text-gray-500 font-medium">
-                    AI Health Coach can analyze your running, nutrition, and sleep data
+                    AI Health Coach can analyze your running, cycling, swimming, nutrition, and sleep data
                   </p>
                 </div>
               </div>
