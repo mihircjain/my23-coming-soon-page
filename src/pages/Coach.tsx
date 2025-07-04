@@ -2958,7 +2958,7 @@ export default function CoachNew() {
                     
                     {/* Minimal text */}
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-slate-700">Analyzing your data</span>
+                      <span className="text-sm font-medium text-slate-700">🏁 Power, recovery, and performance — we're on it...</span>
                       <span className="text-xs text-slate-500">Please wait...</span>
                     </div>
                   </div>
