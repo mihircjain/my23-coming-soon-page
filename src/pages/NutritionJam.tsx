@@ -1649,7 +1649,7 @@ const NutritionJam = () => {
                 <h2 className="text-2xl font-semibold text-gray-800">Combined Meals (Presets)</h2>
               </div>
               
-              <div className="mobile-grid-1 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {mealPresets.map((preset) => (
                   <div key={preset.id} className="h-full">
                     <CombinedMealCard
@@ -1672,7 +1672,7 @@ const NutritionJam = () => {
                 Complete daily meal plans for each day of the week. Each plan includes all meals with calculated nutrition totals.
               </p>
               
-              <div className="mobile-grid-1 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {dailyMealPlans.map((dailyPlan) => (
                   <div key={dailyPlan.id} className="h-full">
                     <DailyMealPlanCard
