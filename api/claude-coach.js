@@ -345,6 +345,27 @@ DAILY SLEEP DETAILS:${dailySleepDetails}`;
     conversationContext.forEach((entry, index) => {
       conversationContextStr += `${index + 1}. "${entry.query}" (${entry.intent})\n`;
     });
+    
+    // Add specific guidance for follow-up questions
+    if (conversationContext.length > 1) {
+      const previousQuery = conversationContext[conversationContext.length - 2];
+      const currentQuery = conversationContext[conversationContext.length - 1];
+      
+      if (previousQuery.intent.includes('swimming') && currentQuery.intent.includes('sleep')) {
+        conversationContextStr += '\n🔗 FOLLOW-UP ANALYSIS: The user is asking how their sleep patterns affected their swimming performance from the previous query.';
+        conversationContextStr += '\n📊 CORRELATION TASK: Analyze the relationship between sleep quality/duration and swimming performance metrics.';
+      } else if (previousQuery.intent.includes('running') && currentQuery.intent.includes('sleep')) {
+        conversationContextStr += '\n🔗 FOLLOW-UP ANALYSIS: The user is asking how their sleep patterns affected their running performance from the previous query.';
+        conversationContextStr += '\n📊 CORRELATION TASK: Analyze the relationship between sleep quality/duration and running performance metrics.';
+      } else if (previousQuery.intent.includes('cycling') && currentQuery.intent.includes('sleep')) {
+        conversationContextStr += '\n🔗 FOLLOW-UP ANALYSIS: The user is asking how their sleep patterns affected their cycling performance from the previous query.';
+        conversationContextStr += '\n📊 CORRELATION TASK: Analyze the relationship between sleep quality/duration and cycling performance metrics.';
+      } else if (previousQuery.intent.includes('sleep') && currentQuery.intent.includes('swimming')) {
+        conversationContextStr += '\n🔗 FOLLOW-UP ANALYSIS: The user is asking how their swimming performance was affected by their sleep patterns from the previous query.';
+        conversationContextStr += '\n📊 CORRELATION TASK: Analyze the relationship between sleep quality/duration and swimming performance metrics.';
+      }
+    }
+    
     conversationContextStr += '\nUse this context to understand what the user is referring to when they say "it" or ask follow-up questions.';
   }
   
@@ -382,7 +403,14 @@ ANALYSIS GUIDELINES:
 • Look for patterns and relationships between different data types when available
 • Reference specific metrics and data points from the detailed logs
 • Be encouraging but technically accurate
-• IMPORTANT: When the user asks follow-up questions like "how did my sleep affect it", use the conversation context to understand what "it" refers to (e.g., their swimming performance from the previous query)
+
+FOLLOW-UP QUESTION HANDLING:
+• When the user asks "how did my sleep affect it", "it" refers to their previous activity (swimming/running/cycling)
+• ALWAYS correlate sleep data with the activity data from the conversation context
+• Look for patterns like: better sleep → better performance, poor sleep → reduced performance
+• Compare sleep metrics (duration, quality, efficiency) with activity metrics (pace, heart rate, effort)
+• Provide specific examples from the data showing the relationship
+• If no clear correlation exists, acknowledge this but still analyze both datasets
 
 RESPONSE APPROACH:
 ${query.toLowerCase().includes('recommend') || query.toLowerCase().includes('suggest') || query.toLowerCase().includes('advice') || query.toLowerCase().includes('what') || query.toLowerCase().includes('how') || query.toLowerCase().includes('better') ? 
@@ -395,7 +423,8 @@ SPORT-SPECIFIC ANALYSIS:
 • For running: Focus on pace, heart rate zones, and training load progression
 • For multi-sport analysis: Look for cross-training benefits and sport-specific adaptations
 
-Provide comprehensive analysis as an expert coach:`;
+FINAL INSTRUCTION:
+If this is a follow-up question about how sleep affected performance, you MUST analyze the relationship between the sleep data and the activity data from the conversation context. Do not provide separate analyses - connect them directly and show correlations or patterns between sleep quality and athletic performance.`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
