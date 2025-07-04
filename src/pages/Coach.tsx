@@ -1347,14 +1347,56 @@ export default function CoachNew() {
     // Parse date range for data fetching
     const { startDate, endDate } = parseDateQuery(correctedQuery);
     
+    // 🆕 ENHANCED: Check conversation context for follow-up questions
+    let contextNeedsSleep = false;
+    let contextNeedsNutrition = false;
+    let contextNeedsRunning = false;
+    let contextNeedsCycling = false;
+    let contextNeedsSwimming = false;
+    
+    if (context.conversationHistory && context.conversationHistory.length > 0) {
+      const lastQuery = context.conversationHistory[context.conversationHistory.length - 1];
+      
+      // If this is a follow-up question (contains "it", "that", "this", etc.), inherit context from previous query
+      const followUpIndicators = ['it', 'that', 'this', 'those', 'them', 'they', 'how did', 'how does', 'what about', 'what was'];
+      const isFollowUp = followUpIndicators.some(indicator => lowerQuery.includes(indicator));
+      
+      if (isFollowUp) {
+        console.log(`🔍 CONTEXT INTENT: Follow-up question detected, inheriting context from previous query`);
+        console.log(`🔍 CONTEXT INTENT: Last query intent: ${lastQuery.intent}`);
+        
+        // Inherit data needs from previous query
+        if (lastQuery.intent.includes('sleep')) {
+          contextNeedsSleep = true;
+          console.log(`🔍 CONTEXT INTENT: Inheriting sleep data need from previous query`);
+        }
+        if (lastQuery.intent.includes('nutrition')) {
+          contextNeedsNutrition = true;
+          console.log(`🔍 CONTEXT INTENT: Inheriting nutrition data need from previous query`);
+        }
+        if (lastQuery.intent.includes('running')) {
+          contextNeedsRunning = true;
+          console.log(`🔍 CONTEXT INTENT: Inheriting running data need from previous query`);
+        }
+        if (lastQuery.intent.includes('cycling')) {
+          contextNeedsCycling = true;
+          console.log(`🔍 CONTEXT INTENT: Inheriting cycling data need from previous query`);
+        }
+        if (lastQuery.intent.includes('swimming')) {
+          contextNeedsSwimming = true;
+          console.log(`🔍 CONTEXT INTENT: Inheriting swimming data need from previous query`);
+        }
+      }
+    }
+    
     let intent: QueryIntent;
     
-    // Determine data needs based on keyword combinations
-    const needsNutrition = hasNutritionKeywords || isNutritionPerformanceQuery;
-    const needsRunning = hasRunningKeywords || isNutritionPerformanceQuery;
-    const needsCycling = hasCyclingKeywords;
-    const needsSwimming = hasSwimmingKeywords;
-    const needsSleep = hasSleepKeywords;
+    // Determine data needs based on keyword combinations + context inheritance
+    const needsNutrition = hasNutritionKeywords || isNutritionPerformanceQuery || contextNeedsNutrition;
+    const needsRunning = hasRunningKeywords || isNutritionPerformanceQuery || contextNeedsRunning;
+    const needsCycling = hasCyclingKeywords || contextNeedsCycling;
+    const needsSwimming = hasSwimmingKeywords || contextNeedsSwimming;
+    const needsSleep = hasSleepKeywords || contextNeedsSleep;
     
     // Detect primary sport for context
     const primarySport = detectPrimarySport(correctedQuery);
@@ -2552,13 +2594,7 @@ export default function CoachNew() {
     "how was my sleep that night"
   ];
 
-  // Add useRef for auto-scroll
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Chat area auto-expands naturally - no separate scrollbar needed
 
   // Format message content with bold titles
   const formatMessageContent = (content: string) => {
@@ -2592,23 +2628,7 @@ export default function CoachNew() {
     });
   };
 
-  useEffect(() => {
-    // Scroll to start of new message instead of bottom
-    if (messages.length > 0) {
-      setTimeout(() => {
-        const messagesContainer = document.querySelector('.space-y-6');
-        if (messagesContainer && messages.length > 1) {
-          const lastMessage = messagesContainer.children[messages.length - 1];
-          if (lastMessage) {
-            lastMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-          }
-        }
-        // Fallback to bottom scroll
-        scrollToBottom();
-      }, 100);
-    }
-  }, [messages]);
+  // Chat area auto-expands naturally - no manual scrolling needed
 
   // 🚨 DEBUG: Track context changes to detect when conversation history gets cleared
   useEffect(() => {
@@ -2794,10 +2814,10 @@ export default function CoachNew() {
 
         {/* Main Chat Container */}
         <main className="flex-1">
-        <div className="flex flex-col h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)]">
+        <div className="flex flex-col min-h-[calc(100vh-4rem)] lg:min-h-[calc(100vh-4rem)]">
           
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto mobile-container py-6 sm:py-8">
+          <div className="flex-1 mobile-container py-6 sm:py-8">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 {/* Animated background elements */}
@@ -2932,13 +2952,10 @@ export default function CoachNew() {
                 </div>
               )}
             </div>
-            
-            {/* Auto-scroll anchor */}
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-slate-200/50 bg-white/80 backdrop-blur-md">
+          <div className="border-t border-slate-200/50 bg-white/80 backdrop-blur-md mt-auto">
             <div className="mobile-container py-4 sm:py-6">
               <div className="max-w-3xl mx-auto">
                 {/* Context indicator */}

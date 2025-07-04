@@ -293,23 +293,23 @@ const EmailAndFeedbackCard: React.FC = () => {
 
   return (
     <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardContent className="p-4">
-        <div className="text-center mb-3">
-          <div className="mx-auto w-8 h-8 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-2">
-            <Mail className="h-4 w-4 text-white" />
+      <CardContent className="p-3">
+        <div className="text-center mb-2">
+          <div className="mx-auto w-6 h-6 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-1">
+            <Mail className="h-3 w-3 text-white" />
           </div>
-          <h3 className="text-sm font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+          <h3 className="text-xs font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
             📬 Stay Updated
           </h3>
         </div>
         
-        <form onSubmit={handleEmailSubmit} className="space-y-3">
+        <form onSubmit={handleEmailSubmit} className="space-y-2">
           <Input
             type="email"
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-sm h-9"
+            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-xs h-7"
             disabled={isSubmitting}
             required
           />
@@ -361,14 +361,14 @@ const EmailAndFeedbackCard: React.FC = () => {
           <Button
             type="submit"
             disabled={isSubmitting || !email}
-            className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+            className="w-full bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white py-1.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-1 text-xs"
           >
             {isSubmitting ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
             ) : (
               <React.Fragment>
-                <Send className="h-4 w-4" />
-                {showFeedbackFields && feedback.trim() ? 'Subscribe + Send Feedback' : 'Subscribe'}
+                <Send className="h-3 w-3" />
+                {showFeedbackFields && feedback.trim() ? 'Subscribe + Feedback' : 'Subscribe'}
               </React.Fragment>
             )}
           </Button>
@@ -858,9 +858,9 @@ const Index = () => {
             </div>
           </div>
           
-          {/* 5. Stay Updated Card - Compact and positioned better */}
+          {/* 5. Stay Updated Card - Very compact and centered */}
           <div className="flex justify-center">
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-sm">
               <EmailAndFeedbackCard />
             </div>
           </div>
