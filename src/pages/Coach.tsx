@@ -2304,6 +2304,11 @@ export default function CoachNew() {
         fullIntentObject: intent
       });
 
+      // Get conversation context for better follow-up analysis
+      const conversationContext = context.conversationHistory && context.conversationHistory.length > 1 
+        ? context.conversationHistory.slice(-2) // Last 2 queries for context
+        : [];
+
       const response = await fetch('/api/claude-coach', {
         method: 'POST',
         headers: {
@@ -2315,7 +2320,8 @@ export default function CoachNew() {
           analysis: intent,  // Backend expects 'analysis', not 'intent'
           mcpResponses,
           nutritionData: intent.nutritionData,  // Pass nutritionData separately
-          sleepData: intent.sleepData  // 🆕 Also pass sleepData separately
+          sleepData: intent.sleepData,  // 🆕 Also pass sleepData separately
+          conversationContext  // 🆕 Pass conversation history for context
         })
       });
 

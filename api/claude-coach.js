@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, query, mcpResponses, analysis, endpoint, params, nutritionData, sleepData } = req.body;
+    const { action, query, mcpResponses, analysis, endpoint, params, nutritionData, sleepData, conversationContext } = req.body;
     
     if (!action) {
       return res.status(400).json({ error: 'Action required' });
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
         nutritionData: nutritionData || analysis.nutritionData,
         sleepData: sleepData || analysis.sleepData
       };
-      const response = await generateResponseWithClaude(query, enhancedAnalysis, mcpResponses, claudeApiKey);
+      const response = await generateResponseWithClaude(query, enhancedAnalysis, mcpResponses, claudeApiKey, conversationContext);
       return res.status(200).json({ response });
     } else {
       return res.status(400).json({ error: 'Invalid action' });
@@ -202,7 +202,7 @@ RESPOND ONLY WITH VALID JSON:`;
 }
 
 // Claude response generation
-async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey) {
+async function generateResponseWithClaude(query, analysis, mcpResponses, apiKey, conversationContext = []) {
   console.log('🔍 Claude generateResponseWithClaude called with:', {
     query: query.substring(0, 50) + '...',
     analysisType: typeof analysis,
@@ -338,9 +338,20 @@ DAILY SLEEP DETAILS:${dailySleepDetails}`;
   const mcpContext = processedMcpResponses.join('\n');
   const contextData = mcpContext + nutritionContext + sleepContext;
   
-  console.log('📋 Final context data length:', contextData.length);
+  // Build conversation context for follow-up questions
+  let conversationContextStr = '';
+  if (conversationContext && conversationContext.length > 0) {
+    conversationContextStr = '\n\nCONVERSATION CONTEXT (Previous queries for reference):\n';
+    conversationContext.forEach((entry, index) => {
+      conversationContextStr += `${index + 1}. "${entry.query}" (${entry.intent})\n`;
+    });
+    conversationContextStr += '\nUse this context to understand what the user is referring to when they say "it" or ask follow-up questions.';
+  }
   
-  const prompt = `You are an expert coach analyzing both running performance and nutrition data. Provide clean, insightful analysis focused on what the user asked for.
+  console.log('📋 Final context data length:', contextData.length);
+  console.log('💬 Conversation context length:', conversationContextStr.length);
+  
+  const prompt = `You are an expert coach analyzing multi-sport performance data (running, cycling, swimming) and related health metrics. Provide clean, insightful analysis focused on what the user asked for.
 
 FORMATTING GUIDELINES:
 • Use clean, minimal formatting - avoid excessive bold text
@@ -354,23 +365,35 @@ USER QUERY: "${query}"
 ${analysis && analysis.isSmartTiming ? 
 `🧠 SMART TIMING APPLIED: For nutrition-performance analysis queries, the system automatically determined the most relevant nutrition data based on activity timing. Morning runs (5am-10am) use previous day's nutrition since they're often fasted, while afternoon/evening runs use same-day nutrition.` : ''}
 
+${conversationContextStr}
+
 DATA CONTEXT:
 ${contextData}
 
 ANALYSIS GUIDELINES:
 • For running data: Use GET-ACTIVITY-DETAILS for pace, duration, distance stats
+• For cycling data: Use GET-ACTIVITY-DETAILS for power, cadence, speed, FTP analysis
+• For swimming data: Use GET-ACTIVITY-DETAILS for pace, stroke rate, swolf, efficiency
 • For heart rate analysis: Use GET-ACTIVITY-STREAMS for detailed HR distribution
 • For nutrition data: You have access to both macro summaries AND individual food items eaten each day
+• For sleep data: You have detailed sleep metrics including duration, quality, and sleep stages
 • When asked about food suggestions, reference actual foods the user has eaten to make personalized recommendations
 • Convert pace from m/s to min/km for readability
-• Look for patterns and relationships between nutrition and performance when both are available
-• Reference specific metrics and data points from the detailed daily food logs
+• Look for patterns and relationships between different data types when available
+• Reference specific metrics and data points from the detailed logs
 • Be encouraging but technically accurate
+• IMPORTANT: When the user asks follow-up questions like "how did my sleep affect it", use the conversation context to understand what "it" refers to (e.g., their swimming performance from the previous query)
 
 RESPONSE APPROACH:
 ${query.toLowerCase().includes('recommend') || query.toLowerCase().includes('suggest') || query.toLowerCase().includes('advice') || query.toLowerCase().includes('what') || query.toLowerCase().includes('how') || query.toLowerCase().includes('better') ? 
 'The user is asking for advice - provide actionable recommendations and training suggestions.' :
 'The user wants analysis - focus on performance insights and technical breakdown. Only include recommendations if specifically requested.'}
+
+SPORT-SPECIFIC ANALYSIS:
+• For swimming: Focus on stroke efficiency, pace consistency, technique development, and endurance progression
+• For cycling: Focus on power output, cadence, FTP zones, and endurance vs intensity balance
+• For running: Focus on pace, heart rate zones, and training load progression
+• For multi-sport analysis: Look for cross-training benefits and sport-specific adaptations
 
 Provide comprehensive analysis as an expert coach:`;
 
