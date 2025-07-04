@@ -90,15 +90,20 @@ interface WeeklyMetrics {
 }
 
 interface QueryIntent {
-  type: 'nutrition_only' | 'running_only' | 'nutrition_and_running' | 'sleep_only' | 'sleep_and_running' | 'sleep_and_nutrition' | 'all_data' | 'general';
+  type: 'nutrition_only' | 'running_only' | 'cycling_only' | 'swimming_only' | 'nutrition_and_running' | 'nutrition_and_cycling' | 'nutrition_and_swimming' | 'sleep_only' | 'sleep_and_running' | 'sleep_and_cycling' | 'sleep_and_swimming' | 'sleep_and_nutrition' | 'all_data' | 'general';
   needsNutrition: boolean;
   needsRunning: boolean;
+  needsCycling: boolean;
+  needsSwimming: boolean;
   needsSleep: boolean;
   dateRange?: { startDate: Date; endDate: Date };
   nutritionDataTypes?: string[];
   runningDataTypes?: string[];
+  cyclingDataTypes?: string[];
+  swimmingDataTypes?: string[];
   sleepDataTypes?: string[];
   isSmartTiming?: boolean;
+  primarySport?: 'running' | 'cycling' | 'swimming' | 'all';
 }
 
 export default function CoachNew() {
@@ -1313,7 +1318,17 @@ export default function CoachNew() {
     
     const runningKeywords = [
       'run', 'runs', 'running', 'runn', 'runnign', 'pace', 'heart rate', 'hr', 'activity', 'workout', 'exercise',
-      'training', 'distance', 'speed', 'power', 'zones', 'strava', 'jog', 'jogging'
+      'training', 'distance', 'speed', 'power', 'zones', 'strava', 'jog', 'jogging', 'marathon', '5k', '10k'
+    ];
+
+    const cyclingKeywords = [
+      'cycle', 'cycling', 'bike', 'biking', 'ride', 'riding', 'road bike', 'mountain bike', 'ftp', 'power meter',
+      'cadence', 'rpm', 'watts', 'power zones', 'cycling', 'bicycle', 'velodrome', 'time trial'
+    ];
+
+    const swimmingKeywords = [
+      'swim', 'swimming', 'pool', 'freestyle', 'breaststroke', 'butterfly', 'backstroke', 'swolf', 'stroke rate',
+      'swimming', 'aquatic', 'laps', 'swimming pool', 'open water', 'triathlon'
     ];
     
     const sleepKeywords = [
@@ -1324,6 +1339,8 @@ export default function CoachNew() {
     
     const hasNutritionKeywords = nutritionKeywords.some(keyword => lowerQuery.includes(keyword));
     const hasRunningKeywords = runningKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasCyclingKeywords = cyclingKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasSwimmingKeywords = swimmingKeywords.some(keyword => lowerQuery.includes(keyword));
     const hasSleepKeywords = sleepKeywords.some(keyword => lowerQuery.includes(keyword));
     const isNutritionPerformanceQuery = detectNutritionPerformanceQuery(correctedQuery);
     
@@ -1335,7 +1352,12 @@ export default function CoachNew() {
     // Determine data needs based on keyword combinations
     const needsNutrition = hasNutritionKeywords || isNutritionPerformanceQuery;
     const needsRunning = hasRunningKeywords || isNutritionPerformanceQuery;
+    const needsCycling = hasCyclingKeywords;
+    const needsSwimming = hasSwimmingKeywords;
     const needsSleep = hasSleepKeywords;
+    
+    // Detect primary sport for context
+    const primarySport = detectPrimarySport(correctedQuery);
     
     // Determine query type based on combinations
     if (needsNutrition && needsRunning && needsSleep) {
@@ -1343,70 +1365,131 @@ export default function CoachNew() {
         type: 'all_data',
         needsNutrition: true,
         needsRunning: true,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
         runningDataTypes: ['activity_details', 'basic_stats'],
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
         sleepDataTypes: ['duration', 'scores', 'heart_rate'],
-        isSmartTiming: isNutritionPerformanceQuery
+        isSmartTiming: isNutritionPerformanceQuery,
+        primarySport: primarySport
       };
     } else if (needsSleep && needsRunning) {
       intent = {
         type: 'sleep_and_running',
         needsNutrition: false,
         needsRunning: true,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         runningDataTypes: ['activity_details', 'basic_stats'],
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+        primarySport: primarySport
       };
     } else if (needsSleep && needsNutrition) {
       intent = {
         type: 'sleep_and_nutrition',
         needsNutrition: true,
         needsRunning: false,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+        primarySport: primarySport
       };
     } else if (needsSleep) {
       intent = {
         type: 'sleep_only',
         needsNutrition: false,
         needsRunning: false,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+        primarySport: primarySport
       };
     } else if (isNutritionPerformanceQuery || (needsNutrition && needsRunning)) {
       intent = {
         type: 'nutrition_and_running',
         needsNutrition: true,
         needsRunning: true,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
         runningDataTypes: ['activity_details', 'basic_stats'],
-        isSmartTiming: isNutritionPerformanceQuery
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        isSmartTiming: isNutritionPerformanceQuery,
+        primarySport: primarySport
       };
     } else if (needsNutrition) {
       intent = {
         type: 'nutrition_only',
         needsNutrition: true,
         needsRunning: false,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber']
+        nutritionDataTypes: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        primarySport: primarySport
       };
     } else if (needsRunning) {
       intent = {
         type: 'running_only',
         needsNutrition: false,
         needsRunning: true,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: false,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
-        runningDataTypes: determineRunningDataTypes(correctedQuery)
+        runningDataTypes: determineRunningDataTypes(correctedQuery),
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        primarySport: primarySport
+      };
+    } else if (needsCycling) {
+      intent = {
+        type: 'cycling_only',
+        needsNutrition: false,
+        needsRunning: false,
+        needsCycling: true,
+        needsSwimming: needsSwimming,
+        needsSleep: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        cyclingDataTypes: determineCyclingDataTypes(correctedQuery),
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        primarySport: primarySport
+      };
+    } else if (needsSwimming) {
+      intent = {
+        type: 'swimming_only',
+        needsNutrition: false,
+        needsRunning: false,
+        needsCycling: needsCycling,
+        needsSwimming: true,
+        needsSleep: false,
+        dateRange: startDate && endDate ? { startDate, endDate } : undefined,
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: determineSwimmingDataTypes(correctedQuery),
+        primarySport: primarySport
       };
     } else {
       // General query - might need some data for context
@@ -1414,11 +1497,16 @@ export default function CoachNew() {
         type: 'general',
         needsNutrition: true,
         needsRunning: true,
+        needsCycling: needsCycling,
+        needsSwimming: needsSwimming,
         needsSleep: true,
         dateRange: startDate && endDate ? { startDate, endDate } : undefined,
         nutritionDataTypes: ['calories', 'protein'],
         runningDataTypes: ['activity_details'],
-        sleepDataTypes: ['duration', 'scores', 'heart_rate']
+        cyclingDataTypes: needsCycling ? determineCyclingDataTypes(correctedQuery) : [],
+        swimmingDataTypes: needsSwimming ? determineSwimmingDataTypes(correctedQuery) : [],
+        sleepDataTypes: ['duration', 'scores', 'heart_rate'],
+        primarySport: primarySport
       };
     }
     
@@ -1512,6 +1600,28 @@ export default function CoachNew() {
     return intent;
   };
 
+  const detectPrimarySport = (query: string): 'running' | 'cycling' | 'swimming' | 'all' => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Check for specific sport mentions
+    if (lowerQuery.includes('run') || lowerQuery.includes('jog') || lowerQuery.includes('marathon') || lowerQuery.includes('5k') || lowerQuery.includes('10k') || lowerQuery.includes('half marathon')) {
+      return 'running';
+    }
+    if (lowerQuery.includes('cycle') || lowerQuery.includes('bike') || lowerQuery.includes('ride') || lowerQuery.includes('cycling') || lowerQuery.includes('road bike') || lowerQuery.includes('mountain bike') || lowerQuery.includes('ftp') || lowerQuery.includes('power meter')) {
+      return 'cycling';
+    }
+    if (lowerQuery.includes('swim') || lowerQuery.includes('pool') || lowerQuery.includes('freestyle') || lowerQuery.includes('breaststroke') || lowerQuery.includes('butterfly') || lowerQuery.includes('backstroke') || lowerQuery.includes('swolf') || lowerQuery.includes('stroke rate')) {
+      return 'swimming';
+    }
+    
+    // Check for general activity terms that might indicate all sports
+    if (lowerQuery.includes('workout') || lowerQuery.includes('training') || lowerQuery.includes('exercise') || lowerQuery.includes('activity')) {
+      return 'all';
+    }
+    
+    return 'all'; // Default to all sports
+  };
+
   // Determine what running data types are needed based on query
   const determineRunningDataTypes = (query: string): string[] => {
     const lowerQuery = query.toLowerCase();
@@ -1542,6 +1652,71 @@ export default function CoachNew() {
     }
     
     console.log(`📊 Determined running data types for "${query}": [${dataTypes.join(', ')}]`);
+    return dataTypes;
+  };
+
+  // Determine what cycling data types are needed based on query
+  const determineCyclingDataTypes = (query: string): string[] => {
+    const lowerQuery = query.toLowerCase();
+    const dataTypes = ['activity_details']; // Always include basic details
+    
+    // Enhanced detection for detailed analysis requiring streams
+    const needsStreams = 
+      lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
+      lowerQuery.includes('power') || lowerQuery.includes('watts') || lowerQuery.includes('ftp') ||
+      lowerQuery.includes('cadence') || lowerQuery.includes('rpm') ||
+      lowerQuery.includes('analyze') || lowerQuery.includes('analysis') ||
+      lowerQuery.includes('distribution') || lowerQuery.includes('speed') ||
+      lowerQuery.includes('elevation') || lowerQuery.includes('gradient') ||
+      lowerQuery.includes('split') || lowerQuery.includes('breakdown') ||
+      lowerQuery.includes('detailed') || lowerQuery.includes('segment');
+    
+    if (needsStreams) {
+      dataTypes.push('activity_streams');
+      console.log(`🎯 Query "${query}" requires streams data - adding activity_streams`);
+    }
+    
+    if (lowerQuery.includes('zone') || lowerQuery.includes('hr') || lowerQuery.includes('power zone')) {
+      dataTypes.push('athlete_zones');
+    }
+    
+    if (lowerQuery.includes('stats') || lowerQuery.includes('total') || lowerQuery.includes('summary')) {
+      dataTypes.push('athlete_stats', 'athlete_profile');
+    }
+    
+    console.log(`🚴 Determined cycling data types for "${query}": [${dataTypes.join(', ')}]`);
+    return dataTypes;
+  };
+
+  // Determine what swimming data types are needed based on query
+  const determineSwimmingDataTypes = (query: string): string[] => {
+    const lowerQuery = query.toLowerCase();
+    const dataTypes = ['activity_details']; // Always include basic details
+    
+    // Enhanced detection for detailed analysis requiring streams
+    const needsStreams = 
+      lowerQuery.includes('heart rate') || lowerQuery.includes('hr') || 
+      lowerQuery.includes('pace') || lowerQuery.includes('speed') ||
+      lowerQuery.includes('analyze') || lowerQuery.includes('analysis') ||
+      lowerQuery.includes('distribution') || lowerQuery.includes('stroke') ||
+      lowerQuery.includes('swolf') || lowerQuery.includes('efficiency') ||
+      lowerQuery.includes('split') || lowerQuery.includes('breakdown') ||
+      lowerQuery.includes('detailed') || lowerQuery.includes('segment');
+    
+    if (needsStreams) {
+      dataTypes.push('activity_streams');
+      console.log(`🎯 Query "${query}" requires streams data - adding activity_streams`);
+    }
+    
+    if (lowerQuery.includes('zone') || lowerQuery.includes('hr')) {
+      dataTypes.push('athlete_zones');
+    }
+    
+    if (lowerQuery.includes('stats') || lowerQuery.includes('total') || lowerQuery.includes('summary')) {
+      dataTypes.push('athlete_stats', 'athlete_profile');
+    }
+    
+    console.log(`🏊 Determined swimming data types for "${query}": [${dataTypes.join(', ')}]`);
     return dataTypes;
   };
 
@@ -1862,10 +2037,19 @@ export default function CoachNew() {
       console.log(`📋 Required data types: ${intent.runningDataTypes?.join(', ') || 'basic'}`);
 
       // Only fetch what's specifically needed for this query
-      const needsStreams = intent.runningDataTypes?.includes('activity_streams');
-      const needsZones = intent.runningDataTypes?.includes('athlete_zones');
+      const needsStreams = intent.runningDataTypes?.includes('activity_streams') || 
+                          intent.cyclingDataTypes?.includes('activity_streams') || 
+                          intent.swimmingDataTypes?.includes('activity_streams');
+      const needsZones = intent.runningDataTypes?.includes('athlete_zones') || 
+                        intent.cyclingDataTypes?.includes('athlete_zones') || 
+                        intent.swimmingDataTypes?.includes('athlete_zones');
       
       console.log(`🎯 Lazy loading strategy: streams=${needsStreams}, zones=${needsZones}`);
+      console.log(`🎯 Sport-specific data types:`, {
+        running: intent.runningDataTypes,
+        cycling: intent.cyclingDataTypes,
+        swimming: intent.swimmingDataTypes
+      });
       
       // Parse date requirements for MCP calls
       const { startDate, endDate, criteria } = parseDateQuery(query);
@@ -1878,6 +2062,17 @@ export default function CoachNew() {
         params: { per_page: 10 } // Default fallback
       };
       
+      // Add sport-specific filtering based on primary sport
+      if (intent.primarySport && intent.primarySport !== 'all') {
+        const sportMap = {
+          'running': 'Run',
+          'cycling': 'Ride', 
+          'swimming': 'Swim'
+        };
+        activitiesCall.params.activityType = sportMap[intent.primarySport];
+        console.log(`🎯 Filtering activities by sport: ${intent.primarySport} (${sportMap[intent.primarySport]})`);
+      }
+      
       // For specific dates, use precise API date filtering 
       if (startDate && endDate && criteria.type === 'specific') {
         const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -1887,6 +2082,7 @@ export default function CoachNew() {
         const isSingleDay = startDateStr === endDateStr;
         
         activitiesCall.params = {
+          ...activitiesCall.params,
           per_page: isSingleDay ? 3 : 5, // Single day: max 1-2 activities + buffer, Multi-day: 5
           after: startDateStr,
           before: endDateStr

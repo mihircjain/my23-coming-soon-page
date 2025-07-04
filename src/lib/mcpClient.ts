@@ -220,26 +220,44 @@ class McpClient {
     const lines = textResponse.split('\n');
     
     for (const line of lines) {
-      if (line.includes('🏃') && line.includes('ID:')) {
-        // Parse basic activity info from the text format
-        // This is a simplified parser - in production you might want JSON responses
-        const idMatch = line.match(/ID:\s*(\d+)/);
-        const nameMatch = line.match(/🏃\s*([^(]+)/);
-        
-        if (idMatch && nameMatch) {
-          activities.push({
-            id: idMatch[1],
-            name: nameMatch[1].trim(),
-            type: 'Run', // Default, would need better parsing
-            start_date: new Date().toISOString(), // Default, would need better parsing
-            distance: 0, // Would need better parsing
-            moving_time: 0, // Would need better parsing
-            elapsed_time: 0,
-            total_elevation_gain: 0,
-            average_speed: 0,
-            has_heartrate: false,
-            is_run_activity: true,
-          });
+      // Support multiple sport types with different emojis
+      const sportPatterns = [
+        { emoji: '🏃', type: 'Run', isRunActivity: true },
+        { emoji: '🚴', type: 'Ride', isRunActivity: false },
+        { emoji: '🏊', type: 'Swim', isRunActivity: false },
+        { emoji: '🚶', type: 'Walk', isRunActivity: false },
+        { emoji: '🏋️', type: 'Workout', isRunActivity: false },
+        { emoji: '🧘', type: 'Yoga', isRunActivity: false }
+      ];
+      
+      for (const pattern of sportPatterns) {
+        if (line.includes(pattern.emoji) && line.includes('ID:')) {
+          // Parse basic activity info from the text format
+          const idMatch = line.match(/ID:\s*(\d+)/);
+          const nameMatch = line.match(new RegExp(`${pattern.emoji}\\s*([^(]+)`));
+          const distanceMatch = line.match(/(\d+(?:\.\d+)?)\s*(?:km|m|mi)/);
+          const dateMatch = line.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
+          
+          if (idMatch && nameMatch) {
+            const distance = distanceMatch ? parseFloat(distanceMatch[1]) : 0;
+            const startDate = dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString();
+            
+            activities.push({
+              id: idMatch[1],
+              name: nameMatch[1].trim(),
+              type: pattern.type,
+              start_date: startDate,
+              distance: distance,
+              moving_time: 0, // Would need better parsing
+              elapsed_time: 0,
+              total_elevation_gain: 0,
+              average_speed: 0,
+              has_heartrate: false,
+              is_run_activity: pattern.isRunActivity,
+              sport_type: pattern.type.toLowerCase()
+            });
+          }
+          break; // Found a match, no need to check other patterns
         }
       }
     }
@@ -247,10 +265,15 @@ class McpClient {
     return activities;
   }
 
-  // Get recent activities
-  async getRecentActivities(perPage: number = 30): Promise<StravaActivity[]> {
+  // Get recent activities with optional activity type filtering
+  async getRecentActivities(perPage: number = 30, activityType?: string): Promise<StravaActivity[]> {
     try {
-      const response = await this.makeRequest('/tools/get-recent-activities', { perPage });
+      const params: any = { perPage };
+      if (activityType) {
+        params.activityType = activityType;
+      }
+      
+      const response = await this.makeRequest('/tools/get-recent-activities', params);
       
       if (response.isError) {
         throw new Error(response.content[0]?.text || 'Unknown error');

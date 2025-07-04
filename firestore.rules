@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read access to nutrition logs
+    match /nutritionLogs/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read access to Strava data
+    match /strava_data/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read access to blood markers
+    match /blood_markers/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read access to Oura sleep data
+    match /oura_sleep_data/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read access to Strava detailed analysis
+    match /strava_detailed/{document} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Default rule - deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 
