@@ -293,30 +293,28 @@ const EmailAndFeedbackCard: React.FC = () => {
 
   return (
     <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="text-center pb-1">
-        <div className="mx-auto w-6 h-6 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-1">
-          <Mail className="h-3 w-3 text-white" />
+      <CardContent className="p-4">
+        <div className="text-center mb-3">
+          <div className="mx-auto w-8 h-8 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-2">
+            <Mail className="h-4 w-4 text-white" />
+          </div>
+          <h3 className="text-sm font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+            📬 Stay Updated
+          </h3>
         </div>
-        <CardTitle className="text-xs font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-          📬 Stay Updated
-        </CardTitle>
-        <p className="text-xs text-gray-600">
-          Get notified about new features
-        </p>
-      </CardHeader>
-      <CardContent className="p-3">
-        <form onSubmit={handleEmailSubmit} className="space-y-2">
+        
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
           <Input
             type="email"
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-xs h-8"
+            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-sm h-9"
             disabled={isSubmitting}
             required
           />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => setShowFeedbackFields(!showFeedbackFields)}
@@ -860,9 +858,11 @@ const Index = () => {
             </div>
           </div>
           
-          {/* 5. Stay Updated Card - Full width alone */}
-          <div className="grid grid-cols-1 gap-6">
-            <EmailAndFeedbackCard />
+          {/* 5. Stay Updated Card - Compact and positioned better */}
+          <div className="flex justify-center">
+            <div className="w-full max-w-md">
+              <EmailAndFeedbackCard />
+            </div>
           </div>
         </div>
 
