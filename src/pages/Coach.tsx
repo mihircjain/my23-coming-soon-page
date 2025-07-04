@@ -2743,10 +2743,10 @@ export default function CoachNew() {
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-slate-800">{weeklyMetrics?.activities?.length || 0}</p>
-                        <p className="text-xs text-slate-500 font-medium">activities</p>
+                        <p className="text-xs text-slate-500 font-medium">types</p>
                       </div>
                     </div>
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Activities</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Activity Types</h3>
                     <p className="text-xs text-slate-600 leading-relaxed">
                       {weeklyMetrics?.activities?.length > 0 
                         ? weeklyMetrics.activities.join(', ')
@@ -2917,34 +2917,16 @@ export default function CoachNew() {
               
               {isLoading && (
                 <div className="flex justify-center">
-                  <div className="relative">
-                    {/* Animated background */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-indigo-500/20 to-purple-500/20 rounded-3xl blur-xl animate-pulse"></div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    {/* Elegant spinner */}
+                    <div className="relative">
+                      <div className="w-8 h-8 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
+                    </div>
                     
-                    {/* Main loading card */}
-                    <div className="relative bg-white/90 backdrop-blur-md border border-slate-200/50 rounded-3xl px-8 py-6 shadow-xl">
-                      <div className="flex items-center gap-4">
-                        {/* Animated AI icon */}
-                        <div className="relative">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center animate-pulse">
-                            <Bot className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-ping"></div>
-                        </div>
-                        
-                        {/* Loading text and animation */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg font-semibold text-slate-800">Analyzing your data</span>
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-200"></div>
-                            </div>
-                          </div>
-                          <p className="text-sm text-slate-600">Processing your health metrics and generating insights...</p>
-                        </div>
-                      </div>
+                    {/* Minimal text */}
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-slate-700">Analyzing your data</span>
+                      <span className="text-xs text-slate-500">Please wait...</span>
                     </div>
                   </div>
                 </div>

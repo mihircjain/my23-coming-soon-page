@@ -293,11 +293,11 @@ const EmailAndFeedbackCard: React.FC = () => {
 
   return (
     <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="text-center pb-2">
-        <div className="mx-auto w-8 h-8 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-2">
-          <Mail className="h-4 w-4 text-white" />
+      <CardHeader className="text-center pb-1">
+        <div className="mx-auto w-6 h-6 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-1">
+          <Mail className="h-3 w-3 text-white" />
         </div>
-        <CardTitle className="text-sm font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+        <CardTitle className="text-xs font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
           📬 Stay Updated
         </CardTitle>
         <p className="text-xs text-gray-600">
