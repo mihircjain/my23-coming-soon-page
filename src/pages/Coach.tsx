@@ -2856,7 +2856,7 @@ export default function CoachNew() {
                   <div className="grid gap-3">
                     <button 
                       onClick={() => {
-                        setInput("how has my sleep, nutrition and running been in the last 10 days and how have they impacted each other");
+                        setInput("how has my sleep, nutrition, running, cycling, and swimming been in the last 10 days and how have they impacted each other");
                         setTimeout(() => handleSendMessage(), 100);
                       }}
                       className="text-left p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 group"
@@ -2865,7 +2865,7 @@ export default function CoachNew() {
                          📊 Comprehensive 10-day health analysis
                        </div>
                        <div className="text-xs sm:text-sm text-gray-600 mt-1">
-                         Deep dive into your sleep, nutrition, and running patterns with correlation insights
+                         Deep dive into your sleep, nutrition, running, cycling, and swimming patterns with correlation insights
                        </div>
                      </button>
                      
