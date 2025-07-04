@@ -1426,23 +1426,27 @@ const NutritionJam = () => {
 
       <main className="flex-1 px-6 md:px-12 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 gap-0.5 h-auto p-1">
-            <TabsTrigger value="today" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded">
+          <TabsList className="grid w-full grid-cols-3 gap-1 h-auto p-1.5 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
+            <TabsTrigger value="today" className="text-xs py-2 px-2 rounded-md font-medium transition-all duration-200 hover:bg-green-100 data-[state=active]:bg-green-200 data-[state=active]:text-green-800 data-[state=active]:shadow-sm">
               <span className="hidden sm:inline">Today's Log</span>
               <span className="sm:hidden">Today</span>
             </TabsTrigger>
-            <TabsTrigger value="last7days" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded">
+            <TabsTrigger value="last7days" className="text-xs py-2 px-2 rounded-md font-medium transition-all duration-200 hover:bg-blue-100 data-[state=active]:bg-blue-200 data-[state=active]:text-blue-800 data-[state=active]:shadow-sm">
               <span className="hidden sm:inline">Last 7 Days</span>
               <span className="sm:hidden">7 Days</span>
             </TabsTrigger>
-            <TabsTrigger value="presets" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded">
+            <TabsTrigger value="presets" className="text-xs py-2 px-2 rounded-md font-medium transition-all duration-200 hover:bg-purple-100 data-[state=active]:bg-purple-200 data-[state=active]:text-purple-800 data-[state=active]:shadow-sm">
               <span className="hidden sm:inline">Combined Meals</span>
               <span className="sm:hidden">Meals</span>
             </TabsTrigger>
-            <TabsTrigger value="daily" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded hidden sm:block">
+          </TabsList>
+          
+          {/* Second row of tabs for desktop */}
+          <TabsList className="grid w-full grid-cols-2 gap-1 h-auto p-1.5 bg-gradient-to-r from-orange-50 to-pink-50 border border-orange-200 rounded-lg hidden sm:grid">
+            <TabsTrigger value="daily" className="text-xs py-2 px-2 rounded-md font-medium transition-all duration-200 hover:bg-orange-100 data-[state=active]:bg-orange-200 data-[state=active]:text-orange-800 data-[state=active]:shadow-sm">
               Daily Nutrition
             </TabsTrigger>
-            <TabsTrigger value="public" className="text-xs sm:text-sm py-1.5 px-1 sm:px-3 rounded hidden sm:block">
+            <TabsTrigger value="public" className="text-xs py-2 px-2 rounded-md font-medium transition-all duration-200 hover:bg-pink-100 data-[state=active]:bg-pink-200 data-[state=active]:text-pink-800 data-[state=active]:shadow-sm">
               Public Logs
             </TabsTrigger>
           </TabsList>
