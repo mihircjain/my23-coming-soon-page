@@ -293,25 +293,25 @@ const EmailAndFeedbackCard: React.FC = () => {
 
   return (
     <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="text-center pb-4">
-        <div className="mx-auto w-12 h-12 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-3">
-          <Mail className="h-6 w-6 text-white" />
+      <CardHeader className="text-center pb-2">
+        <div className="mx-auto w-8 h-8 bg-gradient-to-br from-green-400 to-blue-400 rounded-full flex items-center justify-center mb-2">
+          <Mail className="h-4 w-4 text-white" />
         </div>
-        <CardTitle className="text-lg font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+        <CardTitle className="text-sm font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
           📬 Stay Updated
         </CardTitle>
-        <p className="text-sm text-gray-600">
-          Get notified about new features & share your ideas
+        <p className="text-xs text-gray-600">
+          Get notified about new features
         </p>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleEmailSubmit} className="space-y-3">
+      <CardContent className="p-3">
+        <form onSubmit={handleEmailSubmit} className="space-y-2">
           <Input
             type="email"
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-sm"
+            className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 text-xs h-8"
             disabled={isSubmitting}
             required
           />
@@ -320,14 +320,14 @@ const EmailAndFeedbackCard: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowFeedbackFields(!showFeedbackFields)}
-              className="text-sm text-green-600 hover:text-green-700 font-medium"
+              className="text-xs text-green-600 hover:text-green-700 font-medium"
             >
-              {showFeedbackFields ? '📬 Just email signup' : '💭 + Add feedback/suggestions'}
+              {showFeedbackFields ? '📬 Just email' : '💭 + Feedback'}
             </button>
           </div>
 
           {showFeedbackFields && (
-            <div className="space-y-3 border-t border-green-200 pt-3">
+            <div className="space-y-2 border-t border-green-200 pt-2">
               <div className="flex gap-1">
                 {[
                   { value: 'suggestion', label: 'Idea', icon: '💡' },
@@ -338,7 +338,7 @@ const EmailAndFeedbackCard: React.FC = () => {
                     key={option.value}
                     type="button"
                     onClick={() => setType(option.value as any)}
-                    className={'flex-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200 ' + (
+                    className={'flex-1 px-1 py-1 rounded text-xs font-medium transition-all duration-200 ' + (
                       type === option.value
                         ? 'bg-green-100 text-green-700 border border-green-300'
                         : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
@@ -353,8 +353,8 @@ const EmailAndFeedbackCard: React.FC = () => {
                 placeholder="What would you like to see in My23.ai?"
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
-                rows={3}
-                className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 resize-none text-sm"
+                rows={2}
+                className="rounded-lg border-green-200 focus:border-green-400 focus:ring-green-400 resize-none text-xs"
                 disabled={isSubmitting}
               />
             </div>
