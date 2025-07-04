@@ -876,7 +876,7 @@ const OverallJam = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mobile-grid-1 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
                 {last7Days.map((date) => (
                   <DailyHealthBox
                     key={date}
@@ -896,7 +896,7 @@ const OverallJam = () => {
           <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
             Weekly Averages
           </h2>
-          <div className="mobile-grid-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             
             {/* Calories In Card - Updated with green theme */}
             <div className="bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300">
