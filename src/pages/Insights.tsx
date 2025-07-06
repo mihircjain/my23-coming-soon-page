@@ -980,22 +980,22 @@ IMPORTANT INSTRUCTIONS:
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {metrics.map((metric, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
+            <Card key={index} className="hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <div className={`p-2 rounded-lg ${metric.color} bg-opacity-10`}>
+                  <div className={`p-1.5 rounded-lg ${metric.color} bg-opacity-10`}>
                     {metric.icon}
                   </div>
-                  <Badge variant={metric.trend === 'up' ? 'default' : metric.trend === 'down' ? 'destructive' : 'secondary'}>
+                  <Badge variant={metric.trend === 'up' ? 'default' : metric.trend === 'down' ? 'destructive' : 'secondary'} className="text-xs">
                     {metric.change > 0 ? '+' : ''}{metric.change}%
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent>
-                <CardTitle className="text-2xl font-bold">{metric.value}</CardTitle>
-                <CardDescription className="text-sm text-gray-600">
+              <CardContent className="pt-0">
+                <CardTitle className="text-lg font-bold">{metric.value}</CardTitle>
+                <CardDescription className="text-xs text-gray-600">
                   {metric.title}
                 </CardDescription>
               </CardContent>
@@ -1003,21 +1003,153 @@ IMPORTANT INSTRUCTIONS:
           ))}
         </div>
 
-        {/* Comprehensive AI Analysis */}
+        {/* AI Analysis Grid */}
         {comprehensiveInsights && (
-          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {/* Sleep Impact */}
+            <Card className="border-l-4 border-l-blue-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Heart className="h-4 w-4 text-blue-600" />
+                  Sleep Impact
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-700 space-y-2">
+                  {comprehensiveInsights.includes('Sleep-Workout Correlations') && (
+                    <div>
+                      <h4 className="font-medium text-blue-900 mb-1">Sleep-Workout Correlations</h4>
+                      <p className="text-gray-600 leading-relaxed">
+                        {comprehensiveInsights.split('Sleep-Workout Correlations')[1]?.split('Nutrition-Workout Analysis')[0]?.substring(0, 200)}...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Nutrition Impact */}
+            <Card className="border-l-4 border-l-green-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Zap className="h-4 w-4 text-green-600" />
+                  Nutrition Impact
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-700 space-y-2">
+                  {comprehensiveInsights.includes('Nutrition-Workout Analysis') && (
+                    <div>
+                      <h4 className="font-medium text-green-900 mb-1">Nutrition-Workout Analysis</h4>
+                      <p className="text-gray-600 leading-relaxed">
+                        {comprehensiveInsights.split('Nutrition-Workout Analysis')[1]?.split('Performance Patterns')[0]?.substring(0, 200)}...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Performance Patterns */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Activity className="h-4 w-4 text-purple-600" />
+                  Performance Patterns
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-700 space-y-2">
+                  {comprehensiveInsights.includes('Performance Patterns') && (
+                    <div>
+                      <h4 className="font-medium text-purple-900 mb-1">Performance Patterns</h4>
+                      <p className="text-gray-600 leading-relaxed">
+                        {comprehensiveInsights.split('Performance Patterns')[1]?.split('Recovery Analysis')[0]?.substring(0, 200)}...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recovery Analysis */}
+            <Card className="border-l-4 border-l-orange-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <RefreshCw className="h-4 w-4 text-orange-600" />
+                  Recovery Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-700 space-y-2">
+                  {comprehensiveInsights.includes('Recovery Analysis') && (
+                    <div>
+                      <h4 className="font-medium text-orange-900 mb-1">Recovery Analysis</h4>
+                      <p className="text-gray-600 leading-relaxed">
+                        {comprehensiveInsights.split('Recovery Analysis')[1]?.split("TODAY'S ACTION PLAN")[0]?.substring(0, 200)}...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Today's Action Plan */}
+            <Card className="border-l-4 border-l-red-500 lg:col-span-2 xl:col-span-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Target className="h-4 w-4 text-red-600" />
+                  Today's Action Plan
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-gray-700 space-y-2">
+                  {comprehensiveInsights.includes("TODAY'S ACTION PLAN") && (
+                    <div>
+                      <h4 className="font-medium text-red-900 mb-1">Action Plan</h4>
+                      <p className="text-gray-600 leading-relaxed">
+                        {comprehensiveInsights.split("TODAY'S ACTION PLAN")[1]?.substring(0, 300)}...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Full Analysis Button */}
+            <Card className="border-l-4 border-l-indigo-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Brain className="h-4 w-4 text-indigo-600" />
+                  Full Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setShowCharts(!showCharts)}
+                >
+                  {showCharts ? 'Hide' : 'Show'} Detailed Analysis
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Full Analysis (Collapsible) */}
+        {comprehensiveInsights && showCharts && (
+          <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <Brain className="h-6 w-6 text-blue-600" />
-                AI Health Analysis - Last 10 Days
+              <CardTitle className="flex items-center gap-2 text-indigo-900">
+                <Brain className="h-5 w-5 text-indigo-600" />
+                Complete AI Analysis
               </CardTitle>
-              <CardDescription className="text-blue-700">
-                Comprehensive analysis of sleep, nutrition, and workout relationships with personalized recommendations for today.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="prose prose-sm max-w-none text-gray-800">
-                <div className="whitespace-pre-wrap leading-relaxed">
+                <div className="whitespace-pre-wrap leading-relaxed text-sm">
                   {comprehensiveInsights}
                 </div>
               </div>
@@ -1025,50 +1157,122 @@ IMPORTANT INSTRUCTIONS:
           </Card>
         )}
 
-        {/* Visual Charts */}
+        {/* Compact Data Overview */}
         {(stravaData.length > 0 || sleepData.length > 0 || nutritionData.length > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {stravaData.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-blue-600" />
-                    Activity Overview
+              <Card className="border-l-4 border-l-blue-500">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Footprints className="h-4 w-4 text-blue-600" />
+                    Recent Activities
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ActivityDistributionChart activities={stravaData} />
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    {stravaData.slice(0, 3).map((activity, index) => (
+                      <div key={index} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          {getSportIcon(activity.type)}
+                          <span className="font-medium">{activity.type}</span>
+                        </div>
+                        <div className="text-gray-600 ml-6">
+                          {activity.distance.toFixed(1)}km • {Math.round(activity.moving_time / 60)}min
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             )}
             
             {sleepData.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <LineChart className="h-5 w-5 text-indigo-600" />
-                    Sleep Trends
+              <Card className="border-l-4 border-l-indigo-500">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Heart className="h-4 w-4 text-indigo-600" />
+                    Sleep Quality
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <SleepQualityChart sleepData={sleepData} />
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    {sleepData.slice(0, 3).map((sleep, index) => (
+                      <div key={index} className="text-xs">
+                        <div className="flex justify-between">
+                          <span>{new Date(sleep.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          <span className="font-medium">{sleep.sleep_score}%</span>
+                        </div>
+                        <div className="text-gray-600">
+                          {sleep.total_sleep_duration.toFixed(1)}h sleep
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             )}
             
             {nutritionData.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PieChart className="h-5 w-5 text-green-600" />
-                    Nutrition Tracking
+              <Card className="border-l-4 border-l-green-500">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Zap className="h-4 w-4 text-green-600" />
+                    Nutrition
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <NutritionAdherenceChart nutritionData={nutritionData} />
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    {nutritionData.slice(0, 3).map((nutrition, index) => (
+                      <div key={index} className="text-xs">
+                        <div className="flex justify-between">
+                          <span>{new Date(nutrition.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          <span className="font-medium">{nutrition.calories}cal</span>
+                        </div>
+                        <div className="text-gray-600">
+                          {nutrition.protein}g protein
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             )}
+
+            {/* Quick Stats */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <BarChart3 className="h-4 w-4 text-purple-600" />
+                  Quick Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span>Activities</span>
+                    <span className="font-medium">{stravaData.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Avg Sleep</span>
+                    <span className="font-medium">
+                      {sleepData.length > 0 ? 
+                        (sleepData.reduce((sum, s) => sum + s.sleep_score, 0) / sleepData.length).toFixed(0) + '%' : 
+                        'N/A'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Avg Calories</span>
+                    <span className="font-medium">
+                      {nutritionData.length > 0 ? 
+                        Math.round(nutritionData.reduce((sum, n) => sum + n.calories, 0) / nutritionData.length) + 'cal' : 
+                        'N/A'
+                      }
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
