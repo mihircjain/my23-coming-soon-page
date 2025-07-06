@@ -21,8 +21,8 @@ import {
   Dumbbell,
   Waves,
   Bike,
-  Run,
-  Swim
+  Footprints,
+  Droplets
 } from 'lucide-react';
 
 interface MetricCard {
@@ -34,7 +34,7 @@ interface MetricCard {
   color: string;
 }
 
-interface Alert {
+interface InsightAlert {
   id: string;
   priority: 'high' | 'medium' | 'low';
   title: string;
@@ -65,7 +65,7 @@ export default function Insights() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [metrics, setMetrics] = useState<MetricCard[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<InsightAlert[]>([]);
   const [trends, setTrends] = useState<TrendData[]>([]);
   const [goals, setGoals] = useState<GoalProgress[]>([]);
 
@@ -235,9 +235,9 @@ export default function Insights() {
 
   const getSportIcon = (sport: string) => {
     switch (sport.toLowerCase()) {
-      case 'running': return <Run className="h-4 w-4" />;
+      case 'running': return <Footprints className="h-4 w-4" />;
       case 'cycling': return <Bike className="h-4 w-4" />;
-      case 'swimming': return <Swim className="h-4 w-4" />;
+      case 'swimming': return <Droplets className="h-4 w-4" />;
       default: return <Activity className="h-4 w-4" />;
     }
   };
