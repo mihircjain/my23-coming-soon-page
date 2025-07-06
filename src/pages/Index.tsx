@@ -799,14 +799,15 @@ const Index = () => {
           
           {/* 4. Navigation Buttons - Overall Jam and other jams */}
           <div className="space-y-4">
-            {/* First row - Overall Jam and Lets Jam */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* First row - Overall Jam, AI Coach, and Insights */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Button 
                 onClick={() => window.location.href = '/overall-jam'} 
                 className="mobile-button bg-white/80 backdrop-blur-sm border border-blue-200 hover:bg-white text-blue-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <BarChart2 className="mr-3 h-5 w-5" />
-                Overall Jam
+                <span className="hidden sm:inline">Overall Jam</span>
+                <span className="sm:hidden">Overall</span>
               </Button>
               
               <Button 
@@ -814,7 +815,17 @@ const Index = () => {
                 className="mobile-button bg-white/80 backdrop-blur-sm border border-green-200 hover:bg-white text-green-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <Bot className="mr-3 h-5 w-5" />
-                AI Triathlon Coach
+                <span className="hidden sm:inline">AI Coach</span>
+                <span className="sm:hidden">Coach</span>
+              </Button>
+
+              <Button 
+                onClick={() => window.location.href = '/insights'} 
+                className="mobile-button bg-white/80 backdrop-blur-sm border border-purple-200 hover:bg-white text-purple-600 px-6 py-4 text-lg font-medium rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <TrendingUp className="mr-3 h-5 w-5" />
+                <span className="hidden sm:inline">Insights</span>
+                <span className="sm:hidden">Insights</span>
               </Button>
             </div>
             
