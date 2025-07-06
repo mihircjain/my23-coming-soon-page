@@ -926,6 +926,7 @@ export default function CoachNew() {
     if (activityText.includes('Run')) return 'Run';
     if (activityText.includes('Walk')) return 'Walk';
     if (activityText.includes('Swim')) return 'Swim';
+    if (activityText.includes('Zwift') || activityText.includes('Ride') || activityText.includes('Bike') || activityText.includes('Cycling')) return 'Ride';
     return 'Other';
   };
 
