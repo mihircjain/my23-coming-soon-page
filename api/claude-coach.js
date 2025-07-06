@@ -332,8 +332,44 @@ DAILY SLEEP DETAILS:${dailySleepDetails}`;
     sleepContext = '\n⚠️ Sleep data unavailable due to processing error';
   }
   
+  // Process activity data if available
+  let activityContext = '';
+  try {
+    if (analysis && analysis.recentActivities && analysis.recentActivities.length > 0) {
+      console.log('🏃 Processing activity data:', {
+        activityCount: analysis.recentActivities.length,
+        activityTypes: [...new Set(analysis.recentActivities.map(a => a.type))]
+      });
+      
+      const activityDetails = analysis.recentActivities.map(activity => {
+        const date = new Date(activity.date).toLocaleDateString();
+        const duration = Math.round(activity.moving_time / 60); // Convert to minutes
+        const pace = activity.type === 'Run' ? `${Math.round(1000 / activity.average_speed)} min/km` : 
+                    activity.type === 'VirtualRide' ? `${Math.round(activity.average_speed * 3.6)} km/h` : 'N/A';
+        
+        let activityText = `\n🏃 ${date} - ${activity.type}: ${activity.name}`;
+        activityText += `\n  • Distance: ${activity.distance.toFixed(1)} km`;
+        activityText += `\n  • Duration: ${duration} min`;
+        activityText += `\n  • Pace/Speed: ${pace}`;
+        activityText += `\n  • Heart Rate: ${activity.average_heartrate || 'N/A'} avg, ${activity.max_heartrate || 'N/A'} max`;
+        if (activity.total_elevation_gain > 0) {
+          activityText += `\n  • Elevation: ${activity.total_elevation_gain}m`;
+        }
+        
+        return activityText;
+      }).join('\n');
+
+      activityContext = `\n🏃 ACTIVITY DATA (${analysis.recentActivities.length} activities):${activityDetails}`;
+    } else {
+      console.log('⚠️ No activity data found in analysis object');
+    }
+  } catch (error) {
+    console.error('❌ Error processing activity data:', error);
+    activityContext = '\n⚠️ Activity data unavailable due to processing error';
+  }
+  
   const mcpContext = processedMcpResponses.join('\n');
-  const contextData = mcpContext + nutritionContext + sleepContext;
+  const contextData = mcpContext + activityContext + nutritionContext + sleepContext;
   
   // Build conversation context for follow-up questions
   let conversationContextStr = '';
