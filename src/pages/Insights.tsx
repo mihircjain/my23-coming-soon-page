@@ -22,7 +22,8 @@ import {
   Waves,
   Bike,
   Footprints,
-  Droplets
+  Droplets,
+  Brain
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 
@@ -104,6 +105,7 @@ export default function Insights() {
   const [alerts, setAlerts] = useState<InsightAlert[]>([]);
   const [trends, setTrends] = useState<TrendData[]>([]);
   const [goals, setGoals] = useState<GoalProgress[]>([]);
+  const [comprehensiveInsights, setComprehensiveInsights] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   // Real data fetching functions
@@ -377,20 +379,68 @@ export default function Insights() {
     };
   };
 
-  const generateInsightsWithLLM = async (metrics: any, stravaData: StravaActivity[], sleepData: OuraSleepData[], nutritionData: NutritionData[]) => {
+  const generateComprehensiveInsights = async (metrics: any, stravaData: StravaActivity[], sleepData: OuraSleepData[], nutritionData: NutritionData[]) => {
     try {
+      console.log('🧠 Generating comprehensive insights with Claude...');
+      
+      // Prepare detailed analysis data
+      const analysisData = {
+        metrics,
+        activities: stravaData.map(activity => ({
+          type: activity.type,
+          name: activity.name,
+          distance: activity.distance,
+          date: activity.start_date,
+          moving_time: activity.moving_time,
+          average_speed: activity.average_speed,
+          average_heartrate: activity.average_heartrate,
+          max_heartrate: activity.max_heartrate,
+          total_elevation_gain: activity.total_elevation_gain
+        })),
+        sleep: sleepData.map(sleep => ({
+          date: sleep.date,
+          sleep_score: sleep.sleep_score,
+          deep_sleep_duration: sleep.deep_sleep_duration,
+          rem_sleep_duration: sleep.rem_sleep_duration,
+          light_sleep_duration: sleep.light_sleep_duration,
+          total_sleep_duration: sleep.total_sleep_duration,
+          sleep_efficiency: sleep.sleep_efficiency,
+          bedtime_start: sleep.bedtime_start,
+          bedtime_end: sleep.bedtime_end
+        })),
+        nutrition: nutritionData.map(nutrition => ({
+          date: nutrition.date,
+          calories: nutrition.calories,
+          protein: nutrition.protein,
+          carbs: nutrition.carbs,
+          fat: nutrition.fat,
+          fiber: nutrition.fiber
+        }))
+      };
+
       const response = await fetch('/api/claude-coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate_response',
-          query: 'Generate proactive coaching insights based on my recent data',
-          analysis: {
-            metrics,
-            recentActivities: stravaData.slice(0, 10),
-            sleepData: sleepData.slice(0, 7),
-            nutritionData: nutritionData.slice(0, 7)
-          },
+          query: `Analyze my health data from the last 7 days and provide comprehensive insights. Focus on:
+
+1. **Sleep-Nutrition-Workout Relationships**: How did my sleep quality affect my workout performance and nutrition choices? Did poor sleep lead to different food choices or workout intensity?
+
+2. **Performance Patterns**: What patterns do you see in my workout performance? How did nutrition and sleep impact my running, cycling, and overall activity levels?
+
+3. **Recovery Analysis**: How well did I recover between workouts? Did my sleep and nutrition support proper recovery?
+
+4. **Today's Action Plan**: Based on the last 7 days, what should I focus on today? Consider:
+   - If I had poor sleep last night, what adjustments should I make?
+   - What nutrition should I prioritize today?
+   - What type of workout would be optimal?
+   - Any recovery strategies I should implement?
+
+5. **Weekly Trends**: What trends do you see that I should be aware of? Any concerning patterns or positive improvements?
+
+Please provide specific, actionable insights with clear recommendations for today.`,
+          analysis: analysisData,
           mcpResponses: [],
           conversationContext: []
         })
@@ -401,10 +451,10 @@ export default function Insights() {
       }
 
       const data = await response.json();
-      return data.response || 'Unable to generate insights at this time.';
+      return data.response || 'Unable to generate comprehensive insights at this time.';
     } catch (error) {
-      console.error('Error generating insights:', error);
-      return 'Unable to generate insights at this time.';
+      console.error('Error generating comprehensive insights:', error);
+      return 'Unable to generate comprehensive insights at this time. Please try again later.';
     }
   };
 
@@ -464,8 +514,9 @@ export default function Insights() {
       // Calculate metrics
       const calculatedMetrics = calculateMetrics(stravaData, sleepData, nutritionData);
       
-      // Generate insights with LLM
-      const insights = await generateInsightsWithLLM(calculatedMetrics, stravaData, sleepData, nutritionData);
+      // Generate comprehensive insights with LLM
+      const insights = await generateComprehensiveInsights(calculatedMetrics, stravaData, sleepData, nutritionData);
+      setComprehensiveInsights(insights);
 
       // Set metrics
       setMetrics([
@@ -752,6 +803,28 @@ export default function Insights() {
             </Card>
           ))}
         </div>
+
+        {/* Comprehensive AI Analysis */}
+        {comprehensiveInsights && (
+          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <Brain className="h-6 w-6 text-blue-600" />
+                AI Health Analysis - Last 7 Days
+              </CardTitle>
+              <CardDescription className="text-blue-700">
+                Comprehensive analysis of sleep, nutrition, and workout relationships with personalized recommendations for today.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="prose prose-sm max-w-none text-gray-800">
+                <div className="whitespace-pre-wrap leading-relaxed">
+                  {comprehensiveInsights}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Alerts & Recommendations */}
         {alerts.length > 0 && (
