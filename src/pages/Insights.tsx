@@ -196,18 +196,29 @@ export default function Insights() {
       const snapshot = await getDocs(nutritionQuery);
       const nutritionData: NutritionData[] = [];
       
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        nutritionData.push({
-          date: data.date,
-          calories: data.calories || 0,
-          protein: data.protein || 0,
-          carbs: data.carbs || 0,
-          fat: data.fat || 0,
-          fiber: data.fiber || 0
-        });
+      console.log('🍎 Raw Firestore nutrition data:', {
+        totalDocs: snapshot.size,
+        sampleDoc: snapshot.docs[0]?.data()
       });
       
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        // Handle the correct data structure with totals
+        const totals = data.totals || {};
+        const nutritionEntry = {
+          date: data.date,
+          calories: totals.calories || 0,
+          protein: totals.protein || 0,
+          carbs: totals.carbs || 0,
+          fat: totals.fat || 0,
+          fiber: totals.fiber || 0
+        };
+        nutritionData.push(nutritionEntry);
+        
+        console.log('🍎 Processed nutrition entry:', nutritionEntry);
+      });
+      
+      console.log('🍎 Final nutrition data:', nutritionData);
       return nutritionData;
     } catch (error) {
       console.error('Error fetching nutrition data:', error);
@@ -256,11 +267,20 @@ export default function Insights() {
       ? validNutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / validNutritionData.length 
       : 0;
     const proteinTarget = 151; // Daily protein target
-    const nutritionAdherence = Math.min((avgProtein / proteinTarget) * 100, 100);
+    
+    // Check if we have any real nutrition data (not all zeros)
+    const hasRealNutritionData = nutritionData.some(nutrition => 
+      nutrition.protein > 0 || nutrition.calories > 0 || nutrition.carbs > 0 || nutrition.fat > 0
+    );
+    
+    const nutritionAdherence = hasRealNutritionData 
+      ? Math.min((avgProtein / proteinTarget) * 100, 100)
+      : 0; // Show 0% when no real data
     
     console.log('🍎 Nutrition calculation:', {
       totalNutritionDays: nutritionData.length,
       validNutritionDays: validNutritionData.length,
+      hasRealNutritionData,
       avgProtein: `${avgProtein} g`,
       proteinTarget: `${proteinTarget} g`,
       nutritionAdherence: `${nutritionAdherence}%`,
