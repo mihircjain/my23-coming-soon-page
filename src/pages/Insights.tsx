@@ -223,11 +223,19 @@ export default function Insights() {
     });
 
     // Calculate weekly volume (all activities)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
     const lastWeekActivities = stravaData.filter(activity => {
       const activityDate = new Date(activity.start_date);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
       return activityDate >= weekAgo;
+    });
+    
+    console.log('📅 Date filtering:', {
+      totalActivities: stravaData.length,
+      lastWeekActivities: lastWeekActivities.length,
+      weekAgoDate: weekAgo.toISOString(),
+      today: new Date().toISOString()
     });
     
     console.log('📈 Last week activities:', lastWeekActivities.map(a => ({
@@ -328,12 +336,46 @@ export default function Insights() {
     setError(null);
     
     try {
+      console.log('🔄 Starting to load insights...');
+      
       // Fetch real data
       const [stravaData, sleepData, nutritionData] = await Promise.all([
         fetchStravaActivities(14),
         fetchOuraSleepData(7),
         fetchNutritionData(7)
       ]);
+
+      console.log('📊 Raw data received:', {
+        stravaActivities: stravaData.length,
+        sleepDays: sleepData.length,
+        nutritionDays: nutritionData.length
+      });
+
+      // Log sample data
+      if (stravaData.length > 0) {
+        console.log('🏃 Sample Strava activities:', stravaData.slice(0, 3).map(a => ({
+          type: a.type,
+          distance: a.distance,
+          date: a.start_date,
+          name: a.name
+        })));
+      }
+
+      if (sleepData.length > 0) {
+        console.log('😴 Sample sleep data:', sleepData.slice(0, 3).map(s => ({
+          date: s.date,
+          sleep_score: s.sleep_score,
+          total_sleep_duration: s.total_sleep_duration
+        })));
+      }
+
+      if (nutritionData.length > 0) {
+        console.log('🍎 Sample nutrition data:', nutritionData.slice(0, 3).map(n => ({
+          date: n.date,
+          protein: n.protein,
+          calories: n.calories
+        })));
+      }
 
       // Calculate metrics
       const calculatedMetrics = calculateMetrics(stravaData, sleepData, nutritionData);
@@ -474,6 +516,32 @@ export default function Insights() {
       const avgProtein = nutritionData.length > 0 
         ? nutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / nutritionData.length 
         : 0;
+      
+      console.log('🎯 Goals calculation:', {
+        runningActivities: runningActivities.length,
+        cyclingActivities: cyclingActivities.length,
+        swimmingActivities: swimmingActivities.length,
+        runningVolume: `${runningVolume} km`,
+        cyclingVolume: `${cyclingVolume} km`,
+        swimmingVolume: `${swimmingVolume} km`,
+        validSleepDays,
+        avgProtein: `${avgProtein} g`,
+        nutritionDataLength: nutritionData.length
+      });
+      
+      console.log('🏃 Running activities details:', runningActivities.map(a => ({
+        name: a.name,
+        type: a.type,
+        distance: a.distance,
+        date: a.start_date
+      })));
+      
+      console.log('🚴 Cycling activities details:', cyclingActivities.map(a => ({
+        name: a.name,
+        type: a.type,
+        distance: a.distance,
+        date: a.start_date
+      })));
       
       setGoals([
         {
