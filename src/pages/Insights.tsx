@@ -929,37 +929,56 @@ IMPORTANT INSTRUCTIONS:
 
   // Helper function to extract content for each section
   const extractSectionContent = (section: string, fullText: string) => {
+    console.log(`🔍 Extracting content for section: ${section}`);
+    console.log(`📄 Full text preview: ${fullText.substring(0, 200)}...`);
+    
     const lines = fullText.split(/\n/);
     const sectionLines: string[] = [];
     let inSection = false;
+    let sectionFound = false;
     
-    for (const line of lines) {
-      const lowerLine = line.toLowerCase();
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lowerLine = line.toLowerCase().trim();
       
-      // Check if we're entering the section
-      if (lowerLine.includes(section.toLowerCase()) && line.length > 5) {
+      // Check if we're entering the target section
+      if (!sectionFound && lowerLine.includes(section.toLowerCase()) && line.length > 5) {
+        console.log(`✅ Found section: ${line}`);
         inSection = true;
+        sectionFound = true;
         continue;
       }
       
-      // Check if we're entering a new section (stop here)
-      if (inSection && (
-        lowerLine.includes('nutrition') || 
-        lowerLine.includes('performance') || 
-        lowerLine.includes('recovery') || 
-        lowerLine.includes("today's") ||
-        lowerLine.includes('sleep') && !lowerLine.includes('sleep-')
-      )) {
-        break;
-      }
-      
-      // Add content lines
-      if (inSection && line.trim().length > 10 && !line.trim().startsWith('•')) {
-        sectionLines.push(line.trim());
+      // If we're in the section, check for content
+      if (inSection) {
+        // Stop if we hit another major section
+        if (lowerLine.includes('nutrition') && section !== 'nutrition' ||
+            lowerLine.includes('performance') && section !== 'performance' ||
+            lowerLine.includes('recovery') && section !== 'recovery' ||
+            lowerLine.includes("today's") && section !== "today's" ||
+            lowerLine.includes('sleep') && section !== 'sleep' && !lowerLine.includes('sleep-')) {
+          console.log(`🛑 Stopping at: ${line}`);
+          break;
+        }
+        
+        // Add meaningful content lines
+        if (line.trim().length > 10 && 
+            !line.trim().startsWith('•') && 
+            !line.trim().startsWith('-') &&
+            !lowerLine.includes('sleep impact') &&
+            !lowerLine.includes('nutrition impact') &&
+            !lowerLine.includes('performance patterns') &&
+            !lowerLine.includes('recovery analysis') &&
+            !lowerLine.includes("today's action plan")) {
+          sectionLines.push(line.trim());
+          console.log(`📝 Added line: ${line.trim()}`);
+        }
       }
     }
     
-    return sectionLines.join(' ');
+    const result = sectionLines.join(' ');
+    console.log(`📋 Extracted content for ${section}: ${result.substring(0, 100)}...`);
+    return result || `No specific ${section} content found. Check the full analysis for details.`;
   };
 
   const toggleSection = (section: string) => {
@@ -1083,7 +1102,11 @@ IMPORTANT INSTRUCTIONS:
                 {expandedSections.has('sleep') && (
                   <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                     <div className="text-xs text-gray-700 whitespace-pre-wrap">
-                      {extractSectionContent('sleep', comprehensiveInsights)}
+                      {(() => {
+                        const content = extractSectionContent('sleep', comprehensiveInsights);
+                        console.log('🔍 Sleep expanded content:', content);
+                        return content.length > 50 ? content : 'Sleep analysis content will appear here. Check console for debugging info.';
+                      })()}
                     </div>
                   </div>
                 )}
