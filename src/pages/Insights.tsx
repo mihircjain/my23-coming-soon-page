@@ -537,34 +537,35 @@ export default function Insights() {
       setTrends(trends);
 
       // Set goals based on calculated metrics data
+      const goalsData = (calculatedMetrics as any).goals || {};
       setGoals([
         {
           title: 'Weekly Running',
-          current: Math.round(runningVolume),
+          current: Math.round(goalsData.runningVolume || 0),
           target: 40,
           unit: 'km',
-          progress: Math.min((runningVolume / 40) * 100, 100)
+          progress: Math.min(((goalsData.runningVolume || 0) / 40) * 100, 100)
         },
         {
           title: 'Cycling Volume',
-          current: Math.round(cyclingVolume),
+          current: Math.round(goalsData.cyclingVolume || 0),
           target: 100,
           unit: 'km',
-          progress: Math.min((cyclingVolume / 100) * 100, 100)
+          progress: Math.min(((goalsData.cyclingVolume || 0) / 100) * 100, 100)
         },
         {
           title: 'Sleep Consistency',
-          current: validSleepDays,
+          current: goalsData.validSleepDays || 0,
           target: 7,
           unit: 'days',
-          progress: (validSleepDays / 7) * 100
+          progress: ((goalsData.validSleepDays || 0) / 7) * 100
         },
         {
           title: 'Protein Target',
-          current: Math.round(avgProtein),
+          current: Math.round(goalsData.avgProtein || 0),
           target: 151,
           unit: 'g/day',
-          progress: Math.min((avgProtein / 151) * 100, 100)
+          progress: Math.min(((goalsData.avgProtein || 0) / 151) * 100, 100)
         }
       ]);
 
