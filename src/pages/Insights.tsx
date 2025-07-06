@@ -23,7 +23,9 @@ import {
   Bike,
   Footprints,
   Droplets,
-  Brain
+  Brain,
+  LineChart,
+  PieChart
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 
@@ -107,6 +109,10 @@ export default function Insights() {
   const [goals, setGoals] = useState<GoalProgress[]>([]);
   const [comprehensiveInsights, setComprehensiveInsights] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [showCharts, setShowCharts] = useState(false);
+  const [stravaData, setStravaData] = useState<StravaActivity[]>([]);
+  const [sleepData, setSleepData] = useState<OuraSleepData[]>([]);
+  const [nutritionData, setNutritionData] = useState<NutritionData[]>([]);
 
   // Real data fetching functions
   const fetchStravaActivities = async (days: number = 14): Promise<StravaActivity[]> => {
@@ -568,6 +574,11 @@ IMPORTANT INSTRUCTIONS:
         fetchNutritionData(10)
       ]);
 
+      // Store data for charts
+      setStravaData(stravaData);
+      setSleepData(sleepData);
+      setNutritionData(nutritionData);
+
       console.log('📊 Raw data received:', {
         stravaActivities: stravaData.length,
         sleepDays: sleepData.length,
@@ -819,6 +830,98 @@ IMPORTANT INSTRUCTIONS:
     }
   };
 
+  // Simple chart component for activity distribution
+  const ActivityDistributionChart = ({ activities }: { activities: StravaActivity[] }) => {
+    const activityTypes = activities.reduce((acc, activity) => {
+      acc[activity.type] = (acc[activity.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const total = Object.values(activityTypes).reduce((sum, count) => sum + count, 0);
+
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium">Activity Distribution (Last 10 Days)</h4>
+        {Object.entries(activityTypes).map(([type, count]) => {
+          const percentage = ((count / total) * 100).toFixed(1);
+          return (
+            <div key={type} className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 min-w-[80px]">
+                {getSportIcon(type)}
+                <span className="text-sm font-medium">{type}</span>
+              </div>
+              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+              <span className="text-sm text-gray-600 min-w-[40px]">{percentage}%</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Sleep quality trend chart
+  const SleepQualityChart = ({ sleepData }: { sleepData: OuraSleepData[] }) => {
+    const recentData = sleepData.slice(0, 7).reverse(); // Last 7 days
+    
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium">Sleep Quality Trend (Last 7 Days)</h4>
+        <div className="flex items-end space-x-1 h-32">
+          {recentData.map((day, index) => {
+            const height = (day.sleep_score / 100) * 100; // Convert score to percentage height
+            const date = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            return (
+              <div key={index} className="flex-1 flex flex-col items-center space-y-1">
+                <div 
+                  className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t transition-all duration-300"
+                  style={{ height: `${height}%` }}
+                />
+                <span className="text-xs text-gray-600">{date}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Nutrition adherence chart
+  const NutritionAdherenceChart = ({ nutritionData }: { nutritionData: NutritionData[] }) => {
+    const recentData = nutritionData.slice(0, 7).reverse(); // Last 7 days
+    const targetCalories = 2500; // Example target
+    
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium">Daily Calorie Intake (Last 7 Days)</h4>
+        <div className="flex items-end space-x-1 h-32">
+          {recentData.map((day, index) => {
+            const height = Math.min((day.calories / targetCalories) * 100, 100); // Cap at 100%
+            const date = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const isOnTarget = day.calories >= targetCalories * 0.9; // Within 10% of target
+            
+            return (
+              <div key={index} className="flex-1 flex flex-col items-center space-y-1">
+                <div 
+                  className={`w-full rounded-t transition-all duration-300 ${
+                    isOnTarget ? 'bg-gradient-to-t from-green-500 to-green-300' : 'bg-gradient-to-t from-orange-500 to-orange-300'
+                  }`}
+                  style={{ height: `${height}%` }}
+                />
+                <span className="text-xs text-gray-600">{date}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const handleRefresh = () => {
     loadInsights();
   };
@@ -906,7 +1009,7 @@ IMPORTANT INSTRUCTIONS:
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-900">
                 <Brain className="h-6 w-6 text-blue-600" />
-                AI Health Analysis - Last 7 Days
+                AI Health Analysis - Last 10 Days
               </CardTitle>
               <CardDescription className="text-blue-700">
                 Comprehensive analysis of sleep, nutrition, and workout relationships with personalized recommendations for today.
@@ -920,6 +1023,53 @@ IMPORTANT INSTRUCTIONS:
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Visual Charts */}
+        {(stravaData.length > 0 || sleepData.length > 0 || nutritionData.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {stravaData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-blue-600" />
+                    Activity Overview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ActivityDistributionChart activities={stravaData} />
+                </CardContent>
+              </Card>
+            )}
+            
+            {sleepData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <LineChart className="h-5 w-5 text-indigo-600" />
+                    Sleep Trends
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <SleepQualityChart sleepData={sleepData} />
+                </CardContent>
+              </Card>
+            )}
+            
+            {nutritionData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChart className="h-5 w-5 text-green-600" />
+                    Nutrition Tracking
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <NutritionAdherenceChart nutritionData={nutritionData} />
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
 
         {/* Alerts & Recommendations */}
