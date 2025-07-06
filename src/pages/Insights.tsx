@@ -266,6 +266,13 @@ export default function Insights() {
     const proteinTarget = 151; // Daily protein target
     const nutritionAdherence = Math.min((avgProtein / proteinTarget) * 100, 100);
     
+    // Calculate goals data using the same filtered activities
+    const runningVolume = lastWeekActivities.filter(activity => activity.type === 'Run').reduce((total, activity) => total + activity.distance, 0);
+    const cyclingVolume = lastWeekActivities.filter(activity => activity.type === 'Ride').reduce((total, activity) => total + activity.distance, 0);
+    const swimmingVolume = lastWeekActivities.filter(activity => activity.type === 'Swim').reduce((total, activity) => total + activity.distance, 0);
+    
+    const validSleepDays = sleepData.filter(sleep => sleep.sleep_score > 70).length;
+    
     // Calculate trends (compare to previous week)
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
@@ -297,7 +304,29 @@ export default function Insights() {
       validNutritionDays: validNutritionData.length
     });
     
-    return metrics;
+    console.log('🎯 Goals calculation (using lastWeekActivities):', {
+      totalLastWeekActivities: lastWeekActivities.length,
+      runningActivities: lastWeekActivities.filter(a => a.type === 'Run').length,
+      cyclingActivities: lastWeekActivities.filter(a => a.type === 'Ride').length,
+      swimmingActivities: lastWeekActivities.filter(a => a.type === 'Swim').length,
+      runningVolume: `${runningVolume} km`,
+      cyclingVolume: `${cyclingVolume} km`,
+      swimmingVolume: `${swimmingVolume} km`,
+      validSleepDays,
+      avgProtein: `${avgProtein} g`,
+      nutritionDataLength: nutritionData.length
+    });
+    
+    return {
+      ...metrics,
+      goals: {
+        runningVolume,
+        cyclingVolume,
+        swimmingVolume,
+        validSleepDays,
+        avgProtein
+      }
+    };
   };
 
   const generateInsightsWithLLM = async (metrics: any, stravaData: StravaActivity[], sleepData: OuraSleepData[], nutritionData: NutritionData[]) => {
@@ -338,9 +367,9 @@ export default function Insights() {
     try {
       console.log('🔄 Starting to load insights...');
       
-      // Fetch real data
+      // Fetch real data - use 7 days for consistency
       const [stravaData, sleepData, nutritionData] = await Promise.all([
-        fetchStravaActivities(14),
+        fetchStravaActivities(7), // Changed from 14 to 7 days
         fetchOuraSleepData(7),
         fetchNutritionData(7)
       ]);
@@ -507,42 +536,7 @@ export default function Insights() {
 
       setTrends(trends);
 
-      // Set goals based on actual data
-      const runningVolume = runningActivities.reduce((total, activity) => total + activity.distance, 0);
-      const cyclingVolume = cyclingActivities.reduce((total, activity) => total + activity.distance, 0);
-      const swimmingVolume = swimmingActivities.reduce((total, activity) => total + activity.distance, 0);
-      
-      const validSleepDays = sleepData.filter(sleep => sleep.sleep_score > 70).length;
-      const avgProtein = nutritionData.length > 0 
-        ? nutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / nutritionData.length 
-        : 0;
-      
-      console.log('🎯 Goals calculation:', {
-        runningActivities: runningActivities.length,
-        cyclingActivities: cyclingActivities.length,
-        swimmingActivities: swimmingActivities.length,
-        runningVolume: `${runningVolume} km`,
-        cyclingVolume: `${cyclingVolume} km`,
-        swimmingVolume: `${swimmingVolume} km`,
-        validSleepDays,
-        avgProtein: `${avgProtein} g`,
-        nutritionDataLength: nutritionData.length
-      });
-      
-      console.log('🏃 Running activities details:', runningActivities.map(a => ({
-        name: a.name,
-        type: a.type,
-        distance: a.distance,
-        date: a.start_date
-      })));
-      
-      console.log('🚴 Cycling activities details:', cyclingActivities.map(a => ({
-        name: a.name,
-        type: a.type,
-        distance: a.distance,
-        date: a.start_date
-      })));
-      
+      // Set goals based on calculated metrics data
       setGoals([
         {
           title: 'Weekly Running',
