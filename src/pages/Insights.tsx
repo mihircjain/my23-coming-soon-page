@@ -411,22 +411,23 @@ export default function Insights() {
         }))
       };
 
+      // Convert sleep durations from seconds to hours for better readability
       const transformedSleepData = {
         totalDays: sleepData.length,
         averages: {
-          sleepDuration: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.total_sleep_duration, 0) / sleepData.length : 0,
+          sleepDuration: sleepData.length > 0 ? (sleepData.reduce((sum, s) => sum + s.total_sleep_duration, 0) / sleepData.length) / 3600 : 0,
           sleepScore: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.sleep_score, 0) / sleepData.length : 0,
-          deepSleep: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.deep_sleep_duration, 0) / sleepData.length : 0,
-          remSleep: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.rem_sleep_duration, 0) / sleepData.length : 0,
-          lightSleep: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.light_sleep_duration, 0) / sleepData.length : 0
+          deepSleep: sleepData.length > 0 ? (sleepData.reduce((sum, s) => sum + s.deep_sleep_duration, 0) / sleepData.length) / 3600 : 0,
+          remSleep: sleepData.length > 0 ? (sleepData.reduce((sum, s) => sum + s.rem_sleep_duration, 0) / sleepData.length) / 3600 : 0,
+          lightSleep: sleepData.length > 0 ? (sleepData.reduce((sum, s) => sum + s.light_sleep_duration, 0) / sleepData.length) / 3600 : 0
         },
         dailyLogs: sleepData.map(sleep => ({
           date: sleep.date,
-          sleepDuration: sleep.total_sleep_duration,
+          sleepDuration: sleep.total_sleep_duration / 3600, // Convert to hours
           sleepScore: sleep.sleep_score,
-          deepSleep: sleep.deep_sleep_duration,
-          remSleep: sleep.rem_sleep_duration,
-          lightSleep: sleep.light_sleep_duration,
+          deepSleep: sleep.deep_sleep_duration / 3600, // Convert to hours
+          remSleep: sleep.rem_sleep_duration / 3600, // Convert to hours
+          lightSleep: sleep.light_sleep_duration / 3600, // Convert to hours
           sleepEfficiency: sleep.sleep_efficiency,
           bedtimeStart: sleep.bedtime_start,
           bedtimeEnd: sleep.bedtime_end
@@ -476,11 +477,23 @@ export default function Insights() {
           action: 'generate_response',
           query: `Analyze my health data from the last 7 days and provide comprehensive insights. Focus on:
 
-1. **Sleep-Nutrition-Workout Relationships**: How did my sleep quality affect my workout performance and nutrition choices? Did poor sleep lead to different food choices or workout intensity?
+1. **Sleep-Nutrition-Workout Relationships**: 
+   - How did my sleep quality affect my workout performance the next day?
+   - Did poor sleep lead to different food choices or workout intensity?
+   - Analyze specific correlations: "On July 5th, you had poor sleep (69 score) - how did this affect your July 6th Zwift FTP test?"
+   - Look at nutrition timing around workouts
 
-2. **Performance Patterns**: What patterns do you see in my workout performance? How did nutrition and sleep impact my running, cycling, and overall activity levels?
+2. **Performance Patterns**: 
+   - Analyze my specific activities: Zwift cycling (VirtualRide), running, and swimming
+   - How did nutrition and sleep impact each workout type?
+   - Compare performance metrics (heart rate, pace, distance) with sleep/nutrition data
+   - Identify patterns in workout timing and sleep quality
 
-3. **Recovery Analysis**: How well did I recover between workouts? Did my sleep and nutrition support proper recovery?
+3. **Recovery Analysis**: 
+   - How well did I recover between workouts?
+   - Did my sleep and nutrition support proper recovery?
+   - Analyze recovery between consecutive workout days
+   - Look at sleep quality after intense sessions
 
 4. **Today's Action Plan**: Based on the last 7 days, what should I focus on today? Consider:
    - If I had poor sleep last night, what adjustments should I make?
@@ -488,9 +501,12 @@ export default function Insights() {
    - What type of workout would be optimal?
    - Any recovery strategies I should implement?
 
-5. **Weekly Trends**: What trends do you see that I should be aware of? Any concerning patterns or positive improvements?
+5. **Weekly Trends**: 
+   - What trends do you see that I should be aware of?
+   - Any concerning patterns or positive improvements?
+   - Sport-specific trends (running vs cycling vs swimming)
 
-Please provide specific, actionable insights with clear recommendations for today.`,
+IMPORTANT: Use the actual activity data provided. Reference specific dates, workout types, and performance metrics. Don't make generic statements - provide concrete analysis based on the data.`,
           analysis: {
             metrics: analysisData.metrics,
             recentActivities: analysisData.activities,
