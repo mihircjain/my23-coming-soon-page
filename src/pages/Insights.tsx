@@ -24,6 +24,7 @@ import {
   Footprints,
   Droplets
 } from 'lucide-react';
+import { db } from '@/lib/firebase';
 
 interface MetricCard {
   title: string;
@@ -108,51 +109,29 @@ export default function Insights() {
   // Real data fetching functions
   const fetchStravaActivities = async (days: number = 14): Promise<StravaActivity[]> => {
     try {
-      const response = await fetch('/api/claude-coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'mcp_call',
-          endpoint: 'get-recent-activities',
-          params: { per_page: days * 2 } // Assume 2 activities per day on average
-        })
-      });
-
+      // Use direct Strava API instead of MCP
+      const response = await fetch(`/api/strava?userId=mihir_jain&days=${days}&mode=cached`);
+      
       if (!response.ok) {
         throw new Error(`Strava API error: ${response.status}`);
       }
 
-      const data = await response.json();
-      const activitiesText = data.result?.content?.map((item: any) => item.text).join('\n') || '';
+      const activities = await response.json();
       
-      // Parse activities from text format
-      const activities: StravaActivity[] = [];
-      const lines = activitiesText.split('\n');
-      
-      for (const line of lines) {
-        const idMatch = line.match(/ID:\s*(\d+)/);
-        const distanceMatch = line.match(/—\s*([\d.]+)m/);
-        const dateMatch = line.match(/on\s*(\d+\/\d+\/\d+)/);
-        
-        if (idMatch && distanceMatch) {
-          const type = extractActivityType(line);
-          const distance = parseFloat(distanceMatch[1]) / 1000; // Convert to km
-          
-          activities.push({
-            id: idMatch[1],
-            name: line.split('(')[0].trim(),
-            type,
-            distance,
-            moving_time: 0, // Will be calculated if needed
-            start_date: dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString(),
-            average_speed: 0,
-            max_speed: 0,
-            total_elevation_gain: 0
-          });
-        }
-      }
-      
-      return activities;
+      // Transform to match our interface
+      return activities.map((activity: any) => ({
+        id: activity.id,
+        name: activity.name,
+        type: activity.type,
+        distance: activity.distance,
+        moving_time: activity.moving_time,
+        start_date: activity.start_date,
+        average_speed: activity.average_speed,
+        max_speed: activity.max_speed,
+        average_heartrate: activity.average_heartrate,
+        max_heartrate: activity.max_heartrate,
+        total_elevation_gain: activity.total_elevation_gain
+      }));
     } catch (error) {
       console.error('Error fetching Strava activities:', error);
       return [];
@@ -161,24 +140,30 @@ export default function Insights() {
 
   const fetchOuraSleepData = async (days: number = 7): Promise<OuraSleepData[]> => {
     try {
-      // Mock Oura data for now - replace with real API call
-      const mockSleepData: OuraSleepData[] = [];
-      for (let i = 0; i < days; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        mockSleepData.push({
-          date: date.toISOString().split('T')[0],
-          sleep_score: 75 + Math.random() * 20,
-          deep_sleep_duration: 60 + Math.random() * 60,
-          rem_sleep_duration: 90 + Math.random() * 60,
-          light_sleep_duration: 180 + Math.random() * 120,
-          total_sleep_duration: 420 + Math.random() * 120,
-          sleep_efficiency: 80 + Math.random() * 15,
-          bedtime_start: '22:00',
-          bedtime_end: '06:00'
-        });
+      // Fetch real sleep data from Firestore
+      const response = await fetch(`/api/oura-sleep?userId=mihir_jain&mode=cached&days=${days}`);
+      
+      if (!response.ok) {
+        throw new Error(`Oura API error: ${response.status}`);
       }
-      return mockSleepData;
+
+      const sleepData = await response.json();
+      
+      // Transform to match our interface
+      return sleepData.map((day: any) => {
+        const sleep = day.sleep || {};
+        return {
+          date: day.date,
+          sleep_score: sleep.sleep_score || 0,
+          deep_sleep_duration: sleep.deep_sleep_duration || 0,
+          rem_sleep_duration: sleep.rem_sleep_duration || 0,
+          light_sleep_duration: sleep.light_sleep_duration || 0,
+          total_sleep_duration: sleep.total_sleep_duration || 0,
+          sleep_efficiency: sleep.sleep_efficiency || 0,
+          bedtime_start: sleep.bedtime_start || '',
+          bedtime_end: sleep.bedtime_end || ''
+        };
+      });
     } catch (error) {
       console.error('Error fetching Oura sleep data:', error);
       return [];
@@ -187,34 +172,41 @@ export default function Insights() {
 
   const fetchNutritionData = async (days: number = 7): Promise<NutritionData[]> => {
     try {
-      // Mock nutrition data for now - replace with real API call
-      const mockNutritionData: NutritionData[] = [];
-      for (let i = 0; i < days; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        mockNutritionData.push({
-          date: date.toISOString().split('T')[0],
-          calories: 2000 + Math.random() * 500,
-          protein: 120 + Math.random() * 40,
-          carbs: 200 + Math.random() * 100,
-          fat: 70 + Math.random() * 30,
-          fiber: 25 + Math.random() * 15
+      // Fetch real nutrition data from Firestore
+      const { collection, query, where, orderBy, limit, getDocs } = await import('firebase/firestore');
+      
+      // Get the last N days
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - days);
+      const startDate = daysAgo.toISOString().split('T')[0];
+      
+      const nutritionQuery = query(
+        collection(db, "nutritionLogs"),
+        where("date", ">=", startDate),
+        orderBy("date", "desc"),
+        limit(days)
+      );
+      
+      const snapshot = await getDocs(nutritionQuery);
+      const nutritionData: NutritionData[] = [];
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        nutritionData.push({
+          date: data.date,
+          calories: data.calories || 0,
+          protein: data.protein || 0,
+          carbs: data.carbs || 0,
+          fat: data.fat || 0,
+          fiber: data.fiber || 0
         });
-      }
-      return mockNutritionData;
+      });
+      
+      return nutritionData;
     } catch (error) {
       console.error('Error fetching nutrition data:', error);
       return [];
     }
-  };
-
-  const extractActivityType = (activityText: string): string => {
-    if (activityText.includes('Weight Training')) return 'Weight Training';
-    if (activityText.includes('Run')) return 'Run';
-    if (activityText.includes('Walk')) return 'Walk';
-    if (activityText.includes('Swim')) return 'Swim';
-    if (activityText.includes('Zwift') || activityText.includes('Ride') || activityText.includes('Bike') || activityText.includes('Cycling')) return 'Ride';
-    return 'Other';
   };
 
   const calculateMetrics = (stravaData: StravaActivity[], sleepData: OuraSleepData[], nutritionData: NutritionData[]) => {
@@ -270,14 +262,16 @@ export default function Insights() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'generate_insights',
-          query: 'Generate proactive coaching insights',
+          action: 'generate_response',
+          query: 'Generate proactive coaching insights based on my recent data',
           analysis: {
             metrics,
             recentActivities: stravaData.slice(0, 10),
             sleepData: sleepData.slice(0, 7),
             nutritionData: nutritionData.slice(0, 7)
-          }
+          },
+          mcpResponses: [],
+          conversationContext: []
         })
       });
 
