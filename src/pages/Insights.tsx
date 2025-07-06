@@ -140,8 +140,14 @@ export default function Insights() {
 
   const fetchOuraSleepData = async (days: number = 7): Promise<OuraSleepData[]> => {
     try {
-      // Fetch real sleep data from Firestore
-      const response = await fetch(`/api/oura-sleep?userId=mihir_jain&mode=cached&days=${days}`);
+      // First try cached data
+      let response = await fetch(`/api/oura-sleep?userId=mihir_jain&mode=cached&days=${days}`);
+      
+      // If no cached data (404), try to fetch fresh data
+      if (response.status === 404) {
+        console.log('No cached sleep data, fetching fresh data...');
+        response = await fetch(`/api/oura-sleep?userId=mihir_jain&mode=refresh&days=${days}`);
+      }
       
       if (!response.ok) {
         throw new Error(`Oura API error: ${response.status}`);
@@ -210,13 +216,25 @@ export default function Insights() {
   };
 
   const calculateMetrics = (stravaData: StravaActivity[], sleepData: OuraSleepData[], nutritionData: NutritionData[]) => {
-    // Calculate weekly volume
+    console.log('📊 Calculating metrics with:', {
+      stravaActivities: stravaData.length,
+      sleepDays: sleepData.length,
+      nutritionDays: nutritionData.length
+    });
+
+    // Calculate weekly volume (all activities)
     const lastWeekActivities = stravaData.filter(activity => {
       const activityDate = new Date(activity.start_date);
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       return activityDate >= weekAgo;
     });
+    
+    console.log('📈 Last week activities:', lastWeekActivities.map(a => ({
+      type: a.type,
+      distance: a.distance,
+      date: a.start_date
+    })));
     
     const weeklyVolume = lastWeekActivities.reduce((total, activity) => total + activity.distance, 0);
     
@@ -227,10 +245,16 @@ export default function Insights() {
     const consistencyScore = (uniqueDays.size / 7) * 100;
     
     // Calculate recovery balance (average sleep score)
-    const avgSleepScore = sleepData.reduce((total, sleep) => total + sleep.sleep_score, 0) / sleepData.length;
+    const validSleepData = sleepData.filter(sleep => sleep.sleep_score > 0);
+    const avgSleepScore = validSleepData.length > 0 
+      ? validSleepData.reduce((total, sleep) => total + sleep.sleep_score, 0) / validSleepData.length 
+      : 0;
     
     // Calculate nutrition adherence (protein target met)
-    const avgProtein = nutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / nutritionData.length;
+    const validNutritionData = nutritionData.filter(nutrition => nutrition.protein > 0);
+    const avgProtein = validNutritionData.length > 0 
+      ? validNutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / validNutritionData.length 
+      : 0;
     const proteinTarget = 151; // Daily protein target
     const nutritionAdherence = Math.min((avgProtein / proteinTarget) * 100, 100);
     
@@ -247,13 +271,25 @@ export default function Insights() {
     const previousWeeklyVolume = previousWeekActivities.reduce((total, activity) => total + activity.distance, 0);
     const volumeChange = previousWeeklyVolume > 0 ? ((weeklyVolume - previousWeeklyVolume) / previousWeeklyVolume) * 100 : 0;
     
-    return {
+    const metrics = {
       weeklyVolume,
       consistencyScore,
       avgSleepScore,
       nutritionAdherence,
       volumeChange
     };
+
+    console.log('📊 Calculated metrics:', {
+      weeklyVolume: `${weeklyVolume} km`,
+      consistencyScore: `${consistencyScore}%`,
+      avgSleepScore: `${avgSleepScore}%`,
+      nutritionAdherence: `${nutritionAdherence}%`,
+      volumeChange: `${volumeChange}%`,
+      validSleepDays: validSleepData.length,
+      validNutritionDays: validNutritionData.length
+    });
+    
+    return metrics;
   };
 
   const generateInsightsWithLLM = async (metrics: any, stravaData: StravaActivity[], sleepData: OuraSleepData[], nutritionData: NutritionData[]) => {
@@ -392,8 +428,12 @@ export default function Insights() {
       // Calculate trends
       const trends: TrendData[] = [];
       
-      // Running trend
+      // Get activity breakdown for trends and goals
       const runningActivities = stravaData.filter(activity => activity.type === 'Run');
+      const cyclingActivities = stravaData.filter(activity => activity.type === 'Ride');
+      const swimmingActivities = stravaData.filter(activity => activity.type === 'Swim');
+      
+      // Running trend
       if (runningActivities.length > 0) {
         const recentRuns = runningActivities.slice(0, 5);
         const avgPace = recentRuns.reduce((total, run) => total + (run.distance / (run.moving_time / 3600)), 0) / recentRuns.length;
@@ -426,34 +466,43 @@ export default function Insights() {
       setTrends(trends);
 
       // Set goals based on actual data
+      const runningVolume = runningActivities.reduce((total, activity) => total + activity.distance, 0);
+      const cyclingVolume = cyclingActivities.reduce((total, activity) => total + activity.distance, 0);
+      const swimmingVolume = swimmingActivities.reduce((total, activity) => total + activity.distance, 0);
+      
+      const validSleepDays = sleepData.filter(sleep => sleep.sleep_score > 70).length;
+      const avgProtein = nutritionData.length > 0 
+        ? nutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / nutritionData.length 
+        : 0;
+      
       setGoals([
         {
           title: 'Weekly Running',
-          current: Math.round(runningActivities.reduce((total, activity) => total + activity.distance, 0)),
+          current: Math.round(runningVolume),
           target: 40,
           unit: 'km',
-          progress: Math.min((runningActivities.reduce((total, activity) => total + activity.distance, 0) / 40) * 100, 100)
+          progress: Math.min((runningVolume / 40) * 100, 100)
         },
         {
           title: 'Cycling Volume',
-          current: Math.round(stravaData.filter(activity => activity.type === 'Ride').reduce((total, activity) => total + activity.distance, 0)),
+          current: Math.round(cyclingVolume),
           target: 100,
           unit: 'km',
-          progress: Math.min((stravaData.filter(activity => activity.type === 'Ride').reduce((total, activity) => total + activity.distance, 0) / 100) * 100, 100)
+          progress: Math.min((cyclingVolume / 100) * 100, 100)
         },
         {
           title: 'Sleep Consistency',
-          current: sleepData.filter(sleep => sleep.sleep_score > 70).length,
+          current: validSleepDays,
           target: 7,
           unit: 'days',
-          progress: (sleepData.filter(sleep => sleep.sleep_score > 70).length / 7) * 100
+          progress: (validSleepDays / 7) * 100
         },
         {
           title: 'Protein Target',
-          current: Math.round(nutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / nutritionData.length),
+          current: Math.round(avgProtein),
           target: 151,
           unit: 'g/day',
-          progress: Math.min((nutritionData.reduce((total, nutrition) => total + nutrition.protein, 0) / nutritionData.length / 151) * 100, 100)
+          progress: Math.min((avgProtein / 151) * 100, 100)
         }
       ]);
 
