@@ -124,10 +124,10 @@ function combineOuraData(sleepPeriods, dailySleep, readinessData) {
       sleep: {
         id: sleep.id,
         sleep_score: null, // Will be filled from daily_sleep
-        total_sleep_duration: sleep.total_sleep_duration || 0, // Already in seconds
-        deep_sleep_duration: sleep.deep_sleep_duration || 0,   // Already in seconds
-        light_sleep_duration: sleep.light_sleep_duration || 0, // Already in seconds
-        rem_sleep_duration: sleep.rem_sleep_duration || 0,     // Already in seconds
+        total_sleep_duration: (sleep.total_sleep_duration || 0) / 3600, // Convert to hours
+        deep_sleep_duration: (sleep.deep_sleep_duration || 0) / 3600,   // Convert to hours
+        light_sleep_duration: (sleep.light_sleep_duration || 0) / 3600, // Convert to hours
+        rem_sleep_duration: (sleep.rem_sleep_duration || 0) / 3600,     // Convert to hours
         awake_time: sleep.awake_time || 0,                     // Already in seconds
         sleep_efficiency: sleep.efficiency || 0,
         sleep_latency: sleep.latency || 0,                     // Already in seconds

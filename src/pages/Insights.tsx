@@ -82,10 +82,10 @@ interface StravaActivity {
 interface OuraSleepData {
   date: string;
   sleep_score: number;
-  deep_sleep_duration: number;
-  rem_sleep_duration: number;
-  light_sleep_duration: number;
-  total_sleep_duration: number;
+  deep_sleep_duration: number; // in hours
+  rem_sleep_duration: number; // in hours
+  light_sleep_duration: number; // in hours
+  total_sleep_duration: number; // in hours
   sleep_efficiency: number;
   bedtime_start: string;
   bedtime_end: string;
@@ -1016,14 +1016,23 @@ IMPORTANT INSTRUCTIONS:
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
-                  {comprehensiveInsights.includes('Sleep-Workout Correlations') && (
-                    <div>
-                      <h4 className="font-medium text-blue-900 mb-1">Sleep-Workout Correlations</h4>
-                      <p className="text-gray-600 leading-relaxed">
-                        {comprehensiveInsights.split('Sleep-Workout Correlations')[1]?.split('Nutrition-Workout Analysis')[0]?.substring(0, 200)}...
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <h4 className="font-medium text-blue-900 mb-1">Sleep Analysis</h4>
+                    <p className="text-gray-600 leading-relaxed">
+                      {(() => {
+                        const text = comprehensiveInsights.toLowerCase();
+                        if (text.includes('sleep')) {
+                          const sleepSection = comprehensiveInsights.split(/\n/).find(line => 
+                            line.toLowerCase().includes('sleep') && line.length > 20
+                          );
+                          if (sleepSection) {
+                            return sleepSection.substring(0, 150) + '...';
+                          }
+                        }
+                        return 'Analyzing sleep patterns and their impact on performance...';
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1038,14 +1047,23 @@ IMPORTANT INSTRUCTIONS:
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
-                  {comprehensiveInsights.includes('Nutrition-Workout Analysis') && (
-                    <div>
-                      <h4 className="font-medium text-green-900 mb-1">Nutrition-Workout Analysis</h4>
-                      <p className="text-gray-600 leading-relaxed">
-                        {comprehensiveInsights.split('Nutrition-Workout Analysis')[1]?.split('Performance Patterns')[0]?.substring(0, 200)}...
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <h4 className="font-medium text-green-900 mb-1">Nutrition Analysis</h4>
+                    <p className="text-gray-600 leading-relaxed">
+                      {(() => {
+                        const text = comprehensiveInsights.toLowerCase();
+                        if (text.includes('nutrition') || text.includes('calories') || text.includes('protein')) {
+                          const nutritionSection = comprehensiveInsights.split(/\n/).find(line => 
+                            (line.toLowerCase().includes('nutrition') || line.toLowerCase().includes('calories') || line.toLowerCase().includes('protein')) && line.length > 20
+                          );
+                          if (nutritionSection) {
+                            return nutritionSection.substring(0, 150) + '...';
+                          }
+                        }
+                        return 'Analyzing nutrition patterns and their impact on performance...';
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1060,14 +1078,23 @@ IMPORTANT INSTRUCTIONS:
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
-                  {comprehensiveInsights.includes('Performance Patterns') && (
-                    <div>
-                      <h4 className="font-medium text-purple-900 mb-1">Performance Patterns</h4>
-                      <p className="text-gray-600 leading-relaxed">
-                        {comprehensiveInsights.split('Performance Patterns')[1]?.split('Recovery Analysis')[0]?.substring(0, 200)}...
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <h4 className="font-medium text-purple-900 mb-1">Performance Analysis</h4>
+                    <p className="text-gray-600 leading-relaxed">
+                      {(() => {
+                        const text = comprehensiveInsights.toLowerCase();
+                        if (text.includes('performance') || text.includes('running') || text.includes('cycling') || text.includes('swimming')) {
+                          const performanceSection = comprehensiveInsights.split(/\n/).find(line => 
+                            (line.toLowerCase().includes('performance') || line.toLowerCase().includes('running') || line.toLowerCase().includes('cycling') || line.toLowerCase().includes('swimming')) && line.length > 20
+                          );
+                          if (performanceSection) {
+                            return performanceSection.substring(0, 150) + '...';
+                          }
+                        }
+                        return 'Analyzing performance patterns and trends...';
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1082,14 +1109,23 @@ IMPORTANT INSTRUCTIONS:
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
-                  {comprehensiveInsights.includes('Recovery Analysis') && (
-                    <div>
-                      <h4 className="font-medium text-orange-900 mb-1">Recovery Analysis</h4>
-                      <p className="text-gray-600 leading-relaxed">
-                        {comprehensiveInsights.split('Recovery Analysis')[1]?.split("TODAY'S ACTION PLAN")[0]?.substring(0, 200)}...
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <h4 className="font-medium text-orange-900 mb-1">Recovery Analysis</h4>
+                    <p className="text-gray-600 leading-relaxed">
+                      {(() => {
+                        const text = comprehensiveInsights.toLowerCase();
+                        if (text.includes('recovery') || text.includes('rest') || text.includes('rest day')) {
+                          const recoverySection = comprehensiveInsights.split(/\n/).find(line => 
+                            (line.toLowerCase().includes('recovery') || line.toLowerCase().includes('rest')) && line.length > 20
+                          );
+                          if (recoverySection) {
+                            return recoverySection.substring(0, 150) + '...';
+                          }
+                        }
+                        return 'Analyzing recovery patterns and rest needs...';
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1104,14 +1140,23 @@ IMPORTANT INSTRUCTIONS:
               </CardHeader>
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
-                  {comprehensiveInsights.includes("TODAY'S ACTION PLAN") && (
-                    <div>
-                      <h4 className="font-medium text-red-900 mb-1">Action Plan</h4>
-                      <p className="text-gray-600 leading-relaxed">
-                        {comprehensiveInsights.split("TODAY'S ACTION PLAN")[1]?.substring(0, 300)}...
-                      </p>
-                    </div>
-                  )}
+                  <div>
+                    <h4 className="font-medium text-red-900 mb-1">Today's Plan</h4>
+                    <p className="text-gray-600 leading-relaxed">
+                      {(() => {
+                        const text = comprehensiveInsights.toLowerCase();
+                        if (text.includes("today's") || text.includes('action plan') || text.includes('recommendation')) {
+                          const actionSection = comprehensiveInsights.split(/\n/).find(line => 
+                            (line.toLowerCase().includes("today's") || line.toLowerCase().includes('action') || line.toLowerCase().includes('recommend')) && line.length > 20
+                          );
+                          if (actionSection) {
+                            return actionSection.substring(0, 200) + '...';
+                          }
+                        }
+                        return 'Loading personalized recommendations for today...';
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
