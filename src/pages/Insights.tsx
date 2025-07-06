@@ -940,8 +940,8 @@ IMPORTANT INSTRUCTIONS:
     // Map section names to actual headers in the AI response
     const sectionHeaders = {
       'sleep': ['sleep-workout correlations', 'sleep correlations'],
-      'nutrition': ['nutrition-workout patterns', 'nutrition patterns'],
-      'performance': ['performance analysis', 'performance patterns'],
+      'nutrition': ['nutrition-workout analysis', 'nutrition-workout patterns', 'nutrition patterns', 'nutrition analysis'],
+      'performance': ['performance patterns', 'performance analysis'],
       'recovery': ['recovery analysis', 'recovery patterns'],
       "today's": ["today's action plan", "action plan", "today's plan"]
     };
@@ -960,6 +960,16 @@ IMPORTANT INSTRUCTIONS:
         continue;
       }
       
+      // Also check for all-caps headers that match our section
+      if (!sectionFound && line.trim().length > 5 && 
+          line.trim() === line.trim().toUpperCase() && 
+          targetHeaders.some(header => line.toLowerCase().includes(header))) {
+        console.log(`✅ Found all-caps section: ${line}`);
+        inSection = true;
+        sectionFound = true;
+        continue;
+      }
+      
       // If we're in the section, check for content
       if (inSection) {
         // Stop if we hit another major section header (all caps)
@@ -971,6 +981,11 @@ IMPORTANT INSTRUCTIONS:
              lowerLine.includes("today's") ||
              lowerLine.includes('sleep'))) {
           console.log(`🛑 Stopping at major section: ${line}`);
+          // Don't stop if we're in the nutrition section and this is the nutrition header
+          if (section === 'nutrition' && lowerLine.includes('nutrition')) {
+            console.log(`📝 Continuing for nutrition section after header: ${line}`);
+            continue;
+          }
           break;
         }
         
@@ -990,6 +1005,15 @@ IMPORTANT INSTRUCTIONS:
     
     const result = sectionLines.join(' ');
     console.log(`📋 Extracted content for ${section}: ${result.substring(0, 100)}...`);
+    
+    // Special debugging for nutrition section
+    if (section === 'nutrition' && result.length < 50) {
+      console.log(`🔍 Nutrition section debugging:`);
+      console.log(`📄 Full text lines:`, lines.slice(0, 20));
+      console.log(`🎯 Looking for headers:`, targetHeaders);
+      console.log(`📝 Section lines found:`, sectionLines);
+    }
+    
     return result || `No specific ${section} content found. Check the full analysis for details.`;
   };
 
