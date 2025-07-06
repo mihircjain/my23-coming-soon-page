@@ -383,6 +383,56 @@ export default function Insights() {
     try {
       console.log('🧠 Generating comprehensive insights with Claude...');
       
+      // Transform data to match backend expectations
+      const transformedNutritionData = {
+        totalDays: nutritionData.length,
+        averages: {
+          calories: nutritionData.length > 0 ? nutritionData.reduce((sum, n) => sum + n.calories, 0) / nutritionData.length : 0,
+          protein: nutritionData.length > 0 ? nutritionData.reduce((sum, n) => sum + n.protein, 0) / nutritionData.length : 0,
+          carbs: nutritionData.length > 0 ? nutritionData.reduce((sum, n) => sum + n.carbs, 0) / nutritionData.length : 0,
+          fat: nutritionData.length > 0 ? nutritionData.reduce((sum, n) => sum + n.fat, 0) / nutritionData.length : 0,
+          fiber: nutritionData.length > 0 ? nutritionData.reduce((sum, n) => sum + n.fiber, 0) / nutritionData.length : 0
+        },
+        totals: {
+          calories: nutritionData.reduce((sum, n) => sum + n.calories, 0),
+          protein: nutritionData.reduce((sum, n) => sum + n.protein, 0),
+          carbs: nutritionData.reduce((sum, n) => sum + n.carbs, 0),
+          fat: nutritionData.reduce((sum, n) => sum + n.fat, 0),
+          fiber: nutritionData.reduce((sum, n) => sum + n.fiber, 0)
+        },
+        dailyLogs: nutritionData.map(nutrition => ({
+          date: nutrition.date,
+          calories: nutrition.calories,
+          protein: nutrition.protein,
+          carbs: nutrition.carbs,
+          fat: nutrition.fat,
+          fiber: nutrition.fiber,
+          entries: [] // We don't have individual food entries in this format
+        }))
+      };
+
+      const transformedSleepData = {
+        totalDays: sleepData.length,
+        averages: {
+          sleepDuration: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.total_sleep_duration, 0) / sleepData.length : 0,
+          sleepScore: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.sleep_score, 0) / sleepData.length : 0,
+          deepSleep: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.deep_sleep_duration, 0) / sleepData.length : 0,
+          remSleep: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.rem_sleep_duration, 0) / sleepData.length : 0,
+          lightSleep: sleepData.length > 0 ? sleepData.reduce((sum, s) => sum + s.light_sleep_duration, 0) / sleepData.length : 0
+        },
+        dailyLogs: sleepData.map(sleep => ({
+          date: sleep.date,
+          sleepDuration: sleep.total_sleep_duration,
+          sleepScore: sleep.sleep_score,
+          deepSleep: sleep.deep_sleep_duration,
+          remSleep: sleep.rem_sleep_duration,
+          lightSleep: sleep.light_sleep_duration,
+          sleepEfficiency: sleep.sleep_efficiency,
+          bedtimeStart: sleep.bedtime_start,
+          bedtimeEnd: sleep.bedtime_end
+        }))
+      };
+
       // Prepare detailed analysis data
       const analysisData = {
         metrics,
@@ -397,36 +447,27 @@ export default function Insights() {
           max_heartrate: activity.max_heartrate,
           total_elevation_gain: activity.total_elevation_gain
         })),
-        sleep: sleepData.map(sleep => ({
-          date: sleep.date,
-          sleep_score: sleep.sleep_score,
-          deep_sleep_duration: sleep.deep_sleep_duration,
-          rem_sleep_duration: sleep.rem_sleep_duration,
-          light_sleep_duration: sleep.light_sleep_duration,
-          total_sleep_duration: sleep.total_sleep_duration,
-          sleep_efficiency: sleep.sleep_efficiency,
-          bedtime_start: sleep.bedtime_start,
-          bedtime_end: sleep.bedtime_end
-        })),
-        nutrition: nutritionData.map(nutrition => ({
-          date: nutrition.date,
-          calories: nutrition.calories,
-          protein: nutrition.protein,
-          carbs: nutrition.carbs,
-          fat: nutrition.fat,
-          fiber: nutrition.fiber
-        }))
+        sleep: transformedSleepData,
+        nutrition: transformedNutritionData
       };
 
       // Log the data being sent to Claude for debugging
       console.log('🧠 Data being sent to Claude:', {
         activitiesCount: analysisData.activities.length,
-        sleepCount: analysisData.sleep.length,
-        nutritionCount: analysisData.nutrition.length,
+        sleepCount: analysisData.sleep.totalDays,
+        nutritionCount: analysisData.nutrition.totalDays,
         sampleActivity: analysisData.activities[0],
-        sampleSleep: analysisData.sleep[0],
-        sampleNutrition: analysisData.nutrition[0]
+        sampleSleep: analysisData.sleep.dailyLogs[0],
+        sampleNutrition: analysisData.nutrition.dailyLogs[0]
       });
+      
+      // Log the full data structure being sent
+      console.log('🧠 Full analysis data structure:', JSON.stringify({
+        metrics: analysisData.metrics,
+        recentActivities: analysisData.activities.slice(0, 2), // First 2 activities
+        sleepData: analysisData.sleep,
+        nutritionData: analysisData.nutrition
+      }, null, 2));
 
       const response = await fetch('/api/claude-coach', {
         method: 'POST',
