@@ -937,12 +937,23 @@ IMPORTANT INSTRUCTIONS:
     let inSection = false;
     let sectionFound = false;
     
+    // Map section names to actual headers in the AI response
+    const sectionHeaders = {
+      'sleep': ['sleep-workout correlations', 'sleep correlations'],
+      'nutrition': ['nutrition-workout patterns', 'nutrition patterns'],
+      'performance': ['performance analysis', 'performance patterns'],
+      'recovery': ['recovery analysis', 'recovery patterns'],
+      "today's": ["today's action plan", "action plan", "today's plan"]
+    };
+    
+    const targetHeaders = sectionHeaders[section as keyof typeof sectionHeaders] || [section];
+    
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const lowerLine = line.toLowerCase().trim();
       
       // Check if we're entering the target section
-      if (!sectionFound && lowerLine.includes(section.toLowerCase()) && line.length > 5) {
+      if (!sectionFound && targetHeaders.some(header => lowerLine.includes(header))) {
         console.log(`✅ Found section: ${line}`);
         inSection = true;
         sectionFound = true;
@@ -951,25 +962,26 @@ IMPORTANT INSTRUCTIONS:
       
       // If we're in the section, check for content
       if (inSection) {
-        // Stop if we hit another major section
-        if (lowerLine.includes('nutrition') && section !== 'nutrition' ||
-            lowerLine.includes('performance') && section !== 'performance' ||
-            lowerLine.includes('recovery') && section !== 'recovery' ||
-            lowerLine.includes("today's") && section !== "today's" ||
-            lowerLine.includes('sleep') && section !== 'sleep' && !lowerLine.includes('sleep-')) {
-          console.log(`🛑 Stopping at: ${line}`);
+        // Stop if we hit another major section header (all caps)
+        if (line.trim().length > 5 && 
+            line.trim() === line.trim().toUpperCase() && 
+            (lowerLine.includes('nutrition') || 
+             lowerLine.includes('performance') || 
+             lowerLine.includes('recovery') || 
+             lowerLine.includes("today's") ||
+             lowerLine.includes('sleep'))) {
+          console.log(`🛑 Stopping at major section: ${line}`);
           break;
         }
         
-        // Add meaningful content lines
-        if (line.trim().length > 10 && 
-            !line.trim().startsWith('•') && 
-            !line.trim().startsWith('-') &&
+        // Add meaningful content lines (including bullet points)
+        if (line.trim().length > 5 && 
             !lowerLine.includes('sleep impact') &&
             !lowerLine.includes('nutrition impact') &&
             !lowerLine.includes('performance patterns') &&
             !lowerLine.includes('recovery analysis') &&
-            !lowerLine.includes("today's action plan")) {
+            !lowerLine.includes("today's action plan") &&
+            !lowerLine.includes('comprehensive training analysis')) {
           sectionLines.push(line.trim());
           console.log(`📝 Added line: ${line.trim()}`);
         }
