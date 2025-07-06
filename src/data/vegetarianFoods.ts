@@ -85,6 +85,70 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 3.7
   },
   {
+  name: "Cottage Cheese Toast",
+  servingSize: "64g",
+  calories: 119,
+  protein: 7.0,
+  carbs: 18.8,
+  fat: 1.9,
+  fiber: 0.8
+},
+{
+  name: "Neer Dosa (3 pcs)",
+  servingSize: "210g",
+  calories: 236,
+  protein: 4.3,
+  carbs: 43.9,
+  fat: 4.8,
+  fiber: 0.7
+},
+{
+  name: "Blueberries",
+  servingSize: "100g",
+  calories: 57,
+  protein: 0.7,
+  carbs: 14.5,
+  fat: 0.3,
+  fiber: 2.4
+},
+{
+  name: "Pancake (2.5 medium)",
+  servingSize: "100g",
+  calories: 208,
+  protein: 5.0,
+  carbs: 28.5,
+  fat: 8.2,
+  fiber: 0.8
+},
+{
+  name: "Kal Dosai (2 pcs)",
+  servingSize: "200g",
+  calories: 367,
+  protein: 9.4,
+  carbs: 58.2,
+  fat: 10.7,
+  fiber: 3.3
+},
+{
+  name: "Coconut Chutney",
+  servingSize: "50g",
+  calories: 102,
+  protein: 1.1,
+  carbs: 2.9,
+  fat: 9.6,
+  fiber: 2.6
+},
+{
+  name: "Acai Berry Smoothie",
+  servingSize: "250ml",
+  calories: 206,
+  protein: 4.6,
+  carbs: 25.9,
+  fat: 10.2,
+  fiber: 8.5
+}
+,
+  {
     name: "Mushroom Burrito",
     servingSize: "300g",
     calories: 327,
