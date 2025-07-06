@@ -475,44 +475,55 @@ export default function Insights() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate_response',
-          query: `Analyze my health data from the last 7 days and provide comprehensive insights. You have access to:
+          query: `Analyze my health data from the last 10 days and provide comprehensive insights with specific correlations and actionable advice.
 
-ACTIVITY DATA: Recent activities including Zwift cycling (VirtualRide) and running sessions with heart rate, distance, and performance metrics.
-SLEEP DATA: Daily sleep scores, duration, and sleep stages.
-NUTRITION DATA: Daily calorie, protein, carb, fat, and fiber intake.
+DATA AVAILABLE:
+- ACTIVITIES: Zwift cycling (VirtualRide), running sessions with heart rate, distance, speed, and performance metrics
+- SLEEP: Daily sleep scores, duration, sleep stages, and efficiency
+- NUTRITION: Daily calorie, protein, carb, fat, and fiber intake
 
-Focus on:
+REQUIRED ANALYSIS:
 
-1. **Sleep-Nutrition-Workout Relationships**: 
-   - How did my sleep quality affect my workout performance the next day?
-   - Did poor sleep lead to different food choices or workout intensity?
-   - Analyze specific correlations: "On July 5th, you had poor sleep (69 score, 5.68 hours) - how did this affect your July 6th Zwift FTP test (147 bpm avg heart rate)?"
-   - Look at nutrition timing around workouts
+1. **Specific Sleep-Workout Correlations**:
+   - Connect each workout to the previous night's sleep quality
+   - Example: "Your [DATE] [WORKOUT_TYPE] showed [HEART_RATE] avg HR - this was after [SLEEP_SCORE] sleep score and [SLEEP_DURATION] hours sleep"
+   - Identify patterns: Do better sleep nights lead to better workout performance?
 
-2. **Performance Patterns**: 
-   - Analyze my specific activities: Zwift cycling (VirtualRide), running, and swimming
-   - How did nutrition and sleep impact each workout type?
-   - Compare performance metrics (heart rate, pace, distance) with sleep/nutrition data
-   - Identify patterns in workout timing and sleep quality
+2. **Nutrition-Workout Timing**:
+   - How did nutrition the day before affect workout performance?
+   - Example: "Your [DATE] [WORKOUT_TYPE] performance was [BETTER/WORSE] after consuming [CALORIES] calories and [PROTEIN]g protein the day before"
+   - Analyze recovery nutrition after intense sessions
 
-3. **Recovery Analysis**: 
-   - How well did I recover between workouts?
-   - Did my sleep and nutrition support proper recovery?
-   - Analyze recovery between consecutive workout days
-   - Look at sleep quality after intense sessions
+3. **Performance Patterns by Activity Type**:
+   - Zwift cycling patterns: FTP tests, heart rate zones, virtual ride performance
+   - Running patterns: Morning runs, pace, distance, heart rate trends
+   - Swimming patterns: Stroke efficiency, pace improvements
+   - Compare performance across different sleep/nutrition conditions
 
-4. **Today's Action Plan**: Based on the last 7 days, what should I focus on today? Consider:
-   - If I had poor sleep last night, what adjustments should I make?
-   - What nutrition should I prioritize today?
-   - What type of workout would be optimal?
-   - Any recovery strategies I should implement?
+4. **Recovery Analysis**:
+   - How well did you recover between consecutive workout days?
+   - Sleep quality after intense sessions
+   - Nutrition patterns supporting recovery
 
-5. **Weekly Trends**: 
-   - What trends do you see that I should be aware of?
-   - Any concerning patterns or positive improvements?
-   - Sport-specific trends (running vs cycling vs swimming)
+5. **TODAY'S SPECIFIC ACTION PLAN** (Most Important):
+   Based on your most recent data, provide:
+   - **Sleep Status**: How was your sleep last night? What does this mean for today?
+   - **Nutrition Focus**: What should you eat today? Specific calorie/protein targets
+   - **Workout Recommendation**: What type of workout should you do today? Why?
+   - **Recovery Strategy**: Any specific recovery techniques needed?
+   - **Energy Management**: How should you pace yourself today?
 
-IMPORTANT: You have the activity data in the recentActivities array. Use it to provide specific analysis. Reference actual dates, workout types, heart rates, distances, and performance metrics. Don't make generic statements - provide concrete analysis based on the data provided.`,
+6. **Trends & Patterns**:
+   - Identify concerning patterns (poor sleep → poor performance)
+   - Positive patterns (good nutrition → better workouts)
+   - Weekly trends in each sport type
+
+IMPORTANT INSTRUCTIONS:
+- Use the actual activity data provided in recentActivities array
+- Reference specific dates, workout types, heart rates, and performance metrics
+- Provide concrete, actionable advice for TODAY
+- Don't make generic statements - use the actual data
+- Focus on correlations between sleep quality, nutrition timing, and workout performance`,
           analysis: {
             metrics: analysisData.metrics,
             recentActivities: analysisData.activities,
@@ -550,11 +561,11 @@ IMPORTANT: You have the activity data in the recentActivities array. Use it to p
     try {
       console.log('🔄 Starting to load insights...');
       
-      // Fetch real data - use 7 days for consistency
+      // Fetch real data - use 10 days for better analysis
       const [stravaData, sleepData, nutritionData] = await Promise.all([
-        fetchStravaActivities(7), // Changed from 14 to 7 days
-        fetchOuraSleepData(7),
-        fetchNutritionData(7)
+        fetchStravaActivities(10), // Increased to 10 days
+        fetchOuraSleepData(10),
+        fetchNutritionData(10)
       ]);
 
       console.log('📊 Raw data received:', {
