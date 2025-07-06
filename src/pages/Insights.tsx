@@ -287,10 +287,42 @@ export default function Insights() {
       sampleProteinValues: nutritionData.slice(0, 3).map(n => n.protein)
     });
     
+    // Log all activity types to debug cycling detection
+    const activityTypes = [...new Set(lastWeekActivities.map(activity => activity.type))];
+    console.log('🚴 Activity types found:', activityTypes);
+    console.log('🚴 Sample activities:', lastWeekActivities.slice(0, 5).map(a => ({
+      type: a.type,
+      name: a.name,
+      distance: a.distance,
+      date: a.start_date
+    })));
+    
     // Calculate goals data using the same filtered activities
     const runningVolume = lastWeekActivities.filter(activity => activity.type === 'Run').reduce((total, activity) => total + activity.distance, 0);
-    const cyclingVolume = lastWeekActivities.filter(activity => activity.type === 'Ride').reduce((total, activity) => total + activity.distance, 0);
+    // Include Zwift virtual rides and other cycling activities
+    const cyclingVolume = lastWeekActivities.filter(activity => 
+      activity.type === 'Ride' || 
+      activity.type === 'VirtualRide' || 
+      activity.type === 'Zwift' ||
+      activity.name.toLowerCase().includes('zwift') ||
+      activity.name.toLowerCase().includes('virtual')
+    ).reduce((total, activity) => total + activity.distance, 0);
     const swimmingVolume = lastWeekActivities.filter(activity => activity.type === 'Swim').reduce((total, activity) => total + activity.distance, 0);
+    
+    // Debug cycling activities
+    const cyclingActivities = lastWeekActivities.filter(activity => 
+      activity.type === 'Ride' || 
+      activity.type === 'VirtualRide' || 
+      activity.type === 'Zwift' ||
+      activity.name.toLowerCase().includes('zwift') ||
+      activity.name.toLowerCase().includes('virtual')
+    );
+    console.log('🚴 Cycling activities detected:', cyclingActivities.map(a => ({
+      type: a.type,
+      name: a.name,
+      distance: a.distance,
+      date: a.start_date
+    })));
     
     const validSleepDays = sleepData.filter(sleep => sleep.sleep_score > 70).length;
     
