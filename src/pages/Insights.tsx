@@ -418,6 +418,16 @@ export default function Insights() {
         }))
       };
 
+      // Log the data being sent to Claude for debugging
+      console.log('🧠 Data being sent to Claude:', {
+        activitiesCount: analysisData.activities.length,
+        sleepCount: analysisData.sleep.length,
+        nutritionCount: analysisData.nutrition.length,
+        sampleActivity: analysisData.activities[0],
+        sampleSleep: analysisData.sleep[0],
+        sampleNutrition: analysisData.nutrition[0]
+      });
+
       const response = await fetch('/api/claude-coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -440,17 +450,29 @@ export default function Insights() {
 5. **Weekly Trends**: What trends do you see that I should be aware of? Any concerning patterns or positive improvements?
 
 Please provide specific, actionable insights with clear recommendations for today.`,
-          analysis: analysisData,
+          analysis: {
+            metrics: analysisData.metrics,
+            recentActivities: analysisData.activities,
+            sleepData: analysisData.sleep,
+            nutritionData: analysisData.nutrition
+          },
           mcpResponses: [],
           conversationContext: []
         })
       });
 
       if (!response.ok) {
+        console.error('❌ Claude API error:', response.status, response.statusText);
         throw new Error(`LLM API error: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('🧠 Claude API response:', {
+        hasResponse: !!data.response,
+        responseLength: data.response?.length || 0,
+        fallback: data.fallback
+      });
+      
       return data.response || 'Unable to generate comprehensive insights at this time.';
     } catch (error) {
       console.error('Error generating comprehensive insights:', error);
