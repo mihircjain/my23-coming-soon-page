@@ -475,12 +475,18 @@ export default function Insights() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate_response',
-          query: `Analyze my health data from the last 7 days and provide comprehensive insights. Focus on:
+          query: `Analyze my health data from the last 7 days and provide comprehensive insights. You have access to:
+
+ACTIVITY DATA: Recent activities including Zwift cycling (VirtualRide) and running sessions with heart rate, distance, and performance metrics.
+SLEEP DATA: Daily sleep scores, duration, and sleep stages.
+NUTRITION DATA: Daily calorie, protein, carb, fat, and fiber intake.
+
+Focus on:
 
 1. **Sleep-Nutrition-Workout Relationships**: 
    - How did my sleep quality affect my workout performance the next day?
    - Did poor sleep lead to different food choices or workout intensity?
-   - Analyze specific correlations: "On July 5th, you had poor sleep (69 score) - how did this affect your July 6th Zwift FTP test?"
+   - Analyze specific correlations: "On July 5th, you had poor sleep (69 score, 5.68 hours) - how did this affect your July 6th Zwift FTP test (147 bpm avg heart rate)?"
    - Look at nutrition timing around workouts
 
 2. **Performance Patterns**: 
@@ -506,7 +512,7 @@ export default function Insights() {
    - Any concerning patterns or positive improvements?
    - Sport-specific trends (running vs cycling vs swimming)
 
-IMPORTANT: Use the actual activity data provided. Reference specific dates, workout types, and performance metrics. Don't make generic statements - provide concrete analysis based on the data.`,
+IMPORTANT: You have the activity data in the recentActivities array. Use it to provide specific analysis. Reference actual dates, workout types, heart rates, distances, and performance metrics. Don't make generic statements - provide concrete analysis based on the data provided.`,
           analysis: {
             metrics: analysisData.metrics,
             recentActivities: analysisData.activities,
