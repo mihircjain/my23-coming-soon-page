@@ -113,6 +113,7 @@ export default function Insights() {
   const [stravaData, setStravaData] = useState<StravaActivity[]>([]);
   const [sleepData, setSleepData] = useState<OuraSleepData[]>([]);
   const [nutritionData, setNutritionData] = useState<NutritionData[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   // Real data fetching functions
   const fetchStravaActivities = async (days: number = 14): Promise<StravaActivity[]> => {
@@ -926,6 +927,51 @@ IMPORTANT INSTRUCTIONS:
     loadInsights();
   };
 
+  // Helper function to extract content for each section
+  const extractSectionContent = (section: string, fullText: string) => {
+    const lines = fullText.split(/\n/);
+    const sectionLines: string[] = [];
+    let inSection = false;
+    
+    for (const line of lines) {
+      const lowerLine = line.toLowerCase();
+      
+      // Check if we're entering the section
+      if (lowerLine.includes(section.toLowerCase()) && line.length > 5) {
+        inSection = true;
+        continue;
+      }
+      
+      // Check if we're entering a new section (stop here)
+      if (inSection && (
+        lowerLine.includes('nutrition') || 
+        lowerLine.includes('performance') || 
+        lowerLine.includes('recovery') || 
+        lowerLine.includes("today's") ||
+        lowerLine.includes('sleep') && !lowerLine.includes('sleep-')
+      )) {
+        break;
+      }
+      
+      // Add content lines
+      if (inSection && line.trim().length > 10 && !line.trim().startsWith('•')) {
+        sectionLines.push(line.trim());
+      }
+    }
+    
+    return sectionLines.join(' ');
+  };
+
+  const toggleSection = (section: string) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(section)) {
+      newExpanded.delete(section);
+    } else {
+      newExpanded.add(section);
+    }
+    setExpandedSections(newExpanded);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
@@ -1017,28 +1063,30 @@ IMPORTANT INSTRUCTIONS:
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
                   <div>
-                    <h4 className="font-medium text-blue-900 mb-1">Sleep Analysis</h4>
                     <p className="text-gray-600 leading-relaxed">
                       {(() => {
-                        const lines = comprehensiveInsights.split(/\n/);
-                        const sleepLines = lines.filter(line => 
-                          line.toLowerCase().includes('sleep') && 
-                          line.length > 10 && 
-                          !line.toLowerCase().includes('sleep impact') &&
-                          !line.toLowerCase().includes('sleep analysis')
-                        );
-                        
-                        if (sleepLines.length > 0) {
-                          const firstSleepLine = sleepLines[0].trim();
-                          return firstSleepLine.length > 100 ? 
-                            firstSleepLine.substring(0, 100) + '...' : 
-                            firstSleepLine;
-                        }
-                        return 'Analyzing sleep patterns and their impact on performance...';
+                        const content = extractSectionContent('sleep', comprehensiveInsights);
+                        const preview = content.substring(0, 120);
+                        return preview.length > 120 ? preview + '...' : content;
                       })()}
                     </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mt-2 text-blue-600 hover:text-blue-800"
+                      onClick={() => toggleSection('sleep')}
+                    >
+                      {expandedSections.has('sleep') ? 'Show Less' : 'Show More'}
+                    </Button>
                   </div>
                 </div>
+                {expandedSections.has('sleep') && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {extractSectionContent('sleep', comprehensiveInsights)}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1053,28 +1101,30 @@ IMPORTANT INSTRUCTIONS:
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
                   <div>
-                    <h4 className="font-medium text-green-900 mb-1">Nutrition Analysis</h4>
                     <p className="text-gray-600 leading-relaxed">
                       {(() => {
-                        const lines = comprehensiveInsights.split(/\n/);
-                        const nutritionLines = lines.filter(line => 
-                          (line.toLowerCase().includes('nutrition') || line.toLowerCase().includes('calories') || line.toLowerCase().includes('protein')) && 
-                          line.length > 10 && 
-                          !line.toLowerCase().includes('nutrition impact') &&
-                          !line.toLowerCase().includes('nutrition analysis')
-                        );
-                        
-                        if (nutritionLines.length > 0) {
-                          const firstNutritionLine = nutritionLines[0].trim();
-                          return firstNutritionLine.length > 100 ? 
-                            firstNutritionLine.substring(0, 100) + '...' : 
-                            firstNutritionLine;
-                        }
-                        return 'Analyzing nutrition patterns and their impact on performance...';
+                        const content = extractSectionContent('nutrition', comprehensiveInsights);
+                        const preview = content.substring(0, 120);
+                        return preview.length > 120 ? preview + '...' : content;
                       })()}
                     </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mt-2 text-green-600 hover:text-green-800"
+                      onClick={() => toggleSection('nutrition')}
+                    >
+                      {expandedSections.has('nutrition') ? 'Show Less' : 'Show More'}
+                    </Button>
                   </div>
                 </div>
+                {expandedSections.has('nutrition') && (
+                  <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {extractSectionContent('nutrition', comprehensiveInsights)}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1089,28 +1139,30 @@ IMPORTANT INSTRUCTIONS:
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
                   <div>
-                    <h4 className="font-medium text-purple-900 mb-1">Performance Analysis</h4>
                     <p className="text-gray-600 leading-relaxed">
                       {(() => {
-                        const lines = comprehensiveInsights.split(/\n/);
-                        const performanceLines = lines.filter(line => 
-                          (line.toLowerCase().includes('performance') || line.toLowerCase().includes('running') || line.toLowerCase().includes('cycling') || line.toLowerCase().includes('swimming')) && 
-                          line.length > 10 && 
-                          !line.toLowerCase().includes('performance patterns') &&
-                          !line.toLowerCase().includes('performance analysis')
-                        );
-                        
-                        if (performanceLines.length > 0) {
-                          const firstPerformanceLine = performanceLines[0].trim();
-                          return firstPerformanceLine.length > 100 ? 
-                            firstPerformanceLine.substring(0, 100) + '...' : 
-                            firstPerformanceLine;
-                        }
-                        return 'Analyzing performance patterns and trends...';
+                        const content = extractSectionContent('performance', comprehensiveInsights);
+                        const preview = content.substring(0, 120);
+                        return preview.length > 120 ? preview + '...' : content;
                       })()}
                     </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mt-2 text-purple-600 hover:text-purple-800"
+                      onClick={() => toggleSection('performance')}
+                    >
+                      {expandedSections.has('performance') ? 'Show Less' : 'Show More'}
+                    </Button>
                   </div>
                 </div>
+                {expandedSections.has('performance') && (
+                  <div className="mt-3 p-3 bg-purple-50 rounded-lg">
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {extractSectionContent('performance', comprehensiveInsights)}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1125,27 +1177,30 @@ IMPORTANT INSTRUCTIONS:
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
                   <div>
-                    <h4 className="font-medium text-orange-900 mb-1">Recovery Analysis</h4>
                     <p className="text-gray-600 leading-relaxed">
                       {(() => {
-                        const lines = comprehensiveInsights.split(/\n/);
-                        const recoveryLines = lines.filter(line => 
-                          (line.toLowerCase().includes('recovery') || line.toLowerCase().includes('rest')) && 
-                          line.length > 10 && 
-                          !line.toLowerCase().includes('recovery analysis')
-                        );
-                        
-                        if (recoveryLines.length > 0) {
-                          const firstRecoveryLine = recoveryLines[0].trim();
-                          return firstRecoveryLine.length > 100 ? 
-                            firstRecoveryLine.substring(0, 100) + '...' : 
-                            firstRecoveryLine;
-                        }
-                        return 'Analyzing recovery patterns and rest needs...';
+                        const content = extractSectionContent('recovery', comprehensiveInsights);
+                        const preview = content.substring(0, 120);
+                        return preview.length > 120 ? preview + '...' : content;
                       })()}
                     </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mt-2 text-orange-600 hover:text-orange-800"
+                      onClick={() => toggleSection('recovery')}
+                    >
+                      {expandedSections.has('recovery') ? 'Show Less' : 'Show More'}
+                    </Button>
                   </div>
                 </div>
+                {expandedSections.has('recovery') && (
+                  <div className="mt-3 p-3 bg-orange-50 rounded-lg">
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {extractSectionContent('recovery', comprehensiveInsights)}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1160,28 +1215,30 @@ IMPORTANT INSTRUCTIONS:
               <CardContent>
                 <div className="text-xs text-gray-700 space-y-2">
                   <div>
-                    <h4 className="font-medium text-red-900 mb-1">Today's Plan</h4>
                     <p className="text-gray-600 leading-relaxed">
                       {(() => {
-                        const lines = comprehensiveInsights.split(/\n/);
-                        const actionLines = lines.filter(line => 
-                          (line.toLowerCase().includes("today's") || line.toLowerCase().includes('action') || line.toLowerCase().includes('recommend') || line.toLowerCase().includes('workout')) && 
-                          line.length > 10 && 
-                          !line.toLowerCase().includes("today's action plan") &&
-                          !line.toLowerCase().includes("today's plan")
-                        );
-                        
-                        if (actionLines.length > 0) {
-                          const firstActionLine = actionLines[0].trim();
-                          return firstActionLine.length > 150 ? 
-                            firstActionLine.substring(0, 150) + '...' : 
-                            firstActionLine;
-                        }
-                        return 'Loading personalized recommendations for today...';
+                        const content = extractSectionContent("today's", comprehensiveInsights);
+                        const preview = content.substring(0, 150);
+                        return preview.length > 150 ? preview + '...' : content;
                       })()}
                     </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mt-2 text-red-600 hover:text-red-800"
+                      onClick={() => toggleSection('action')}
+                    >
+                      {expandedSections.has('action') ? 'Show Less' : 'Show More'}
+                    </Button>
                   </div>
                 </div>
+                {expandedSections.has('action') && (
+                  <div className="mt-3 p-3 bg-red-50 rounded-lg">
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                      {extractSectionContent("today's", comprehensiveInsights)}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
