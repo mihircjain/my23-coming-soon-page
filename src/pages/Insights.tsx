@@ -231,18 +231,10 @@ export default function Insights() {
       return activityDate >= weekAgo;
     });
     
-    console.log('📅 Date filtering:', {
-      totalActivities: stravaData.length,
-      lastWeekActivities: lastWeekActivities.length,
-      weekAgoDate: weekAgo.toISOString(),
-      today: new Date().toISOString()
-    });
-    
-    console.log('📈 Last week activities:', lastWeekActivities.map(a => ({
-      type: a.type,
-      distance: a.distance,
-      date: a.start_date
-    })));
+          console.log('📅 Date filtering:', {
+        totalActivities: stravaData.length,
+        lastWeekActivities: lastWeekActivities.length
+      });
     
     const weeklyVolume = lastWeekActivities.reduce((total, activity) => total + activity.distance, 0);
     
@@ -265,6 +257,15 @@ export default function Insights() {
       : 0;
     const proteinTarget = 151; // Daily protein target
     const nutritionAdherence = Math.min((avgProtein / proteinTarget) * 100, 100);
+    
+    console.log('🍎 Nutrition calculation:', {
+      totalNutritionDays: nutritionData.length,
+      validNutritionDays: validNutritionData.length,
+      avgProtein: `${avgProtein} g`,
+      proteinTarget: `${proteinTarget} g`,
+      nutritionAdherence: `${nutritionAdherence}%`,
+      sampleProteinValues: nutritionData.slice(0, 3).map(n => n.protein)
+    });
     
     // Calculate goals data using the same filtered activities
     const runningVolume = lastWeekActivities.filter(activity => activity.type === 'Run').reduce((total, activity) => total + activity.distance, 0);
@@ -304,17 +305,12 @@ export default function Insights() {
       validNutritionDays: validNutritionData.length
     });
     
-    console.log('🎯 Goals calculation (using lastWeekActivities):', {
-      totalLastWeekActivities: lastWeekActivities.length,
-      runningActivities: lastWeekActivities.filter(a => a.type === 'Run').length,
-      cyclingActivities: lastWeekActivities.filter(a => a.type === 'Ride').length,
-      swimmingActivities: lastWeekActivities.filter(a => a.type === 'Swim').length,
+    console.log('🎯 Goals summary:', {
       runningVolume: `${runningVolume} km`,
       cyclingVolume: `${cyclingVolume} km`,
       swimmingVolume: `${swimmingVolume} km`,
       validSleepDays,
-      avgProtein: `${avgProtein} g`,
-      nutritionDataLength: nutritionData.length
+      avgProtein: `${avgProtein} g`
     });
     
     return {
@@ -403,6 +399,13 @@ export default function Insights() {
           date: n.date,
           protein: n.protein,
           calories: n.calories
+        })));
+        console.log('🍎 All nutrition data:', nutritionData.map(n => ({
+          date: n.date,
+          protein: n.protein,
+          calories: n.calories,
+          carbs: n.carbs,
+          fat: n.fat
         })));
       }
 
