@@ -103,6 +103,15 @@ export const vegetarianFoods: FoodItem[] = [
   fiber: 0.7
 },
   {
+  name: "Donut",
+  servingSize: "60g",
+  calories: 219,
+  protein: 3.4,
+  carbs: 26.8,
+  fat: 10.9,
+  fiber: 0.8
+},
+  {
   name: "Cheese Protein Wafer, SuperYou",
   servingSize: "40g",
   calories: 186,
