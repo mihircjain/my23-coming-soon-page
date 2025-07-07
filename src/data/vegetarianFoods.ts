@@ -102,6 +102,24 @@ export const vegetarianFoods: FoodItem[] = [
   fat: 4.8,
   fiber: 0.7
 },
+  {
+  name: "Cheese Protein Wafer, SuperYou",
+  servingSize: "40g",
+  calories: 186,
+  protein: 10.0,
+  carbs: 20.4,
+  fat: 10.4,
+  fiber: 3.0
+},
+{
+  name: "Multigrain Chips, Super Masala, SuperYou",
+  servingSize: "40g",
+  calories: 167,
+  protein: 10.0,
+  carbs: 25.8,
+  fat: 2.6,
+  fiber: 3.0
+},
 {
   name: "Blueberries",
   servingSize: "100g",
