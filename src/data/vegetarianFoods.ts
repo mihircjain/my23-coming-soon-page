@@ -788,6 +788,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 12.1,
     fiber: 0.2
   },
+    {
+    name: "Homemade Falafal Wrap",
+    servingSize: "1 Wrap",
+    calories: 322.5,
+    protein: 17.5,
+    carbs: 55.5,
+    fat: 4,
+    fiber: 11
+  },
   {
     name: "Pizza, Garden Veggie",
     servingSize: "2.5 Slices (267.5g)",
