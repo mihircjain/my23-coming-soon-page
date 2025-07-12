@@ -527,6 +527,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 9.0,
     fiber: 0.0
   },
+    {
+    name: "Normal Paneer",
+    servingSize: "100g",
+    calories: 265,
+    protein: 18.3,
+    carbs: 1.2,
+    fat: 20.8,
+    fiber: 0.0
+  },
   {
     name: "Roti",
     servingSize: "50g",
