@@ -599,6 +599,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 12.3,
     fiber: 13.6
   },
+    {
+    name: "Garlic Bread",
+    servingSize: "40g",
+    calories: 126,
+    protein: 2.4,
+    carbs: 13.1,
+    fat: 7.2,
+    fiber: 0.6
+  },
   {
     name: "100% Whole Wheat Bread, Britannia",
     servingSize: "27",
