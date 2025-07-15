@@ -590,6 +590,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 7.1,
     fiber: 1.9
   },
+    {
+    name: "Suji Cheela",
+    servingSize: "150g",
+    calories: 257,
+    protein: 5.2,
+    carbs: 31.5,
+    fat: 12.3,
+    fiber: 1.8
+  },
   {
     name: "Green Moong Dal Cheela",
     servingSize: "200g",
