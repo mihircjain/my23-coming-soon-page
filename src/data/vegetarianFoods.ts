@@ -102,6 +102,33 @@ export const vegetarianFoods: FoodItem[] = [
   fat: 4.8,
   fiber: 0.7
 },
+  {
+  name: "Donut",
+  servingSize: "60g",
+  calories: 219,
+  protein: 3.4,
+  carbs: 26.8,
+  fat: 10.9,
+  fiber: 0.8
+},
+  {
+  name: "Cheese Protein Wafer, SuperYou",
+  servingSize: "40g",
+  calories: 186,
+  protein: 10.0,
+  carbs: 20.4,
+  fat: 10.4,
+  fiber: 3.0
+},
+{
+  name: "Multigrain Chips, Super Masala, SuperYou",
+  servingSize: "40g",
+  calories: 167,
+  protein: 10.0,
+  carbs: 25.8,
+  fat: 2.6,
+  fiber: 3.0
+},
 {
   name: "Blueberries",
   servingSize: "100g",
@@ -500,6 +527,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 9.0,
     fiber: 0.0
   },
+    {
+    name: "Normal Paneer",
+    servingSize: "100g",
+    calories: 265,
+    protein: 18.3,
+    carbs: 1.2,
+    fat: 20.8,
+    fiber: 0.0
+  },
   {
     name: "Roti",
     servingSize: "50g",
@@ -554,6 +590,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 7.1,
     fiber: 1.9
   },
+    {
+    name: "Suji Cheela",
+    servingSize: "150g",
+    calories: 257,
+    protein: 5.2,
+    carbs: 31.5,
+    fat: 12.3,
+    fiber: 1.8
+  },
   {
     name: "Green Moong Dal Cheela",
     servingSize: "200g",
@@ -562,6 +607,15 @@ export const vegetarianFoods: FoodItem[] = [
     carbs: 44.3,
     fat: 12.3,
     fiber: 13.6
+  },
+    {
+    name: "Garlic Bread",
+    servingSize: "40g",
+    calories: 126,
+    protein: 2.4,
+    carbs: 13.1,
+    fat: 7.2,
+    fiber: 0.6
   },
   {
     name: "100% Whole Wheat Bread, Britannia",
@@ -760,6 +814,15 @@ export const vegetarianFoods: FoodItem[] = [
     carbs: 1.4,
     fat: 12.1,
     fiber: 0.2
+  },
+    {
+    name: "Homemade Falafal Wrap",
+    servingSize: "1 Wrap",
+    calories: 322.5,
+    protein: 17.5,
+    carbs: 55.5,
+    fat: 4,
+    fiber: 11
   },
   {
     name: "Pizza, Garden Veggie",
