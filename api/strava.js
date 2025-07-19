@@ -445,8 +445,8 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30) => {
       average_speed: activity.average_speed,
       max_speed: activity.max_speed,
       has_heartrate: activity.has_heartrate || false,
-      average_heartrate: activity.average_heartrate,
-      max_heartrate: activity.max_heartrate,
+      average_heartrate: activity.average_heartrate || null,
+      max_heartrate: activity.max_heartrate || null,
       calories: calories, // 🔥 CALORIES FROM COMPREHENSIVE FETCHING
       calorie_source: calorieSource,
       fetched_at: now,
