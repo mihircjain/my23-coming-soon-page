@@ -442,8 +442,8 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30) => {
       moving_time: activity.moving_time,
       elapsed_time: activity.elapsed_time,
       total_elevation_gain: activity.total_elevation_gain || 0,
-      average_speed: activity.average_speed,
-      max_speed: activity.max_speed,
+      average_speed: activity.average_speed || null,
+      max_speed: activity.max_speed || null,
       has_heartrate: activity.has_heartrate || false,
       average_heartrate: activity.average_heartrate || null,
       max_heartrate: activity.max_heartrate || null,
@@ -455,16 +455,16 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30) => {
 
     // Add calorie fetch metadata
     if (fetchedCalories) {
-      summary.last_calorie_fetch = fetchedCalories.last_calorie_fetch;
+      summary.last_calorie_fetch = fetchedCalories.last_calorie_fetch || null;
     }
 
     // Add run tags
     if (isRun && runTagInfo) {
-      summary.run_tag = runTagInfo.run_tag;
-      summary.runType = runTagInfo.runType;
+      summary.run_tag = runTagInfo.run_tag || null;
+      summary.runType = runTagInfo.runType || null;
       summary.userOverride = runTagInfo.userOverride || false;
-      summary.taggedBy = runTagInfo.taggedBy;
-      summary.taggedAt = runTagInfo.taggedAt;
+      summary.taggedBy = runTagInfo.taggedBy || null;
+      summary.taggedAt = runTagInfo.taggedAt || null;
     }
 
     summaries.push(summary);
