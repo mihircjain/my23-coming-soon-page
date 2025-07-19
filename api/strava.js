@@ -488,11 +488,16 @@ const fetchFreshDataFromStrava = async (userId, daysBack = 30) => {
       summary.taggedAt = runTagInfo.taggedAt || null;
     }
 
-    summaries.push(summary);
+    // Clean undefined values from summary
+    const cleanSummary = Object.fromEntries(
+      Object.entries(summary).map(([key, value]) => [key, value === undefined ? null : value])
+    );
+
+    summaries.push(cleanSummary);
 
     // Save to Firestore
     const docRef = db.collection('strava_data').doc(`${userId}_${activityId}`);
-    batch.set(docRef, summary, { merge: true });
+    batch.set(docRef, cleanSummary, { merge: true });
   }
 
   // Commit all data
