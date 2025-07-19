@@ -43,6 +43,7 @@ interface ActivityData {
   average_heartrate?: number;
   max_heartrate?: number;
   calories: number;
+  calorie_source?: string;
   is_run_activity: boolean;
   run_tag?: RunTag;
 }
@@ -156,6 +157,38 @@ const ActivityJam = () => {
     }
   };
 
+  // Save edited calories to API
+  const saveEditedCalories = async (activityId: string, calories: number) => {
+    try {
+      console.log(`💾 Saving edited calories: ${activityId} -> ${calories}`);
+      
+      const response = await fetch('/api/strava', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'mihir_jain',
+          activityId,
+          calories
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Save calories API error:', response.status, errorText);
+        throw new Error('Failed to save calories');
+      }
+
+      const result = await response.json();
+      console.log('✅ Calories saved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error saving calories:', error);
+      throw error;
+    }
+  };
+
   // Handle tag change
   const handleTagChange = async (activityId: string, newTag: RunTag) => {
     console.log(`🏷️ Changing tag for ${activityId}: ${newTag}`);
@@ -189,6 +222,44 @@ const ActivityJam = () => {
       
       setError('Failed to save tag change. Please try again.');
       setEditingTag(null);
+    }
+  };
+
+  // Handle calorie change
+  const handleCalorieChange = async (activityId: string, newCalories: number) => {
+    console.log(`🔥 Changing calories for ${activityId}: ${newCalories}`);
+    
+    try {
+      // Update local state immediately
+      setActivities(prev => prev.map(activity => 
+        activity.id === activityId 
+          ? { ...activity, calories: newCalories }
+          : activity
+      ));
+
+      // Save to API
+      await saveEditedCalories(activityId, newCalories);
+      
+      console.log(`✅ Calorie change completed for ${activityId}: ${newCalories}`);
+      setEditingCalories(null);
+      setCaloriesInput('');
+      setLastUpdate(new Date().toLocaleTimeString());
+      
+    } catch (error) {
+      console.error('❌ Failed to save calorie change:', error);
+      
+      // Revert local state on error
+      setActivities(prev => prev.map(activity => {
+        if (activity.id === activityId) {
+          const originalActivity = activities.find(a => a.id === activityId);
+          return { ...activity, calories: originalActivity?.calories || 0 };
+        }
+        return activity;
+      }));
+      
+      setError('Failed to save calorie change. Please try again.');
+      setEditingCalories(null);
+      setCaloriesInput('');
     }
   };
 
@@ -953,18 +1024,83 @@ const ActivityJam = () => {
                             </span>
                           </div>
                         )}
-                        {activity.calories && activity.calories > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Calories:</span>
+                        {/* Calories Display/Edit */}
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Calories:</span>
+                          {editingCalories === activity.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={caloriesInput}
+                                onChange={(e) => setCaloriesInput(e.target.value)}
+                                className="w-16 h-6 text-sm border border-gray-300 rounded px-2 text-center"
+                                placeholder={activity.calories?.toString() || "0"}
+                                min="0"
+                                max="9999"
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                  const newCalories = parseInt(caloriesInput) || 0;
+                                  handleCalorieChange(activity.id, newCalories);
+                                }}
+                              >
+                                <Check className="h-3 w-3 text-green-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                  setEditingCalories(null);
+                                  setCaloriesInput('');
+                                }}
+                              >
+                                <X className="h-3 w-3 text-red-600" />
+                              </Button>
+                            </div>
+                          ) : (
                             <span className="font-medium flex items-center">
                               <Zap className="h-3 w-3 mr-1 text-green-500" />
-                              {activity.calories}
-                              <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-600">
-                                Strava
-                              </Badge>
+                              {activity.calories && activity.calories > 0 ? (
+                                <>
+                                  {activity.calories}
+                                  <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-600">
+                                    {activity.calorie_source === 'user_edited' ? 'Edited' : 'Strava'}
+                                  </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 ml-1"
+                                    onClick={() => {
+                                      setEditingCalories(activity.id);
+                                      setCaloriesInput(activity.calories.toString());
+                                    }}
+                                  >
+                                    <Edit3 className="h-3 w-3 text-gray-500" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-gray-400">No data</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 ml-1"
+                                    onClick={() => {
+                                      setEditingCalories(activity.id);
+                                      setCaloriesInput('');
+                                    }}
+                                  >
+                                    <Edit3 className="h-3 w-3 text-gray-500" />
+                                  </Button>
+                                </>
+                              )}
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
                         {/* Run Type Tag - Mobile Optimized */}
                         {activity.is_run_activity && activity.run_tag && (
                           <div className="pt-2 border-t border-gray-100">
