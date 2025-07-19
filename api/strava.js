@@ -324,6 +324,27 @@ const getCachedData = async (userId, daysBack = 30) => {
   }
 };
 
+// Save edited calories to Firestore
+const saveEditedCalories = async (userId, activityId, calories) => {
+  try {
+    console.log(`💾 Saving edited calories: ${activityId} = ${calories}`);
+    
+    const docRef = db.collection('strava_data').doc(`${userId}_${activityId}`);
+    await docRef.update({
+      calories: parseInt(calories),
+      calorie_source: 'user_edited',
+      last_calorie_fetch: new Date().toISOString(),
+      edited_at: new Date().toISOString()
+    });
+    
+    console.log(`✅ Calories saved successfully for ${activityId}`);
+    return { success: true, calories: parseInt(calories) };
+  } catch (error) {
+    console.error('❌ Error saving edited calories:', error);
+    throw error;
+  }
+};
+
 // 🔥 MAIN: Fetch fresh data with comprehensive calorie fetching
 const fetchFreshDataFromStrava = async (userId, daysBack = 30) => {
   console.log('🚀 COMPREHENSIVE STRAVA FETCH with calorie fetching for ALL activities');
@@ -499,10 +520,23 @@ export default async function handler(req, res) {
   try {
     console.log('🚀 COMPREHENSIVE Strava API with calorie fetching for ALL activities');
     
-    if (req.method !== 'GET') {
+    if (req.method !== 'GET' && req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
     
+    // Handle POST requests for saving edited calories
+    if (req.method === 'POST') {
+      const { userId, activityId, calories } = req.body;
+      
+      if (!userId || !activityId || calories === undefined) {
+        return res.status(400).json({ error: 'Missing required fields: userId, activityId, calories' });
+      }
+      
+      const result = await saveEditedCalories(userId, activityId, calories);
+      return res.status(200).json(result);
+    }
+    
+    // Handle GET requests (existing functionality)
     const userId = req.query.userId || 'mihir_jain';
     const forceRefresh = req.query.refresh === 'true';
     const daysBack = parseInt(req.query.days) || 30;

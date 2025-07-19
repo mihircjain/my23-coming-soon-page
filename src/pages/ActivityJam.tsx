@@ -56,6 +56,8 @@ const ActivityJam = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [editingCalories, setEditingCalories] = useState<string | null>(null);
+  const [caloriesInput, setCaloriesInput] = useState<string>('');
 
   // Chart refs
   const caloriesChartRef = useRef<HTMLCanvasElement>(null);
