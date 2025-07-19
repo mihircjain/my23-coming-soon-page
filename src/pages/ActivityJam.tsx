@@ -1064,9 +1064,9 @@ const ActivityJam = () => {
                           ) : (
                             <span className="font-medium flex items-center">
                               <Zap className="h-3 w-3 mr-1 text-green-500" />
-                              {activity.calories && activity.calories > 0 ? (
+                              {activity.calories !== undefined && activity.calories !== null ? (
                                 <>
-                                  {activity.calories}
+                                  {activity.calories > 0 ? activity.calories : '0'}
                                   <Badge variant="outline" className="ml-1 text-xs border-green-300 text-green-600">
                                     {activity.calorie_source === 'user_edited' ? 'Edited' : 'Strava'}
                                   </Badge>
