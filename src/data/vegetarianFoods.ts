@@ -103,6 +103,24 @@ export const vegetarianFoods: FoodItem[] = [
   fiber: 0.7
 },
   {
+  name: "Cottage Cheese Bao",
+  servingSize: "150g",
+  calories: 286,
+  protein: 16.3,
+  carbs: 18.2,
+  fat: 16.6,
+  fiber: 1.4
+},
+  {
+  name: "Pad Thai",
+  servingSize: "200g",
+  calories: 269,
+  protein: 10,
+  carbs: 31.1,
+  fat: 11.8,
+  fiber: 2.4
+},
+  {
   name: "Donut",
   servingSize: "60g",
   calories: 219,
