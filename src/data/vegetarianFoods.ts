@@ -57,6 +57,15 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 0.3,
     fiber: 7
   },
+    {
+    name: "Suji Cheela",
+    servingSize: "400g",
+    calories: 685,
+    protein: 13.9,
+    carbs: 84,
+    fat: 32.7,
+    fiber: 4.8
+  },
   {
     name: "McVeggie, McDonalds",
     servingSize: "169g",
