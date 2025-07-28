@@ -909,13 +909,12 @@ const NutritionJam = () => {
       foods: [
         { foodId: "Oats, Quaker", calories: 163, protein: 4.7, carbs: 27.4, fat: 3.8, fiber: 4.0, quantity: 1, unit: "serving" },
         { foodId: "Omani Dates, Happilo", calories: 68, protein: 0.6, carbs: 18.0, fat: 0.1, fiber: 1.9, quantity: 1, unit: "serving" },
-        { foodId: "Almonds", calories: 56, protein: 1.9, carbs: 1.9, fat: 4.5, fiber: 1.1, quantity: 1, unit: "serving" },
-        { foodId: "Skyr High Protein Yogurt, Milky Mist", calories: 100, protein: 12.0, carbs: 9.5, fat: 1.5, fiber: 0.0, quantity: 1, unit: "serving" },
+        { foodId: "Almonds", calories: 37, protein: 1.3, carbs: 1.3, fat: 3, fiber: 0.8, quantity: 1, unit: "serving" },
         { foodId: "Raw Whey Protein, Unflavoured", calories: 178, protein: 35.6, carbs: 3.5, fat: 2.4, fiber: 0.4, quantity: 1, unit: "serving" },
-        { foodId: "Nutty Gritties Super Seeds Mix", calories: 107, protein: 4, carbs: 1.9, fat: 8, fiber: 2.7, quantity: 1, unit: "serving" },
+        { foodId: "Nutty Gritties Super Seeds Mix", calories: 64, protein: 2.4, carbs: 1.1, fat: 4.9, fiber: 1.6, quantity: 1, unit: "serving" },
         { foodId: "Slim n Trim Skimmed Milk, Amul", calories: 35, protein: 3.5, carbs: 5.0, fat: 0.1, fiber: 0.0, quantity: 1, unit: "serving" },
-        { foodId: "Walnut", calories: 60, protein: 1.3, carbs: 0.8, fat: 5.8, fiber: 0.35, quantity: 1, unit: "serving" },
-        { foodId: "Mango", calories: 96, protein: 0.8, carbs: 22.0, fat: 0.5, fiber: 2.6, quantity: 1, unit: "serving" }
+        { foodId: "Walnut", calories: 40, protein: 0.9, carbs: 0.6, fat: 3.9, fiber: 0.3, quantity: 1, unit: "serving" },
+        { foodId: "Blueberries", calories: 68, protein: 0.9, carbs: 17.4, fat: 0.4, fiber: 2.9, quantity: 1, unit: "serving" }
       ]
     },
     {
@@ -1012,7 +1011,7 @@ const NutritionJam = () => {
       id: 9,
       name: "Dosa Sambhar",
       foods: [
-        { foodId: "Dosa", calories: 221, protein: 5.4, carbs: 33.9, fat: 7.1, fiber: 1.9, quantity: 1, unit: "serving" },
+        { foodId: "Dosa", calories: 368, protein: 8.9, carbs: 56.5, fat: 11.8, fiber: 3.1, quantity: 1, unit: "serving" },
         { foodId: "Sambhar", calories: 228, protein: 11, carbs: 32.4, fat: 6.0, fiber: 7.4, quantity: 1, unit: "serving" }
       ]
     },
