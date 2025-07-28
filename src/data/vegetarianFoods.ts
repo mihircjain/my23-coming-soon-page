@@ -120,6 +120,15 @@ export const vegetarianFoods: FoodItem[] = [
   fat: 16.6,
   fiber: 1.4
 },
+    {
+  name: "Netflix 4700BC Cheese Caramel Popcorn",
+  servingSize: "100g",
+  calories: 519,
+  protein: 5.4,
+  carbs: 67.9,
+  fat: 25.4,
+  fiber: 5.4
+},
   {
   name: "Pad Thai",
   servingSize: "200g",
