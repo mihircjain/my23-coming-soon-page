@@ -493,12 +493,12 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Walnut",
-    servingSize: "9g",
-    calories: 60,
-    protein: 1.3,
-    carbs: 0.9,
-    fat: 5.8,
-    fiber: 0.5
+    servingSize: "6g",
+    calories: 40,
+    protein: 0.9,
+    carbs: 0.6,
+    fat: 3.9,
+    fiber: 0.3
   },
   {
     name: "Raw Whey Protein, Unflavoured",
@@ -511,21 +511,39 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Almonds",
-    servingSize: "9g",
-    calories: 56,
-    protein: 1.9,
-    carbs: 1.9,
-    fat: 4.5,
-    fiber: 1.1
+    servingSize: "6g",
+    calories: 37,
+    protein: 1.3,
+    carbs: 1.3,
+    fat: 3,
+    fiber: 0.8
+  },
+    {
+    name: "Blueberries",
+    servingSize: "100g",
+    calories: 57,
+    protein: 0.7,
+    carbs: 14.5,
+    fat: 0.3,
+    fiber: 2.4
+  },
+      {
+    name: "Dragon Fruit",
+    servingSize: "100g",
+    calories: 57,
+    protein: 0.4,
+    carbs: 15.2,
+    fat: 0.1,
+    fiber: 3.1
   },
   {
     name: "Nutty Gritties Super Seeds Mix",
-    servingSize: "15g",
-    calories: 107,
-    protein: 4,
-    carbs: 1.9,
-    fat: 8.2,
-    fiber: 2.7
+    servingSize: "9g",
+    calories: 64,
+    protein: 2.4,
+    carbs: 1.1,
+    fat: 4.9,
+    fiber: 1.6
   },
   {
     name: "Skyr High Protein Yogurt, Milky Mist",
@@ -583,12 +601,12 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Sambhar",
-    servingSize: "300g",
-    calories: 228,
-    protein: 11,
-    carbs: 32.4,
-    fat: 6.0,
-    fiber: 7.4
+    servingSize: "100g",
+    calories: 75,
+    protein: 3.2,
+    carbs: 10.2,
+    fat: 2.5,
+    fiber: 2.7
   },
   {
     name: "Bhindi Fry",
@@ -610,12 +628,12 @@ export const vegetarianFoods: FoodItem[] = [
   },
   {
     name: "Dosa",
-    servingSize: "120",
-    calories: 221,
-    protein: 5.4,
-    carbs: 33.9,
-    fat: 7.1,
-    fiber: 1.9
+    servingSize: "100g",
+    calories: 184,
+    protein: 4.5,
+    carbs: 28.3,
+    fat: 5.9,
+    fiber: 1.6
   },
     {
     name: "Suji Cheela",
@@ -879,12 +897,11 @@ export const mealPresets: MealPreset[] = [
       { name: "Oats, Quaker", quantity: 1 }, // 40g
       { name: "Omani Dates, Happilo", quantity: 1 }, // 24g
       { name: "Almonds", quantity: 1 }, // 6g
-      { name: "Skyr High Protein Yogurt, Milky Mist", quantity: 1 }, // 100g
       { name: "Raw Whey Protein, Unflavoured", quantity: 1 }, // 47g
       { name: "Nutty Gritties Super Seeds Mix", quantity: 1 }, // 9g
       { name: "Slim n Trim Skimmed Milk, Amul", quantity: 1 }, // 100ml
       { name: "Walnut", quantity: 1 }, // 6g
-      { name: "Mango", quantity: 1 } // 130g
+      { name: "Blueberries", quantity: 1.2 } // 120g
     ]
   },
   {
@@ -947,7 +964,7 @@ export const mealPresets: MealPreset[] = [
   {
     name: "Dosa Sambhar",
     foods: [
-      { name: "Dosa", quantity: 1 }, // 120g
+      { name: "Dosa", quantity: 1 }, // 200g
       { name: "Sambhar", quantity: 1 } // 300g
     ]
   }
