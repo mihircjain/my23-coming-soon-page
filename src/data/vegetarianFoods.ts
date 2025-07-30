@@ -30,6 +30,15 @@ export const vegetarianFoods: FoodItem[] = [
   fat: 4.4,
   fiber: 0.6
 },
+  {
+  name: "Chocolate  Cookie",
+  servingSize: "100g",
+  calories: 434,
+  protein: 4.4,
+  carbs: 57.3,
+  fat: 22.2,
+  fiber: 2.7
+},
 {
   name: "Durum Wheat Pasta, Borges",
   servingSize: "45g",
