@@ -536,15 +536,6 @@ export const vegetarianFoods: FoodItem[] = [
     fat: 3,
     fiber: 0.8
   },
-    {
-    name: "Blueberries",
-    servingSize: "100g",
-    calories: 57,
-    protein: 0.7,
-    carbs: 14.5,
-    fat: 0.3,
-    fiber: 2.4
-  },
       {
     name: "Dragon Fruit",
     servingSize: "100g",
@@ -733,6 +724,15 @@ export const vegetarianFoods: FoodItem[] = [
     carbs: 11.5,
     fat: 4.5,
     fiber: 2.7
+  },
+    {
+    name: "Aloo Pyaaz Paratha",
+    servingSize: "100g",
+    calories: 184,
+    protein: 4.5,
+    carbs: 30.2,
+    fat: 5.2,
+    fiber: 4.2
   },
   {
     name: "Low Fat Paneer Paratha",
