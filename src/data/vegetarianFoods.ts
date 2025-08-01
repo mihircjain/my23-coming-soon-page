@@ -230,7 +230,7 @@ export const vegetarianFoods: FoodItem[] = [
     fiber: 11.1
   },
     {
-    name: "Eat Fit Thali : Roti 150g, Dal Makhani 80g, Palak Paneer 150g",
+    name: "Eat Fit Thali ",
     servingSize: "500g",
     calories: 600,
     protein: 23,
