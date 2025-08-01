@@ -237,7 +237,7 @@ export const vegetarianFoods: FoodItem[] = [
     carbs: 89,
     fat: 17,
     fiber: 17
-  }
+  },
   {
     name: "Palak Paneer Paratha",
     servingSize: "200g",
